@@ -493,11 +493,12 @@ describe('long lists', () => {
 });
 
 describe('resource discovery loading', () => {
-  it('shows one concise live PIA loading state', () => {
+  it('shows one concise live Player Insights Agent loading state', () => {
     const markup = panel('sql-warehouse', null, { loading: true });
     expect(markup).toContain('role="status"');
-    expect(markup).toContain('pia-loader__phase--dpad');
-    expect(markup).toContain('pia-loader__phase--cluster');
+    expect(markup).toContain('pia-loader__face-cluster');
+    expect(markup.match(/pia-loader__button/g)).toHaveLength(4);
+    expect(markup).toContain('pia-loader__center');
     expect(text(markup)).toContain('Finding resources your sign-in can access');
     expect(markup).not.toContain('asset-picker-rows');
   });

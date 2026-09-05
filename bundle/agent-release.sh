@@ -18,7 +18,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/decisions-gate.sh"
 
-APPLY=false; SKIP_LOG=false; MODEL_VERSION=""; ALLOW_WIDENING=false; IGNORE_APP_INTENTIONS=false
+APPLY=false; SKIP_LOG=false; MODEL_VERSION=""; ALLOW_WIDENING=false
 SHOW_SERVED=false
 # Databricks serving allows three entities on one endpoint. Adding a fourth
 # fails the deploy; versions 5 and 6 of a sibling release were the other half of
@@ -35,10 +35,6 @@ while [[ $# -gt 0 ]]; do
     --apply) APPLY=true ;;
     --skip-log) SKIP_LOG=true ;;
     --model-version) MODEL_VERSION="$2"; shift ;;
-    # Releases even when the app holds an intention this release would not log.
-    # See correlate_with_app. A flag rather than a silent tolerance, for the same
-    # reason as --allow-widening: the disagreement is the finding.
-    --ignore-app-intentions) IGNORE_APP_INTENTIONS=true ;;
     # Approves declaring tables the live version was not granted. Passed through
     # to log_model.py, which refuses to log a wider manifest without it. A flag
     # rather than an environment variable on purpose: the whole defect this
@@ -60,6 +56,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_cmd databricks
+require_cmd node
 require_cmd uv
 
 require_target
@@ -91,6 +88,7 @@ LLM_GATEWAY="$(bundle_var_or_empty llm_gateway)"
 # selects is which tables become DatabricksTable resources. See MANIFEST_SOURCES
 # in agent/preflight.py, including what `genie` costs in enforced governance.
 MANIFEST_SOURCE="$(bundle_var_or_empty manifest_source)"
+APP_STORE_SCHEMA="$(bundle_var lakebase_app_schema)"
 # NOTHING IS READ HERE ABOUT THE NATURE OF THE DATA. `synthetic_data` was read
 # at this position, printed in the readout below, and exported into the log so
 # the agent could append a sentence saying the figures were generated. Variable,
@@ -362,29 +360,18 @@ unset PLAYER_INSIGHTS_FRANCHISE_TAGS
 # discovering months later that a value somebody recorded described a workspace
 # nobody deployed to.
 #
-# The join is `agentKey`, published by the app on each connected resource for
-# this purpose, so there is no second copy of the resource-to-setting mapping. A
-# copy of that mapping is how these two halves came to be able to disagree.
+# The machine reader joins each stored resource id to the same `agentKey`
+# contract the app publishes. Its regression test compares that map against
+# shared/deployment-config.ts so a new stageable setting cannot disappear here.
 #
-# READS /api/settings, HAVING READ /api/setup UNTIL 2026-08-10. The first-run
-# wizard was deleted and its endpoint now answers 410 `setup_removed` to every
-# caller by design, so this check reported "did not answer" on every run and
-# passed. That is the worst state for a gate: permanently inert, still printing,
-# and its noise teaching people to skim the release output where the live gates
-# are. It was RE-POINTED rather than retired because the hazard did not go away
-# with the wizard. `/api/settings` is its successor, it publishes the same
-# `agentKey` vocabulary from the same shared/deployment-config.ts, and
-# `resources[].intended` is exactly the old `steps[].intended`: a value somebody
-# saved and has not applied. Retiring the check would have deleted the only
-# thing that closes that loop.
-#
-# What did NOT survive the move is per-value proof of reachability. The wizard
-# recorded whether it had watched a value work, which let this gate report a
-# value proved UNREACHABLE instead of refusing over it. The settings payload has
-# no equivalent, so that branch is gone rather than guessed at, and provenance is
-# reported from `intendedBy`/`intendedAt` instead: who saved it and when.
+# Do not read the browser route here. Databricks Apps requires both proxy
+# identity and the app-session cookie for `/api/settings`; a workspace OAuth
+# token alone correctly receives 401. The release operator instead connects to
+# the app-owned Lakebase branch with a short-lived OAuth database credential,
+# the same secure machine path app-db-grant.sh already uses. There is no route,
+# cookie, hardcoded token, or unchecked fallback in this gate.
 correlate_with_app() {
-  local app_name app_url token settings_json
+  local app_name settings_json reader
   # `|| app_name=""` outside the substitution, not `|| true` inside it. bundle_var
   # reaches `die`, which is `exit 1`, and an `exit` in the left operand of `||`
   # ends the subshell without ever running the right one, so the substitution
@@ -394,75 +381,27 @@ correlate_with_app() {
   app_name="$(bundle_var app_name 2>/dev/null)" || app_name=""
   [[ -n "$app_name" ]] || { note "app                   (target declares none, nothing to correlate against)"; return 0; }
 
-  app_url="$(databricks apps get "$app_name" --profile "$PROFILE" -o json 2>/dev/null \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin).get("url") or "")' 2>/dev/null || true)"
-  if [[ -z "$app_url" ]]; then
-    note "app intentions        not read: app '$app_name' is not serving yet."
-    note "                      Expected before the first app release. Nothing to disagree with."
+  if ! databricks apps get "$app_name" --profile "$PROFILE" -o json >/dev/null 2>&1; then
+    note "app intentions        not read: app '$app_name' does not exist yet."
+    note "                      Expected before the first bundle deployment. Nothing to disagree with."
     return 0
   fi
 
-  token="$(databricks auth token --profile "$PROFILE" 2>/dev/null \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true)"
-  # Separate the status from the body, because a 401 here is a specific and
-  # misleading failure: /api/settings is behind the app's identity gate, which
-  # reads the `x-forwarded-email` header that Databricks Apps injects for a user.
-  # A human's OAuth token gets that header and a 200. A service principal's does
-  # not, so an automated caller is refused, and would otherwise fall into the
-  # "did not answer" branch below and release unchecked, which is precisely the
-  # silence this gate exists to break.
-  local http_status=""
-  settings_json=""
-  if [[ -n "$token" ]]; then
-    settings_json="$(curl -sS --max-time 20 -w '\n%{http_code}' \
-      -H "Authorization: Bearer $token" "$app_url/api/settings" 2>/dev/null || true)"
-    http_status="${settings_json##*$'\n'}"
-    settings_json="${settings_json%$'\n'*}"
-    [[ "$http_status" == "200" ]] || settings_json=""
-  fi
-
-  # REFUSES, rather than warning and returning 0 as it first did. A gate that
-  # returns success for the one caller least able to satisfy it is not a gate: CI
-  # is where a release goes out with nobody reading the output, so an advisory
-  # note there is the same as no check at all. The escape hatch does the
-  # releasing now, which is what makes it a decision rather than a tolerance.
-  if [[ "$http_status" == "401" || "$http_status" == "403" ]]; then
-    note "app intentions        NOT READ: $app_url/api/settings returned $http_status."
-    note "                      That endpoint needs the identity header Apps injects for a"
-    note "                      signed-in user. A service principal does not get one, so this"
-    note "                      is the expected result from CI or any non-human caller."
-    note ""
-    note "REFUSED. The correlation check could not run, so nothing here can say this"
-    note "release agrees with what the wizard proved."
-    note ""
-    note "  the caller is a service principal, and /api/settings cannot identify one"
-    note ""
-    note "    run it as yourself  -> re-run under your own profile, where the endpoint"
-    note "                           answers and the check actually compares"
-    note "    release regardless  -> add --ignore-app-intentions"
-    note ""
-    note "In CI, --ignore-app-intentions belongs in the pipeline definition, where"
-    note "releasing without this check is a policy someone wrote down and can be asked"
-    note "about. Until it is there, this is a release that may log a value the wizard"
-    note "has already proved wrong, leaving the app reporting that step as pending for"
-    note "good and the wizard still naming this command as the thing that would fix it."
+  reader="$BUNDLE_ROOT/player-insights-agent/scripts/read-release-intentions.mjs"
+  [[ -f "$reader" ]] || {
+    note "REFUSED. The secure app-intention reader is missing: $reader"
     return 1
-  fi
-
-  if [[ -z "$settings_json" ]]; then
-    note "app intentions        not read: $app_url/api/settings did not answer${http_status:+ (HTTP $http_status)}."
-    if [[ "$http_status" == "404" || "$http_status" == "410" ]]; then
-      # Named, because this exact shape is how the check went inert once before:
-      # it kept calling /api/setup after the wizard was deleted, took the answer
-      # of a route that is gone for the answer of a deployment with nothing to
-      # say, and passed every run for it.
-      note "                      $http_status means the route is not there, which is a STALE APP"
-      note "                      BUILD rather than an app with no intentions. Deploy the app"
-      note "                      (bundle/app-release.sh) and this check starts comparing again."
-    fi
-    note "                      Proceeding. This check can only ever add a refusal;"
-    note "                      it is not a permission to release."
-    return 0
+  }
+  if ! settings_json="$(
+    DATABRICKS_CONFIG_PROFILE="$PROFILE" \
+    PLAYER_INSIGHTS_APP_NAME="$app_name" \
+    PLAYER_INSIGHTS_APP_SCHEMA="$APP_STORE_SCHEMA" \
+      node "$reader"
+  )"; then
+    note "app intentions        NOT READ: the direct Lakebase OAuth reader failed."
+    note "REFUSED. The release profile must be able to read the app-owned"
+    note "deployment_settings table; there is no browser-session or unchecked fallback."
+    return 1
   fi
 
   printf '%s' "$settings_json" | ABOUT_TO_LOG="$(python3 -c '
@@ -484,35 +423,23 @@ import json, os, sys
 
 about = json.loads(os.environ["ABOUT_TO_LOG"])
 payload = json.load(sys.stdin)
-# /api/settings publishes one entry per CONNECTED_RESOURCE, each carrying the
-# resource it describes and, when somebody has saved a value that is not in
-# force, an `intended`. Everything below reads through this list, so a payload
-# that is missing it is treated as "nothing to compare" rather than crashing the
-# release on a KeyError.
+# The direct reader returns one entry per stored `intended` setting. An empty
+# list means the authoritative table was read and nobody has staged a model
+# change; reader failure never reaches this parser.
 resources = payload.get("resources") or []
 
 def same(a, b):
     # Comma-separated lists are compared as sets: the allowlist means the same
     # thing whichever order it was typed in, and a refusal over ordering would
-    # be noise that trains people to pass --ignore-app-intentions.
+    # be noise rather than a real target/source mismatch.
     norm = lambda v: {p.strip() for p in str(v).split(",") if p.strip()}
     if "," in str(a) or "," in str(b):
         return norm(a) == norm(b)
     return str(a).strip() == str(b).strip()
 
-# An app build that predates this contract publishes no agentKey on any
-# resource, so every comparison below would be skipped and the run would print
-# "nothing to disagree with", a pass that means "I could not look". That is
-# precisely the shape of silence this check exists to remove, so it is called out
-# instead.
 if resources and not any((entry.get("resource") or {}).get("agentKey") for entry in resources):
-    print("  note  the running app publishes no `agentKey` on any connected resource, so")
-    print("        this release could not be compared against anything it was told.")
-    print("        That app build predates the correlation contract. Deploy the app")
-    print("        (bundle/app-release.sh) and this check starts working; until then")
-    print("        it is inert, and a value saved in the app can still silently")
-    print("        disagree with what is logged here.")
-    raise SystemExit(0)
+    print("  REFUSED. The machine reader returned intentions without an agentKey contract.")
+    raise SystemExit(1)
 
 disagreements, agreements, unreadable = [], [], []
 for entry in resources:
@@ -531,8 +458,8 @@ for entry in resources:
     if same(intended, about[key]):
         agreements.append((name, intended))
         continue
-    # Every saved disagreement is a refusal unless the operator explicitly uses
-    # --ignore-app-intentions.
+    # Every saved disagreement is a refusal. There is deliberately no release
+    # flag that can turn a failed compatibility gate into success.
     disagreements.append((name, key, intended, about[key], entry.get("intendedBy") or "", entry.get("intendedAt") or ""))
 
 for name, value in agreements:
@@ -562,30 +489,12 @@ print("    the app is right   -> put the value in .databricks/bundle/<target>/va
 print("                          (or the matching BUNDLE_VAR_*) and re-run this")
 print("    the bundle is right-> clear the saved value on the app'\''s Connections page")
 print("                          (DELETE /api/settings/values/<resource>)")
-print("")
-print("  To release anyway, knowing the app will keep reporting those resources as")
-print("  having an intended value that is not in effect: --ignore-app-intentions")
 raise SystemExit(1)
 '
 }
 
 step "Correlating with what the app was told (target: $TARGET)"
-# The flag downgrades a refusal; it no longer skips the check. Skipping it put
-# one line in the log, "skipped on --ignore-app-intentions", which recorded
-# that somebody passed a flag but not what the flag let through, so the trace was
-# useless to whoever read it afterwards. Running the check either way means the
-# release log always names the disagreement, or names the reason the comparison
-# could not be made, and the flag's only effect is that the run continues.
-if ! correlate_with_app; then
-  if [[ "$IGNORE_APP_INTENTIONS" == true ]]; then
-    note ""
-    note "Released anyway on --ignore-app-intentions. The finding above stands: the"
-    note "app will keep reporting as pending every step this release disagreed with,"
-    note "or could not be compared against."
-  else
-    exit 1
-  fi
-fi
+correlate_with_app || exit 1
 
 if [[ "$APPLY" != true ]]; then
   cat <<EOF

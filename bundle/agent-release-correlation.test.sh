@@ -4,19 +4,16 @@
 # WHAT THESE ARE FOR: the gate refuses a release when a value somebody saved in
 # the app disagrees with what the release would log. It has two ways to be wrong
 # and only one of them is visible. Refusing a legitimate release is loud and gets
-# fixed within the hour. PASSING something it was built to catch is silent, and
-# it has been silent twice. Once for a day, when the 401 branch (the one every CI
-# caller takes, because the endpoint cannot identify a service principal) printed
-# a warning and returned success. Once for longer, when the wizard was deleted
-# and the gate went on calling /api/setup: that route answers 410 by design, the
-# gate read it as "did not answer" and passed every run for months. Case 8 is
-# there so the second one cannot recur silently.
+# fixed within the hour. PASSING something it was built to catch is silent. The
+# old browser-route reader always returned 401 to automation because it had no
+# app-session cookie. The replacement reads Lakebase directly with the release
+# profile's OAuth credential and fails closed when that machine path cannot read.
 #
 # So each case below asserts an EXIT STATUS as well as the text. A gate that
 # prints "REFUSED" and returns 0 satisfies any assertion made on output alone,
 # which is exactly how the original defect survived review.
 #
-# HOW: the real script is run, unmodified, with `databricks`, `curl` and `uv`
+# HOW: the real script is run, unmodified, with `databricks`, `node` and `uv`
 # replaced by stubs on PATH. Nothing here reimplements the gate. A test that
 # restates the logic it is checking passes when the logic is wrong. Stubbing the
 # CLI is also what lets a 401 be tested at all: the live app answers a human 200,
@@ -47,9 +44,9 @@ FAIL=0
 # Driven by environment variables so each case can move one fact and leave the
 # rest alone.
 #
-#   FAKE_HTTP_STATUS    what /api/settings returns
-#   FAKE_SETTINGS_BODY  the body it returns with it
-#   FAKE_APP_URL        empty to simulate an app that is not serving yet
+#   FAKE_READER_STATUS  the direct Lakebase reader's exit status
+#   FAKE_SETTINGS_BODY  the bounded intentions document it returns
+#   FAKE_APP_EXISTS     false to simulate a pre-bundle workspace
 
 cat >"$STUBS/databricks" <<'STUB'
 #!/usr/bin/env bash
@@ -100,6 +97,7 @@ case "$1 $2" in
     "app_name":                 { "value": "test-app" },
     "allow_unattributed_figures": { "value": "" },
     "semantic_index_endpoint":  { "value": "" },
+    "lakebase_app_schema":      { "value": "player_insights" },
     "execution_identity":       { "value": "user-authorization" }
   },
   "resources": { "apps": { "player_insights_app": { "name": "test-app" } } }
@@ -107,7 +105,8 @@ case "$1 $2" in
 JSON
     ;;
   "apps get")
-    printf '{"url": "%s"}\n' "${FAKE_APP_URL-https://fake.databricksapps.com}"
+    [[ "${FAKE_APP_EXISTS-true}" == true ]] || exit 1
+    printf '{"name":"test-app"}\n'
     ;;
   "auth token")
     echo '{"access_token": "fake-token"}'
@@ -122,13 +121,26 @@ JSON
 esac
 STUB
 
-# The real call is `curl -sS --max-time 20 -w '\n%{http_code}' ...`, so the status
-# arrives appended after a newline and the script splits on the LAST one. The stub
-# has to reproduce that shape exactly, including the absence of a trailing newline
-# on the body.
+# The machine reader is a separate Node process. Its stub returns the same
+# bounded JSON contract or an authorization failure without making a network
+# connection. The curl stub is a tripwire: any browser-route fallback fails.
+cat >"$STUBS/node" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${FAKE_READER_STATUS-0}" != 0 ]]; then
+  echo "ERROR: secure app-intention read failed: ${FAKE_READER_ERROR-machine credential refused}" >&2
+  exit "${FAKE_READER_STATUS}"
+fi
+if [[ -n "${FAKE_SETTINGS_BODY+x}" ]]; then
+  printf '%s\n' "$FAKE_SETTINGS_BODY"
+else
+  printf '%s\n' '{"source":"lakebase-direct-oauth","resources":[]}'
+fi
+STUB
+
 cat >"$STUBS/curl" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n%s' "${FAKE_SETTINGS_BODY-}" "${FAKE_HTTP_STATUS-200}"
+echo "browser fallback was called" >&2
+exit 99
 STUB
 
 # Needed only by `require_cmd uv`. Every uv call is past the gate, and no case
@@ -139,7 +151,7 @@ echo "stub uv should not have been reached: $*" >&2
 exit 1
 STUB
 
-chmod +x "$STUBS/databricks" "$STUBS/curl" "$STUBS/uv"
+chmod +x "$STUBS/databricks" "$STUBS/node" "$STUBS/curl" "$STUBS/uv"
 
 # --- Harness -----------------------------------------------------------------
 
@@ -160,7 +172,11 @@ run_release() {
 }
 
 ok()   { PASS=$((PASS + 1)); printf '  ok    %s\n' "$1"; }
-bad()  { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; }
+bad()  {
+  FAIL=$((FAIL + 1))
+  printf '  FAIL  %s\n' "$1"
+  [[ -f "$LAST_OUT" ]] && while IFS= read -r line; do printf '        %s\n' "$line"; done <"$LAST_OUT"
+}
 
 expect_status() {
   local want="$1" got="$2" what="$3"
@@ -178,11 +194,10 @@ expect_absent(){ grep -qF -- "$2" "$LAST_OUT" && bad "$1: present and should not
 
 # --- Fixtures ----------------------------------------------------------------
 
-# The /api/settings shape: one entry per connected resource, the resource nested
-# inside it, and `intended` set only when somebody saved a value that is not in
-# force. `catalog`/`catalog` are the real id and agentKey from
-# shared/deployment-config.ts, so a rename there fails these rather than passing
-# against a shape the app never sends.
+# The direct reader shape: one entry per staged setting with the resource nested
+# inside it. `catalog`/`catalog` are the real id and agentKey from
+# shared/deployment-config.ts, so a rename fails these rather than passing
+# against a shape the machine reader never sends.
 #
 # The app agrees with the bundle: same catalog, and it publishes an agentKey, so
 # the comparison is live rather than inert.
@@ -200,98 +215,64 @@ NOTHING_SAVED='{"resources":[{"resource":{"id":"catalog","agentKey":"catalog","l
         "intended":null,"intendedBy":"","intendedAt":""}]}'
 
 echo
-echo "=== 1. service principal (401), no flag: must REFUSE and stop the release ==="
-FAKE_HTTP_STATUS=401 FAKE_SETTINGS_BODY='{"error":"unauthorized"}' \
+echo "=== 1. machine OAuth reader failure: must REFUSE and stop the release ==="
+FAKE_READER_STATUS=1 FAKE_READER_ERROR='401 Unauthorized: Bearer [REDACTED]' \
   run_release 401-no-flag; status=$?
 expect_status nonzero "$status" "the release fails"
-expect_text  "says the check was not read, with the status"  "NOT READ"
-expect_text  "names the reason a CI caller hits this"        "service principal"
+expect_text  "says the authoritative read failed"            "direct Lakebase OAuth reader failed"
 expect_text  "refuses in as many words"                      "REFUSED."
-expect_text  "offers running it as a person"                 "run it as yourself"
-expect_text  "names the flag as the deliberate way through"  "--ignore-app-intentions"
+expect_text  "names the required secure source"              "deployment_settings table"
+expect_absent "does not call the browser fallback"           "browser fallback was called"
 # The gate must STOP the run, not print its warning and carry on to the dry-run
 # summary, which would report the release as having succeeded.
 expect_absent "the run stopped at the gate, not after it"    "Dry run"
-expect_absent "did not claim it released"                    "Released anyway"
 
 echo
-echo "=== 2. service principal (401) WITH the flag: releases, and says what it let through ==="
-FAKE_HTTP_STATUS=401 FAKE_SETTINGS_BODY='{"error":"unauthorized"}' \
+echo "=== 2. the retired bypass flag is rejected rather than skipping the gate ==="
+FAKE_READER_STATUS=1 \
   run_release 401-with-flag --ignore-app-intentions; status=$?
-expect_status 0 "$status" "the release proceeds"
-expect_text  "the loud note is still in the log"             "NOT READ"
-expect_text  "still explains the service principal case"     "service principal"
-expect_text  "records that the flag did the releasing"       "Released anyway on --ignore-app-intentions"
-expect_text  "reached the rest of the run"                   "Dry run"
+expect_status nonzero "$status" "the release refuses the bypass"
+expect_text  "the retired flag is unknown"                   "unknown argument: --ignore-app-intentions"
+expect_absent "the bypass never reaches the dry-run success" "Dry run"
 
 echo
-echo "=== 3. a 403 is the same finding as a 401 ==="
-FAKE_HTTP_STATUS=403 FAKE_SETTINGS_BODY='{"error":"forbidden"}' \
+echo "=== 3. a 403 from the machine credential is the same refusal ==="
+FAKE_READER_STATUS=1 FAKE_READER_ERROR='403 Forbidden' \
   run_release 403-no-flag; status=$?
 expect_status nonzero "$status" "the release fails"
-expect_text  "reports the status it actually got"            "returned 403"
+expect_text  "reports the secure reader failure"             "secure app-intention read failed"
 
 echo
-echo "=== 4. a human caller whose app agrees: still passes ==="
-FAKE_HTTP_STATUS=200 FAKE_SETTINGS_BODY="$AGREES" \
+echo "=== 4. a machine caller whose stored intention agrees: passes ==="
+FAKE_READER_STATUS=0 FAKE_APP_EXISTS=true FAKE_SETTINGS_BODY="$AGREES" \
   run_release 200-agrees; status=$?
 expect_status 0 "$status" "the release proceeds"
 expect_text  "reports the agreement"                         "and that is what this release logs"
 expect_absent "nothing was refused"                          "REFUSED"
 
 echo
-echo "=== 5. a human caller whose app disagrees: still refuses ==="
-FAKE_HTTP_STATUS=200 FAKE_SETTINGS_BODY="$DISAGREES" \
+echo "=== 5. a machine caller whose stored intention disagrees: refuses ==="
+FAKE_READER_STATUS=0 FAKE_SETTINGS_BODY="$DISAGREES" \
   run_release 200-disagrees; status=$?
 expect_status nonzero "$status" "the release fails"
 expect_text  "refuses"                                       "REFUSED."
-expect_text  "quotes the app's value"                        "someone_elses_catalog"
+expect_text  "quotes the stored value"                       "someone_elses_catalog"
 expect_absent "the run stopped at the gate"                  "Dry run"
 
 echo
-echo "=== 6. disagreement WITH the flag: releases, and the disagreement is on the record ==="
-FAKE_HTTP_STATUS=200 FAKE_SETTINGS_BODY="$DISAGREES" \
-  run_release 200-disagrees-with-flag --ignore-app-intentions; status=$?
-expect_status 0 "$status" "the release proceeds"
-# The flag must not skip the check itself: the disagreement is still printed, so
-# the log says what was released over rather than only that something was.
-expect_text  "the disagreement is still printed"             "someone_elses_catalog"
-expect_text  "records that the flag did the releasing"        "Released anyway on --ignore-app-intentions"
-expect_text  "reached the rest of the run"                    "Dry run"
-
-echo
-echo "=== 7. app not serving yet: a legitimate pass, unchanged ==="
-FAKE_APP_URL="" FAKE_HTTP_STATUS=200 FAKE_SETTINGS_BODY="$AGREES" \
+echo "=== 6. app not created yet: a legitimate greenfield pass ==="
+FAKE_APP_EXISTS=false FAKE_READER_STATUS=0 FAKE_SETTINGS_BODY="$AGREES" \
   run_release no-app-url; status=$?
 expect_status 0 "$status" "the release proceeds"
-expect_text  "says why it could not look"                    "is not serving yet"
+expect_text  "says why it could not look"                    "does not exist yet"
 
 echo
-echo "=== 8. a route that is GONE must not read as an app with nothing to say ==="
-# The defect this case exists for: the gate went on calling /api/setup after the
-# first-run wizard was deleted. That route answers 410 by design, so the gate
-# took "the endpoint is not there" for "the deployment has no intentions" and
-# passed, on every run, for months. It still passes here -- the check can only
-# ever add a refusal -- but it must SAY that a missing route is a stale build,
-# because a pass that reads like every other pass is how it stayed unnoticed.
-FAKE_HTTP_STATUS=410 FAKE_SETTINGS_BODY='{"error":"setup_removed"}' \
-  run_release 410-gone; status=$?
-expect_status 0 "$status" "the release proceeds"
-expect_text  "reports the status it actually got"            "(HTTP 410)"
-expect_text  "names it as a stale build, not as silence"     "STALE APP"
-expect_text  "says what would fix it"                        "bundle/app-release.sh"
-expect_absent "did not claim the app agreed with anything"   "and that is what this release logs"
-
-echo
-echo "=== 9. published resource with nothing saved: a pass that LOOKED ==="
-FAKE_HTTP_STATUS=200 FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
+echo "=== 7. authoritative table with nothing saved: a pass that LOOKED ==="
+FAKE_APP_EXISTS=true FAKE_READER_STATUS=0 FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
   run_release nothing-saved; status=$?
 expect_status 0 "$status" "the release proceeds"
 expect_text  "says it had nothing to disagree with"          "no outstanding intentions"
 expect_absent "nothing was refused"                          "REFUSED"
-# The inert-build note is for a payload with no agentKey anywhere. A resource
-# that publishes one and simply has no saved value must not trip it.
-expect_absent "did not misreport a healthy app as a stale build"  "predates the correlation contract"
 
 echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
@@ -302,7 +283,7 @@ printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 # passed while matching nothing, so the count is held to a floor here rather than
 # left implied. Raise it when cases are added; it is deliberately below the
 # current count so adding one case is not a two-file change.
-readonly MIN_ASSERTIONS=35
+readonly MIN_ASSERTIONS=20
 (( PASS >= MIN_ASSERTIONS )) || {
     printf '\nFAIL  only %s assertions ran; at least %s are expected.\n' "$PASS" "$MIN_ASSERTIONS" >&2
     printf '      Nothing failed, but this run did not check what it claims to.\n' >&2

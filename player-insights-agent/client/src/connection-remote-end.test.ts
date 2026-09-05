@@ -58,8 +58,8 @@ function statusOf(id: string, over: Partial<ResourceRow> = {}, probe?: Preflight
  *
  * Written out rather than derived from the flag, so a later edit that flips one
  * has to change this list and say why. The last two are objects that exist and
- * still belong here: nothing in this deployment opens the assets volume, and the
- * experiment is a deep-link target rather than a dependency.
+ * still belong here: nothing in this deployment opens the assets volume. The
+ * experiment moved out when its runtime resolver gained a real existence probe.
  */
 const SETTINGS = [
   'catalog-allowlist',
@@ -67,7 +67,6 @@ const SETTINGS = [
   'max-output-tokens',
   'lakebase-schema',
   'assets-volume',
-  'experiment-id',
   'shared-conversation-rail',
 ];
 
@@ -89,7 +88,7 @@ describe('the registry says whether a value names anything to reach', () => {
     'never promises a reachability verdict for %s',
     (id) => {
       expect(statusOf(id, { configured: 'something' })).toBe('nothing-to-reach');
-    },
+    }
   );
 });
 

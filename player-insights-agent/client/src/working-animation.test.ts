@@ -101,6 +101,7 @@ describe('which seating the loader takes', () => {
       RESOURCE_TAGS,
       readFileSync(new URL('AgentConstellation.tsx', HERE), 'utf8'),
       readFileSync(new URL('MonitoringPage.tsx', HERE), 'utf8'),
+      readFileSync(new URL('RunStatusPill.tsx', HERE), 'utf8'),
     ].join('\n');
     for (const seat of ['splash', 'compact', 'inline', 'button', 'status'] satisfies PiaLoaderSeat[]) {
       expect(seated, `the ${seat} seating is drawn somewhere`).toContain(`seat="${seat}"`);
