@@ -39,6 +39,7 @@ from agent import (
     _is_grant_timing_note,
     _needs_dictionary,
     _plan_id,
+    gateway_refusal,
     reader_facing_findings,
     system_text,
 )
@@ -361,6 +362,8 @@ def ask(runtime, question="Compare active players by label.", **custom_inputs):
     custom_inputs.setdefault("execute_plan", True)
     custom_inputs.setdefault("identity_mode", execution_identity.SIGNED_IN_USER)
     custom_inputs.setdefault("expected_user", TEST_USER)
+    if runtime.settings.llm_gateway_endpoint:
+        custom_inputs.setdefault("llm_route", "ai_gateway")
     return runtime.predict(
         app_request(input=[{"role": "user", "content": question}], custom_inputs=custom_inputs)
     )
@@ -1386,7 +1389,10 @@ class RefusingGateway(ScriptedLlm):
 #: every case expecting a gateway verdict: a serving endpoint refuses with the
 #: same status codes and `error_code` bodies, so the ROUTE is the only thing that
 #: makes a refusal the gateway's.
-GATEWAY_BOUND = {"llm_gateway": "mlflow"}
+GATEWAY_BOUND = {
+    "llm_gateway": "mlflow",
+    "llm_gateway_endpoint": "test_catalog.test_schema.gateway_model",
+}
 
 
 def test_a_gateway_rate_limit_is_reported_as_governance_and_not_as_an_outage():
@@ -1462,6 +1468,15 @@ def test_a_gateway_refusal_carries_the_gateway_s_own_words():
     answer = ask(build(RefusingGateway(), **GATEWAY_BOUND)).custom_outputs["answer"]
 
     assert "REQUEST_LIMIT_EXCEEDED" in " ".join(answer["caveats"])
+
+
+def test_a_gateway_refusal_redacts_the_private_model_service_identifier():
+    error = RuntimeError("private.catalog.gateway_model was blocked")
+    error.status_code = 403  # type: ignore[attr-defined]
+    error.body = {"error_code": "PERMISSION_DENIED"}  # type: ignore[attr-defined]
+    reason = gateway_refusal(error, "mlflow") or ""
+    assert "PERMISSION_DENIED" in reason
+    assert "private.catalog.gateway_model" not in reason
 
 
 def test_an_unrecognised_refusal_code_is_still_a_refusal():

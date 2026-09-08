@@ -11,6 +11,7 @@ import {
   showsEgressControls,
   showsForecasting,
   showsNotebookAgentSync,
+  usesAiGateway,
   withExperimentalFeature,
   type ExperimentalFeatures,
 } from './experimental-features';
@@ -344,6 +345,31 @@ export function SettingsPage({
                     </tr>
                   </thead>
                   <tbody>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName kind="ai-gateway">AI Gateway</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Routes model requests through the configured Unity Catalog AI Gateway service and its
+                          policies.
+                        </p>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={usesAiGateway(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={usesAiGateway(draftFeatures)}
+                            disabled={!experimentalLoaded || !showsAdminSurfaces(role.state)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) => withExperimentalFeature(current, 'aiGateway', enabled));
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Enable AI Gateway"
+                          />
+                        </div>
+                      </td>
+                    </tr>
                     <tr>
                       <td>
                         <ExperimentalFeatureName kind="egress-controls">Egress controls panel</ExperimentalFeatureName>

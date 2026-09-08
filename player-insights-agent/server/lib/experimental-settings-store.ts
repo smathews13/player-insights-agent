@@ -58,6 +58,28 @@ export async function writeExperimentalSettings(
   updatedBy: string
 ): Promise<VersionedSettings<ExperimentalFeatures>> {
   const document = await writeVersionedSettingsPatch(client, STORE, patch, revision, updatedBy);
-  forgetExperimentalSettings();
+  cache.set(client, { document, at: Date.now() });
   return document;
+}
+
+/**
+ * Resolve the routing toggle for a new ask.
+ *
+ * A successful read is authoritative. During a transient Lakebase failure, keep
+ * the last state this process actually read or wrote so an enabled Gateway never
+ * silently falls back to direct. A cold process with no state preserves the
+ * schema's default-off behavior.
+ */
+export async function readAiGatewayEnabled(client: LakebaseReader): Promise<boolean> {
+  try {
+    return (await readExperimentalSettings(client, { maxAgeMs: 0 })).settings.aiGateway;
+  } catch (error) {
+    const remembered = cache.get(client);
+    if (remembered) return remembered.document.settings.aiGateway;
+    console.warn(
+      '[experimental-settings] AI Gateway state could not be read; using the default-off state:',
+      (error as Error).message
+    );
+    return false;
+  }
 }

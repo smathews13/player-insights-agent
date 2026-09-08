@@ -102,6 +102,7 @@ export const SCOPE_BY_API_PREFIX: Readonly<Record<string, string>> = {
   '/api/2.1/unity-catalog/catalogs/': 'catalog.catalogs:read',
   '/api/2.1/unity-catalog/schemas/': 'catalog.schemas:read',
   '/api/2.1/unity-catalog/tables/': 'catalog.tables:read',
+  '/api/2.1/unity-catalog/model-services/': 'model-serving',
   '/api/2.0/vector-search/indexes/': 'vectorsearch.vector-search-indexes:read',
   '/api/2.0/vector-search/endpoints/': 'vectorsearch.vector-search-endpoints:read',
   '/api/2.0/serving-endpoints/': 'serving.serving-endpoints',
@@ -302,12 +303,6 @@ const SERVING_ENDPOINTS = [
     label: 'Foundation model',
     onAnswerPath: true,
     note: 'The orchestrator reasons and writes with this endpoint.',
-  },
-  {
-    id: 'llm-gateway',
-    label: 'AI Gateway',
-    onAnswerPath: false,
-    note: 'Model calls are routed through this gateway when one is configured.',
   },
   {
     id: 'judge-endpoint',
@@ -513,6 +508,29 @@ export function connectionSubjects(input: {
     // never reached.
     if (!endpoint || endpoint.includes('/')) continue;
     subjects.push(servingEndpointSubject(id, label, endpoint, note));
+  }
+
+  const gateway = value('llm-gateway');
+  if (gateway && !gateway.includes('/') && gateway.split('.').length === 3) {
+    subjects.push({
+      id: 'llm-gateway',
+      kind: 'model-service',
+      name: gateway,
+      label: `AI Gateway model service \u00b7 ${gateway}`,
+      path: `/api/2.1/unity-catalog/model-services/${encodeURIComponent(gateway)}`,
+      proves:
+        'It proves the configured model service metadata is reachable. The experimental toggle separately decides whether new asks use it.',
+      observe: (body) => {
+        const state = text(body.status) || text(body.state) || text(record(body.state).ready);
+        return state ? `state ${state}` : 'metadata available';
+      },
+      displayName: (body) => text(body.display_name) || text(body.full_name),
+      facts: (body) =>
+        compactFacts({
+          readiness: text(body.status) || text(body.state) || text(record(body.state).ready),
+          service_type: text(body.service_type) || text(body.type),
+        }),
+    });
   }
 
   const index = resolveSemanticIndexValue(value('semantic-index'), value('catalog'), value('schema'));

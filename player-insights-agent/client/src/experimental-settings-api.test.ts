@@ -10,14 +10,26 @@ describe('Experimental settings durable API', () => {
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            settings: { benchmarkLab: true, egressControls: false, forecasting: true, notebookAgentSync: false },
+            settings: {
+              aiGateway: false,
+              benchmarkLab: true,
+              egressControls: false,
+              forecasting: true,
+              notebookAgentSync: false,
+            },
             revision: 7,
           })
         )
       )
     );
     await expect(loadExperimentalSettings()).resolves.toEqual({
-      settings: { benchmarkLab: true, egressControls: false, forecasting: true, notebookAgentSync: false },
+      settings: {
+        aiGateway: false,
+        benchmarkLab: true,
+        egressControls: false,
+        forecasting: true,
+        notebookAgentSync: false,
+      },
       revision: 7,
     });
   });
@@ -26,7 +38,13 @@ describe('Experimental settings durable API', () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          settings: { benchmarkLab: true, egressControls: false, forecasting: false, notebookAgentSync: false },
+          settings: {
+            aiGateway: false,
+            benchmarkLab: true,
+            egressControls: false,
+            forecasting: false,
+            notebookAgentSync: false,
+          },
           revision: 3,
         })
       )

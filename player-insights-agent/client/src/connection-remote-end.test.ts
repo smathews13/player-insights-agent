@@ -65,6 +65,7 @@ const SETTINGS = [
   'catalog-allowlist',
   'catalog-denylist',
   'max-output-tokens',
+  'llm-gateway-mode',
   'lakebase-schema',
   'assets-volume',
   'shared-conversation-rail',

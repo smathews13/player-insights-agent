@@ -81,10 +81,29 @@ def test_values_that_are_not_environment_specific_still_default():
     settings = Settings.from_env(env=CUSTOMER, baked={})
 
     assert settings.llm_endpoint == "databricks-claude-sonnet-4-6"
+    assert settings.llm_gateway_endpoint == ""
     assert settings.max_output_tokens == 4000
     # The SQL fallback's allowlist follows the catalog it was given, so it can
     # never be left pointing at the previous deployment's catalog.
     assert settings.catalog_allowlist == ("acme_catalog",)
+
+
+def test_gateway_capability_requires_service_and_transport_as_one_pair():
+    with pytest.raises(MissingConfiguration):
+        Settings.from_env(
+            env={**CUSTOMER, "PLAYER_INSIGHTS_LLM_GATEWAY": "mlflow"},
+            baked={},
+        )
+    configured = Settings.from_env(
+        env={
+            **CUSTOMER,
+            "PLAYER_INSIGHTS_LLM_GATEWAY": "mlflow",
+            "PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT": "catalog.schema.gateway_model",
+        },
+        baked={},
+    )
+    assert configured.llm_endpoint == "databricks-claude-sonnet-4-6"
+    assert configured.llm_gateway_endpoint == "catalog.schema.gateway_model"
 
 
 # ---------------------------------------------------------------------------
@@ -386,9 +405,7 @@ def test_the_environment_variable_no_longer_reaches_anything():
     runbooks. It now resolves to nothing at all rather than to a claim.
     """
 
-    served = Settings.from_env(
-        env={**CUSTOMER, "PLAYER_INSIGHTS_SYNTHETIC_DATA": "true"}, baked={}
-    )
+    served = Settings.from_env(env={**CUSTOMER, "PLAYER_INSIGHTS_SYNTHETIC_DATA": "true"}, baked={})
 
     assert not hasattr(served, "synthetic_data")
     assert "synthetic_data" not in served.as_model_config()

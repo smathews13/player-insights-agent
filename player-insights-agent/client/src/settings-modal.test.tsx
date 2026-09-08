@@ -8,7 +8,13 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
-const FEATURES = { benchmarkLab: false, egressControls: true, forecasting: false, notebookAgentSync: false };
+const FEATURES = {
+  aiGateway: false,
+  benchmarkLab: false,
+  egressControls: true,
+  forecasting: false,
+  notebookAgentSync: false,
+};
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const SETTINGS_RESPONSIVE_STYLES = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 const SETTINGS_DENSITY_STYLES = readFileSync(new URL('./styles/density-settings.css', import.meta.url), 'utf8');
@@ -160,6 +166,7 @@ describe('Settings modal', () => {
     expect(markup).toContain('>Status</th>');
     expect(markup).toContain('>Control</th>');
     expect(markup).toContain('Egress controls panel');
+    expect(markup).toContain('AI Gateway');
     expect(markup).toContain('>On</span>');
     expect(markup).toContain('>Off</span>');
     expect(markup).toContain('Idle');
@@ -176,6 +183,7 @@ describe('Settings modal', () => {
     const featureTable = markup.slice(tableStart, markup.indexOf('</table>', tableStart) + '</table>'.length);
     for (const description of [
       'Configures approved outbound network destinations for app requests.',
+      'Routes model requests through the configured Unity Catalog AI Gateway service and its policies.',
       'Selects the agent notebook and applies staged agent versions.',
       'Applies billing attribution tags to supported Databricks resources.',
       'Projects 7- and 30-day costs from configurable usage assumptions.',
@@ -183,13 +191,13 @@ describe('Settings modal', () => {
     ]) {
       expect(featureTable).toContain(description);
     }
-    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(5);
+    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(6);
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
     const markup = render('experimental');
-    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(5);
-    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(5);
+    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(6);
+    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(6);
     expect(markup.match(/class="exp-feature-status-column"/g) ?? []).toHaveLength(1);
     expect(markup.match(/class="exp-feature-control-column"/g) ?? []).toHaveLength(1);
     expect(SETTINGS_STYLES).toMatch(
@@ -206,9 +214,10 @@ describe('Settings modal', () => {
   it('puts a distinct icon, title, then one shared Experimental badge on every feature', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
-    expect(badges).toBe(5);
+    expect(badges).toBe(6);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
     for (const [feature, kind, iconName] of [
+      ['AI Gateway', 'ai-gateway', 'lucide-route'],
       ['Egress controls panel', 'egress-controls', 'lucide-network'],
       ['Notebook agent sync', 'notebook-agent-sync', 'lucide-notebook-tabs'],
       ['Resource tags', 'resource-tags', 'lucide-tags'],
@@ -300,7 +309,13 @@ describe('Settings modal', () => {
     const on = renderToStaticMarkup(
       <SettingsPage
         initialSection="experimental"
-        features={{ benchmarkLab: true, egressControls: true, forecasting: false, notebookAgentSync: false }}
+        features={{
+          aiGateway: false,
+          benchmarkLab: true,
+          egressControls: true,
+          forecasting: false,
+          notebookAgentSync: false,
+        }}
         setFeature={() => {}}
         role={roleFrom(NORMAL_IDENTITY)}
       />

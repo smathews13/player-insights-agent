@@ -209,6 +209,11 @@ allow_unattributed = announce_waiver(
 )
 
 resources = [
+    # The direct endpoint remains declared even when a Gateway capability is
+    # configured. Runtime routing can switch per ask, so the logged version must
+    # retain automatic-auth access to the direct fallback route. The UC model
+    # service is deliberately not declared as a DatabricksServingEndpoint: it is
+    # authorized through the invoker's EXECUTE grant and user auth policy.
     DatabricksServingEndpoint(endpoint_name=settings.llm_endpoint),
     DatabricksGenieSpace(genie_space_id=settings.data_genie_space_id),
     DatabricksGenieSpace(genie_space_id=settings.dictionary_genie_space_id),
@@ -347,6 +352,7 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # every LLM call, so it is a load-time dependency rather than an
             # observability nicety: a version logged without it fails to LOAD.
             str(ROOT / "llm_usage.py"),
+            str(ROOT / "llm_routing.py"),
             # config.py imports from this at module scope, so without it the
             # model fails to LOAD inside the container, long after the log ran.
             str(ROOT / "preflight.py"),

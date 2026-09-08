@@ -167,7 +167,7 @@ import {
 } from './connection-model';
 import { connectionResourceView } from './connection-resource-view';
 import { AiGatewayConnection } from './AiGatewayConnection';
-import { NO_EXPERIMENTS, showsNotebookAgentSync } from './experimental-features';
+import { NO_EXPERIMENTS, showsNotebookAgentSync, usesAiGateway } from './experimental-features';
 import { notebookAgentSyncTarget } from './notebook-agent-sync-deep-link';
 import {
   DELETE_CONNECTION_LABEL,
@@ -2140,6 +2140,7 @@ export function ConnectionsPage() {
     const model = readingsById(readings).get('llm-endpoint')?.row;
     return (model?.intended ?? model?.configured ?? '').trim();
   }, [readings]);
+  const gatewayMode = payload?.resources.find((row) => row.resource.id === 'llm-gateway-mode')?.configured.trim() ?? '';
   const hostedIndex = useMemo(() => {
     const index = readingsById(readings).get('semantic-index');
     if (!index) return '';
@@ -2451,9 +2452,11 @@ export function ConnectionsPage() {
                   key={reading.resource.id}
                   reading={reading}
                   foundationModel={foundationModel}
+                  gatewayMode={gatewayMode}
+                  enabled={usesAiGateway(features)}
                   requested={requestedResource === reading.resource.id}
                   refreshing={refreshing}
-                  allowMutations={allowMutations}
+                  allowMutations={false}
                   onStaged={rereadSettings}
                 />
               ) : (

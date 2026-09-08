@@ -87,6 +87,8 @@ case "$1 $2" in
     "serving_rollbacks_kept":   { "value": "0" },
     "experiment_path":          { "value": "/Shared/test" },
     "llm_endpoint":             { "value": "test-llm" },
+    "llm_direct_endpoint":      { "value": "test-llm" },
+    "llm_gateway_endpoint":     { "value": "" },
     "llm_gateway":              { "value": "" },
     "data_catalogs":            { "value": ["test_catalog"] },
     "catalog_denylist":         { "value": "" },

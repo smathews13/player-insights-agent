@@ -50,6 +50,7 @@ ENV_VARS = {
     "data_genie_space_title": "PLAYER_INSIGHTS_DATA_GENIE_TITLE",
     "dictionary_genie_space_title": "PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE",
     "llm_endpoint": "PLAYER_INSIGHTS_LLM_ENDPOINT",
+    "llm_gateway_endpoint": "PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT",
     "llm_gateway": "PLAYER_INSIGHTS_LLM_GATEWAY",
     "catalog_allowlist": "PLAYER_INSIGHTS_CATALOG_ALLOWLIST",
     "catalog_denylist": "PLAYER_INSIGHTS_CATALOG_DENYLIST",
@@ -78,6 +79,7 @@ BAKED_KEYS = (
     "data_genie_space_title",
     "dictionary_genie_space_title",
     "llm_endpoint",
+    "llm_gateway_endpoint",
     "llm_gateway",
     "catalog_allowlist",
     "catalog_denylist",
@@ -340,9 +342,12 @@ class Settings:
     schema: str
     catalog_allowlist: tuple[str, ...]
     max_output_tokens: int
+    #: Three-level Unity Catalog model service used only when the app enables
+    #: the experimental Gateway route for a request.
+    llm_gateway_endpoint: str = ""
     #: Which route the reasoning model is reached by. One of `GATEWAY_PATHS`.
-    #: Defaulted to off, so a deployment that names no gateway, including every
-    #: version logged before this key existed, takes the direct route.
+    #: This describes the configured Gateway capability; request-time routing
+    #: still defaults to direct and is selected by ``llm_routing``.
     llm_gateway: str = GATEWAY_OFF
     #: Human-readable Genie space titles, baked beside the ids at log time.
     #: Empty on versions logged before these fields existed; those keep naming
@@ -436,8 +441,7 @@ class Settings:
         if self.declared_manifest:
             return self.declared_manifest
         return tuple(
-            table if table.count(".") == 2 else f"{self.namespace}.{table}"
-            for table in self.tables
+            table if table.count(".") == 2 else f"{self.namespace}.{table}" for table in self.tables
         )
 
     def as_model_config(self) -> dict[str, Any]:
@@ -511,6 +515,13 @@ class Settings:
                 f"Leave it unset to reach the serving endpoint directly, which is what a "
                 "deployment with no Unity AI Gateway wants."
             )
+        gateway_endpoint = str(resolved["llm_gateway_endpoint"] or "").strip()
+        if bool(gateway) != bool(gateway_endpoint):
+            raise MissingConfiguration(
+                "AI Gateway configuration must provide both "
+                f"{ENV_VARS['llm_gateway']} and {ENV_VARS['llm_gateway_endpoint']}, "
+                "or leave both empty. The direct endpoint remains available either way."
+            )
         manifest_source = str(resolved["manifest_source"] or MANIFEST_FROM_SCHEMA).strip().lower()
         if manifest_source not in MANIFEST_SOURCES:
             raise MissingConfiguration(
@@ -523,6 +534,7 @@ class Settings:
             )
         return cls(
             llm_endpoint=str(resolved["llm_endpoint"] or "databricks-claude-sonnet-4-6"),
+            llm_gateway_endpoint=gateway_endpoint,
             llm_gateway=gateway,
             warehouse_id=str(resolved["warehouse_id"]),
             data_genie_space_id=str(resolved["data_genie_space_id"]),

@@ -16,7 +16,8 @@ import pg from 'pg';
 
 export const RELEASE_INTENTION_KEYS = Object.freeze({
   'llm-endpoint': 'llm_endpoint',
-  'llm-gateway': 'llm_gateway',
+  'llm-gateway': 'llm_gateway_endpoint',
+  'llm-gateway-mode': 'llm_gateway',
   'genie-data': 'data_genie_space_id',
   'genie-dictionary': 'dictionary_genie_space_id',
   'sql-warehouse': 'warehouse_id',

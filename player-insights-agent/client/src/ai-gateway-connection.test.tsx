@@ -7,11 +7,11 @@ import { connectedResource } from '../../shared/deployment-config';
 import { AiGatewayCapabilityBadges, AiGatewayConnection } from './AiGatewayConnection';
 import { readConnection } from './connection-model';
 
-function reading(mode: '' | 'mlflow' | 'openai', connected = false) {
+function reading(configured: boolean, connected = false) {
   return readConnection({
     row: {
       resource: connectedResource('llm-gateway')!,
-      configured: mode,
+      configured: configured ? 'catalog.schema.gateway_model' : '',
       configuredFrom: 'artifact',
       actual: '',
       actualObserved: false,
@@ -26,7 +26,7 @@ function reading(mode: '' | 'mlflow' | 'openai', connected = false) {
       ? {
           id: 'llm-gateway',
           kind: 'dependency',
-          name: mode,
+          name: 'catalog.schema.gateway_model',
           label: 'AI Gateway',
           status: 'ok',
           detail: 'The gateway answered.',
@@ -48,13 +48,15 @@ function text(markup: string): string {
     .trim();
 }
 
-function render(mode: '' | 'mlflow' | 'openai', allowMutations = false, connected = false): string {
+function render(configured: boolean, enabled = false, connected = false): string {
   return renderToStaticMarkup(
     <MemoryRouter>
       <AiGatewayConnection
-        reading={reading(mode, connected)}
+        reading={reading(configured, connected)}
         foundationModel="databricks-gpt-5"
-        allowMutations={allowMutations}
+        gatewayMode={configured ? 'mlflow' : ''}
+        enabled={enabled}
+        allowMutations={false}
         requested
         onStaged={() => Promise.resolve()}
       />
@@ -64,15 +66,15 @@ function render(mode: '' | 'mlflow' | 'openai', allowMutations = false, connecte
 
 describe('AI Gateway Connections row', () => {
   it('reports an absent optional gateway as disconnected', () => {
-    const markup = render('');
+    const markup = render(false);
     const readable = text(markup);
-    expect(readable).toContain('AI Gateway Direct Disconnected');
-    expect(markup).toContain('aria-label="AI Gateway connection status: Disconnected"');
-    expect(markup).toContain('data-connection-state="disconnected"');
-    expect(markup).toContain('ast-pill--neg');
+    expect(readable).toContain('AI Gateway Direct Not configured');
+    expect(markup).toContain('aria-label="AI Gateway state: Not configured"');
+    expect(markup).toContain('data-connection-state="not-configured"');
+    expect(markup).toContain('ast-pill--neutral');
     expect(markup).not.toContain('ast-pill--pos');
-    expect(readable).toContain('Current transport Direct');
-    expect(readable).toContain('Direct model traffic remains active');
+    expect(readable).toContain('Configured transport None');
+    expect(readable).toContain('No Unity Catalog AI Gateway model service is configured');
     expect(readable).not.toMatch(/Not checked|Blocked|hard ceiling/);
   });
 
@@ -80,8 +82,10 @@ describe('AI Gateway Connections row', () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>
         <AiGatewayConnection
-          reading={reading('mlflow')}
+          reading={reading(true)}
           foundationModel="databricks-gpt-5"
+          gatewayMode="mlflow"
+          enabled={false}
           allowMutations={false}
           requested
           refreshing
@@ -95,20 +99,30 @@ describe('AI Gateway Connections row', () => {
   });
 
   it('shows the current transport and model without write controls for readers', () => {
-    const markup = render('mlflow', false, true);
+    const markup = render(true, true, true);
     const readable = text(markup);
-    expect(readable).toContain('Current transport MLflow');
-    expect(readable).toContain('Active model databricks-gpt-5');
-    expect(markup).toContain('data-connection-state="connected"');
+    expect(readable).toContain('AI Gateway catalog.schema.gateway_model Enabled');
+    expect(readable).toContain('Configured transport MLflow');
+    expect(readable).toContain('Gateway model service catalog.schema.gateway_model');
+    expect(readable).toContain('Direct model databricks-gpt-5');
+    expect(markup).toContain('data-connection-state="enabled"');
     expect(markup).toContain('ast-pill--pos');
     expect(markup).not.toContain('ast-pill--neg');
     expect(readable).not.toMatch(/\bConnect\b|\bChange\b|Stage for agent release/);
   });
 
-  it('offers one Connect action to an administrator', () => {
-    const readable = text(render('', true));
-    expect(readable.match(/\bConnect\b/g)).toHaveLength(1);
-    expect(readable).not.toContain('Save and apply');
+  it('shows configured but disabled as neutral rather than unreachable', () => {
+    const markup = render(true, false, true);
+    expect(text(markup)).toContain('AI Gateway catalog.schema.gateway_model Disabled');
+    expect(markup).toContain('data-connection-state="disabled"');
+    expect(markup).toContain('ast-pill--neutral');
+  });
+
+  it('shows a configured but unreachable Gateway as red', () => {
+    const markup = render(true, true, false);
+    expect(text(markup)).toContain('AI Gateway catalog.schema.gateway_model Unreachable');
+    expect(markup).toContain('data-connection-state="unreachable"');
+    expect(markup).toContain('ast-pill--neg');
   });
 
   it('renders only capabilities proven by a discovered candidate', () => {
