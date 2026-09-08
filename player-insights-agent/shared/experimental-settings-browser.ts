@@ -6,6 +6,7 @@
  * are imported only by the server and lazy Settings code.
  */
 export interface ExperimentalFeatures {
+  aiGateway: boolean;
   benchmarkLab: boolean;
   egressControls: boolean;
   forecasting: boolean;
@@ -13,6 +14,7 @@ export interface ExperimentalFeatures {
 }
 
 export const EXPERIMENTAL_FEATURE_KEYS = [
+  'aiGateway',
   'benchmarkLab',
   'egressControls',
   'forecasting',
@@ -20,6 +22,7 @@ export const EXPERIMENTAL_FEATURE_KEYS = [
 ] as const;
 
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
+  aiGateway: false,
   benchmarkLab: false,
   egressControls: false,
   forecasting: false,
@@ -55,6 +58,7 @@ export function decodeExperimentalSettingsDocument(
   }
   return {
     settings: {
+      aiGateway: settings.aiGateway === true,
       benchmarkLab: settings.benchmarkLab === true,
       egressControls: settings.egressControls === true,
       forecasting: settings.forecasting === true,

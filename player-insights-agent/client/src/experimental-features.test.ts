@@ -10,6 +10,7 @@ import {
   showsEgressControls,
   showsForecasting,
   showsNotebookAgentSync,
+  usesAiGateway,
   withExperimentalFeature,
 } from './experimental-features';
 
@@ -21,12 +22,19 @@ describe('deployment-wide experimental feature contract', () => {
   });
 
   it('round-trips every visible flag through the shared schema', () => {
-    const enabled = { benchmarkLab: true, egressControls: true, forecasting: true, notebookAgentSync: true };
+    const enabled = {
+      aiGateway: true,
+      benchmarkLab: true,
+      egressControls: true,
+      forecasting: true,
+      notebookAgentSync: true,
+    };
     expect(ExperimentalSettingsSchema.parse(enabled)).toEqual(enabled);
     expect(showsBenchmarkLab(enabled)).toBe(true);
     expect(showsEgressControls(enabled)).toBe(true);
     expect(showsForecasting(enabled)).toBe(true);
     expect(showsNotebookAgentSync(enabled)).toBe(true);
+    expect(usesAiGateway(enabled)).toBe(true);
   });
 
   it('stages one flag without changing the others', () => {
@@ -39,7 +47,7 @@ describe('deployment-wide experimental feature contract', () => {
   it('keeps the eager browser decoder equivalent to the authoritative schema', () => {
     for (const settings of [
       {},
-      { benchmarkLab: false, egressControls: true, forecasting: false, notebookAgentSync: true },
+      { aiGateway: false, benchmarkLab: false, egressControls: true, forecasting: false, notebookAgentSync: true },
       { benchmarkLab: true, futureFlag: true },
     ]) {
       expect(decodeExperimentalSettingsDocument({ settings, revision: 4 })).toEqual({
@@ -53,6 +61,7 @@ describe('deployment-wide experimental feature contract', () => {
       { egressControls: 'true' },
       { forecasting: null },
       { notebookAgentSync: 'true' },
+      { aiGateway: 'true' },
     ]) {
       expect(decodeExperimentalSettingsDocument({ settings, revision: 4 })).toBeNull();
       expect(ExperimentalSettingsSchema.safeParse(settings).success).toBe(false);

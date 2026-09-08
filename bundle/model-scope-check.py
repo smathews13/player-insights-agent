@@ -155,6 +155,30 @@ def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str],
         wanted.update(vs_scopes)
         why.append(f"{', '.join(sorted(vs_scopes))}: a release configures a semantic index")
 
+    # Gateway values normally arrive from a private variable override, so empty
+    # tracked values are undecidable here rather than proof the capability is off.
+    gw_scopes = {
+        scope
+        for scope, conditions in names.items()
+        if any("Gateway capability" in condition for condition in conditions)
+    }
+    if gw_scopes:
+        gateway = from_file(drift, "llm_gateway", target)
+        gateway_endpoint = from_file(drift, "llm_gateway_endpoint", target)
+        if gateway and gateway_endpoint:
+            wanted.update(gw_scopes)
+            why.append(f"{', '.join(sorted(gw_scopes))}: an AI Gateway capability is configured")
+        elif gateway or gateway_endpoint:
+            raise Unreadable(
+                "llm_gateway and llm_gateway_endpoint must both be configured, or both be empty"
+            )
+        else:
+            undecidable.update(gw_scopes)
+            why.append(
+                f"{', '.join(sorted(gw_scopes))}: NOT DECIDED here. Private target overrides "
+                "may configure the Gateway capability at release time."
+            )
+
     return wanted, undecidable, why
 
 

@@ -528,7 +528,7 @@ describe('what the page refuses to call healthy', () => {
     // A NAMED endpoint resolved from a default is the leak the loop exists for.
     const all = states({
       report: report({
-        configuration: [configured({ key: 'llm_gateway', value: 'gateway-from-a-shell', source: 'default' })],
+        configuration: [configured({ key: 'llm_gateway_endpoint', value: 'gateway-from-a-shell', source: 'default' })],
       }),
       environment: {},
       stored: stored(),

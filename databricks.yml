@@ -87,16 +87,28 @@ variables:
       0. Each retained served entity adds standing capacity cost; pruned
       versions remain available in the model registry.
     default: 0
+  llm_direct_endpoint:
+    description: >-
+      Direct foundation-model serving endpoint. This remains available when an
+      AI Gateway capability is configured because the runtime toggle chooses
+      between both routes for each new ask.
+    default: databricks-claude-sonnet-4-6
   llm_endpoint:
     description: >-
-      Foundation-model endpoint, or three-level Unity Catalog model service
-      name when a gateway route is configured.
-    default: databricks-claude-sonnet-4-6
+      Backward-compatible alias for the direct foundation-model endpoint.
+      New release code reads llm_direct_endpoint.
+    default: ${var.llm_direct_endpoint}
+  llm_gateway_endpoint:
+    description: >-
+      Optional three-level Unity Catalog AI Gateway model service. Keep empty in
+      public/template configuration and set workspace-specific values only in a
+      private variable-overrides.json.
+    default: ""
   llm_gateway:
     description: >-
-      Gateway route for llm_endpoint. Empty, the default, calls the workspace
-      endpoint directly. Use `mlflow` or `openai` for the corresponding gateway
-      path. Gateway failures do not fall back to a direct call.
+      Transport for llm_gateway_endpoint. Empty means no Gateway capability.
+      Use `mlflow` or `openai`; the experimental setting still defaults OFF and
+      Gateway failures never fall back to the direct route.
     default: ""
   manifest_source:
     description: >-

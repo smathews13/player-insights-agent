@@ -14,6 +14,7 @@ import { Badge, Button, Input } from './ui';
 import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
 import { ConnectionStateBadge } from './ConnectionStateBadge';
+import { piaPill } from './pia-pill';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
   ['rateLimits', 'Rate limits'],
@@ -44,14 +45,17 @@ export function AiGatewayCapabilityBadges({ candidate }: { candidate: AiGatewayC
   );
 }
 
-function localSummary(reading: ConnectionReading, model: string): AiGatewaySummary {
-  const mode: AiGatewayMode =
-    reading.row.configured === 'mlflow' || reading.row.configured === 'openai' ? reading.row.configured : '';
+function localSummary(reading: ConnectionReading, directModel: string, configuredMode: string): AiGatewaySummary {
+  const mode: AiGatewayMode = configuredMode === 'mlflow' || configuredMode === 'openai' ? configuredMode : '';
+  const gatewayModel = reading.row.configured.trim();
   return {
-    active: { mode, model, transport: gatewayTransport(mode) },
+    active: { mode, model: mode ? gatewayModel : directModel, transport: gatewayTransport(mode) },
     staged: null,
     configurationState: 'active',
-    detail: mode ? 'The running model version reports this Gateway route.' : 'Direct model traffic remains active.',
+    detail:
+      mode && gatewayModel
+        ? 'The Gateway capability is configured independently from the experimental runtime toggle.'
+        : 'No Unity Catalog AI Gateway model service is configured.',
     validatedAt: '',
     revision: '0',
     candidate: null,
@@ -62,6 +66,8 @@ function localSummary(reading: ConnectionReading, model: string): AiGatewaySumma
 export function AiGatewayConnection({
   reading,
   foundationModel,
+  gatewayMode,
+  enabled,
   allowMutations,
   requested,
   refreshing = false,
@@ -69,6 +75,8 @@ export function AiGatewayConnection({
 }: {
   reading: ConnectionReading;
   foundationModel: string;
+  gatewayMode: string;
+  enabled: boolean;
   allowMutations: boolean;
   requested: boolean;
   refreshing?: boolean;
@@ -76,7 +84,7 @@ export function AiGatewayConnection({
 }) {
   const [open, setOpen] = useState(requested);
   const [editing, setEditing] = useState(false);
-  const [summary, setSummary] = useState(() => localSummary(reading, foundationModel));
+  const [summary, setSummary] = useState(() => localSummary(reading, foundationModel, gatewayMode));
   const [mode, setMode] = useState<AiGatewayMode>('');
   const [search, setSearch] = useState('');
   const [discovery, setDiscovery] = useState<AiGatewayDiscovery | null>(null);
@@ -86,14 +94,14 @@ export function AiGatewayConnection({
 
   const loadSummary = useCallback(async () => {
     if (!allowMutations) {
-      setSummary(localSummary(reading, foundationModel));
+      setSummary(localSummary(reading, foundationModel, gatewayMode));
       return;
     }
     const response = await fetch('/api/admin/ai-gateway/summary');
     if (!response.ok) return;
     const next = (await response.json()) as AiGatewaySummary;
     setSummary(next);
-  }, [allowMutations, foundationModel, reading]);
+  }, [allowMutations, foundationModel, gatewayMode, reading]);
 
   useEffect(() => {
     void loadSummary();
@@ -128,8 +136,10 @@ export function AiGatewayConnection({
     [discovery, selected, summary.candidate]
   );
   const staged = summary.staged;
-  const configured = Boolean(summary.active.mode || staged);
+  const configured = Boolean(summary.active.mode && reading.row.configured.trim());
   const connected = reading.status === 'reachable';
+  const routeState = !configured ? 'Not configured' : !connected ? 'Unreachable' : enabled ? 'Enabled' : 'Disabled';
+  const routeFamily = !configured || (!enabled && connected) ? 'neutral' : connected ? 'pos' : 'neg';
   const collapsedValue = staged
     ? staged.mode
       ? candidate?.displayName || staged.model
@@ -205,11 +215,14 @@ export function AiGatewayConnection({
             label="Checking AI Gateway"
           />
         ) : (
-          <ConnectionStateBadge
-            state={connected ? 'connected' : 'disconnected'}
-            subject="AI Gateway"
-            className="connection-row-state"
-          />
+          <Badge
+            variant="outline"
+            className={piaPill(routeFamily, 'connection-row-state')}
+            data-connection-state={routeState.toLowerCase().replace(' ', '-')}
+            aria-label={`AI Gateway state: ${routeState}`}
+          >
+            {routeState}
+          </Badge>
         )}
         {staged ? <span className="connection-row-state">Staged for agent release</span> : null}
         {allowMutations ? (
@@ -236,15 +249,23 @@ export function AiGatewayConnection({
           )}
           <dl className="connection-details">
             <div className="connection-detail">
-              <dt>Current transport</dt>
-              <dd>{summary.active.transport}</dd>
+              <dt>Runtime</dt>
+              <dd>{routeState}</dd>
             </div>
-            {summary.active.model ? (
+            <div className="connection-detail">
+              <dt>Configured transport</dt>
+              <dd>{configured ? summary.active.transport : 'None'}</dd>
+            </div>
+            {configured ? (
               <div className="connection-detail">
-                <dt>Active model</dt>
-                <dd title={summary.active.model}>{summary.active.model}</dd>
+                <dt>Gateway model service</dt>
+                <dd title={reading.row.configured}>{reading.row.configured}</dd>
               </div>
             ) : null}
+            <div className="connection-detail">
+              <dt>Direct model</dt>
+              <dd title={foundationModel}>{foundationModel}</dd>
+            </div>
             {staged ? (
               <div className="connection-detail">
                 <dt>Candidate</dt>

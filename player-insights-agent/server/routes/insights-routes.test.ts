@@ -1195,6 +1195,22 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
 });
 
 describe('serving request body', () => {
+  it('injects only the server-resolved route and no browser-selected endpoint', () => {
+    const body = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      attachmentText: '',
+      llmRoute: 'ai_gateway',
+    });
+
+    expect(body.custom_inputs).toEqual({
+      conversation_id: 'conv-1',
+      llm_route: 'ai_gateway',
+    });
+    expect(JSON.stringify(body)).not.toMatch(/gateway_endpoint|llm_endpoint|gateway_mode/);
+  });
+
   it('omits approval keys until the user actually approves', () => {
     const body = buildAskServingBody({
       history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],

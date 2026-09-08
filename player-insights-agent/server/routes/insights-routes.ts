@@ -50,6 +50,7 @@ import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
+import { readAiGatewayEnabled } from '../lib/experimental-settings-store';
 import { readBenchmarkSettings } from '../lib/benchmark-settings-store';
 import { loadConversationTurns } from '../lib/eval-conversation';
 import { scheduleLiveAskScore } from '../lib/live-ask-scoring';
@@ -2895,6 +2896,8 @@ interface AskServingInputs {
    * principal rather than the human email.
    */
   identityMode?: string;
+  /** Server-resolved app-wide route. Browser input is never consulted. */
+  llmRoute?: 'direct' | 'ai_gateway';
 }
 
 /**
@@ -2918,6 +2921,7 @@ export function buildAskServingBody({
   runtimeSettings,
   evalGuidance,
   identityMode,
+  llmRoute,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2927,6 +2931,7 @@ export function buildAskServingBody({
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
   if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
+  if (llmRoute) custom_inputs.llm_route = llmRoute;
   if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
   // The mode travels with the user it names, and neither travels alone. A mode
   // with nobody named is a request the endpoint's gate refuses for having
@@ -4907,7 +4912,11 @@ export function setupInsightsRoutes(
           if (approvedPlanId && servingHistory.length > 0) {
             servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
           }
-          askRuntime = await readRuntimeSettings(appkit);
+          const [runtime, aiGatewayEnabled] = await Promise.all([
+            readRuntimeSettings(appkit),
+            readAiGatewayEnabled(appkit),
+          ]);
+          askRuntime = runtime;
           const evalGuidance = await resolveAskGuidance(appkit);
           const payload = buildAskServingBody({
             history: servingHistory,
@@ -4922,6 +4931,7 @@ export function setupInsightsRoutes(
             ...servingIdentityFields(identity),
             deadlineAt: runDeadlineAt.toISOString(),
             runtimeSettings: askRuntime,
+            llmRoute: aiGatewayEnabled ? 'ai_gateway' : 'direct',
             evalGuidance,
           });
           // Counted on the way past, so a failure can say where the run died
@@ -5903,6 +5913,7 @@ export function setupInsightsRoutes(
         },
         requestedSuiteId,
         askAgent: async (request) => {
+          const aiGatewayEnabled = await readAiGatewayEnabled(appkit);
           const payload = buildAskServingBody({
             history: [{ role: 'user', content: request.prompt }],
             prompt: request.prompt,
@@ -5917,6 +5928,7 @@ export function setupInsightsRoutes(
             // on a laptop, where there is no proxy and so no user to assert.
             ...servingIdentityFields(identity),
             runtimeSettings: await readRuntimeSettings(appkit),
+            llmRoute: aiGatewayEnabled ? 'ai_gateway' : 'direct',
             evalGuidance: await resolveAskGuidance(appkit),
           });
           let raw: unknown;

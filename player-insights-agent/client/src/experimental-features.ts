@@ -34,6 +34,11 @@ export function withExperimentalFeature<K extends keyof ExperimentalFeatures>(
   return { ...features, [name]: enabled };
 }
 
+/** Whether new asks must use the configured Unity Catalog AI Gateway route. */
+export function usesAiGateway(features: ExperimentalFeatures): boolean {
+  return features.aiGateway;
+}
+
 /**
  * Whether Benchmarking, its scorers and its judge details are offered.
  *

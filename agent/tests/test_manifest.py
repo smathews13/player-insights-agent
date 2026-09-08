@@ -1611,6 +1611,7 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         "data_genie_space_id",
         "dictionary_genie_space_id",
         "llm_endpoint",
+        "llm_gateway_endpoint",
         "llm_gateway",
         "catalog_allowlist",
         "catalog_denylist",

@@ -7,7 +7,13 @@ import { SettingsPage } from './SettingsPage';
 import { SpIdentityEditor } from './SpIdentityPanel';
 import { RosterRows } from './UserRoleEditor';
 
-const FEATURES = { benchmarkLab: true, egressControls: true, forecasting: false, notebookAgentSync: false };
+const FEATURES = {
+  aiGateway: false,
+  benchmarkLab: true,
+  egressControls: true,
+  forecasting: false,
+  notebookAgentSync: false,
+};
 const SECTIONS = ['runtime', 'appearance', 'experimental', 'identity', 'environment', 'egress'] as const;
 const CSS = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const RESPONSIVE = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');

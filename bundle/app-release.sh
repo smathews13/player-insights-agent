@@ -257,7 +257,7 @@ LAKEBASE_APP_SCHEMA="$(bundle_var lakebase_app_schema)"
 # release.
 JUDGE_ENDPOINT="$(bundle_var_or_empty judge_endpoint)"
 note "benchmark judge      ${JUDGE_ENDPOINT:-(app default)}"
-LLM_ENDPOINT="$(bundle_var llm_endpoint)"
+LLM_ENDPOINT="$(bundle_var llm_direct_endpoint)"
 note "foundation model     $LLM_ENDPOINT"
 
 # Catalog, schema and Genie ids this release may read. Connections and the

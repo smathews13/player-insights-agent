@@ -3,14 +3,18 @@ import {
   EXPERIMENTAL_SETTINGS_TABLE,
   forgetExperimentalSettings,
   readExperimentalSettings,
+  readAiGatewayEnabled,
   writeExperimentalSettings,
   withoutLegacySpIdentities,
 } from './experimental-settings-store';
 
 class MemoryExperimentalDb {
   row: { settings: unknown; revision: number } | null = null;
+  failReads = false;
   readonly lakebase = {
     query: (sql: string, values: unknown[] = []) => {
+      if (/^SELECT settings, revision/m.test(sql.trim()))
+        if (this.failReads) return Promise.reject(new Error('temporary outage'));
       if (/^SELECT settings, revision/m.test(sql.trim()))
         return Promise.resolve({ rows: this.row ? [{ ...this.row }] : [] });
       if (/^INSERT INTO/m.test(sql.trim())) {
@@ -33,6 +37,7 @@ describe('deployment-wide Experimental settings', () => {
     const db = new MemoryExperimentalDb();
     expect(EXPERIMENTAL_SETTINGS_TABLE).toMatch(/\.experimental_settings$/);
     expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings).toEqual({
+      aiGateway: false,
       benchmarkLab: false,
       egressControls: false,
       forecasting: false,
@@ -49,21 +54,29 @@ describe('deployment-wide Experimental settings', () => {
     expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings.notebookAgentSync).toBe(true);
   });
 
+  it('never falls back to direct after this process observed Gateway enabled', async () => {
+    const db = new MemoryExperimentalDb();
+    await writeExperimentalSettings(db as never, { aiGateway: true }, 0, 'admin');
+    db.failReads = true;
+    await expect(readAiGatewayEnabled(db as never)).resolves.toBe(true);
+  });
+
   it('round-trips true and false distinctly for every visible flag', async () => {
     const db = new MemoryExperimentalDb();
     const on = await writeExperimentalSettings(
       db as never,
-      { benchmarkLab: true, egressControls: true, forecasting: true, notebookAgentSync: true },
+      { aiGateway: true, benchmarkLab: true, egressControls: true, forecasting: true, notebookAgentSync: true },
       0,
       'admin'
     );
     const off = await writeExperimentalSettings(
       db as never,
-      { benchmarkLab: false, egressControls: false, forecasting: false, notebookAgentSync: false },
+      { aiGateway: false, benchmarkLab: false, egressControls: false, forecasting: false, notebookAgentSync: false },
       on.revision,
       'admin'
     );
     expect(off.settings).toEqual({
+      aiGateway: false,
       benchmarkLab: false,
       egressControls: false,
       forecasting: false,
@@ -75,6 +88,7 @@ describe('deployment-wide Experimental settings', () => {
     const db = new MemoryExperimentalDb();
     db.row = {
       settings: {
+        aiGateway: true,
         benchmarkLab: true,
         egressControls: false,
         forecasting: true,
@@ -85,6 +99,7 @@ describe('deployment-wide Experimental settings', () => {
     };
     const read = await readExperimentalSettings(db as never, { maxAgeMs: 0 });
     expect(read.settings).toEqual({
+      aiGateway: true,
       benchmarkLab: true,
       egressControls: false,
       forecasting: true,

@@ -276,7 +276,7 @@ describe('every authored variable reaches the deploy target', () => {
   it('carries the bundle foundation model into a target release without baking it into public source', () => {
     expect(bundleServer).toContain('process.env.PLAYER_INSIGHTS_LLM_ENDPOINT');
     expect(bundleServer).toContain("name: 'PLAYER_INSIGHTS_LLM_ENDPOINT'");
-    expect(appRelease).toContain('LLM_ENDPOINT="$(bundle_var llm_endpoint)"');
+    expect(appRelease).toContain('LLM_ENDPOINT="$(bundle_var llm_direct_endpoint)"');
     expect(appRelease).toContain('PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"');
   });
 

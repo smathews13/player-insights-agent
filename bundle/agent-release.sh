@@ -72,7 +72,7 @@ MODEL_NAME="$(bundle_var model_name)"
 ENDPOINT="$(bundle_var serving_endpoint_name)"
 ROLLBACKS_KEPT="$(bundle_var serving_rollbacks_kept)"
 EXPERIMENT="$(bundle_var experiment_path)"
-LLM_ENDPOINT="$(bundle_var llm_endpoint)"
+LLM_ENDPOINT="$(bundle_var llm_direct_endpoint)"
 ALLOWLIST="$(bundle_var_csv data_catalogs)"
 # Optional, and the only one here that is: an empty denylist is the normal case,
 # so `bundle_var` would die on a target that has not set one.
@@ -83,6 +83,11 @@ MAX_TOKENS="$(bundle_var max_output_tokens)"
 # directly) is both the default and what every target that predates this
 # variable resolves to.
 LLM_GATEWAY="$(bundle_var_or_empty llm_gateway)"
+LLM_GATEWAY_ENDPOINT="$(bundle_var_or_empty llm_gateway_endpoint)"
+if { [[ -n "$LLM_GATEWAY" ]] && [[ -z "$LLM_GATEWAY_ENDPOINT" ]]; } ||
+  { [[ -z "$LLM_GATEWAY" ]] && [[ -n "$LLM_GATEWAY_ENDPOINT" ]]; }; then
+  die "llm_gateway and llm_gateway_endpoint must both be set, or both be empty"
+fi
 # Optional too, and defaulted in `Settings` rather than here, so that a target
 # predating this variable resolves to the enumeration it has always done. What it
 # selects is which tables become DatabricksTable resources. See MANIFEST_SOURCES
@@ -199,7 +204,7 @@ note "model                 $MODEL_NAME"
 note "endpoint              $ENDPOINT"
 note "rollbacks kept        $ROLLBACKS_KEPT$([[ "$PRUNE" == true ]] || echo '  (prune skipped: --no-prune)')"
 note "experiment            $EXPERIMENT"
-note "LLM endpoint          $LLM_ENDPOINT"
+note "direct LLM endpoint   $LLM_ENDPOINT"
 note "warehouse             $WAREHOUSE_ID"
 note "data genie space      $DATA_GENIE_ID  ($(genie_origin "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" "$DATA_GENIE_ADOPTED"))"
 note "dictionary genie      $DICT_GENIE_ID  ($(genie_origin "${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-}" "$DICT_GENIE_ADOPTED"))"
@@ -216,7 +221,8 @@ fi
 note "catalog denylist      ${DENYLIST:-(none)}"
 # Same reasoning: printed even when empty. Which route the reasoning model was
 # reached by is the sort of thing an operator should never have to infer.
-note "AI Gateway            ${LLM_GATEWAY:-(none, direct to serving endpoint)}"
+note "AI Gateway            ${LLM_GATEWAY:-(not configured)}"
+note "Gateway model service ${LLM_GATEWAY_ENDPOINT:-(not configured)}"
 # Printed on every run for the same reason as the denylist: this was off for every
 # release between 2026-08-10 and today while the endpoint it should have been using
 # was online and billing, and nothing said so. An operator reading "(none)" against
@@ -284,6 +290,7 @@ export PLAYER_INSIGHTS_ENDPOINT="$ENDPOINT"
 export PLAYER_INSIGHTS_EXPERIMENT="$EXPERIMENT"
 export PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"
 export PLAYER_INSIGHTS_LLM_GATEWAY="$LLM_GATEWAY"
+export PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT="$LLM_GATEWAY_ENDPOINT"
 export PLAYER_INSIGHTS_CATALOG_ALLOWLIST="$ALLOWLIST"
 export PLAYER_INSIGHTS_CATALOG_DENYLIST="$DENYLIST"
 export PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS="$MAX_TOKENS"
@@ -413,6 +420,7 @@ print(json.dumps({
     "data_genie_space_id": os.environ["PLAYER_INSIGHTS_DATA_GENIE_ID"],
     "dictionary_genie_space_id": os.environ["PLAYER_INSIGHTS_DICTIONARY_GENIE_ID"],
     "llm_endpoint": os.environ["PLAYER_INSIGHTS_LLM_ENDPOINT"],
+    "llm_gateway_endpoint": os.environ["PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT"],
     "llm_gateway": os.environ["PLAYER_INSIGHTS_LLM_GATEWAY"],
     "catalog_allowlist": os.environ["PLAYER_INSIGHTS_CATALOG_ALLOWLIST"],
     "catalog_denylist": os.environ["PLAYER_INSIGHTS_CATALOG_DENYLIST"],

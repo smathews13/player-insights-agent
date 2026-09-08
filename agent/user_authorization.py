@@ -82,6 +82,11 @@ GENIE_SCOPE = "dashboards.genie"
 #: Unity Catalog table under user authorization on Model Serving: there is no
 #: separate table scope, the warehouse enforces the caller's grants.
 SQL_SCOPE = "sql"
+#: A logged model that can route through a Unity Catalog AI Gateway needs both
+#: scopes on its per-request invoker token. They are baked when the capability is
+#: configured, even though the experimental setting defaults to the direct route.
+AI_GATEWAY_SCOPE = "ai-gateway"
+MODEL_SERVING_SCOPE = "model-serving"
 
 
 @dataclass(frozen=True)
@@ -203,6 +208,8 @@ def api_scopes(settings: Any) -> tuple[str, ...]:
         scopes.append(GENIE_SCOPE)
     if settings.warehouse_id:
         scopes.append(SQL_SCOPE)
+    if getattr(settings, "llm_gateway", "") and getattr(settings, "llm_gateway_endpoint", ""):
+        scopes.extend((AI_GATEWAY_SCOPE, MODEL_SERVING_SCOPE))
     return tuple(scopes)
 
 

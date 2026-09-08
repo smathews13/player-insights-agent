@@ -176,13 +176,13 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
   },
   {
     id: 'llm-endpoint',
-    label: 'Foundation model',
+    label: 'Direct foundation model',
     kind: 'model',
     changedBy: 'model-version',
     arrivesBy:
       'MLflow model_config, baked by agent/log_model.py at log time, or PLAYER_INSIGHTS_LLM_ENDPOINT ' +
       'when the app release wrote the same bundle variable into the container.',
-    bundleVariable: 'llm_endpoint',
+    bundleVariable: 'llm_direct_endpoint (legacy alias: llm_endpoint)',
     agentKey: 'llm_endpoint',
     appEnvVar: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
     actualFromCheck: 'llm-endpoint',
@@ -192,19 +192,29 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
   },
   {
     id: 'llm-gateway',
-    label: 'AI Gateway',
+    label: 'AI Gateway model service',
     kind: 'model',
+    changedBy: 'model-version',
+    arrivesBy: 'MLflow model_config, baked by agent/log_model.py at log time.',
+    bundleVariable: 'llm_gateway_endpoint',
+    agentKey: 'llm_gateway_endpoint',
+    appEnvVar: null,
+    actualFromCheck: null,
+    namesRemoteObject: true,
+    applyWith: AGENT_RELEASE,
+    stageable: true,
+  },
+  {
+    id: 'llm-gateway-mode',
+    label: 'AI Gateway transport',
+    kind: 'app-behaviour',
     changedBy: 'model-version',
     arrivesBy: 'MLflow model_config, baked by agent/log_model.py at log time.',
     bundleVariable: 'llm_gateway',
     agentKey: 'llm_gateway',
     appEnvVar: null,
-    // No check probes this. Preflight makes a real one-token call over whichever
-    // route is bound, so a gateway that refuses this deployment fails the
-    // release rather than the first stakeholder's question, which is a better
-    // answer than a green tick here would be.
     actualFromCheck: null,
-    namesRemoteObject: true,
+    namesRemoteObject: false,
     applyWith: AGENT_RELEASE,
     stageable: true,
   },

@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 import correlation
 import execution_identity
 import knowledge
+import llm_routing
 import provenance
 import runtime_settings
 import sdk_attribution
@@ -1464,7 +1465,7 @@ GATEWAY_REFUSALS = {
     ),
     "RESOURCE_DOES_NOT_EXIST": ("the model service this deployment is bound to does not exist"),
     "CUSTOMER_UNAUTHORIZED": (
-        "your organisation's AI Gateway refused the request on a policy grounds"
+        "your organisation's AI Gateway refused the request on policy grounds"
     ),
 }
 
@@ -1508,15 +1509,16 @@ def gateway_refusal(error: Exception, mode: str) -> str | None:
     code = ""
     if isinstance(body, dict):
         code = str(body.get("error_code") or "")
-    detail = re.sub(r"\s+", " ", str(getattr(error, "message", "") or str(error))).strip()
-
     explanation = GATEWAY_REFUSALS.get(code)
     if explanation is None:
         # An unrecognised refusal is still a refusal, reported as one in the
         # gateway's own words: a policy decision is never restyled as a glitch,
         # least of all a code this map has not caught up with.
         explanation = "your organisation's AI Gateway refused the request"
-    return f"{explanation} ({code or f'HTTP {status}'}: {detail})"[:300]
+    # Do not echo the provider message: it can contain the private model-service
+    # identifier. The stable code is enough to distinguish policy, auth and rate
+    # limiting without putting deployment identifiers into the response.
+    return f"{explanation} ({code or f'HTTP {status}'})"
 
 
 #: `log.failures` key for the model that reasons and writes, so the degraded
@@ -2807,6 +2809,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
     ):
         self.settings = settings or Settings.from_env()
         self._tools = tools
+        # Test injection only. Runtime-created clients are request-scoped because
+        # the Gateway route carries the invoker's token.
         self._llm_client = llm_client
         self._system_client: Any | None = None
         #: Whether the data tools run as the endpoint's invoker rather than as
@@ -2853,10 +2857,9 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         same identity every time and why it cannot become a cache.
         """
 
-        if self._llm_client is None:
-            self._llm_client = self._build_llm_client()
+        llm_client = self._llm_client or self._turn_llm_client()
         if self._tools is not None:
-            return self._tools, self._llm_client
+            return self._tools, llm_client
         if not self.user_authorization:
             raise RuntimeError(
                 "This model version was logged without a user auth policy, so there is no "
@@ -2871,8 +2874,21 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 user_authorized=True,
                 allow_unattributed_figures=ALLOW_UNATTRIBUTED_FIGURES.enabled,
             ),
-            self._llm_client,
+            llm_client,
         )
+
+    def _turn_llm_client(self) -> Any:
+        """One centrally-routed LLM client for this request."""
+
+        memo = _TURN_CREDENTIALS.get()
+        selection = llm_routing.current(self.settings)
+        key = f"llm_client:{selection.route}"
+        if memo is None:
+            return self._build_llm_client()
+        client = memo.get(key)
+        if client is None:
+            client = memo[key] = self._build_llm_client()
+        return client
 
     def _authorized_client(self) -> Any:
         """The invoker's client for THIS TURN, built once and never shared.
@@ -2947,7 +2963,20 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         took.
         """
 
-        return open_ai_client(self._system_workspace(), self.settings.llm_gateway)
+        selection = llm_routing.current(self.settings)
+        if selection.route == llm_routing.AI_GATEWAY:
+            return open_ai_client(self._authorized_client(), selection.gateway_mode)
+        return open_ai_client(self._system_workspace(), "")
+
+    def _llm_endpoint(self) -> str:
+        """Model identifier paired with the request's selected transport."""
+
+        return llm_routing.current(self.settings).endpoint
+
+    def _llm_gateway_mode(self) -> str:
+        """Gateway transport for error classification, empty on direct."""
+
+        return llm_routing.current(self.settings).gateway_mode
 
     def _system_workspace(self) -> Any:
         """The passthrough client: same credentials for every caller, so cached.
@@ -3040,6 +3069,55 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     "mode": required.mode or execution_identity.SERVICE_PRINCIPAL,
                     "verified": False,
                 },
+            },
+        )
+
+    def _llm_route_unavailable(self, error: Exception) -> ResponsesAgentResponse:
+        """Fail closed when a requested route is invalid or not configured."""
+
+        configured = isinstance(error, llm_routing.AiGatewayNotConfigured)
+        message = (
+            "AI Gateway is enabled, but this model version is not configured to use it. "
+            "Ask an administrator to complete the Gateway configuration."
+            if configured
+            else "This request named an invalid model route and was refused."
+        )
+        print(f"[llm-route] REFUSED {type(error).__name__}: {error}")
+        return ResponsesAgentResponse(
+            output=[
+                self.create_text_output_item(
+                    text=message,
+                    id="response-ai-gateway-unavailable",
+                )
+            ],
+            custom_outputs={
+                "type": "unavailable",
+                "code": "AI_GATEWAY_UNAVAILABLE",
+                "layer": "ai-gateway",
+                "retryable": False,
+                "message": message,
+            },
+        )
+
+    def _gateway_error_response(self, error: Exception) -> ResponsesAgentResponse:
+        """Map an otherwise-unhandled Gateway failure without exposing identifiers."""
+
+        message = gateway_refusal(error, self._llm_gateway_mode())
+        retryable = message is None
+        if message is None:
+            message = (
+                "The AI Gateway could not complete this request. "
+                "No direct-model fallback was attempted. "
+                "Try again later or contact an administrator."
+            )
+        return ResponsesAgentResponse(
+            output=[self.create_text_output_item(text=message, id="response-ai-gateway-error")],
+            custom_outputs={
+                "type": "unavailable",
+                "code": "AI_GATEWAY_ERROR",
+                "layer": "ai-gateway",
+                "retryable": retryable,
+                "message": message,
             },
         )
 
@@ -3484,10 +3562,10 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             with mlflow.start_span(
                 name=f"data_source_finder.llm.step-{step}", span_type="LLM"
             ) as llm_span:
-                llm_span.set_inputs({"step": step, "model": self.settings.llm_endpoint})
+                llm_span.set_inputs({"step": step, "model": self._llm_endpoint()})
                 try:
                     response = client.chat.completions.create(
-                        model=self.settings.llm_endpoint,
+                        model=self._llm_endpoint(),
                         messages=messages,
                         temperature=0.1,
                         max_tokens=self.settings.max_output_tokens,
@@ -3506,7 +3584,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     # beside the guards; our own endpoint failing joins
                     # `log.failures` and reads as degraded. Claiming a control fired
                     # when none did is the same lie as hiding one that did.
-                    refusal = gateway_refusal(error, self.settings.llm_gateway)
+                    refusal = gateway_refusal(error, self._llm_gateway_mode())
                     reason = refusal or reasoning_endpoint_failure(error)
                     llm_span.set_outputs({"error": reason})
                     if refusal is not None:
@@ -4122,9 +4200,9 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         log.calls += 1
         try:
             with mlflow.start_span(name="data_source_finder.llm.cap", span_type="LLM") as llm_span:
-                llm_span.set_inputs({"capped": capped, "model": self.settings.llm_endpoint})
+                llm_span.set_inputs({"capped": capped, "model": self._llm_endpoint()})
                 response = client.chat.completions.create(
-                    model=self.settings.llm_endpoint,
+                    model=self._llm_endpoint(),
                     messages=messages,
                     temperature=0.1,
                     max_tokens=min(self.settings.max_output_tokens, 900),
@@ -4252,7 +4330,7 @@ Tables actually read this run:
                 }
             )
             kwargs = {
-                "model": self.settings.llm_endpoint,
+                "model": self._llm_endpoint(),
                 "messages": [
                     {"role": "system", "content": _cacheable(system)},
                     {"role": "user", "content": user},
@@ -4285,7 +4363,7 @@ Tables actually read this run:
                         {"error": _failure_reason(error), "structured_output": structured}
                     )
                     reason = gateway_refusal(
-                        error, self.settings.llm_gateway
+                        error, self._llm_gateway_mode()
                     ) or reasoning_endpoint_failure(error)
                     # The writer stopped. Findings already measured stay on the
                     # card, headed as a time-limit, stage partial. Overwriting
@@ -4403,7 +4481,7 @@ Statements run, for column names and grain:
             )
             try:
                 response = client.chat.completions.create(
-                    model=self.settings.llm_endpoint,
+                    model=self._llm_endpoint(),
                     messages=[
                         {"role": "system", "content": _cacheable(plot_instructions)},
                         {"role": "user", "content": user},
@@ -4636,9 +4714,9 @@ Statements run, for column names and grain:
         """Which of the readable tables this question would be answered from."""
 
         with mlflow.start_span(name="orchestrator.llm.plan_candidates", span_type="LLM") as span:
-            span.set_inputs({"question": question, "model": self.settings.llm_endpoint})
+            span.set_inputs({"question": question, "model": self._llm_endpoint()})
             response = client.chat.completions.create(
-                model=self.settings.llm_endpoint,
+                model=self._llm_endpoint(),
                 messages=[
                     {
                         "role": "system",
@@ -4685,9 +4763,9 @@ Tables available to this analysis, with their columns:
 {catalogue}
 """
         with mlflow.start_span(name="orchestrator.llm.plan_facts", span_type="LLM") as span:
-            span.set_inputs({"question": question, "model": self.settings.llm_endpoint})
+            span.set_inputs({"question": question, "model": self._llm_endpoint()})
             response = client.chat.completions.create(
-                model=self.settings.llm_endpoint,
+                model=self._llm_endpoint(),
                 messages=[
                     {
                         "role": "system",
@@ -4961,8 +5039,13 @@ Tables available to this analysis, with their columns:
         _TURN_CREDENTIALS.set({})
         try:
             return (yield from self._turn_within_request(request))
+        except Exception as error:
+            if llm_routing.current(self.settings).route == llm_routing.AI_GATEWAY:
+                return self._gateway_error_response(error)
+            raise
         finally:
             _TURN_CREDENTIALS.set(None)
+            llm_routing.clear()
             correlation.clear_query_ids()
 
     def _turn_within_request(
@@ -4978,6 +5061,13 @@ Tables available to this analysis, with their columns:
         """
 
         custom_inputs = _custom_inputs(request)
+        try:
+            selection = llm_routing.activate(custom_inputs, self.settings)
+        except (llm_routing.InvalidLlmRoute, llm_routing.AiGatewayNotConfigured) as error:
+            return self._llm_route_unavailable(error)
+        # Safe, low-cardinality route metadata only. No endpoint name, prompt,
+        # user, or policy detail is attached to the trace.
+        mlflow.update_current_trace(tags=selection.trace_metadata)
         runtime_settings.activate(custom_inputs)
         # Before anything that costs a model call: the checks are retired, and an
         # app build still asking for them should not spend an orchestrator turn on
@@ -5106,7 +5196,10 @@ Tables available to this analysis, with their columns:
             # span of this one -- each Genie call, each Vector Search query, each
             # statement -- is in the trace these tags are on, which is what joins
             # them to the same question.
-            turn_facts = correlation.facts(required, self.settings)
+            turn_facts = {
+                **correlation.facts(required, self.settings),
+                **selection.trace_metadata,
+            }
             if turn_facts:
                 mlflow.update_current_trace(tags=turn_facts)
                 span.set_attributes(turn_facts)

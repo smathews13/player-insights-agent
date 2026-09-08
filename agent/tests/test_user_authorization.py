@@ -21,8 +21,10 @@ import pytest
 from config import Settings
 from tools import GRANTS_DECIDE_NOTE, PlayerInsightTools
 from user_authorization import (
+    AI_GATEWAY_SCOPE,
     GENIE_SCOPE,
     MODEL_CONFIG_KEY,
+    MODEL_SERVING_SCOPE,
     SQL_SCOPE,
     SYSTEM_PASSTHROUGH,
     USER_AUTHORIZATION,
@@ -196,6 +198,16 @@ def test_the_model_serving_scope_is_not_requested():
     scopes = api_scopes(settings())
     assert not any("serving" in scope or "model-serving" == scope for scope in scopes)
     assert not any("vector" in scope or "files" in scope or "iam" in scope for scope in scopes)
+
+
+def test_gateway_capability_bakes_the_two_invoker_scopes():
+    scopes = api_scopes(
+        settings(
+            llm_gateway="mlflow",
+            llm_gateway_endpoint="catalog.schema.gateway_model",
+        )
+    )
+    assert scopes == (GENIE_SCOPE, SQL_SCOPE, AI_GATEWAY_SCOPE, MODEL_SERVING_SCOPE)
 
 
 def test_a_deployment_that_uses_no_genie_space_does_not_ask_for_genie():
@@ -626,6 +638,34 @@ def test_system_client_registers_product_before_construction(monkeypatch):
     build(user_authorization=True)._system_workspace()
 
     assert events[:2] == ["registered", "constructed"]
+
+
+def test_runtime_router_keeps_direct_system_auth_and_gateway_invoker_auth(monkeypatch, clients):
+    import agent as agent_module
+    import llm_routing
+
+    routed: list[tuple[object, str]] = []
+    monkeypatch.setattr(
+        agent_module,
+        "open_ai_client",
+        lambda workspace, mode: routed.append((workspace, mode)) or f"client-{mode or 'direct'}",
+    )
+    runtime = agent_module.PlayerInsightsResponsesAgent(
+        settings=settings(
+            llm_gateway="mlflow",
+            llm_gateway_endpoint="catalog.schema.gateway_model",
+        ),
+        user_authorization=True,
+    )
+
+    llm_routing.activate({"llm_route": "direct"}, runtime.settings)
+    assert runtime._build_llm_client() == "client-direct"
+    assert routed[-1][0] in clients.systems
+
+    llm_routing.activate({"llm_route": "ai_gateway"}, runtime.settings)
+    assert runtime._build_llm_client() == "client-mlflow"
+    assert routed[-1][0] in clients.users
+    llm_routing.clear()
 
 
 def test_a_user_authorized_client_is_never_reused_between_turns(clients):
