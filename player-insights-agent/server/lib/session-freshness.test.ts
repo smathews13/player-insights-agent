@@ -93,11 +93,7 @@ describe('sessionFreshness', () => {
   it('names exactly the permissions a session from before the declaration lacks', () => {
     const report = sessionFreshness({ token: tokenWithScopes(BEFORE_CATALOG), declared: DECLARED });
     expect(report.state).toBe('stale');
-    expect(report.missingScopes).toEqual([
-      'catalog.catalogs:read',
-      'catalog.schemas:read',
-      'catalog.tables:read',
-    ]);
+    expect(report.missingScopes).toEqual(['catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read']);
   });
 
   /**
@@ -237,9 +233,7 @@ describe('the authored app.yaml', () => {
    * though both remain optional to the gate. The other optional families stay out.
    */
   it('authors the required ask-path scopes and workspace browse for a Git deploy', () => {
-    const value =
-      new RegExp(`- name: ${DECLARED_SCOPES_VAR}\\n\\s+value: '?([^'\\n]*)'?`).exec(appYaml)?.[1] ??
-      '';
+    const value = new RegExp(`- name: ${DECLARED_SCOPES_VAR}\\n\\s+value: '?([^'\\n]*)'?`).exec(appYaml)?.[1] ?? '';
     const declared = value.split(',').filter(Boolean);
 
     expect(declared).toEqual([
@@ -247,6 +241,7 @@ describe('the authored app.yaml', () => {
       'model-serving',
       'sql',
       'dashboards.genie',
+      'genie',
       WORKSPACE_READ_USER_API_SCOPE,
       LAKEBASE_USER_API_SCOPE,
     ]);

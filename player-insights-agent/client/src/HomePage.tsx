@@ -191,6 +191,7 @@ import type {
   FeedbackEntry,
   PlanResponse,
 } from './app-types';
+import { answeredQuestion } from './answered-question';
 
 /** What Approve posts: the plan id, the transcript label, and the plan itself. */
 type PlanApproval = { planId: string; label: string; plan: AnalysisPlan };
@@ -2575,7 +2576,7 @@ export function HomePage() {
                     // The turn this answered, for the timeline's envelope row. Read
                     // from the transcript rather than the trace, which does not
                     // carry the prompt.
-                    question={index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : ''}
+                    question={answeredQuestion(messages, index, PLAN_APPROVAL_LABEL)}
                     feedback={entry}
                     // The last answer, as before, and also any answer that already
                     // carries a rating. Only the last one offered the controls, so an

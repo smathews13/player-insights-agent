@@ -4,6 +4,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger } from './ui';
 import type { NormalizedAnswer } from './answer-shape';
 import type { ExportTable } from './export-serializers';
 import type { ConversationMessage } from './app-types';
+import { PiaBusyButtonContent } from './PiaLoader';
 
 const loadExportActions = () => import('./export-actions');
 
@@ -52,7 +53,7 @@ function ActionsMenu({ label, actions }: { label: string; actions: readonly Expo
               aria-busy={busy === action.label || undefined}
               onClick={() => void activate(action)}
             >
-              {busy === action.label ? `${action.label}…` : action.label}
+              <PiaBusyButtonContent busy={busy === action.label} label={action.label} busyLabel={`${action.label}…`} />
             </button>
           ))}
         </PopoverContent>
