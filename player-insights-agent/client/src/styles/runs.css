@@ -439,12 +439,12 @@
   height: var(--run-explorer-pane-block-size);
   min-height: var(--run-explorer-pane-block-size);
   max-height: var(--run-explorer-pane-block-size);
-  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 .run-list {
   position: static;
   min-width: 0;
+  overscroll-behavior: contain;
   overflow-x: clip;
   overflow-y: auto;
 }
@@ -681,6 +681,10 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--ast-radius-card);
   background: var(--ast-pane);
+  /* Let a wheel gesture continue into the page when this nested pane is at an
+     edge (or has no overflow). Containment here swallowed the gesture anywhere
+     over the detail surface, so the page moved only when the pointer left it. */
+  overscroll-behavior-y: auto;
   overflow-x: clip;
   overflow-y: auto;
   overflow-anchor: none;

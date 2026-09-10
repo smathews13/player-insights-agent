@@ -257,7 +257,6 @@ export function AnswerCard({
               <EntityText text={headline} sources={readerAnswer.sources} />
             </CardTitle>
           ) : null}
-          <AnswerExportMenu question={question} answer={readerAnswer} />
         </div>
       </CardHeader>
       <CardContent className="answer-card-content">
@@ -457,7 +456,8 @@ export function AnswerCard({
             )}
           </>
         ) : null}
-        {showFeedback && (
+        {dataAccess ? <p className="data-access-note">{dataAccess}</p> : null}
+        {showFeedback ? (
           <div className="feedback">
             <span>Was this answer useful?</span>
             <Button
@@ -488,6 +488,7 @@ export function AnswerCard({
             >
               <ThumbsDown aria-hidden="true" />
             </Button>
+            <AnswerExportMenu question={question} answer={readerAnswer} />
             {feedback.open && (
               <div className="feedback-comment">
                 <Input
@@ -518,21 +519,11 @@ export function AnswerCard({
               </span>
             )}
           </div>
+        ) : (
+          <div className="feedback answer-export-only">
+            <AnswerExportMenu question={question} answer={readerAnswer} />
+          </div>
         )}
-        {/* The identity sentence is the run's, not a constant. It read "Data
-            access executed by the Player Insights service principal", which was
-            true of an arrangement this app no longer uses: the reader's token is
-            forwarded to the endpoint and the model is logged with user
-            authorization, so the warehouse enforces the reader's own grants. A
-            footer naming a service principal told every reader the one thing
-            about their answer this product exists to be trusted on, backwards.
-            `dataAccessDisclosure` says what the run reported, and says nothing
-            at all where nothing reported one: a run with no recorded identity
-            is not a run to make any claim about, in either direction.
-
-            Kept on its own line because access provenance is evidence about
-            this run, not boilerplate about AI. */}
-        {dataAccess ? <p className="data-access-note">{dataAccess}</p> : null}
       </CardContent>
     </Card>
   );

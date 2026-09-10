@@ -90,6 +90,13 @@ describe('the Run Explorer’s two columns', () => {
     expect(pane).toContain('background: var(--ast-pane)');
   });
 
+  it('lets wheel scrolling escape the detail pane at its boundaries', () => {
+    const pane = [...RUNS.matchAll(/^\.run-detail \{([^}]*)\}/gm)].at(-1)?.[1] ?? '';
+    expect(pane).toContain('overflow-y: auto');
+    expect(pane).toContain('overscroll-behavior-y: auto');
+    expect(pane).not.toContain('overscroll-behavior: contain');
+  });
+
   it('makes a run row a bordered block at the smaller radius, not a list line', () => {
     const row = rule(RUNS, '.run-item');
     expect(row).toContain('border-radius: var(--radius-md)');
