@@ -216,7 +216,9 @@ variables:
       - model-serving
       - sql
       - dashboards.genie
-      - genie
+      # `genie` is model-side only for managed Genie MCP. Requesting it from
+      # App users is accepted by the Apps API but is not minted for every
+      # workspace/user, which can trap valid users at the sign-in gate.
       # Resource-browser scopes accepted by the Apps API.
       - catalog.catalogs:read
       - catalog.schemas:read
