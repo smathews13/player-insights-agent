@@ -15,7 +15,6 @@ const GIT_DEPLOY_SCOPES = [
   'model-serving',
   'sql',
   'dashboards.genie',
-  'genie',
   'workspace.workspace:read',
   'postgres',
 ];

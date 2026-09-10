@@ -241,7 +241,6 @@ describe('the authored app.yaml', () => {
       'model-serving',
       'sql',
       'dashboards.genie',
-      'genie',
       WORKSPACE_READ_USER_API_SCOPE,
       LAKEBASE_USER_API_SCOPE,
     ]);
