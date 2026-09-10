@@ -14,7 +14,7 @@ import express from 'express';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupUserRoutes } from './user-routes';
+import { setupUserRoutes, type AppAccessService } from './user-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { announceSeedAdmins, requireAdmin, requireSuperAdmin, type AdminStore } from '../lib/admin-roles';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE, ADMIN_GRANTS_TABLE } from '../lib/admin-roles-schema';
@@ -125,7 +125,7 @@ function stubStatements(respond: (statement: string) => Response) {
 
 let server: Server | undefined;
 
-async function startApp(store: AdminStore) {
+async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService) {
   const app = express();
   app.use(express.json());
   const appkit = { lakebase: store, server: { extend: (fn: (a: express.Application) => void) => fn(app) } };
@@ -134,7 +134,36 @@ async function startApp(store: AdminStore) {
   // registering the routes first would serve the roster to everybody.
   app.use(requireAdmin(store, userEmail));
   app.use(requireSuperAdmin(store, userEmail));
-  setupUserRoutes(appkit as unknown as InsightsAppKit, { readDeploymentOwner: () => Promise.resolve(LEAD) });
+  const storedRows = (store as AdminStore & { rows?: Rows }).rows?.roster ?? [];
+  const admitted = new Set([LEAD, DEPUTY, ...storedRows.map((row) => row.email)]);
+  const snapshot = () => ({
+    available: true,
+    principals: [...admitted].map((name) => ({
+      kind: 'user' as const,
+      name,
+      displayName: name,
+      directPermission: 'CAN_USE' as const,
+      effectivePermission: 'CAN_USE' as const,
+      inherited: false,
+    })),
+    message: '',
+  });
+  const appAccess: AppAccessService = {
+    read: () => Promise.resolve(snapshot()),
+    grant: (_req, email) => {
+      const before = admitted.size;
+      admitted.add(email);
+      return Promise.resolve({ kind: before === admitted.size ? 'unchanged' : 'updated', snapshot: snapshot() });
+    },
+    revoke: (_req, email) => {
+      const changed = admitted.delete(email);
+      return Promise.resolve({ kind: changed ? 'updated' : 'unchanged', snapshot: snapshot() });
+    },
+  };
+  setupUserRoutes(appkit as unknown as InsightsAppKit, {
+    readDeploymentOwner: () => Promise.resolve(LEAD),
+    appAccess: suppliedAppAccess ?? appAccess,
+  });
 
   server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server?.once('listening', resolve));
@@ -257,6 +286,29 @@ describe('the super admin reads the roster', () => {
     );
     expect(rosterReads).toHaveLength(1);
   });
+
+  it('shows a user added in Databricks as a PIA consumer in the same list', async () => {
+    const principals = [LEAD, DEPUTY, ANALYST].map((name) => ({
+      kind: 'user' as const,
+      name,
+      displayName: name,
+      directPermission: 'CAN_USE' as const,
+      effectivePermission: 'CAN_USE' as const,
+      inherited: false,
+    }));
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve({ available: true, principals, message: '' }),
+      grant: () => Promise.resolve({ kind: 'unchanged', snapshot: { available: true, principals, message: '' } }),
+      revoke: () => Promise.resolve({ kind: 'updated', snapshot: { available: true, principals: [], message: '' } }),
+    };
+    const app = await startApp(fakeLakebase(), appAccess);
+    const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+    expect(payload.entries.find((entry) => entry.email === ANALYST)).toMatchObject({
+      role: 'consumer',
+      setBy: 'Databricks App permissions',
+      appAccess: 'can_use',
+    });
+  });
 });
 
 describe('appointing an administrator', () => {
@@ -280,6 +332,29 @@ describe('appointing an administrator', () => {
     // `system.billing` tables. Read access to billing needs a metastore admin, so
     // the ordinary promotion reported a refusal for access the rank never required.
     expect(calls).toHaveLength(0);
+  });
+
+  it('does not store a PIA role when Databricks refuses App admission', async () => {
+    const store = fakeLakebase();
+    const snapshot = { available: true, principals: [], message: '' };
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve(snapshot),
+      grant: () =>
+        Promise.resolve({
+          kind: 'refused',
+          status: 403,
+          message: 'CAN MANAGE and access-management are required.',
+        }),
+      revoke: () => Promise.resolve({ kind: 'unchanged', snapshot }),
+    };
+    const app = await startApp(store, appAccess);
+    const response = await app.add(LEAD, ANALYST, 'admin');
+    expect(response.status).toBe(403);
+    expect(store.rows.roster).toEqual([]);
+    expect((await response.json()) as Record<string, unknown>).toMatchObject({
+      error: 'app_access_refused',
+      detail: 'CAN MANAGE and access-management are required.',
+    });
   });
 
   it('creates an explicit consumer row and returns its normalized confirmed facts', async () => {

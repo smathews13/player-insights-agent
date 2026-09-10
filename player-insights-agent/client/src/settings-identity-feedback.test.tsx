@@ -81,6 +81,8 @@ describe('the demo workspace Identity feedback', () => {
         setBy: '',
         setAt: '',
         isYou: true,
+        appAccess: 'can_manage',
+        appAccessDetail: 'Direct CAN MANAGE on the Databricks App.',
         assignable: [],
         canRemove: false,
       },
@@ -90,6 +92,18 @@ describe('the demo workspace Identity feedback', () => {
     pendingSchemaStatement: '',
     superAdminCount: 1,
     recoveryStatement: '',
+    appAccessAvailable: true,
+    appAccessMessage:
+      'Databricks App permissions control admission. PIA roles control what an admitted person may do inside the app.',
+    appAccessPrincipals: [
+      {
+        kind: 'group',
+        name: 'Executives',
+        displayName: 'Executives',
+        permission: 'CAN_USE',
+        inherited: false,
+      },
+    ],
   };
   const spRoles: SpIdentityAdminPayload = {
     minting: { available: true, detail: '' },
@@ -141,6 +155,8 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).not.toContain('SP user roles');
     expect(markup.match(/<th scope="col">Email<\/th>/g) ?? []).toHaveLength(1);
     expect(markup).toContain('settings-table-frame');
+    expect(markup).toContain('Can manage app');
+    expect(markup).toContain('Direct CAN MANAGE on the Databricks App.');
   });
 
   it('shows role names and assignments without credential fields or values', () => {

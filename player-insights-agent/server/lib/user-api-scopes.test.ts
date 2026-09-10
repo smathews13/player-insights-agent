@@ -175,8 +175,8 @@ describe('the scopes the bundle declares against the scopes the probes call with
    * day. So an ADDITION has to break this test too, not just a removal.
    */
   it('requests those and no more, so an added scope is a decision rather than a drift', () => {
-    // example inherits the shared default. Workspace read and postgres are now
-    // requested for the released notebook and Lakebase browsers.
+    // example inherits the shared default. Workspace read, postgres and App access
+    // management support the released browsers and aligned Identity roster.
     expect(effectiveScopes('example')).toEqual([
       'serving.serving-endpoints',
       'model-serving',
@@ -189,6 +189,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
       'postgres',
+      'access-management',
     ]);
   });
 
@@ -372,6 +373,7 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
       'postgres',
+      'access-management',
     ]);
   });
 });

@@ -163,7 +163,7 @@ function rosterFailure(response: Response, body: { detail?: string; error?: stri
     return new HumanRosterError('Your session expired. Sign in again, then retry.', 'session', 401);
   }
   if (response.status === 403) {
-    return new HumanRosterError('You are not authorized to change human roles.', 'authorization', 403);
+    return new HumanRosterError(detail || 'You are not authorized to change human roles.', 'authorization', 403);
   }
   if (response.status === 503) {
     if (body?.error === 'roster_confirmation_unavailable') {
@@ -173,7 +173,11 @@ function rosterFailure(response: Response, body: { detail?: string; error?: stri
         503
       );
     }
-    return new HumanRosterError('Lakebase could not save the role. Try again.', 'unavailable', 503);
+    return new HumanRosterError(
+      detail || 'The app could not save the aligned App access and PIA role. Try again.',
+      'unavailable',
+      503
+    );
   }
   return new HumanRosterError(detail || `The human roster answered ${response.status}.`, 'response', response.status);
 }

@@ -134,9 +134,27 @@ export interface RosterEntry {
   setAt: string;
   /** Whether this row is the person reading the screen. */
   isYou: boolean;
+  /**
+   * The live Databricks App admission attached to this identity.
+   *
+   * Optional for backwards-compatible stored/test payloads. `missing` means
+   * PIA knows the role but Databricks will not admit that user through a direct
+   * App grant; `unknown` means the ACL could not be read under this session.
+   */
+  appAccess?: 'can_use' | 'can_manage' | 'inherited' | 'missing' | 'unknown';
+  /** Human-readable reason for an App access state or restriction. */
+  appAccessDetail?: string;
   /** The roles this row may be changed to. Empty when it may not be changed. */
   assignable: Role[];
   canRemove: boolean;
+}
+
+export interface RosterAppAccessPrincipal {
+  kind: 'group' | 'service_principal';
+  name: string;
+  displayName: string;
+  permission: 'CAN_USE' | 'CAN_MANAGE';
+  inherited: boolean;
 }
 
 export interface RosterPayload {
@@ -168,6 +186,12 @@ export interface RosterPayload {
    * in every state where somebody is able to act instead.
    */
   recoveryStatement: string;
+  /** Whether the live Databricks App ACL was read under the signed-in user. */
+  appAccessAvailable?: boolean;
+  /** Why the ACL is unavailable, or a concise description of alignment. */
+  appAccessMessage?: string;
+  /** Non-user ACL entries cannot be truthfully expanded into individual emails. */
+  appAccessPrincipals?: RosterAppAccessPrincipal[];
 }
 
 /** A refusal the roster routes make, named so the route and its test read one string. */
