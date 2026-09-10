@@ -92,13 +92,24 @@ def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str],
     scope-contract.py -- so a rename there cannot pass this silently.
     """
     names = contract_source.model_scopes()
-    genie_scope = next((s for s in names if "genie" in s), None)
+    genie_scope = next(
+        (scope for scope, conditions in names.items() if "a Genie space is configured" in conditions),
+        None,
+    )
+    genie_mcp_scope = next(
+        (
+            scope
+            for scope, conditions in names.items()
+            if "the data Genie MCP endpoint is configured" in conditions
+        ),
+        None,
+    )
     sql_scope = next((s for s in names if s == "sql" or s.startswith("sql")), None)
     vs_scopes = [s for s in names if s.startswith("vectorsearch")]
-    if not (genie_scope and sql_scope and vs_scopes):
+    if not (genie_scope and genie_mcp_scope and sql_scope and vs_scopes):
         raise Unreadable(
-            "the agent's scope constants no longer include a Genie, a SQL and at "
-            "least one Vector Search name, so the conditions below cannot be paired "
+            "the agent's scope constants no longer include REST Genie, Genie MCP, "
+            "SQL and at least one Vector Search name, so the conditions below cannot be paired "
             f"with them. Found: {sorted(names)}"
         )
 
@@ -118,10 +129,14 @@ def would_bake(target: str, drift, contract_source) -> tuple[set[str], set[str],
     if data_genie or dict_genie:
         wanted.add(genie_scope)
         why.append(f"{genie_scope}: a Genie space is configured")
+        if data_genie:
+            wanted.add(genie_mcp_scope)
+            why.append(f"{genie_mcp_scope}: the data Genie MCP endpoint is configured")
     else:
         undecidable.add(genie_scope)
+        undecidable.add(genie_mcp_scope)
         why.append(
-            f"{genie_scope}: NOT DECIDED here. This target declares no Genie space "
+            f"{genie_scope}, {genie_mcp_scope}: NOT DECIDED here. This target declares no Genie space "
             f"id, so the id comes from the bundle's output at release time and only "
             f"a release can say whether one exists."
         )
