@@ -83,7 +83,13 @@ print(" ".join(sorted(s for s in c["model_scopes"] if s.startswith("vectorsearch
 GENIE="$(python3 -c '
 import json,sys
 c=json.load(open(sys.argv[1]))
-print(next(s for s in c["model_scopes"] if "genie" in s))' "$CONTRACT")"
+print(next(s for s, body in c["model_scopes"].items()
+           if "a Genie space is configured" in body["asked_when"]))' "$CONTRACT")"
+GENIE_MCP="$(python3 -c '
+import json,sys
+c=json.load(open(sys.argv[1]))
+print(next(s for s, body in c["model_scopes"].items()
+           if "the data Genie MCP endpoint is configured" in body["asked_when"]))' "$CONTRACT")"
 
 printf '\n==> the baseline this repository is actually in\n'
 check_says "configured and documented agree" 0 "scopes agree" \
@@ -91,7 +97,7 @@ check_says "configured and documented agree" 0 "scopes agree" \
 
 # shellcheck disable=SC2086
 check_says "and agree with a logged model that baked exactly them" 0 "and logged scopes agree" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary good.json "$GENIE" "$SQL" $VS)"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary good.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
 
 # THE DIRECTORY THE GATE IS INVOKED FROM MUST NOT DECIDE WHETHER IT RUNS. Three of
 # the gate's four inputs are siblings of itself -- drift-check.py, scope-contract.py
@@ -116,11 +122,11 @@ printf '\n==> the logged leg: what the release actually baked\n'
 # the scope this target really does ask for.
 check_says "a logged model missing a scope this target asks for fails" 1 \
   "will not carry the scope" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" "$SQL")"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" "$GENIE_MCP" "$SQL")"
 
 check_says "a logged model carrying a scope nothing asks for fails" 1 \
   "one more API the agent could be made to call" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary wide.json "$GENIE" "$SQL" "files.files")"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary wide.json "$GENIE" "$GENIE_MCP" "$SQL" "files.files")"
 
 check_says "an empty baked scope list fails, and says where it would have failed" 1 \
   "inside the container rather than here" \
@@ -138,13 +144,13 @@ printf '\n==> the configured leg: the target really is read\n'
 # shellcheck disable=SC2086
 check_says "an unresolvable warehouse leaves the SQL scope undecided, not unasked-for" 0 \
   "$SQL: undecidable statically, and the logged model carries it" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary undecided.json "$GENIE" "$SQL" $VS)"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary undecided.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
 
 # shellcheck disable=SC2086
 edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: \\\$\\{resources.sql_warehouses.demo.id\\}\n    description:}" && \
   check_says "a warehouse still written as an interpolation is undecided too" 0 \
     "$SQL: undecidable statically, and the logged model carries it" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary interp.json "$GENIE" "$SQL" $VS)"
+    python3 "$GATE" --target "$TARGET" --logged "$(summary interp.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
 restore
 
 # THE REAL CHECK MUST STILL FIRE. Undecidable is only the unresolvable case: when
@@ -155,7 +161,7 @@ restore
 edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: abc123def4567890\n    description:}" && \
   check_says "a resolvable warehouse whose scope the model did not bake still fails" 1 \
     "will not carry the scope" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary mismatch.json "$GENIE" $VS)"
+    python3 "$GATE" --target "$TARGET" --logged "$(summary mismatch.json "$GENIE" "$GENIE_MCP" $VS)"
 restore
 
 # A target with no semantic layer must not be told it asks for the Vector Search
@@ -164,7 +170,7 @@ restore
 edit "$INDEX_YML" "{\n      semantic_index_endpoint: }{\n      semantic_index_endpoint_unset: }" && \
   check_says "a target with no semantic index does not ask for the VS pair" 1 \
     "one more API the agent could be made to call" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary vs.json "$GENIE" "$SQL" $VS)"
+    python3 "$GATE" --target "$TARGET" --logged "$(summary vs.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
 restore
 
 printf '\n==> the documented leg: the contract really is read\n'
