@@ -3,7 +3,7 @@ import { commitOf, SHORT_SHA_LENGTH } from '../../shared/build-stamps';
 export function deploymentTimeLabel(deployedAt: string): string {
   const at = new Date(deployedAt);
   if (!deployedAt || Number.isNaN(at.getTime())) return '';
-  return at.toLocaleString(undefined, { month: 'short', day: 'numeric' });
+  return at.toLocaleString(undefined, { timeZone: 'UTC', month: 'short', day: 'numeric' });
 }
 
 export function deploymentLocalTime(deployedAt: string): string {

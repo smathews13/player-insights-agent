@@ -54,6 +54,13 @@ describe('the header release chip', () => {
     expect(deploymentTimeLabel(DEPLOYED_AT)).not.toMatch(/\d:\d/);
   });
 
+  it('uses the deployment UTC date when the reader is still on the prior local day', () => {
+    const afterUtcMidnight = '2026-09-10T05:22:00.000Z';
+
+    expect(deploymentTimeLabel(afterUtcMidnight)).toBe('Sep 10');
+    expect(deploymentTimeTitle(afterUtcMidnight)).toContain('Deployed Sep 10, 2026');
+  });
+
   it('keeps the time, deployment creator and commit on the tooltip', () => {
     const title = deploymentTimeTitle(DEPLOYED_AT, BUILD_SHA, DEPLOYED_BY);
 
