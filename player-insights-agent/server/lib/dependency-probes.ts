@@ -510,28 +510,11 @@ export function connectionSubjects(input: {
     subjects.push(servingEndpointSubject(id, label, endpoint, note));
   }
 
-  const gateway = value('llm-gateway');
-  if (gateway && !gateway.includes('/') && gateway.split('.').length === 3) {
-    subjects.push({
-      id: 'llm-gateway',
-      kind: 'model-service',
-      name: gateway,
-      label: `AI Gateway model service \u00b7 ${gateway}`,
-      path: `/api/2.1/unity-catalog/model-services/${encodeURIComponent(gateway)}`,
-      proves:
-        'It proves the configured model service metadata is reachable. The experimental toggle separately decides whether new asks use it.',
-      observe: (body) => {
-        const state = text(body.status) || text(body.state) || text(record(body.state).ready);
-        return state ? `state ${state}` : 'metadata available';
-      },
-      displayName: (body) => text(body.display_name) || text(body.full_name),
-      facts: (body) =>
-        compactFacts({
-          readiness: text(body.status) || text(body.state) || text(record(body.state).ready),
-          service_type: text(body.service_type) || text(body.type),
-        }),
-    });
-  }
+  // Do not probe model-service metadata with the forwarded user token. The
+  // workspace protects this path with the coarse `unity-catalog` OAuth scope,
+  // which Databricks Apps cannot request in `user_api_scopes`. That check made
+  // every valid configured Gateway appear disconnected. Gateway selection has
+  // its own validation surface; generic health must not invent a failed check.
 
   const index = resolveSemanticIndexValue(value('semantic-index'), value('catalog'), value('schema'));
   // `true` with no catalog/schema is still a decision rather than a name, and

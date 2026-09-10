@@ -11,19 +11,22 @@
  * - The list grows inside the bounded live answer card. It never creates a
  *   second vertical viewport inside that pane.
  */
-import type { CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { Badge } from './ui';
 
 import type { TraceStage } from './answer-shape';
 import { PiaAvatar } from './PiaMark';
 import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
-import { buildLiveRun, type LiveStep } from './live-progress';
+import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
 import { EntityText, TableEntityList } from './InlineEntityText';
 import { InlineSqlCode } from './SqlPresentation';
+import { PiaLoader } from './PiaLoader';
+
+const useFollowEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * One reported step.
@@ -100,6 +103,16 @@ function StepRow({
           </span>
           {step.status !== 'complete' && (
             <Badge variant="outline" className={astPill(step.status)}>
+              {step.status === 'running' ? (
+                <PiaLoader
+                  variant="button"
+                  tone="light"
+                  label={null}
+                  announce={false}
+                  as="span"
+                  className="live-step-busy-mark"
+                />
+              ) : null}
               {step.status}
             </Badge>
           )}
@@ -162,11 +175,38 @@ export function LiveProgress({
   elapsedMs?: number | null;
 }) {
   const run = buildLiveRun({ openedAt, stages, question });
+  const listRef = useRef<HTMLOListElement>(null);
+  const followsNewest = useRef(true);
+  const previousTop = useRef(0);
+  const frontier = run.steps.map((step) => `${step.id}:${step.status}:${step.detail}:${step.result}`).join('|');
+
+  useFollowEffect(() => {
+    const list = listRef.current;
+    if (!list || !followsNewest.current) return;
+    list.scrollTop = list.scrollHeight - list.clientHeight;
+    previousTop.current = list.scrollTop;
+  }, [frontier]);
 
   return (
     <div className="live-progress">
       {run.steps.length > 0 && (
-        <ol className="live-steps">
+        <ol
+          ref={listRef}
+          className="live-steps"
+          onScroll={(event) => {
+            const list = event.currentTarget;
+            followsNewest.current = nextFollowState({
+              view: {
+                scrollTop: list.scrollTop,
+                scrollHeight: list.scrollHeight,
+                clientHeight: list.clientHeight,
+              },
+              previousTop: previousTop.current,
+              following: followsNewest.current,
+            });
+            previousTop.current = list.scrollTop;
+          }}
+        >
           {run.steps.map((step, index) => (
             <StepRow
               key={step.id}

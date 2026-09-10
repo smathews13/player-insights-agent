@@ -34,11 +34,10 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(layout).toContain('--ask-active-card-min-block-size: min(360px, 60dvh)');
     expect(layout).toContain('--ask-active-card-max-block-size: min(520px, 60dvh)');
     const working = rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main > .answer-card");
-    expect(working).toContain('height: auto');
+    expect(working).toContain('height: var(--ask-active-card-max-block-size)');
     expect(working).toContain('min-height: var(--ask-active-card-min-block-size)');
     expect(working).toContain('max-height: var(--ask-active-card-max-block-size)');
-    expect(working).toContain('overflow-y: auto');
-    expect(working).toContain('scrollbar-gutter: stable');
+    expect(working).toContain('overflow: hidden');
     expect(rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main")).toContain('min-height: 0');
     expect(HOME).toContain("data-center-state={loading ? 'working'");
   });
@@ -85,13 +84,13 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(ANSWER_BODY, '.answer-card-content')).toMatch(/grid-auto-rows:\s*auto[\s\S]*overflow:\s*visible/);
   });
 
-  it('keeps the graph intrinsic and delegates overflow to the one right-rail scroller', () => {
+  it('keeps the graph intrinsic and gives the live step list one bounded scroller', () => {
     expect(rule(CONSTELLATION, '.ast-sky')).toMatch(/overflow:\s*clip[\s\S]*flex:\s*none/);
     expect(rule(CONSTELLATION, '.ast-sky-canvas')).toMatch(/height:\s*auto[\s\S]*flex:\s*none/);
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
     const live = rule(LIVE, '.live-steps');
-    expect(live).toMatch(/overflow:\s*visible/);
-    expect(live).not.toMatch(/overflow-y:\s*(?:auto|scroll)|max-height/);
+    expect(live).toMatch(/overflow-y:\s*auto/);
+    expect(live).toMatch(/max-height:\s*clamp\(/);
   });
 
   it('returns Ask and Run panes to auto-height page flow on narrow screens', () => {

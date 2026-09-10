@@ -386,7 +386,9 @@ describe('Forecasting visibility and placement', () => {
         traffic={block<OpsTrafficPayload>(null, { busy: true })}
       />
     );
-    expect(loading).toContain('ops-skeleton');
+    expect(loading).toContain('ops-forecast-loading');
+    expect(loading).toContain('pia-loader-mark');
+    expect(loading).toContain('Loading cost forecast');
 
     const unavailable = renderToStaticMarkup(
       <ForecastingBody

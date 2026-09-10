@@ -157,6 +157,15 @@ export interface RosterAppAccessPrincipal {
   inherited: boolean;
 }
 
+export interface GroupRoleMappingEntry {
+  groupName: string;
+  role: Extract<Role, 'admin' | 'consumer'>;
+  setBy: string;
+  setAt: string;
+  scimConfirmed: boolean;
+  identityManagementUrl: string;
+}
+
 export interface RosterPayload {
   entries: RosterEntry[];
   /** Deployment-configured labels only; unknown domains use a neutral fallback. */
@@ -192,6 +201,31 @@ export interface RosterPayload {
   appAccessMessage?: string;
   /** Non-user ACL entries cannot be truthfully expanded into individual emails. */
   appAccessPrincipals?: RosterAppAccessPrincipal[];
+  /** Operator-added workspace groups. Empty by default; deployment never seeds these. */
+  groupRoleMappings?: GroupRoleMappingEntry[];
+}
+
+export interface GroupMember {
+  email: string;
+  displayName: string;
+}
+
+export interface GroupMembersResponse {
+  groupName: string;
+  members: GroupMember[];
+  readable: boolean;
+  detail: string;
+}
+
+export interface WorkspaceGroupOption {
+  id: string;
+  displayName: string;
+}
+
+export interface WorkspaceGroupsResponse {
+  groups: WorkspaceGroupOption[];
+  readable: boolean;
+  detail: string;
 }
 
 /** A refusal the roster routes make, named so the route and its test read one string. */

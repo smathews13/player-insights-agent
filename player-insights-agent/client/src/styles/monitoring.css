@@ -1321,6 +1321,12 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
+.user-profile-modal-table-name svg,
+.user-profile-modal-grant-line > svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
 .user-profile-modal-table-name > .source-name-pill,
 .user-profile-modal-table-name > .source-name-pill > a,
 .user-profile-modal-table-name .entity-token {
@@ -1476,7 +1482,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   top: -16px;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: 12px 0;
   background: var(--card);
@@ -1486,7 +1492,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 .monitoring-users-toolbar-view {
@@ -1760,6 +1766,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   position: relative;
   top: auto;
   flex: none;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   padding: 0;
 }
@@ -1767,6 +1774,9 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   min-width: 0;
   display: flex;
   align-items: center;
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: flex-end;
   gap: 8px;
 }
 .monitoring-feedback-toolbar .monitoring-feedback-search {
@@ -1779,6 +1789,8 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 .monitoring-feedback-filter-row {
   min-width: 0;
   display: grid;
+  grid-column: 1;
+  grid-row: 1;
   grid-template-columns: repeat(5, 136px);
   justify-content: start;
   gap: 8px;

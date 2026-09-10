@@ -1,7 +1,29 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { NO_AGENT_MODEL, type AgentModelReference } from '../../shared/agent-model';
+import { PUBLIC_SOURCE_REPO_URL } from '../../shared/app-facts';
 import { agentModelFromResponse } from './agent-model-response';
+
+export function AppCodeRow() {
+  return (
+    <div className="settings-row agent-code-row">
+      <div>
+        <p className="settings-row-label">App code</p>
+        <p className="settings-row-note">Source for the PIA interface and app server.</p>
+      </div>
+      <a
+        className="agent-code-open"
+        href={PUBLIC_SOURCE_REPO_URL}
+        target="_blank"
+        rel="noreferrer noopener"
+        data-testid="app-code-link"
+      >
+        <span>Open app code</span>
+        <ExternalLink className="size-3" aria-hidden="true" />
+      </a>
+    </div>
+  );
+}
 
 /**
  * One row in Settings: where to read the code that is answering.

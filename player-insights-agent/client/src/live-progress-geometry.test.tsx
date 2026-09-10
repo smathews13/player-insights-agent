@@ -83,11 +83,13 @@ describe('streamed progress geometry', () => {
     expect(rule('.live-step-detail .semantic-sql-code--inline')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('delegates vertical scrolling to the one bounded working-card pane', () => {
-    expect(rule('.live-steps')).toMatch(/overflow:\s*visible/);
-    expect(rule('.live-steps')).not.toMatch(/overflow-y:\s*(?:auto|scroll)|max-height|scrollbar-gutter/);
+  it('bounds long actions in a fixed card and scrolls only the step list', () => {
+    expect(rule('.live-steps')).toMatch(/overflow-y:\s*auto/);
+    expect(rule('.live-steps')).toMatch(/max-height:\s*clamp\(/);
+    expect(rule('.live-steps')).toMatch(/overscroll-behavior:\s*contain/);
+    expect(rule('.live-steps')).toMatch(/scrollbar-gutter:\s*stable/);
     expect(ASK_CSS).toMatch(
-      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*max-height:\s*var\(--ask-active-card-max-block-size\)[^}]*overflow-y:\s*auto/
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*height:\s*var\(--ask-active-card-max-block-size\)[^}]*overflow:\s*hidden/
     );
 
     const mobile = LIVE_CSS.slice(LIVE_CSS.indexOf('@container answer-card (max-width: 800px)'));
@@ -98,12 +100,23 @@ describe('streamed progress geometry', () => {
     );
   });
 
-  it('keeps centered splash seating without an independent follow scroller', () => {
+  it('follows inside the action list without scrolling page ancestors', () => {
+    expect(rule('.live-progress')).toMatch(/flex:\s*1 1 auto/);
+    expect(rule('.live-progress')).toMatch(/min-height:\s*0/);
+    expect(rule('.live-progress')).toMatch(/overflow:\s*hidden/);
     expect(rule('.pia-splash-run')).toMatch(/align-self:\s*stretch/);
     expect(rule('.pia-splash-run')).toMatch(/width:\s*100%/);
     expect(rule('.pia-splash-run')).toMatch(/max-width:\s*100%/);
 
-    expect(PANEL).not.toContain('scrollTo(');
-    expect(PANEL).not.toContain('onScroll=');
+    expect(PANEL).toContain('list.scrollTop = list.scrollHeight - list.clientHeight');
+    expect(PANEL).toContain('onScroll=');
+    expect(PANEL).not.toContain('.scrollIntoView(');
+  });
+
+  it('adds the normal PIA loader only to the current running row', () => {
+    const running = progress(2, { status: 'running', duration: 0 });
+    expect(running).toContain('live-step-busy-mark');
+    expect(running).toContain('pia-loader-mark--button');
+    expect(progress(2)).not.toContain('live-step-busy-mark');
   });
 });

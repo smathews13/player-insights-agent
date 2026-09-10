@@ -34,7 +34,7 @@ import crypto from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE } from './admin-roles-schema';
 import { columnText, normalizeAdminEmail, type AdminStore } from './admin-identity';
-import { canMutateConnections, opensUserRoster, type Role } from '../../shared/user-roster-contract';
+import { canMutateConnections, highestRole, opensUserRoster, type Role } from '../../shared/user-roster-contract';
 import {
   effectiveRole,
   invalidateRosterCache,
@@ -49,6 +49,7 @@ import {
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
 import type { AdminListEntry, AdminListPayload } from '../../shared/admin-contract';
+import { groupRoleLookupForStore, type GroupRoleLookup } from './workspace-group-roles';
 
 export type { AdminListEntry, AdminListPayload };
 
@@ -342,7 +343,11 @@ export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> 
  * the top of the order, so the store has nothing to add, and skipping the read means
  * the one role that can repair a broken roster does not depend on reading it.
  */
-async function resolveRoleFrom(email: string, read: () => Promise<StoredRoster>): Promise<RoleResolution> {
+async function resolveRoleFrom(
+  email: string,
+  read: () => Promise<StoredRoster>,
+  readGroupRole: GroupRoleLookup
+): Promise<RoleResolution> {
   const caller = normalizeAdminEmail(email);
   const seed = seedRoles();
   const floor = seedFloorFor(seed, caller);
@@ -351,7 +356,9 @@ async function resolveRoleFrom(email: string, read: () => Promise<StoredRoster>)
   }
   try {
     const { rows } = await read();
-    const role = caller ? effectiveRole({ seed, stored: rows, email: caller }) : 'consumer';
+    const explicitRole = caller ? effectiveRole({ seed, stored: rows, email: caller }) : 'consumer';
+    const groupRole = caller ? await readGroupRole(caller) : null;
+    const role = groupRole ? highestRole(explicitRole, groupRole) : explicitRole;
     return { role, addedAdminsReadable: true, seedAdminCount: seed.admins.length };
   } catch (error) {
     console.warn(
@@ -364,7 +371,7 @@ async function resolveRoleFrom(email: string, read: () => Promise<StoredRoster>)
 }
 
 export async function resolveRole(store: AdminStore, email: string): Promise<RoleResolution> {
-  return resolveRoleFrom(email, () => readRoster(store));
+  return resolveRoleFrom(email, () => readRoster(store), groupRoleLookupForStore(store));
 }
 
 /** Resolve through the one generation-aware roster snapshot owned by this request. */
@@ -373,7 +380,7 @@ export async function resolveRoleForRequest(
   req: Request,
   readEmail: (req: Request) => string
 ): Promise<RoleResolution> {
-  return resolveRoleFrom(readEmail(req), () => readRosterForRequest(store, req));
+  return resolveRoleFrom(readEmail(req), () => readRosterForRequest(store, req), groupRoleLookupForStore(store));
 }
 
 /**
@@ -659,6 +666,7 @@ export type AdminAction =
   /** An admin recorded or cleared a Connections setting intention (or live value). */
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
+  | 'group-role-mapped'
   /** An admin atomically staged a validated Gateway mode + model pair. */
   | 'ai-gateway-selection-staged'
   /** An admin asked the app identity to backfill the canonical Player Insights Agent tag. */

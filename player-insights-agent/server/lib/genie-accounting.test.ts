@@ -48,6 +48,7 @@ describe('Genie billing classification', () => {
       SPACES
     );
     expect(built?.statement).toContain('usage_metadata.genie.surface');
+    expect(built?.statement).toContain("<> 'GENIE_CODE'");
     expect(built?.statement).toContain('usage_metadata.genie.channel');
     expect(built?.statement).toContain('product_features.genie.offering_type');
     expect(built?.statement).toContain('identity_metadata.run_as');

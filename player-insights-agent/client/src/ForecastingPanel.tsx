@@ -16,7 +16,7 @@ import { persistForecastAssumptions, readForecastAssumptions } from './forecast-
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
 import { NumberTicker, TickerAssumptionField, TickerAssumptionGrid, tickerNumber } from './NumberTicker';
 import { Disclosure } from './page-chrome';
-import { Skeleton } from './ui';
+import { PiaLoader } from './PiaLoader';
 import type { OpsCostPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 
@@ -320,7 +320,9 @@ export function ForecastingBody({
       </div>
       <div className="ops-block-body">
         {waiting ? (
-          <Skeleton className="ops-skeleton" />
+          <div className="ops-forecast-loading">
+            <PiaLoader variant="compact" label="Loading cost forecast" />
+          </div>
         ) : unavailable ? (
           <div className="ops-absence" role="status">
             <p className="ops-absence-title">Forecast unavailable</p>

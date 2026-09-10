@@ -157,7 +157,7 @@ describe('no screen narrates under its own title', () => {
     // "By route, vs each route's prior half · [dates]" was three facts stacked
     // over a table that states all three itself. None belongs beside Latency.
     const source = code('OpsPage.tsx');
-    expect(source).toContain('<PageHeading title="Ops" />');
+    expect(source).toMatch(/<PageHeading\s+title="Ops"/);
     expect(source).not.toContain('meta="By route"');
     expect(source).not.toContain('vs each route');
   });

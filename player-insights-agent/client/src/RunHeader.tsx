@@ -94,18 +94,7 @@ export function RunHeader({
   return (
     <div className="run-detail-head">
       <div className="min-w-0">
-        {run ? (
-          <QuestionAttributionBubble
-            question={runLabel(run)}
-            asker={run.stakeholder}
-            canOpenUser={canOpenUser}
-            questionAs="h3"
-            className="run-question-attribution"
-            questionClassName="run-detail-title"
-          />
-        ) : (
-          <h3 className="run-detail-title">Select a run</h3>
-        )}
+        {!run ? <h3 className="run-detail-title">Select a run</h3> : null}
         {/* Only when there is a run to describe. With nothing selected this row
             used to carry "Pick a run from the list to inspect its trace." -- the
             same sentence the empty state below it prints, under a heading that
@@ -196,32 +185,37 @@ export function RunHeader({
           </p>
         ) : null}
       </div>
-      <div className="run-detail-figures">
-        {/* `ast-num` because these are figures in a right-aligned meta slot, which
-            is §3's own description of where DM Mono is binding. The rule it
-            replaces asked DM Sans for tabular numerals, which that font declares
-            no feature for: the declaration read as done and did nothing. */}
-        {run && typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && (
-          <p className="run-detail-meta ast-num">{(run.duration_ms / 1000).toFixed(1)}s</p>
-        )}
-        {(reference || groundedness !== null) && (
-          <div className="run-detail-flags">
-            {reference && (
-              <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
-                Reference trace
-              </Badge>
-            )}
-            {/* Only benchmark runs measure groundedness. A fixed 94% used to sit
-                here on every run, including ones nobody had scored. The score is a
-                real proportion of a measured thing, which is what separates it
-                from the elapsed figures §5 bars from ever being a percentage. */}
-            {groundedness !== null && (
-              <Badge variant="outline" className="ast-pill ast-pill--info">
-                Groundedness <span className="ast-num">{Math.round(groundedness * 100)}%</span>
-              </Badge>
-            )}
-          </div>
-        )}
+      <div className="run-detail-heading-right">
+        {run ? (
+          <QuestionAttributionBubble
+            question={runLabel(run)}
+            asker={run.stakeholder}
+            canOpenUser={canOpenUser}
+            questionAs="h3"
+            className="run-question-attribution"
+            questionClassName="run-detail-title"
+          />
+        ) : null}
+        <div className="run-detail-figures">
+          {/* `ast-num` because these are figures in a right-aligned meta slot. */}
+          {run && typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && (
+            <p className="run-detail-meta ast-num">{(run.duration_ms / 1000).toFixed(1)}s</p>
+          )}
+          {(reference || groundedness !== null) && (
+            <div className="run-detail-flags">
+              {reference && (
+                <Badge variant="outline" className="ast-pill ast-pill--neutral-outline">
+                  Reference trace
+                </Badge>
+              )}
+              {groundedness !== null && (
+                <Badge variant="outline" className="ast-pill ast-pill--info">
+                  Groundedness <span className="ast-num">{Math.round(groundedness * 100)}%</span>
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

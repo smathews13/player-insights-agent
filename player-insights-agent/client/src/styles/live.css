@@ -6,17 +6,24 @@
 .live-progress {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 12px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .pia-splash-run {
+  display: flex;
+  flex: 1 1 auto;
   align-self: stretch;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .live-progress-detail {
@@ -30,9 +37,8 @@
  *
  * The rows used to be separate 10px cards with a gap between them, which at four
  * steps read as four unrelated objects. They are rows of one list, so they get one
- * frame and a rule between them. The bounded working answer card is the vertical
- * scroll owner; this list grows inside that single pane and never creates a
- * nested viewport of its own.
+ * frame and a rule between them. The card shell stays fixed while this list owns
+ * the bounded action viewport and follows the newest reported step.
  */
 .live-steps {
   list-style: none;
@@ -45,7 +51,11 @@
   min-width: 0;
   border: 1px solid var(--db-line);
   border-radius: var(--radius-sm);
-  overflow: visible;
+  min-height: 0;
+  max-height: clamp(220px, 42vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .live-step {
@@ -223,6 +233,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.live-step-busy-mark,
+.live-step-busy-mark .pia-loader-mark {
+  width: 12px;
+  height: 12px;
 }
 
 /* The recorded argument row. Narrative stays in the proportional face; a SQL

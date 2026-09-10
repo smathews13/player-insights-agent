@@ -62,9 +62,9 @@ import {
  * fails if this table and they disagree.
  */
 export const ICON_FILES = {
-  'pia-dpad-tab-16x16.png': { size: 16, cut: 'simplified' },
-  'pia-dpad-tab-32x32.png': { size: 32, cut: 'simplified' },
-  'pia-dpad-tab-48x48.png': { size: 48, cut: 'simplified' },
+  'pia-dpad-tab-16x16.png': { size: 16, cut: 'favicon' },
+  'pia-dpad-tab-32x32.png': { size: 32, cut: 'favicon' },
+  'pia-dpad-tab-48x48.png': { size: 48, cut: 'favicon' },
   'pia-dpad-apple-touch-180x180.png': { size: 180, cut: 'engraved' },
   'pia-dpad-app-192x192.png': { size: 192, cut: 'engraved' },
   'pia-dpad-app-512x512.png': { size: 512, cut: 'engraved' },
@@ -172,6 +172,16 @@ function element(shape: PiaMarkElement): string {
  * against the delivered file.
  */
 export function iconSvg(size: number, cut: IconCut = 'engraved'): string {
+  if (cut === 'favicon') {
+    return [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" fill="none">`,
+      `<rect width="64" height="64" rx="12" fill="${PLATE}" />`,
+      `<rect x="21" y="4" width="22" height="56" rx="6" fill="${INK}" />`,
+      `<rect x="4" y="21" width="56" height="22" rx="6" fill="${INK}" />`,
+      `<circle cx="32" cy="32" r="8" fill="${ACCENT}" />`,
+      '</svg>',
+    ].join('');
+  }
   const inset = (PIA_MARK_VIEWBOX * (1 - MARK_SPAN)) / 2;
   const shapes = (cut === 'simplified' ? PIA_DPAD_SIMPLIFIED : PIA_DPAD_ENGRAVED).map(element).join('');
   return [
@@ -197,7 +207,7 @@ async function main(): Promise<number> {
   const flag = process.argv.indexOf('--out');
   const out = flag === -1 ? PUBLIC_DIR : path.resolve(process.argv[flag + 1]);
   await mkdir(out, { recursive: true });
-  await writeFile(path.join(out, TAB_ICON_SVG), iconSvg(64, 'engraved'));
+  await writeFile(path.join(out, TAB_ICON_SVG), iconSvg(64, 'favicon'));
   console.log(`    svg  ${TAB_ICON_SVG}`);
   for (const [name, spec] of Object.entries(ICON_FILES)) {
     const png = await iconPng(spec.size, spec.cut);

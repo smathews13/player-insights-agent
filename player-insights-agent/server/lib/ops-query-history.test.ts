@@ -295,6 +295,7 @@ describe('Ops Query History attribution', () => {
       {
         email: 'person@example.test',
         astrolabeExecutionMs: 40,
+        askExecutionMs: 40,
         genieSpaces: [{ spaceId: 'space-data', executionMs: 20 }],
       },
     ]);

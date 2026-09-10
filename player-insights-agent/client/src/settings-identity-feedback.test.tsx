@@ -171,11 +171,13 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).not.toContain(spRoles.personas[0].secretKey);
   });
 
-  it('keeps full emails on one readable line with tooltip and copy support', () => {
+  it('keeps short emails and organization names on one line with full-email copy support', () => {
     expect(CSS).toMatch(/\.admin-row-address \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
     expect(CSS).toMatch(/\.admin-row-email \{[^}]*font-size:\s*11px/s);
     expect(CSS).toMatch(/\.roster-email-copy \{[^}]*width:\s*26px[^}]*height:\s*26px/s);
-    expect(CSS).toMatch(/\.roster-set-by > \* \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s);
+    expect(CSS).toMatch(
+      /\.roster-organization-value > span:last-child \{[^}]*text-overflow:\s*ellipsis[^}]*white-space:\s*nowrap/s
+    );
     expect(CSS).toMatch(/\.settings-data-table \{[^}]*table-layout:\s*fixed/s);
   });
 
@@ -318,7 +320,7 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('data-variant="destructive"');
   });
 
-  it('renders a configured organization icon before the full email address', () => {
+  it('renders a configured organization icon before the shortened email address', () => {
     const email = 'avery.long.address@studio.example.org';
     const markup = renderToStaticMarkup(
       <RosterRows
@@ -346,7 +348,7 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('aria-label="Organization: Example Studio"');
     expect(markup).toContain('roster-organization-mark');
     expect(markup).toContain(`<td class="roster-email" title="${email}">`);
-    expect(markup).toContain(`identity-chip-name">${email}</span>`);
+    expect(markup).toContain('identity-chip-name">avery.long.address</span>');
     expect(markup).toContain(`aria-label="Copy email ${email}"`);
     expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf('identity-chip-name'));
   });

@@ -148,9 +148,11 @@ describe('the #24a roster row', () => {
         }),
       ],
     });
-    expect(text(markup)).toContain(LEAD);
-    expect(text(markup)).toContain('you Deployment Super admin');
-    expect(markup).toContain('title="Set at deployment. Edit the bundle variable to change it."');
+    expect(text(markup)).toContain('lead');
+    expect(markup).toContain(`title="${LEAD}"`);
+    expect(text(markup)).toContain('you');
+    expect(text(markup)).toContain('Super admin');
+    expect(markup).not.toContain('Set at deployment');
     expect(markup).toContain('data-role-state="super_admin"');
     expect(markup).not.toContain('roster-row-lock');
   });
@@ -214,11 +216,11 @@ describe('the #24a Roles geometry', () => {
    * leftover flex gap sat between the name and the actions. One three-column
    * grid for every row and the Add line is the whole of the geometry.
    */
-  it('puts email, setter, role and actions in a real table', () => {
+  it('puts email, organization, role and actions in a real table', () => {
     const markup = rows({
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
     });
-    for (const heading of ['Email', 'Set by', 'User role', 'Actions']) {
+    for (const heading of ['Email', 'Organization', 'User role', 'Actions']) {
       expect(markup).toContain(`<th scope="col">${heading}</th>`);
     }
 
@@ -272,7 +274,7 @@ describe('the #24a Roles geometry', () => {
     expect(markup).toContain(`aria-label="User role for ${ANALYST}: Admin"`);
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
     expect(editor).toContain('ariaLabel="User role to give them"');
-    expect(editor.match(/className="roster-control roster-role-select"/g) ?? []).toHaveLength(2);
+    expect(editor.match(/className="roster-control roster-role-select"/g) ?? []).toHaveLength(3);
     expect(editor).not.toContain('showLabel=');
   });
 });

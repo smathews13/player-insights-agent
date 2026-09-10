@@ -30,6 +30,7 @@ export interface WarehouseQueryAttribution {
   users?: Array<{
     email: string;
     astrolabeExecutionMs: number;
+    askExecutionMs?: number;
     genieSpaces: Array<{ spaceId: string; executionMs: number }>;
   }>;
   /** Present on every new read; optional only for legacy injected fixtures. */
@@ -229,7 +230,10 @@ export async function readWarehouseQueryAttribution(input: {
   let totalExecutionMs = 0;
   const genieSpaces = new Map<string, { queries: number; executionMs: number }>();
   const askRuns = new Map<string, number>();
-  const users = new Map<string, { astrolabeExecutionMs: number; genieSpaces: Map<string, number> }>();
+  const users = new Map<
+    string,
+    { astrolabeExecutionMs: number; askExecutionMs: number; genieSpaces: Map<string, number> }
+  >();
   const runIds = new Map<string, string>();
   if (input.interactiveRuns?.some((run) => run.evidenceComplete === false)) {
     addReason(coverage, 'interactive-run-coverage');
@@ -275,8 +279,13 @@ export async function readWarehouseQueryAttribution(input: {
     if (spaceId) genieSpaces.get(spaceId)!.executionMs += duration;
     const user = attributableUser(row);
     if (user) {
-      const current = users.get(user) ?? { astrolabeExecutionMs: 0, genieSpaces: new Map<string, number>() };
+      const current = users.get(user) ?? {
+        astrolabeExecutionMs: 0,
+        askExecutionMs: 0,
+        genieSpaces: new Map<string, number>(),
+      };
       if (astrolabe) current.astrolabeExecutionMs += duration;
+      if (interactiveRun) current.askExecutionMs += duration;
       if (spaceId) current.genieSpaces.set(spaceId, (current.genieSpaces.get(spaceId) ?? 0) + duration);
       users.set(user, current);
     }
@@ -388,6 +397,7 @@ export async function readWarehouseQueryAttribution(input: {
       .map(([email, values]) => ({
         email,
         astrolabeExecutionMs: values.astrolabeExecutionMs,
+        askExecutionMs: values.askExecutionMs,
         genieSpaces: [...values.genieSpaces]
           .sort(([left], [right]) => left.localeCompare(right))
           .map(([spaceId, executionMs]) => ({ spaceId, executionMs })),

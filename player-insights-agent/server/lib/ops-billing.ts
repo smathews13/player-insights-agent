@@ -1512,6 +1512,10 @@ function componentTile(
     });
   }
   if (component === 'sql-warehouse') {
+    const askExecutionMs =
+      warehouseAttribution.askRuns === undefined
+        ? warehouseAttribution.astrolabeExecutionMs
+        : warehouseAttribution.askRuns.reduce((sum, run) => sum + run.executionMs, 0);
     if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
       return withMeta({
         ...base,
@@ -1526,11 +1530,8 @@ function componentTile(
     }
     return withMeta({
       ...base,
-      amount: (amount * warehouseAttribution.astrolabeExecutionMs) / warehouseAttribution.totalExecutionMs,
-      dbus:
-        dbus === null
-          ? null
-          : (dbus * warehouseAttribution.astrolabeExecutionMs) / warehouseAttribution.totalExecutionMs,
+      amount: (amount * askExecutionMs) / warehouseAttribution.totalExecutionMs,
+      dbus: dbus === null ? null : (dbus * askExecutionMs) / warehouseAttribution.totalExecutionMs,
       pricing,
       note: '',
       unavailable: '',

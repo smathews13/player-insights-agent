@@ -90,7 +90,9 @@ describe('the admin cancellation control', () => {
     const markup = markupOf(<StopAllActiveRuns />);
     expect(markup).toContain('ops-stop-all-button');
     expect(markup).toContain('data-variant="destructive"');
-    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong\s*\{[^}]*color:\s*var\(--db-red-700\)/);
+    expect(OPS_STYLES).toMatch(
+      /\.ops-stop-all strong,\s*\.ops-admin-action strong\s*\{[^}]*color:\s*var\(--db-red-700\)/
+    );
     expect(OPS_STYLES).toMatch(/\.ops-stop-all strong,\s*\.ops-admin-action strong\s*\{[^}]*font-weight:\s*800/);
   });
 
@@ -1075,7 +1077,7 @@ describe('the cost block', () => {
       'Genie usage',
       '150 DBU per identified human user each calendar month; resets on the first day of the month.',
       'Through Jan 31, 2027, Genie One and Genie Agents usage is promotional free and does not consume allowance.',
-      'Free usage consumes the user’s monthly allowance.',
+      'Excluded from all Player Insights Agent cost accounting.',
       'Free is waived list-price value. Charged is usage actually billed after allowance and promotion rules. Either can be larger.',
       'No free allowance.',
       'Data Genie and Dictionary Genie cards include only attributable configured-space usage; unrelated or unmatched workspace usage is excluded.',
@@ -2797,9 +2799,8 @@ describe('the latency block', () => {
     const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
 
     expect(text(header)).not.toContain('By route');
-    expect(header).toMatch(
-      /<div class="ops-block-head-text"><span class="ops-block-title-group"><h3 id="ops-latency-heading">Latency<\/h3><\/span><span class="ops-block-meta">App-owned request timings · [^<]+<\/span><div class="ops-latency-trend-filters" role="group" aria-label="Filter by trend">/
-    );
+    expect(text(header)).not.toContain('App-owned request timings');
+    expect(header).toContain('<h3 id="ops-latency-heading">Latency</h3>');
     expect(header).toContain('ops-latency-head-controls');
     expect(header).toContain('ops-latency-search');
     expect(header).toContain('Within baseline');
@@ -2821,15 +2822,15 @@ describe('the latency block', () => {
     for (const position of [heading, filters, within, outside, controls, search, refresh]) {
       expect(position).toBeGreaterThan(-1);
     }
-    expect(heading).toBeLessThan(filters);
+    expect(heading).toBeLessThan(controls);
+    expect(controls).toBeLessThan(search);
+    expect(search).toBeLessThan(filters);
     expect(filters).toBeLessThan(within);
     expect(within).toBeLessThan(outside);
-    expect(outside).toBeLessThan(controls);
-    expect(controls).toBeLessThan(search);
-    expect(search).toBeLessThan(refresh);
+    expect(outside).toBeLessThan(refresh);
   });
 
-  it('keeps the filter group inside the left heading cluster, outside the right controls', () => {
+  it('keeps the filter group with the right-side controls', () => {
     const markup = markupOf(<LatencyBody block={block(latency())} />);
     const header = markup.slice(markup.indexOf('ops-block-head'), markup.indexOf('ops-block-body'));
     const leftCluster = header.match(
@@ -2837,9 +2838,10 @@ describe('the latency block', () => {
     )?.[1];
 
     expect(leftCluster).toBeDefined();
-    expect(leftCluster).toContain('ops-latency-trend-filters');
+    expect(leftCluster).not.toContain('ops-latency-trend-filters');
+    expect(header.slice(header.indexOf('ops-block-head-control'))).toContain('ops-latency-trend-filters');
     expect(leftCluster).not.toContain('ops-latency-head-controls');
-    expect(header.indexOf('ops-latency-trend-filters')).toBeLessThan(header.indexOf('ops-latency-head-controls'));
+    expect(header.indexOf('ops-latency-head-controls')).toBeLessThan(header.indexOf('ops-latency-trend-filters'));
   });
 
   it('keeps baseline filter state semantic and disables both controls during refresh', () => {

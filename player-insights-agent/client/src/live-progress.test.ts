@@ -393,13 +393,13 @@ describe('nextFollowState', () => {
   });
 });
 
-describe('the live timeline delegates vertical scrolling to the Ask pane', () => {
-  it('does not create a nested list scroll owner or move it independently', () => {
-    expect(PANEL).not.toContain('onScroll={onScroll}');
-    expect(PANEL).not.toContain('scrollTo(');
-    expect(PANEL).not.toContain('useRef<HTMLOListElement');
-    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow: visible/);
-    expect(LIVE_CSS).not.toMatch(/\.live-steps \{[^}]*(?:max-height|overflow-y:\s*(?:auto|scroll))/);
+describe('the live timeline keeps the newest active step in a stable card', () => {
+  it('owns a bounded scroller and follows new work until the reader scrolls away', () => {
+    expect(PANEL).toContain('onScroll={(event) =>');
+    expect(PANEL).toContain('list.scrollTop = list.scrollHeight - list.clientHeight');
+    expect(PANEL).toContain('useRef<HTMLOListElement');
+    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*max-height:\s*clamp\(/);
+    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow-y:\s*auto/);
   });
 });
 

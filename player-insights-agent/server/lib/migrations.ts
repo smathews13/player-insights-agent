@@ -26,6 +26,7 @@ import {
   APP_DEPLOYMENT_LIFETIME_TABLE,
 } from './app-deployment-lifetime';
 import { LAKEBASE_BINDING_PLAN_DDL, LAKEBASE_BINDING_PLAN_TABLE } from './lakebase-binding-plan';
+import { GROUP_ROLE_MAPPINGS_DDL, GROUP_ROLE_MAPPINGS_TABLE } from './group-role-mappings';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -1004,6 +1005,12 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     name: 'immutable first deployment owner',
     statements: [ADD_FIRST_DEPLOYED_BY_STATEMENT],
     down: [`ALTER TABLE ${APP_DEPLOYMENT_LIFETIME_TABLE} DROP COLUMN IF EXISTS first_deployed_by`],
+  },
+  {
+    version: 41,
+    name: 'stored group role mappings',
+    statements: [GROUP_ROLE_MAPPINGS_DDL],
+    down: [`DROP TABLE IF EXISTS ${GROUP_ROLE_MAPPINGS_TABLE}`],
   },
 ];
 

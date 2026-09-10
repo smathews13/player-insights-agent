@@ -38,6 +38,13 @@ export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
     failed: tables.filter((row) => row.result === 'did-not-answer').length,
   };
   const result = aggregateResult(counts);
+  const notes = [
+    `${counts.connected} connected`,
+    counts.unverified > 0 ? `${counts.unverified} unverified` : '',
+    counts.failed > 0 ? `${counts.failed} failed` : '',
+  ]
+    .filter(Boolean)
+    .join(' \u00b7 ');
   const existing = rows.find(isDeclaredTableManifest);
   const total = tables.length;
   const aggregate: HealthRow = {
@@ -50,7 +57,7 @@ export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
       result === 'not-checked'
         ? ''
         : existing?.lastCheckedAt || tables.find((row) => row.lastCheckedAt)?.lastCheckedAt || '',
-    notes: `${counts.connected} connected \u00b7 ${counts.unverified} unverified \u00b7 ${counts.failed} failed`,
+    notes,
     pill: {
       label: resourceWord({ kind: 'manifest', label: 'Declared tables' }),
       value: PRIMARY_CONNECTION_LABEL[result === 'answered' ? 'connected' : 'disconnected'],

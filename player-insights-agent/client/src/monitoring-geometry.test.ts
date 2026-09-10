@@ -84,7 +84,9 @@ describe('the namespaced user profile cannot regress to overlapping layout', () 
       if (!shell(selector)) {
         expect(body, selector).not.toMatch(/(?:^|;)\s*transform\s*:/);
         expect(body, selector).not.toMatch(/overflow:\s*hidden/);
-        expect(body, selector).not.toMatch(/(?:^|;)\s*(?:height|max-height)\s*:\s*\d/);
+        if (!selector.includes(' svg')) {
+          expect(body, selector).not.toMatch(/(?:^|;)\s*(?:height|max-height)\s*:\s*\d/);
+        }
         expect(body, selector).not.toMatch(/(?:^|;)\s*top\s*:/);
       }
     }
@@ -152,9 +154,9 @@ describe('Monitoring details open as centered modals, not side drawers', () => {
     expect(CSS).not.toContain('.monitoring-user-coverage');
   });
 
-  it('wraps filters and view controls as deliberate groups before compressing them', () => {
+  it('keeps filters and view controls on one desktop row before responsive wrapping', () => {
     expect(rule('.monitoring-users-toolbar')).toMatch(/display:\s*grid/);
-    expect(rule('.monitoring-users-toolbar-filters,\n.monitoring-users-toolbar-view')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.monitoring-users-toolbar-filters,\n.monitoring-users-toolbar-view')).toMatch(/flex-wrap:\s*nowrap/);
     expect(rule('.monitoring-users-toolbar .monitoring-users-search')).toMatch(
       /width:\s*clamp\(200px,\s*22vw,\s*240px\)/
     );
