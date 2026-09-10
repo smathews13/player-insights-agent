@@ -63,6 +63,8 @@ export type Inline =
 export interface ListItem {
   start: number;
   children: Inline[];
+  /** Markdown indentation depth. Zero is the list's top level. */
+  depth: number;
 }
 
 /** How one column is read: down as digits, or across as words. */
@@ -696,10 +698,11 @@ const NESTED_MARKER = /^(?:[-*+]|\d{1,9}[.)])[ \t]+/;
  * Markdown table under "Findings / data" is still a table. The findings lines
  * themselves are not any of these.
  */
-function listStopsAt(lines: readonly SourceLine[], index: number, ordered: boolean): boolean {
+function listStopsAt(lines: readonly SourceLine[], index: number, ordered: boolean, baseIndent = 0): boolean {
   const text = lines[index].text;
   if (HEADING.test(text) || THEMATIC_BREAK.test(text) || FENCE.test(text)) return true;
-  if (ordered ? BULLET.test(text) : NUMBERED.test(text)) return true;
+  const indent = text.length - text.trimStart().length;
+  if ((ordered ? BULLET.test(text) : NUMBERED.test(text)) && indent <= baseIndent) return true;
   return Boolean(tableOpensAt(lines, index));
 }
 
@@ -718,12 +721,21 @@ function listStopsAt(lines: readonly SourceLine[], index: number, ordered: boole
  * same case with its marker still on. The marker comes off so the card's dot
  * is the only one.
  */
-function looseListItem(line: SourceLine): { text: string; start: number } {
+function listDepth(indent: number): number {
+  return indent > 0 ? Math.max(1, Math.ceil(indent / 4)) : 0;
+}
+
+function looseListItem(line: SourceLine): { text: string; start: number; depth: number } {
   const indent = line.text.length - line.text.trimStart().length;
   const trimmed = line.text.trim();
   const nested = NESTED_MARKER.exec(trimmed);
-  if (nested) return contentAfter({ text: trimmed, start: line.start + indent }, nested[0]);
-  return { text: trimmed, start: line.start + indent };
+  if (nested) {
+    return {
+      ...contentAfter({ text: trimmed, start: line.start + indent }, nested[0]),
+      depth: listDepth(indent),
+    };
+  }
+  return { text: trimmed, start: line.start + indent, depth: 0 };
 }
 
 /** The next line that has text, or past the end. */
@@ -865,6 +877,7 @@ export function parseAnswerMarkdown(source: string): Block[] {
     if (ordered || BULLET.test(line.text)) {
       const items: ListItem[] = [];
       const marker = ordered ? NUMBERED : BULLET;
+      const baseIndent = line.text.length - line.text.trimStart().length;
       // Same-kind markers stay items of this list. A numbered list following a
       // bulleted one is still a second list. Lines under a lead-in that do not
       // wear a marker -- the findings body of a data package -- stay items too,
@@ -874,18 +887,27 @@ export function parseAnswerMarkdown(source: string): Block[] {
           const next = nextNonBlank(lines, index);
           // A blank between items is still this list. A blank before a table,
           // heading, fence or the other list kind is the end of it.
-          if (next >= lines.length || listStopsAt(lines, next, ordered)) break;
+          if (next >= lines.length || listStopsAt(lines, next, ordered, baseIndent)) break;
           index = next;
           continue;
         }
         const item = marker.exec(lines[index].text);
         const content = item
-          ? contentAfter(lines[index], item[0])
-          : listStopsAt(lines, index, ordered)
+          ? {
+              ...contentAfter(lines[index], item[0]),
+              depth: listDepth(
+                Math.max(0, lines[index].text.length - lines[index].text.trimStart().length - baseIndent)
+              ),
+            }
+          : listStopsAt(lines, index, ordered, baseIndent)
             ? undefined
             : looseListItem(lines[index]);
         if (!content) break;
-        items.push({ start: lines[index].start, children: parseInline(content.text, content.start) });
+        items.push({
+          start: lines[index].start,
+          children: parseInline(content.text, content.start),
+          depth: content.depth,
+        });
         index += 1;
       }
       blocks.push(...splitInventoryTierLabels({ kind: 'list', start: line.start, ordered, items }));

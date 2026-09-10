@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { parseAnswerMarkdown } from './answer-markdown';
 import { normalizeAnswer } from './answer-shape';
 import {
   answerTables,
@@ -7,7 +8,8 @@ import {
   serializeConversationMarkdown,
   serializeTableTsv,
 } from './export-serializers';
-import { markdownPdf, tablePdf, tablePng } from './export-binary';
+import type { ExportTable } from './export-serializers';
+import { markdownPdf, tablePdf, tablePng, tablePngLayout, wrappedCanvasLines } from './export-binary';
 import type { ConversationMessage } from './app-types';
 
 const answer = normalizeAnswer({
@@ -30,6 +32,12 @@ const answer = normalizeAnswer({
     stages: [{ id: 'raw', input: 'private input', output: 'private output' }],
   },
 });
+
+function parsedTable(markdown: string, sources: ExportTable['sources'] = []): ExportTable {
+  const block = parseAnswerMarkdown(markdown).find((candidate) => candidate.kind === 'table');
+  if (!block || block.kind !== 'table') throw new Error('Expected parsed table');
+  return { block, sources };
+}
 
 describe('reader export serializers', () => {
   it('exports only normalized reader-facing answer material', () => {
@@ -54,6 +62,21 @@ describe('reader export serializers', () => {
   it('uses stable filesystem-safe filenames', () => {
     expect(safeExportFilename('  Players / Revenue: Q3?  ', '.PDF')).toBe('players-revenue-q3.pdf');
     expect(safeExportFilename('💥', 'md')).toBe('player-insights-export.md');
+  });
+
+  it('preserves nested list indentation in Markdown exports', () => {
+    const markdown = serializeAnswerMarkdown(
+      '',
+      normalizeAnswer({
+        ...answer,
+        narrative: ['- Parent finding', '    - Child detail', '        - Grandchild evidence', '- Next finding'].join(
+          '\n'
+        ),
+      })
+    );
+    expect(markdown).toContain(
+      ['- Parent finding', '  - Child detail', '    - Grandchild evidence', '- Next finding'].join('\n')
+    );
   });
 
   it('exports every reader-visible stored turn in chronological order', () => {
@@ -167,10 +190,10 @@ describe('binary export signatures', () => {
 
   it('sends every wrapped cell and source word to the PNG canvas', async () => {
     const context = {
-      scale: vi.fn(),
       fillRect: vi.fn(),
       strokeRect: vi.fn(),
       fillText: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: text.length * 8 })),
       fillStyle: '',
       strokeStyle: '',
       font: '',
@@ -184,7 +207,6 @@ describe('binary export signatures', () => {
       toBlob: (callback: (blob: Blob | null) => void) => callback(new Blob([png], { type: 'image/png' })),
     };
     vi.stubGlobal('document', { createElement: vi.fn(() => canvas) });
-    vi.stubGlobal('window', { devicePixelRatio: 1 });
     const longCell = 'complete explanation with regional cohort details and final preserved words';
     const longSource = 'catalog.schema.an_extremely_long_source_attribution_that_must_be_preserved';
     const [table] = answerTables(
@@ -200,9 +222,50 @@ describe('binary export signatures', () => {
 
     expect([...bytes]).toEqual([...png]);
     expect(canvas.getContext).toHaveBeenCalledWith('2d');
-    for (const word of longCell.split(' ')) expect(painted).toContain(word);
+    expect(painted.replaceAll(' ', '')).toContain(longCell.replaceAll(' ', ''));
     expect(painted.replaceAll(' ', '')).toContain(longSource);
     expect(canvas.height).toBeGreaterThan(38 * 3);
     vi.unstubAllGlobals();
+  });
+});
+
+describe('complete PNG table layout', () => {
+  const measure = (text: string) => text.length * 8;
+
+  it('wraps every cell and source character without clipping', () => {
+    const longCell = `value-${'z'.repeat(800)}-end`;
+    const longSource = `catalog.${'source'.repeat(120)}`;
+    const table = parsedTable(`| Label | Value |\n| --- | --- |\n| Detail | ${longCell} |`, [
+      { name: longSource, freshness: '2026-09-09', role: 'reading' },
+    ]);
+    const layout = tablePngLayout(table, measure);
+
+    expect(wrappedCanvasLines(longCell, 80, measure).join('')).toBe(longCell);
+    expect(layout.rowLines[1][1].join('')).toBe(longCell);
+    expect(layout.sourceLines.join('')).toBe(`Sources: ${longSource}`);
+    expect(layout.width).toBeLessThanOrEqual(16_384);
+    expect(layout.height).toBeLessThanOrEqual(16_384);
+  });
+
+  it('fails clearly when canvas dimensions or area exceed browser limits', () => {
+    const template = parsedTable('| Label | Value |\n| --- | --- |\n| row | value |');
+    const header = template.block.header;
+    if (!header) throw new Error('Expected table header');
+    const wideTable: ExportTable = {
+      ...template,
+      block: {
+        ...template.block,
+        header: { ...header, cells: Array.from({ length: 200 }, (_, index) => header.cells[index % 2]) },
+        align: Array.from({ length: 200 }, () => 'left'),
+        rows: [],
+      },
+    };
+    expect(() => tablePngLayout(wideTable, measure)).toThrow('too wide for a PNG');
+
+    const tallTable: ExportTable = {
+      ...template,
+      block: { ...template.block, rows: Array.from({ length: 1_000 }, () => template.block.rows[0]) },
+    };
+    expect(() => tablePngLayout(tallTable, measure)).toThrow('too large for a PNG');
   });
 });

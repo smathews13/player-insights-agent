@@ -220,61 +220,101 @@ function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
+export function wrappedCanvasLines(value: string, width: number, measure: (text: string) => number): string[] {
+  if (!value) return [''];
+  const lines: string[] = [];
+  let line = '';
+  for (const character of value) {
+    const next = `${line}${character}`;
+    if (line && measure(next) > width) {
+      lines.push(line);
+      line = character;
+    } else {
+      line = next;
+    }
+  }
+  lines.push(line);
+  return lines;
+}
+
+const MAX_CANVAS_DIMENSION = 16_384;
+const MAX_CANVAS_AREA = 64_000_000;
+const PREFERRED_CELL_WIDTH = 190;
+const MIN_CELL_WIDTH = 96;
+const PNG_PADDING = 12;
+const PNG_LINE_HEIGHT = 20;
+
+export interface TablePngLayout {
+  width: number;
+  height: number;
+  cellWidth: number;
+  sourceLines: string[];
+  rowLines: string[][][];
+  rowHeights: number[];
+  sourceHeight: number;
+}
+
+export function tablePngLayout(table: ExportTable, measure: (text: string) => number): TablePngLayout {
+  const rows = [table.block.header, ...table.block.rows].filter((row): row is TableRow => Boolean(row)).map(tableCells);
+  const columns = Math.max(1, ...rows.map((row) => row.length));
+  if (columns * MIN_CELL_WIDTH > MAX_CANVAS_DIMENSION) {
+    throw new Error('This table is too wide for a PNG. Copy TSV or download PDF to preserve every column.');
+  }
+  const cellWidth = Math.min(PREFERRED_CELL_WIDTH, Math.floor(MAX_CANVAS_DIMENSION / columns));
+  const width = columns * cellWidth;
+  const sourceText = table.sources.length ? `Sources: ${table.sources.map((source) => source.name).join(', ')}` : '';
+  const sourceLines = sourceText ? wrappedCanvasLines(sourceText, width - PNG_PADDING * 2, measure) : [];
+  const sourceHeight = sourceLines.length ? sourceLines.length * PNG_LINE_HEIGHT + PNG_PADDING * 2 : 0;
+  const rowLines = rows.map((row) =>
+    Array.from({ length: columns }, (_, index) =>
+      wrappedCanvasLines(row[index] ?? '', cellWidth - PNG_PADDING * 2, measure)
+    )
+  );
+  const rowHeights = rowLines.map(
+    (row) => Math.max(...row.map((lines) => lines.length), 1) * PNG_LINE_HEIGHT + PNG_PADDING * 2
+  );
+  const height = sourceHeight + rowHeights.reduce((sum, value) => sum + value, 0);
+  if (height > MAX_CANVAS_DIMENSION || width * height > MAX_CANVAS_AREA) {
+    throw new Error('This table is too large for a PNG. Copy TSV or download PDF to preserve every row.');
+  }
+  return { width, height, cellWidth, sourceLines, rowLines, rowHeights, sourceHeight };
+}
+
 /** Paints the table AST directly; it never reads or screenshots rendered DOM. */
 export async function tablePng(table: ExportTable): Promise<Blob> {
-  const rows = [table.block.header, ...table.block.rows].filter((row): row is TableRow => Boolean(row));
-  const matrix = rows.map(tableCells);
-  const columns = Math.max(1, ...matrix.map((row) => row.length));
-  const cellWidth = 220;
-  const lineHeight = 18;
-  const padding = 10;
-  const wrapped = matrix.map((row) => Array.from({ length: columns }, (_, column) => wrapText(row[column] ?? '', 30)));
-  const rowHeights = wrapped.map((row) => Math.max(...row.map((cell) => cell.length)) * lineHeight + padding * 2);
-  const sourceLines = table.sources.length
-    ? wrapText(`Sources: ${table.sources.map((source) => source.name).join(', ')}`, Math.max(30, columns * 30))
-    : [];
-  const sourceHeight = sourceLines.length ? sourceLines.length * lineHeight + padding * 2 : 0;
-  const tableHeight = rowHeights.reduce((sum, height) => sum + height, 0);
   const canvas = document.createElement('canvas');
-  const scale = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = columns * cellWidth * scale;
-  canvas.height = (tableHeight + sourceHeight) * scale;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('PNG generation is unavailable in this browser.');
-  context.scale(scale, scale);
+  context.font = '13px system-ui, sans-serif';
+  const layout = tablePngLayout(table, (text) => context.measureText(text).width);
+  canvas.width = layout.width;
+  canvas.height = layout.height;
   context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
+  context.fillRect(0, 0, canvas.width, canvas.height);
   context.font = '13px system-ui, sans-serif';
   context.textBaseline = 'middle';
-  let rowY = 0;
-  wrapped.forEach((row, rowIndex) => {
-    const rowHeight = rowHeights[rowIndex];
+  layout.sourceLines.forEach((line, index) => {
+    context.fillStyle = '#475569';
+    context.font = '12px system-ui, sans-serif';
+    context.fillText(line, PNG_PADDING, PNG_PADDING + PNG_LINE_HEIGHT * (index + 0.5));
+  });
+  let rowY = layout.sourceHeight;
+  layout.rowLines.forEach((row, rowIndex) => {
+    const rowHeight = layout.rowHeights[rowIndex];
     row.forEach((lines, column) => {
-      const x = column * cellWidth;
+      const x = column * layout.cellWidth;
       context.fillStyle = rowIndex === 0 && table.block.header ? '#f1f5f9' : '#ffffff';
-      context.fillRect(x, rowY, cellWidth, rowHeight);
+      context.fillRect(x, rowY, layout.cellWidth, rowHeight);
       context.strokeStyle = '#cbd5e1';
-      context.strokeRect(x, rowY, cellWidth, rowHeight);
+      context.strokeRect(x, rowY, layout.cellWidth, rowHeight);
       context.fillStyle = '#172033';
       context.font =
         rowIndex === 0 && table.block.header ? '600 13px system-ui, sans-serif' : '13px system-ui, sans-serif';
       lines.forEach((line, lineIndex) => {
-        context.fillText(line, x + padding, rowY + padding + lineHeight * (lineIndex + 0.5), cellWidth - padding * 2);
+        context.fillText(line, x + PNG_PADDING, rowY + PNG_PADDING + PNG_LINE_HEIGHT * (lineIndex + 0.5));
       });
     });
     rowY += rowHeight;
   });
-  if (sourceLines.length) {
-    context.fillStyle = '#475569';
-    context.font = '12px system-ui, sans-serif';
-    sourceLines.forEach((line, index) => {
-      context.fillText(
-        line,
-        padding,
-        tableHeight + padding + lineHeight * (index + 0.5),
-        columns * cellWidth - padding * 2
-      );
-    });
-  }
   return canvasBlob(canvas);
 }
