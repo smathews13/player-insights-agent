@@ -84,5 +84,5 @@ fi
 
 rm -f "$PUBLIC_FILE"
 databricks workspace export "$PUBLIC_PATH" \
-  --file "$PUBLIC_FILE" --format RAW --direct-download "${PROFILE_ARGS[@]}"
+  --file "$PUBLIC_FILE" --format AUTO "${PROFILE_ARGS[@]}"
 cat "$PUBLIC_FILE"
