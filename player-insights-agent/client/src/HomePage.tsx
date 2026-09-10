@@ -182,6 +182,7 @@ import {
 } from './conversation-messages';
 import type {
   AgentResponse,
+  AnalysisPlan,
   Answer,
   Attachment,
   Clarification,
@@ -190,6 +191,9 @@ import type {
   FeedbackEntry,
   PlanResponse,
 } from './app-types';
+
+/** What Approve posts: the plan id, the transcript label, and the plan itself. */
+type PlanApproval = { planId: string; label: string; plan: AnalysisPlan };
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import { FeedbackWriteQueue } from './feedback-write-queue';
 import { notifyFeedbackChanged } from './feedback-events';
@@ -1019,7 +1023,7 @@ export function HomePage() {
   useEffect(() => {
     latest.current = { ask, saveFeedback };
   });
-  const askRow = useCallback((question: string, approval?: { planId: string; label: string }) => {
+  const askRow = useCallback((question: string, approval?: PlanApproval) => {
     void latest.current.ask(question, approval);
   }, []);
   const rateRow = useCallback(
@@ -1372,7 +1376,7 @@ export function HomePage() {
     }
   }
 
-  async function ask(question = draft, approval?: { planId: string; label: string }) {
+  async function ask(question = draft, approval?: PlanApproval) {
     if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
     if (budgetStatus?.level === 'approval-required') return;
     // Everything below writes into the conversation this run started in. Once
@@ -1439,6 +1443,7 @@ export function HomePage() {
           conversationId: runConversationId,
           prompt: question,
           approvedPlanId: approval?.planId,
+          approvedPlan: approval?.plan,
           executePlan: Boolean(approval),
         },
         // Appended rather than replaced: each event is one finished step, and
@@ -3054,7 +3059,7 @@ const MessageItem = memo(function MessageItem({
   question: string;
   feedback: FeedbackEntry;
   showFeedback: boolean;
-  onAsk: (question: string, approval?: { planId: string; label: string }) => void;
+  onAsk: (question: string, approval?: PlanApproval) => void;
   onFeedbackChange: (answerId: string, changes: Partial<FeedbackEntry>) => void;
   onSaveFeedback: (
     answerId: string,
@@ -3104,6 +3109,7 @@ const MessageItem = memo(function MessageItem({
         onApprove={() =>
           onAsk(response.plan.question, {
             planId: response.plan.id,
+            plan: response.plan,
             label: PLAN_APPROVAL_LABEL,
           })
         }

@@ -5,6 +5,10 @@
  * Split out of App.tsx when the pages became modules. Ask PIA is its only
  * caller: it is a turn in the transcript, drawn wherever an assistant message
  * carries a plan.
+ *
+ * A plan is a ranked list of data sources, not a procedure. Revise picks among
+ * those sources; Approve sends the plan object back so the agent can honour
+ * the choice the reader just saw.
  */
 import {
   Alert,
@@ -16,18 +20,76 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Input,
   Textarea,
 } from './ui';
 import { useMemo, useReducer } from 'react';
-import { Play, Send, Shield, ShieldCheck, X } from 'lucide-react';
+import { Play, Send, Shield, ShieldCheck } from 'lucide-react';
 import { PlanText } from './InlineEntityText';
 import { BrandIcon } from './BrandIcon';
 import { productForPlanKind } from './brand-icons';
-import { declaredColumns } from './data-entities';
+import { declaredColumns, mentionedIdentifiers } from './data-entities';
 import { PiaAvatar } from './PiaMark';
-import { canSubmitRevision, planRevisionReducer, revisedRequest } from './plan-revision';
+import {
+  canSubmitRevision,
+  displaySourceTitle,
+  isRecommendedSourceTitle,
+  planRevisionReducer,
+  revisedRequest,
+} from './plan-revision';
 import type { AnalysisPlan } from './app-types';
+
+function planColumnNames(plan: AnalysisPlan): string[] {
+  const lines = [plan.summary, ...plan.steps.flatMap((step) => [step.title, step.description])];
+  const declared = declaredColumns(lines);
+  const mentioned = mentionedIdentifiers(lines);
+  return [...declared, ...mentioned.filter((name) => !declared.includes(name))];
+}
+
+function PlanSourceStep({
+  step,
+  index,
+  columns,
+  pick,
+}: {
+  step: AnalysisPlan['steps'][number];
+  index: number;
+  columns: string[];
+  pick?: { name: string; checked: boolean; onSelect: () => void };
+}) {
+  const product = productForPlanKind(step.kind);
+  const recommended = isRecommendedSourceTitle(step.title);
+  const title = displaySourceTitle(step.title);
+  return (
+    <div className={`plan-step${pick ? ' plan-step-pick' : ''}`}>
+      {pick ? (
+        <input
+          type="radio"
+          name={pick.name}
+          checked={pick.checked}
+          aria-label={`Use ${title}`}
+          onChange={pick.onSelect}
+        />
+      ) : null}
+      <span className="ast-num">{index + 1}</span>
+      <div>
+        <div className="plan-step-heading">
+          <strong>
+            {product && <BrandIcon product={product} size={14} />}
+            <PlanText text={title} columns={columns} />
+          </strong>
+          {recommended ? (
+            <Badge variant="outline" className="ast-pill ast-pill--pos">
+              Recommended
+            </Badge>
+          ) : null}
+        </div>
+        <p>
+          <PlanText text={step.description} columns={columns} />
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export function PlanCard({
   plan,
@@ -50,11 +112,11 @@ export function PlanCard({
    */
   approved: boolean;
   onApprove: () => void;
-  /** The revised question to ask, composed from the editor below. */
+  /** The revised question to ask, composed from the picker below. */
   onRevise: (request: string) => void;
 }) {
   /**
-   * The editor, when it is open. `null` is the card as it arrives: the plan as
+   * The picker, when it is open. `null` is the card as it arrives: the plan as
    * the agent wrote it, with the two answers to it under it.
    *
    * Held here rather than on the page, because a revision is a draft of THIS
@@ -70,19 +132,12 @@ export function PlanCard({
    */
   const state = approved ? 'approved' : resolved ? 'superseded' : 'review';
   /**
-   * The columns this plan says it will read, taken from the plan's own
-   * `Columns: …` lists and applied to every line of it.
-   *
-   * Collected across the whole plan rather than per step, because the summary
-   * names the measure a step further down lists as a column -- "Aggregate
-   * active_players … by title" over "Columns: event_date, title_code,
-   * active_players" -- and a reader should not see the same identifier set as
-   * data in one line and as a word in the line above it.
+   * Identifiers this plan names, from a leftover `Columns:` list if one is
+   * still present and from underscored field names in the new source
+   * descriptions. Collected across the whole plan so a measure named in the
+   * summary and again in a step is marked the same way on both lines.
    */
-  const columns = useMemo(
-    () => declaredColumns([plan.summary, ...plan.steps.flatMap((step) => [step.title, step.description])]),
-    [plan]
-  );
+  const columns = useMemo(() => planColumnNames(plan), [plan]);
   return (
     <Card className={`plan-card ${resolved ? 'resolved' : ''}`}>
       <CardHeader>
@@ -141,101 +196,42 @@ export function PlanCard({
       <CardContent className="space-y-4">
         {revision ? (
           <div className="plan-revision">
-            {/* The plan's own steps, as fields. A reader who wants a different
-                analysis usually wants most of this one: the fastest way to say
-                "not that table" is to edit the line that names it, which is why
-                the editor opens on the plan rather than on an empty box. */}
+            {/* Ranked sources as a picker. Editing a fully-qualified table name
+                in a text box is not a revision the agent can honour, so the
+                choice is a radio that writes into the note below. */}
             <div className="plan-steps">
-              {revision.steps.map((step, index) => (
-                <div className="plan-step plan-step-edit" key={step.id}>
-                  <span className="ast-num">{index + 1}</span>
-                  <div>
-                    <Input
-                      value={step.title}
-                      aria-label={`Step ${index + 1} title`}
-                      onChange={(event) =>
-                        dispatch({ type: 'step', id: step.id, field: 'title', value: event.target.value })
-                      }
-                    />
-                    <Textarea
-                      value={step.description}
-                      rows={2}
-                      aria-label={`Step ${index + 1} detail`}
-                      onChange={(event) =>
-                        dispatch({ type: 'step', id: step.id, field: 'description', value: event.target.value })
-                      }
-                    />
-                  </div>
-                  {/* Disabled on the last step: a plan with no steps is not a
-                      revision the agent can act on. */}
-                  <button
-                    type="button"
-                    className="plan-step-remove"
-                    aria-label={`Remove step ${index + 1}`}
-                    disabled={revision.steps.length < 2}
-                    onClick={() => dispatch({ type: 'remove', id: step.id })}
-                  >
-                    <X />
-                  </button>
-                </div>
+              {plan.steps.map((step, index) => (
+                <PlanSourceStep
+                  key={step.id}
+                  step={step}
+                  index={index}
+                  columns={columns}
+                  pick={{
+                    name: `plan-source-${plan.id}`,
+                    checked: revision.selectedStepId === step.id,
+                    onSelect: () => dispatch({ type: 'select', id: step.id }),
+                  }}
+                />
               ))}
             </div>
             {/* The other half, and on its own the whole of it: a reader can send
-                a revision without touching a step, because "also break this out
-                by platform" is a sentence and not an edit to one line. */}
+                a revision without touching a source, because "also break this
+                out by platform" is a sentence and not a different table. */}
             <label className="plan-revision-note">
               <span>What should change?</span>
               <Textarea
                 value={revision.note}
                 rows={2}
-                placeholder="e.g. don’t query the churn table, and include the last 90 days"
+                placeholder="e.g. use the Northwind table instead"
                 onChange={(event) => dispatch({ type: 'note', note: event.target.value })}
               />
             </label>
           </div>
         ) : (
           <div className="plan-steps">
-            {plan.steps.map((step, index) => {
-              const product = productForPlanKind(step.kind);
-              return (
-                <div className="plan-step" key={step.id}>
-                  {/* Mono, because these are read down a column: one numeral per
-                  step at the same offset, so the digits of 9 and 10 sit under
-                  each other. The stylesheet used to ask DM Sans for tabular
-                  figures instead, which does nothing -- the face declares no
-                  `tnum` feature and its digits are proportional. */}
-                  <span className="ast-num">{index + 1}</span>
-                  <div>
-                    {/* The title on its own line rather than run into the sentence
-                    after it. The agent writes these unpunctuated -- "Confirm
-                    metric definitions" -- so setting the two inline produces one
-                    run-on line whose first clause has no full stop, and the lead
-                    stops reading as a lead.
-
-                    Titles name tables as often as the detail under them does --
-                    "Read <your_catalog>.….gold_title_daily_summary" is a
-                    title, not a sentence -- so the same treatment applies here.
-                    A linked name inside the bold lead keeps the link's own 500
-                    rather than the lead's 700; it is still the only blue,
-                    underlined run in the line, which is what marks it. */}
-                    {/* The product this step will call, where the step's kind names
-                    one. Decorative: the line it sits on says what the step does,
-                    and the mark is there so a reader can see at a glance that
-                    the plan reaches the dictionary before it reaches the
-                    warehouse. Context and synthesis steps carry none, because
-                    neither is a call on a Databricks product -- see
-                    productForPlanKind. */}
-                    <strong>
-                      {product && <BrandIcon product={product} size={14} />}
-                      <PlanText text={step.title} columns={columns} />
-                    </strong>
-                    <p>
-                      <PlanText text={step.description} columns={columns} />
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+            {plan.steps.map((step, index) => (
+              <PlanSourceStep key={step.id} step={step} index={index} columns={columns} />
+            ))}
           </div>
         )}
         <div className="plan-context">
@@ -267,8 +263,8 @@ export function PlanCard({
               <Button type="button" variant="outline" onClick={() => dispatch({ type: 'cancel' })} disabled={loading}>
                 Cancel
               </Button>
-              {/* Sends the edits as a question and gets a new plan back. Off
-                  until the editor says something the plan does not already say,
+              {/* Sends the choice as a question and gets a new plan back. Off
+                  until the picker says something the plan does not already say,
                   because an untouched revision asks for the same plan again. */}
               <Button
                 type="button"

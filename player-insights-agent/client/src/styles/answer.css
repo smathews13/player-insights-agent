@@ -504,59 +504,37 @@
   margin: 2px 0 0;
 }
 /*
- * The plan with its steps opened for editing, which is what "Revise request"
+ * The plan with its sources opened as a picker, which is what "Revise request"
  * shows instead of the read-only list.
  *
  * The rows keep the step geometry -- same numeral, same card, same gutters -- so
- * the editor reads as the plan the reader was just looking at rather than as a
- * form that replaced it. The third column is the remove control, which the
- * read-only row does not have.
+ * the picker reads as the plan the reader was just looking at rather than as a
+ * form that replaced it. The extra column is the radio that chooses a source.
  */
 .plan-revision {
   display: grid;
   gap: 12px;
 }
-.plan-step-edit {
-  grid-template-columns: 22px 1fr 28px;
+.plan-step-pick {
+  grid-template-columns: 16px 22px 1fr;
+  align-items: start;
 }
-.plan-step-edit > div {
-  display: grid;
-  gap: 6px;
-}
-/* The title reads as the lead it is in the read-only row: same size, same
-   weight, so switching between the two views does not restyle the plan. */
-.plan-step-edit input {
-  font-size: var(--ast-fs-13);
-  font-weight: 700;
-}
-.plan-step-edit textarea {
-  font-size: var(--ast-fs-13);
-  line-height: 1.5;
-  resize: vertical;
-}
-/* Quiet until it is wanted: dropping a step is the rarest of the three things
-   this editor does, and it sits beside two fields a reader is typing into. */
-.plan-step-remove {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--ast-radius-control);
-  color: var(--ast-text-long);
-  background: transparent;
+.plan-step-pick > input[type='radio'] {
+  margin: 3px 0 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ast-blue);
   cursor: pointer;
 }
-.plan-step-remove > svg {
-  width: 14px;
-  height: 14px;
+.plan-step-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
-.plan-step-remove:hover:not(:disabled) {
-  background: var(--ast-neg-fill);
-  color: var(--ast-neg-text);
-}
-.plan-step-remove:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+.plan-step-heading > strong {
+  min-width: 0;
 }
 .plan-revision-note {
   display: grid;

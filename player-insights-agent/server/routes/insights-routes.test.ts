@@ -1340,6 +1340,42 @@ describe('serving request body', () => {
     });
   });
 
+  it('forwards the approved plan object verbatim so the agent can honour it', () => {
+    const approvedPlan = {
+      id: 'plan-1',
+      question: NONTRIVIAL_QUESTION,
+      summary: 'Count distinct players.',
+      extra_field: 'must-survive',
+      steps: [
+        {
+          id: 'source-1',
+          title: 'catalog.schema.table (recommended)',
+          description: 'brand_firstpartyid — the governed unit.',
+          kind: 'data',
+        },
+      ],
+      requires_approval: true,
+      uses_conversation_context: false,
+      uses_attachment_context: false,
+    };
+    const body = buildAskServingBody({
+      history: [],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      approvedPlanId: 'plan-1',
+      approvedPlan,
+      executePlan: true,
+      attachmentText: '',
+    });
+
+    expect(body.custom_inputs).toEqual({
+      conversation_id: 'conv-1',
+      approved_plan_id: 'plan-1',
+      approved_plan: approvedPlan,
+      execute_plan: true,
+    });
+  });
+
   it('builds the endpoint path the workspace client posts to', () => {
     expect(servingInvocationPath('player-insights-agent')).toBe('/serving-endpoints/player-insights-agent/invocations');
   });

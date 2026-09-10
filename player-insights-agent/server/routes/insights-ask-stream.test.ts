@@ -379,12 +379,14 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
       conversationId: 'conv-approval',
       prompt: 'Run the approved analysis.',
       approvedPlanId: 'plan-77',
+      approvedPlan: { id: 'plan-77', question: 'How many?', summary: 'Count them.', steps: [] },
       executePlan: true,
     });
 
     expect(requests[0].custom_inputs).toMatchObject({
       conversation_id: 'conv-approval',
       approved_plan_id: 'plan-77',
+      approved_plan: { id: 'plan-77', question: 'How many?', summary: 'Count them.', steps: [] },
       execute_plan: true,
     });
 

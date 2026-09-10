@@ -161,10 +161,18 @@ test('plan approval flow re-posts the approved plan and keeps the full transcrip
       question: 'Compare active players by title over the last 30 days.',
       summary: 'I will confirm definitions, then aggregate 30-day active players by brand and title.',
       steps: [
-        { id: 's1', title: 'Confirm scope', description: 'Resolve brand scope and the window.', kind: 'context' },
-        { id: 's2', title: 'Resolve definitions', description: 'Check what counts as active.', kind: 'definitions' },
-        { id: 's3', title: 'Query governed data', description: 'Run read-only SQL.', kind: 'data' },
-        { id: 's4', title: 'Summarize', description: 'Explain figures with sources.', kind: 'synthesis' },
+        {
+          id: 'source-1',
+          title: 'catalog.schema.gold_title_daily_summary (recommended)',
+          description: 'active_players — thirty-day count by title.',
+          kind: 'data',
+        },
+        {
+          id: 'source-2',
+          title: 'catalog.schema.play_by_title',
+          description: 'title_code — per-customer flag across titles.',
+          kind: 'data',
+        },
       ],
       requires_approval: true,
       uses_conversation_context: true,
@@ -190,21 +198,25 @@ test('plan approval flow re-posts the approved plan and keeps the full transcrip
 
   // 1. The plan card renders instead of an answer.
   await expect(page.getByText('Proposed analysis plan', { exact: true })).toBeVisible();
-  await expect(page.locator('.plan-step')).toHaveCount(4);
+  await expect(page.locator('.plan-step')).toHaveCount(2);
 
-  // 2. Revise opens the plan as an editor on the card, and Cancel puts it back.
+  // 2. Revise opens a source picker on the card, and Cancel puts it back.
   await page.getByRole('button', { name: 'Revise request' }).click();
-  await expect(page.getByLabel('Step 1 title')).toHaveValue('Confirm scope');
+  await expect(page.getByLabel('Use catalog.schema.gold_title_daily_summary')).toBeChecked();
   await expect(page.getByRole('button', { name: 'Send revised request' })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: 'Revise request' })).toBeVisible();
 
-  // 3. Approve re-posts with approvedPlanId + executePlan.
+  // 3. Approve re-posts with approvedPlanId, the plan object, and executePlan.
   await page.getByRole('button', { name: /Approve and run/ }).click();
   await expect(page.getByText('Approved plan executed.')).toBeVisible();
   expect(askBodies).toHaveLength(2);
   expect(askBodies[0]).toMatchObject({ prompt: plan.plan.question, executePlan: false });
-  expect(askBodies[1]).toMatchObject({ approvedPlanId: 'plan-abc123', executePlan: true });
+  expect(askBodies[1]).toMatchObject({
+    approvedPlanId: 'plan-abc123',
+    executePlan: true,
+    approvedPlan: { id: 'plan-abc123' },
+  });
 
   // 4. The whole transcript stays on screen, not just the last pair.
   await expect(page.locator('.question-attribution-message')).toHaveCount(2);
