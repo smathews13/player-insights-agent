@@ -41,8 +41,8 @@ import type { SpIdentityAdminPayload, SpPersona, SpPersonaConnectionWrite } from
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
 import { RoleBadgePill } from './RoleBadge';
-import { OrganizationAvatar } from './OrganizationAvatar';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
+import { normalizedHumanEmail } from './user-drilldown';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import { notifyIdentitySettingsChanged } from './identity-settings-events';
 import {
@@ -357,17 +357,14 @@ export function RosterRows({
                 <tr key={entry.email} className="admin-row">
                   <td className="roster-email" title={entry.email}>
                     <span className="admin-row-email">
-                      <OrganizationAvatar organization={organization} />
                       <span className="roster-email-details">
-                        <UserDrilldownLink
+                        <OrganizationUserBadge
                           identity={entry.email}
-                          variant="text"
+                          organization={organization}
+                          showFullIdentity
                           className="admin-row-address"
-                          title={entry.email}
                           canOpen
-                        >
-                          {entry.email}
-                        </UserDrilldownLink>
+                        />
                         <span className="roster-organization-name">{organization.name}</span>
                         <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
                       </span>
@@ -390,7 +387,11 @@ export function RosterRows({
                         <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
                       ) : (
                         <>
-                          <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
+                          {normalizedHumanEmail(entry.setBy) ? (
+                            <OrganizationUserBadge identity={entry.setBy} showFullIdentity canOpen />
+                          ) : (
+                            <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
+                          )}
                           {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
                         </>
                       )}

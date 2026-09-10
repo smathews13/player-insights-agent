@@ -36,7 +36,7 @@ import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
 import { AdminOnly, RoleLostNotice } from './GatePanel';
-import { UserIdentityChip } from './UserIdentityChip';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
 import { settingsOriginPath } from './settings-origin';
@@ -295,7 +295,9 @@ export function NavLinks({
  * time, gear, then the Built on Databricks attribution past the chrome rule.
  */
 export function IdentityChip({ identity }: { identity: Identity }) {
-  return <UserIdentityChip identity={identity.signedInAs} label="Signed in" testId="identity-chip" />;
+  return (
+    <OrganizationUserBadge identity={identity.signedInAs} label="Signed in" compact={false} testId="identity-chip" />
+  );
 }
 
 /**
@@ -406,9 +408,10 @@ export function IdentityChips({
       {hideRoleBadge ? null : <RoleBadge state={role.state} />}
       <Suspense
         fallback={
-          <UserIdentityChip
+          <OrganizationUserBadge
             identity={identity.canonicalEmail ?? identity.signedInAs}
             label="Signed in"
+            compact={false}
             className="account-menu-trigger"
             testId="identity-chip"
           />

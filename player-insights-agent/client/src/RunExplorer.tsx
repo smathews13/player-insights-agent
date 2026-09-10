@@ -56,7 +56,7 @@ import { runLabel } from './run-label';
 import { TraceDag } from './TraceDag';
 import { TraceTimeline } from './TraceTimeline';
 import type { Conversation, Run } from './app-types';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { RunRatingBadge } from './RunRatingBadge';
 import { PiaEmptyStateMark } from './PiaMark';
 import { PiaLoader } from './PiaLoader';
@@ -793,7 +793,7 @@ export function RunListItem({ run, active, onSelect }: { run: Run; active: boole
       <span className="run-item-prompt">{runLabel(run)}</span>
       <span className="run-item-meta">
         <span>
-          <UserDrilldownLink identity={run.stakeholder} compact />
+          <OrganizationUserBadge identity={run.stakeholder} canOpen />
           {typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) ? (
             <>
               {' · '}

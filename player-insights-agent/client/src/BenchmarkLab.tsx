@@ -56,7 +56,7 @@ import { RunRatingBadge } from './RunRatingBadge';
 import { PiaEmptyStateMark } from './PiaMark';
 import { PiaFlicker } from './PiaFlicker';
 import { PiaLoader } from './PiaLoader';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import type { Run } from './app-types';
 import { evalScorecard } from './eval-scorecard';
 import { SCORER_CATALOG } from '../../shared/scorer-catalog';
@@ -169,7 +169,7 @@ export function BenchmarkLedger({ qualifications }: { qualifications: BenchmarkQ
                 {row.identity ? (
                   <>
                     {' '}
-                    <UserDrilldownLink identity={row.identity} compact />
+                    <OrganizationUserBadge identity={row.identity} canOpen />
                   </>
                 ) : null}
                 .

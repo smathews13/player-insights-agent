@@ -225,7 +225,7 @@ describe('Build and telemetry date badges', () => {
     expect(deployed).toBeDefined();
     const markup = render(<BuildFactRow row={deployed!} />);
     const time = markup.indexOf('<time');
-    const user = markup.indexOf('class="identity-chip identity-chip--compact"');
+    const user = markup.indexOf('class="identity-chip identity-chip--compact organization-user-badge"');
 
     expect(markup.match(/<time\b/g)).toHaveLength(1);
     expect(markup).toContain('dateTime="2026-09-03T13:50:00Z"');
@@ -279,9 +279,9 @@ describe('people on deployment facts', () => {
     );
 
     expect(markup).toContain('identity-chip identity-chip--compact');
-    expect(markup).toContain('lucide-user-round');
+    expect(markup).toContain('data-organization-id="domain:example.test"');
     expect(markup).toContain('identity-chip-name">release.owner');
-    expect(markup).not.toContain('>RO<');
+    expect(markup).toContain('>EX<');
   });
 });
 

@@ -17,9 +17,23 @@ export const USER_IDENTITY_SURFACES: readonly UserIdentitySurface[] = [
   { id: 'run-list-identity', file: 'RunExplorer.tsx', policy: 'drilldown' },
   { id: 'run-overview-identity', file: 'RunHeader.tsx', policy: 'drilldown' },
   { id: 'benchmark-history-identity', file: 'BenchmarkLab.tsx', policy: 'drilldown' },
+  { id: 'feedback-browser-user', file: 'FeedbackBrowserPanel.tsx', policy: 'drilldown' },
+  { id: 'settings-admin-list', file: 'AdminListEditor.tsx', policy: 'drilldown' },
   { id: 'settings-human-roster', file: 'UserRoleEditor.tsx', policy: 'drilldown' },
   { id: 'connection-audit-identity', file: 'ConnectionsPage.tsx', policy: 'drilldown' },
   { id: 'declared-connection-owner', file: 'DeclaredConnectionsCard.tsx', policy: 'drilldown' },
+  {
+    id: 'conversation-owner-filter',
+    file: 'ConversationOwnerSelect.tsx',
+    policy: 'static',
+    reason: 'The identity is inside the owner filter option that performs the selection.',
+  },
+  {
+    id: 'connections-identity-card',
+    file: 'IdentityPanel.tsx',
+    policy: 'static',
+    reason: 'The identity names the signed-in person whose detail card is already open.',
+  },
   {
     id: 'monitoring-browser-row',
     file: 'MonitoringPage.tsx',

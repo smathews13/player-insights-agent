@@ -105,9 +105,10 @@ describe('organization identity assets', () => {
 
   it('routes every identity host through the one raw organization mark primitive', () => {
     expect(HOST_SOURCE.account.match(/<OrganizationAvatar/g)).toHaveLength(2);
-    expect(HOST_SOURCE.identity.match(/<OrganizationAvatar/g)).toHaveLength(2);
+    expect(HOST_SOURCE.identity.match(/<OrganizationAvatar/g)).toHaveLength(1);
+    expect(HOST_SOURCE.identity.match(/<OrganizationUserBadge/g)).toHaveLength(4);
     expect(HOST_SOURCE.monitoring).toMatch(/function AskerMark[\s\S]*?<OrganizationUserBadge/);
-    expect(HOST_SOURCE.monitoring.match(/icon=\{<OrganizationAvatar/g)).toHaveLength(3);
+    expect(HOST_SOURCE.monitoring.match(/<OrganizationUserBadge/g)).toHaveLength(5);
     expect(HOST_SOURCE.rail).toMatch(/<OrganizationUserBadge[\s\S]*?className="conversation-owner"/);
     expect(HOST_SOURCE.question).toContain('<OrganizationUserBadge');
     expect(HOST_SOURCE.run).toContain('<QuestionAttributionBubble');

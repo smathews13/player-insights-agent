@@ -2,6 +2,7 @@ import { AppMultiSelect } from './AppMultiSelect';
 import type { RailOwner } from './conversation-rail';
 import { identityName } from './user-identity';
 import { ownerSelectionSummary, toggleOwnerSelection } from './conversation-owner-selection';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 
 export function ConversationOwnerSelect({
   owners,
@@ -38,14 +39,7 @@ export function ConversationOwnerSelect({
           }`,
           title: owner.email,
           count: owner.count,
-          content: owner.you ? (
-            <>
-              <strong>You</strong>
-              <span className="conversation-owner-option-detail"> · {displayName}</span>
-            </>
-          ) : (
-            displayName
-          ),
+          content: <OrganizationUserBadge identity={owner.email} label={owner.you ? 'You' : undefined} />,
         };
       })}
     />

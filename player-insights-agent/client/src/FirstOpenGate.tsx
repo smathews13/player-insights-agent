@@ -50,7 +50,7 @@ import { RefreshButton } from './RefreshControl';
 import type { Identity } from './app-types';
 import { PiaLockup } from './PiaMark';
 import { PiaBusyButtonContent } from './PiaLoader';
-import { UserIdentityChip } from './UserIdentityChip';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { DATABRICKS_LOGO, DATABRICKS_SYMBOL } from './brand-icons';
 // The same octocat the Connections tab links its repository with. One copy, so
 // the two seatings cannot come apart. See GithubMark.tsx.
@@ -292,7 +292,7 @@ export function FirstOpenPanel({
       <section className="fo-box fo-identity" id="first-open-description">
         <p className="fo-label">{IDENTITY_LABEL}</p>
         <p className="fo-who">
-          <UserIdentityChip identity={report.signedInAs} className="fo-email" />
+          <OrganizationUserBadge identity={report.signedInAs} compact={false} className="fo-email" />
           {report.oauthVerified ? (
             <span className="ast-pill ast-pill--pos fo-oauth">
               <Check className="fo-check" aria-hidden="true" />

@@ -70,6 +70,9 @@ export const ICON_FILES = {
   'pia-dpad-app-512x512.png': { size: 512, cut: 'engraved' },
 } as const;
 
+/** Scalable browser-tab source; PNGs remain fallbacks for older clients. */
+export const TAB_ICON_SVG = 'pia-dpad-tab.svg';
+
 export type IconCut = (typeof ICON_FILES)[keyof typeof ICON_FILES]['cut'];
 
 /** `--ast-navy`. The plate, and the surface the mark's `dark` seating is drawn for. */
@@ -194,6 +197,8 @@ async function main(): Promise<number> {
   const flag = process.argv.indexOf('--out');
   const out = flag === -1 ? PUBLIC_DIR : path.resolve(process.argv[flag + 1]);
   await mkdir(out, { recursive: true });
+  await writeFile(path.join(out, TAB_ICON_SVG), iconSvg(64, 'engraved'));
+  console.log(`    svg  ${TAB_ICON_SVG}`);
   for (const [name, spec] of Object.entries(ICON_FILES)) {
     const png = await iconPng(spec.size, spec.cut);
     await writeFile(path.join(out, name), png);

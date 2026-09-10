@@ -169,7 +169,9 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('lucide-thumbs-down');
     expect(markup).toContain('Comments captured');
     expect(markup).toContain('Helpful rate');
-    expect(markup).toContain('Open user overview for coach');
+    expect(markup).toContain(
+      'Open user overview for User coach@example.com; organization example.com'
+    );
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
     expect(markup).toContain('data-role-state="consumer"');
     expect(markup).toContain('data-role-state="super_admin"');
@@ -183,7 +185,7 @@ describe('feedback corpus modal', () => {
 
   it('keeps row activation and username navigation isolated', () => {
     expect(PANEL_SOURCE).toContain('const activation = monitoringQuestionRowHandlers(row, onOpenQuestion)');
-    expect(PANEL_SOURCE).toContain('<UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />');
+    expect(PANEL_SOURCE).toContain('<OrganizationUserBadge identity={row.userEmail} canOpen showArrow />');
     expect(USER_LINK_SOURCE.match(/onClick=\{\(event\) => event\.stopPropagation\(\)\}/g)).toHaveLength(2);
   });
 

@@ -2126,7 +2126,7 @@ describe('the per-user panel', () => {
       />
     );
 
-    expect(markup).toContain('class="identity-chip user-profile-modal-identity-chip"');
+    expect(markup).toContain('class="identity-chip organization-user-badge user-profile-modal-identity-chip"');
     expect(markup).toContain('data-organization-id="acme-interactive"');
     expect(markup).toContain('aria-label="Organization: Acme Interactive"');
     expect(markup).toMatch(/data-organization-id="acme-interactive"[^>]*data-organization-mark="raw"[^>]*><svg/);
