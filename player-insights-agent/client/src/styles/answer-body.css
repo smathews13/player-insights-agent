@@ -516,6 +516,12 @@
   background: var(--ast-neg-fill);
   color: var(--ast-neg-text);
 }
+.feedback > .export-menu {
+  margin-left: 2px;
+}
+.feedback.answer-export-only {
+  justify-content: flex-end;
+}
 /* A rating that did not reach the table, said in the negative family rather than
    in AppKit's `--destructive`. Named here rather than as two utility classes on
    the markup so that the one sentence in this row which reports a failure is

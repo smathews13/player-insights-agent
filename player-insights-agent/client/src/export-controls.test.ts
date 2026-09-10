@@ -5,6 +5,8 @@ import { downloadExportBlob } from './export-files';
 describe('export controls contract', () => {
   const source = readFileSync(new URL('./ExportMenu.tsx', import.meta.url), 'utf8');
   const actionSource = readFileSync(new URL('./export-actions.ts', import.meta.url), 'utf8');
+  const answerCard = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 
   it('offers exactly the required answer, conversation and table actions', () => {
     expect(source.match(/label: 'Copy Markdown'/g)).toHaveLength(2);
@@ -18,6 +20,12 @@ describe('export controls contract', () => {
     expect(source).toContain('aria-haspopup="menu"');
     expect(source).toContain('role="menuitem"');
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
+  });
+
+  it('puts answer export beside completed-answer feedback, not above the question', () => {
+    expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
+    expect(home).not.toContain('<ConversationExportMenu');
+    expect(home).not.toContain('className="conversation-export"');
   });
 
   it('keeps serializers, file operations, and binary generation behind lazy boundaries', () => {
