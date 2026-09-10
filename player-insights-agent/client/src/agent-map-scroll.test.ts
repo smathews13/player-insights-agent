@@ -297,7 +297,6 @@ describe('Run Explorer has two desktop scroll owners', () => {
         new RegExp(`${property}: var\\(--run-explorer-pane-block-size\\)`)
       );
     }
-    expect(sharedPanes).toMatch(/overscroll-behavior: contain/);
     expect(sharedPanes).toMatch(/scrollbar-gutter: stable/);
     for (const selector of ['run-list', 'run-detail']) {
       const matches = [...RUNS_CSS.matchAll(new RegExp(`^\\.${selector} \\{([^}]*)\\}`, 'gm'))];
@@ -306,6 +305,8 @@ describe('Run Explorer has two desktop scroll owners', () => {
       expect(body, selector).not.toMatch(/(?:height|min-height|max-height):/);
     }
     expect(RUNS_CSS.match(/overflow-y:\s*auto/g)).toHaveLength(2);
+    expect(RUNS_CSS.match(/\.run-list \{[^}]*overscroll-behavior:\s*contain/s)).toBeTruthy();
+    expect(RUNS_CSS.match(/\.run-detail \{[^}]*overscroll-behavior-y:\s*auto/s)).toBeTruthy();
     for (const selector of ['run-detail-tabs', 'run-detail-tab-panel', 'run-detail-content']) {
       const body = RUNS_CSS.match(new RegExp(`\\.${selector} \\{([^}]*)\\}`))?.[1] ?? '';
       expect(body, selector).not.toMatch(/overflow-y:\s*(auto|scroll)/);

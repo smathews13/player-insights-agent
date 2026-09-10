@@ -860,6 +860,7 @@ ol.answer-list {
 .answer-table-origin {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   min-width: 0;
 }
 .answer-origin-links {
@@ -923,7 +924,7 @@ ol.answer-list {
   font-size: var(--ast-fs-11);
 }
 .export-outcome--error {
-  color: var(--destructive);
+  color: var(--ast-neg-text);
 }
 .answer-table {
   /* `collapse` is Tailwind preflight's default and is restated because the row

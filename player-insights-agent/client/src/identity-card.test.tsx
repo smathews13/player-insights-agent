@@ -194,7 +194,7 @@ describe('IdentityCard', () => {
     expect(markup).toContain('aria-label="Organization: Databricks"');
     expect(markup).toMatch(/data-organization-id="databricks"[^>]*data-organization-mark="raw"[^>]*><svg/);
     expect(markup).not.toContain('roster-organization-logo');
-    expect(markup.match(new RegExp(DATABRICKS_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(2);
+    expect(markup.match(new RegExp(DATABRICKS_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(4);
   });
 
   it('renders every labelled ID through the shared semibold monospace identifier', () => {
@@ -279,9 +279,8 @@ describe('IdentityCard', () => {
       },
     };
     const markup = renderToStaticMarkup(<IdentityCard read={{ identity: longIdentity, failed: false }} />);
-    expect(markup).toContain(
-      'title="someone.with.a.long.identity@example.cloud.databricks.com">someone.with.a.long.identity@example.cloud.databricks.com</span>'
-    );
+    expect(markup).toContain('title="someone.with.a.long.identity@example.cloud.databricks.com · Databricks"');
+    expect(markup).toContain('identity-chip-name">someone.with.a.long.identity@example.cloud.databricks.com</span>');
     expect(markup).toContain('title="https://an-extraordinarily-long-workspace-host.cloud.databricks.com"');
     for (const [label, value] of [
       ['workspace user ID', '1122334455667788'],
@@ -473,8 +472,10 @@ describe('IdentityCard', () => {
     expect(markup.match(/data-testid="oauth-badge"/g)).toHaveLength(2);
     expect(authentication.match(/data-testid="oauth-badge"/g)).toHaveLength(1);
     expect(execution.match(/data-testid="oauth-badge"/g)).toHaveLength(1);
-    expect(execution).toContain('aria-label="Open user overview for someone"');
-    expect(execution).toContain('class="identity-chip identity-chip--compact"');
+    expect(execution).toContain(
+      'aria-label="Open user overview for User someone@example.com; organization example.com"'
+    );
+    expect(execution).toContain('class="identity-chip identity-chip--compact organization-user-badge"');
     expect(markup).not.toContain('Databricks Apps OAuth');
     expect(markup).not.toContain('Local development fallback');
   });
