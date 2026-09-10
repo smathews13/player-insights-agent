@@ -16,6 +16,10 @@ export function OrganizationUserBadge({
   organizations = [],
   canOpen = false,
   showArrow = false,
+  compact = true,
+  showFullIdentity = false,
+  label,
+  testId,
   className,
 }: {
   identity: string | null | undefined;
@@ -23,6 +27,10 @@ export function OrganizationUserBadge({
   organizations?: readonly OrganizationMapping[];
   canOpen?: boolean;
   showArrow?: boolean;
+  compact?: boolean;
+  showFullIdentity?: boolean;
+  label?: string;
+  testId?: string;
   className?: string;
 }) {
   const value = identity?.trim() ?? '';
@@ -35,13 +43,16 @@ export function OrganizationUserBadge({
   return (
     <UserDrilldownLink
       identity={value}
-      compact
+      compact={compact}
       className={`organization-user-badge${className ? ` ${className}` : ''}`}
       canOpen={opensUser}
       showArrow={showArrow && opensUser}
       icon={<OrganizationAvatar organization={resolved} />}
       title={detail}
       ariaLabel={opensUser ? `Open user overview for ${accessible}` : accessible}
+      label={label}
+      showFullIdentity={showFullIdentity}
+      testId={testId}
     />
   );
 }

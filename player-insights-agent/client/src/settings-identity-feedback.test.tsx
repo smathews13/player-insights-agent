@@ -346,9 +346,9 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('aria-label="Organization: Example Studio"');
     expect(markup).toContain('roster-organization-mark');
     expect(markup).toContain(`<td class="roster-email" title="${email}">`);
-    expect(markup).toContain(`>${email}</span>`);
+    expect(markup).toContain(`identity-chip-name">${email}</span>`);
     expect(markup).toContain(`aria-label="Copy email ${email}"`);
-    expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf('admin-row-address'));
+    expect(markup.indexOf('roster-organization-mark')).toBeLessThan(markup.indexOf('identity-chip-name'));
   });
 
   it('keeps persona name and purpose controls compact and exactly equal height', () => {

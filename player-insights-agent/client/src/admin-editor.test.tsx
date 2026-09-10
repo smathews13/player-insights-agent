@@ -96,7 +96,8 @@ describe('the row is about a person, not about a catalog', () => {
     const rendered = text(rows({ entries: [added('pat@example.com', 'sam@example.com')] }));
 
     expect(rendered).toContain('pat@example.com');
-    expect(rendered).toContain('Added by sam@example.com');
+    expect(rendered).toContain('Added by');
+    expect(rendered).toContain('sam@example.com');
     expect(rendered).toContain('Remove');
   });
 
@@ -123,7 +124,8 @@ describe('where a row came from decides what may be done to it', () => {
     expect(originLabel(seed('sam@example.com'))).toBe('Set at deployment');
     expect(addedOn(seed('sam@example.com'))).toBe('');
     expect(rendered).toContain('Set at deployment');
-    expect(rendered).toContain('Added by sam@example.com');
+    expect(rendered).toContain('Added by');
+    expect(rendered).toContain('sam@example.com');
   });
 
   it('marks the reader\u2019s own row, so removing yourself is deliberate', () => {

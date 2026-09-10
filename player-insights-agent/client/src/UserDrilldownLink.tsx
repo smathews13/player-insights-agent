@@ -17,10 +17,12 @@ export function UserDrilldownLink({
   label,
   compact = false,
   className = '',
+  testId,
   title,
   role,
   canOpen,
   showArrow = false,
+  showFullIdentity = false,
   variant = 'chip',
   children,
   icon,
@@ -30,11 +32,14 @@ export function UserDrilldownLink({
   label?: string;
   compact?: boolean;
   className?: string;
+  testId?: string;
   title?: string;
   role?: RoleState;
   canOpen?: boolean;
   /** Trailing visual cue, rendered only when this identity is actually a link. */
   showArrow?: boolean;
+  /** Profile and identity-detail surfaces may retain the full address. */
+  showFullIdentity?: boolean;
   variant?: 'chip' | 'text';
   children?: ReactNode;
   /** Stronger identity mark supplied by organization-aware surfaces. */
@@ -51,7 +56,9 @@ export function UserDrilldownLink({
         identity={identity}
         label={label}
         compact={compact}
+        showFullIdentity={showFullIdentity}
         className={className || undefined}
+        testId={testId}
         icon={icon}
         title={title}
         ariaLabel={allowed && email ? undefined : ariaLabel}

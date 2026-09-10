@@ -6,10 +6,11 @@ import { CopyButton, StatusBadge } from './StatusBadge';
 import { useDeploymentIdentity, type DeploymentIdentity } from './identity-panel-state';
 import { DATABRICKS_SYMBOL } from './brand-icons';
 import type { AppAttachedResourceMetadata } from '../../shared/identity-metadata';
-import { UserDrilldownLink } from './UserDrilldownLink';
 import { RoleBadgePill } from './RoleBadge';
+import { showsAdminSurfaces } from './role';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import { OrganizationAvatar } from './OrganizationAvatar';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 
 /**
  * The `/api/identity` payload, as this card reads it.
@@ -130,7 +131,7 @@ function ExecutionValue({
     return (
       <>
         <OAuthBadge identity={identity} />
-        <UserDrilldownLink identity={identity.signedInAs} compact role={identity.role ?? 'failed'} />
+        <OrganizationUserBadge identity={identity.signedInAs} canOpen={showsAdminSurfaces(identity.role ?? 'failed')} />
       </>
     );
   }
@@ -194,9 +195,12 @@ export function IdentityCard({ read }: { read?: DeploymentIdentity; remedyStated
                 ) : null}
                 {identity?.signedInAs ? (
                   <Fact label="Email">
-                    <span className="identity-full-value" title={identity.signedInAs}>
-                      {identity.signedInAs}
-                    </span>
+                    <OrganizationUserBadge
+                      identity={identity.signedInAs}
+                      organization={organization ?? undefined}
+                      compact={false}
+                      showFullIdentity
+                    />
                   </Fact>
                 ) : null}
                 {identity?.role ? (

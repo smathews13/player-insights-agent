@@ -36,7 +36,7 @@ import {
 import type { ConnectionEntry } from './connection-model';
 import { AssetPicker } from './AssetPicker';
 import { StatusBadge } from './StatusBadge';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { PiaBusyButtonContent } from './PiaLoader';
 import { connectionValueError, derivedConnectionKey } from './declared-connection-form';
 import type { DeclaredResourceType } from '../../shared/notebook-declaration';
@@ -54,7 +54,7 @@ function ConnectionProvenance({ connection }: { connection: ConnectionEntry['con
     <span className="connection-provenance">
       {connection.createdBy ? (
         <span className="connection-provenance-badge">
-          Added by <UserDrilldownLink identity={connection.createdBy} compact />
+          Added by <OrganizationUserBadge identity={connection.createdBy} canOpen />
         </span>
       ) : null}
       {validCreated ? (

@@ -149,7 +149,10 @@
   max-height: var(--workspace-pane-block-size);
   box-sizing: border-box;
   border: 1px solid var(--ast-border-input);
+  border-top: 0;
   border-radius: var(--ast-radius-card);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
   overscroll-behavior: contain;
   /* No hairline against the middle column. The navy panel is its own edge, and a
      translucent white rule on the dark sky read as a seam rather than a

@@ -29,7 +29,7 @@
  * conversation does not want the list reordering underneath them, and the query
  * behind it scans every message in the range.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import { ArrowLeft, ArrowUpRight, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './pia-pill';
@@ -47,7 +47,6 @@ import { unavailableNotice } from './unavailable-copy';
 import { AnswerCard } from './AnswerCard';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { SourceEntityName, VisitInDatabricks } from './DataEntityLinks';
-import { UserIdentityChip } from './UserIdentityChip';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
@@ -55,7 +54,6 @@ import { RoleBadgePill } from './RoleBadge';
 import { EstimatedBadge } from './EstimatedBadge';
 import { identityName } from './user-identity';
 import { ToolCallsLabel } from './ToolCallsLabel';
-import { OrganizationAvatar } from './OrganizationAvatar';
 import { UserOrganizationSelect } from './UserOrganizationSelect';
 import type { Answer, FeedbackEntry } from './app-types';
 import { tokenTotalUsageView } from './token-usage-view';
@@ -382,13 +380,14 @@ function FilterChip({
   label: string;
   value: string;
   /** The first is the unset option, and its label is the word for "no filter". */
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; content?: ReactNode }[];
   onChange: (value: string) => void;
 }) {
   const active = value !== '';
   const selectOptions = options.map((option) => ({
     value: option.value || NO_FILTER,
     label: option.label,
+    content: option.content,
   }));
   return (
     <span className={active ? 'monitoring-chip monitoring-chip-active' : 'monitoring-chip'}>
@@ -537,7 +536,11 @@ export function FilterRow({
         onChange={(person) => onChange({ ...filters, person })}
         options={[
           { value: '', label: 'All users' },
-          ...people.map((email) => ({ value: email, label: localPart(email) })),
+          ...people.map((email) => ({
+            value: email,
+            label: localPart(email),
+            content: <OrganizationUserBadge identity={email} />,
+          })),
         ]}
       />
       <FilterChip
@@ -1644,11 +1647,12 @@ export function PersonPanel({
           <div className="user-profile-modal-user">
             <div className="user-profile-modal-identity-row">
               <h3 id="user-profile-modal-title">
-                <UserIdentityChip
+                <OrganizationUserBadge
                   identity={panel.email}
+                  compact={false}
                   showFullIdentity
                   className="user-profile-modal-identity-chip"
-                  icon={<OrganizationAvatar organization={panel.organization} />}
+                  organization={panel.organization}
                 />
               </h3>
               <ProfileIdentityBadges role={panel.role} persona={panel.persona} />
@@ -1868,11 +1872,12 @@ export function PersonPanelShell({
           <div className="user-profile-modal-identity-row">
             <h3 id="user-profile-modal-title" className="user-profile-modal-loading-title">
               {identitySeed ? (
-                <UserIdentityChip
+                <OrganizationUserBadge
                   identity={email}
+                  compact={false}
                   showFullIdentity
                   className="user-profile-modal-identity-chip"
-                  icon={<OrganizationAvatar organization={identitySeed.organization} />}
+                  organization={identitySeed.organization}
                 />
               ) : (
                 localPart(email) || 'User activity'
@@ -2108,11 +2113,7 @@ export function UserMonitoringPanel({
                   aria-label={`Open ${localPart(row.email)} User Overview`}
                 >
                   <span className="monitoring-user-identity">
-                    <UserIdentityChip
-                      identity={row.email}
-                      compact
-                      icon={<OrganizationAvatar organization={row.organization} />}
-                    />
+                    <OrganizationUserBadge identity={row.email} organization={row.organization} />
                   </span>
                   <span className="monitoring-user-role">
                     <span className="monitoring-users-mobile-label">Role</span>

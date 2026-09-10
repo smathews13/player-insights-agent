@@ -20,6 +20,7 @@ import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { addedOn, canSubmit, listSummary, originLabel, type AdminListEntry } from './admin-list';
 import { reportEgress } from './egress-policy';
 import type { AdminListPayload } from '../../shared/admin-contract';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 
 /**
  * A statement in the shape Connections prints one: mono, on the code wash,
@@ -102,14 +103,25 @@ export function AdminRows({
               <tr key={entry.email} className="admin-row">
                 <td className="roster-email">
                   <span className="admin-row-email">
-                    <span className="admin-row-address" title={entry.email}>
-                      {entry.email}
-                    </span>
+                    <OrganizationUserBadge
+                      identity={entry.email}
+                      showFullIdentity
+                      canOpen
+                      className="admin-row-address"
+                    />
                     {entry.isYou ? <span className="admin-row-you">You</span> : null}
                   </span>
                 </td>
                 <td className="roster-set-by">
-                  <span>{originLabel(entry)}</span>
+                  <span>
+                    {entry.origin === 'added' && entry.addedBy ? (
+                      <>
+                        Added by <OrganizationUserBadge identity={entry.addedBy} showFullIdentity canOpen />
+                      </>
+                    ) : (
+                      originLabel(entry)
+                    )}
+                  </span>
                   {addedOn(entry) ? <span>{addedOn(entry)}</span> : null}
                 </td>
                 <td className="roster-role">

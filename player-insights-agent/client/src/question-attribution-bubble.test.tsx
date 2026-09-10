@@ -71,9 +71,7 @@ describe('the shared question attribution bubble', () => {
     expect(hostPseudo).toContain('background: none');
     expect(hostPseudo).toContain('border: 0');
     expect(surface).toContain('border: 1px solid var(--ast-border-input)');
-    expect(surface).toContain(
-      'border-radius: calc(var(--radius-md) * 2) calc(var(--radius-md) * 2) var(--radius-sm) calc(var(--radius-md) * 2)'
-    );
+    expect(surface).toContain('border-radius: calc(var(--radius-md) * 2)');
     expect(surface).toContain('background: var(--ast-pane)');
     expect(surface).toContain('overflow: visible');
     expect(tail).toContain("content: ''");
@@ -114,6 +112,7 @@ describe('the shared question attribution bubble', () => {
 
   it('wraps long questions and keeps a one-surface second row when narrow', () => {
     expect(rule('.question-attribution-message')).toContain('overflow-wrap: anywhere');
+    expect(rule('.question-attribution-message')).toContain('white-space: pre-line');
     expect(CSS).toContain('@media (max-width: 480px)');
     expect(CSS).toMatch(
       /@media \(max-width: 480px\)[\s\S]*\.question-attribution-surface\s*\{[^}]*width:\s*100%[^}]*flex-direction:\s*column/

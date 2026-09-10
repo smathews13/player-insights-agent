@@ -5,7 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { ICON_FILES, INK, PLATE, iconPng, iconSvg } from './app-icons.mts';
+import { ICON_FILES, INK, PLATE, TAB_ICON_SVG, iconPng, iconSvg } from './app-icons.mts';
 
 /**
  * The tab shows this app's mark, and it shows the mark the app draws elsewhere.
@@ -72,6 +72,8 @@ describe('the icon set is the one the app’s markup asks for', () => {
     ]);
 
     expect([...asked].sort()).toEqual(Object.keys(ICON_FILES).sort());
+    expect(html).toContain(`href="/${TAB_ICON_SVG}"`);
+    expect(await committed(TAB_ICON_SVG)).toEqual(Buffer.from(iconSvg(64, 'engraved')));
     expect(html).not.toMatch(/href="\/(?:favicon|apple-touch-icon)[^"]*"/);
     expect(manifest.icons).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ src: expect.stringMatching(/^\/favicon-/) })])
@@ -102,6 +104,7 @@ describe('the icon set is the one the app’s markup asks for', () => {
     for (const name of Object.keys(ICON_FILES)) {
       expect(await readFile(path.join(CLIENT_DIST, name)), name).toEqual(await committed(name));
     }
+    expect(await readFile(path.join(CLIENT_DIST, TAB_ICON_SVG))).toEqual(await committed(TAB_ICON_SVG));
     for (const href of sourceHtml.matchAll(/href="(\/pia-dpad-[^"]+\.png)"/g)) {
       expect(deployedHtml, href[1]).toContain(`href="${href[1]}"`);
     }
@@ -152,13 +155,14 @@ describe('every icon is the Player Insights Agent D-pad on its plate, not a lett
     }
   });
 
-  it('uses the static simplified D-pad for every tab density and engraves only large app seats', () => {
+  it('uses a scalable engraved tab mark while retaining simplified PNG fallbacks', () => {
     const faceGlyphs = ['M32 12.5 L35.5 18.5 H28.5 Z', 'cx="47.5"', 'M29.5 45.5 L34.5 50.5'];
     for (const { size, cut } of Object.values(ICON_FILES).filter((spec) => spec.cut === 'simplified')) {
       const svg = iconSvg(size, cut);
       for (const glyph of faceGlyphs) expect(svg).not.toContain(glyph);
       expect(svg).not.toMatch(/<animate|<set|<script/i);
     }
+    for (const glyph of faceGlyphs) expect(iconSvg(64, 'engraved')).toContain(glyph);
     expect(iconSvg(192, 'engraved')).toContain(faceGlyphs[0]);
   });
 

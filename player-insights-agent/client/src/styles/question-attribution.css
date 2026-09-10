@@ -41,7 +41,7 @@
   max-width: 100%;
   overflow: visible;
   border: 1px solid var(--ast-border-input);
-  border-radius: calc(var(--radius-md) * 2) calc(var(--radius-md) * 2) var(--radius-sm) calc(var(--radius-md) * 2);
+  border-radius: calc(var(--radius-md) * 2);
   background: var(--ast-pane);
   color: var(--foreground);
 }
@@ -75,6 +75,7 @@
   box-shadow: none;
   color: inherit;
   line-height: 1.4;
+  white-space: pre-line;
   overflow-wrap: anywhere;
   cursor: text;
 }

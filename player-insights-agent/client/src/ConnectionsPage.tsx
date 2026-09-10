@@ -87,7 +87,7 @@ import { buildFacts, type BuildArtifact } from './connection-build';
 // Build card draws are decided there, so a row with nothing to say is dropped
 // before the markup sees it.
 import { deploymentRows, telemetryRows, type BuildRow } from './build-card';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { DateBadge, DateRangeBadges } from './DateBadge';
 import { NO_APP_FACTS } from '../../shared/app-facts';
 import { EntityHighlight, EntityParts, VisitInDatabricks } from './DataEntityLinks';
@@ -290,13 +290,13 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
             <span className="deployment-fact-lead">{row.value}</span>
             {row.dateRange ? <DateRangeBadges value={row.dateRange} /> : null}
             {row.aside ? <span className="deployment-fact-aside">{row.aside}</span> : null}
-            {row.identity ? <UserDrilldownLink identity={row.identity} label="by" compact /> : null}
+            {row.identity ? <OrganizationUserBadge identity={row.identity} label="by" canOpen /> : null}
           </p>
         ) : null}
         {row.kind === 'date' ? (
           <div className="deployment-fact-text deployment-date-fact">
             <DateBadge value={row.date} />
-            {row.identity ? <UserDrilldownLink identity={row.identity} label="by" compact /> : null}
+            {row.identity ? <OrganizationUserBadge identity={row.identity} label="by" canOpen /> : null}
           </div>
         ) : null}
         {/* A PLACE, NOT A VALUE. These two rows are the only ones on the card
@@ -615,10 +615,9 @@ function ConnectionAddedMetadata({ entry }: { entry: ConnectionEntry | undefined
   return (
     <span className="connections-scope-metadata">
       {addedBy ? (
-        <UserDrilldownLink
+        <OrganizationUserBadge
           identity={addedBy}
           label="Added by"
-          compact
           className="connections-scope-user"
           showArrow
           canOpen

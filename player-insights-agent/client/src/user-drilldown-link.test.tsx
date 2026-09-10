@@ -61,26 +61,25 @@ describe('shared user drilldown links', () => {
     for (const surface of USER_IDENTITY_SURFACES) {
       expect(surface.policy === 'drilldown' || Boolean(surface.reason)).toBe(true);
       if (surface.policy === 'drilldown') {
-        expect(source(surface.file)).toMatch(/UserDrilldownLink|QuestionAttributionBubble/);
+        expect(source(surface.file)).toMatch(/UserDrilldownLink|OrganizationUserBadge|QuestionAttributionBubble/);
       }
     }
   });
 
   it('keeps direct raw chip imports limited to documented static surfaces and the shared wrapper', () => {
-    const directChipFiles = [
-      'AccessGate.tsx',
-      'FirstOpenGate.tsx',
-      'Layout.tsx',
-      'MonitoringPage.tsx',
-      'UserDrilldownLink.tsx',
-    ];
+    const directChipFiles = ['UserDrilldownLink.tsx'];
     for (const file of directChipFiles) expect(source(file)).toContain('UserIdentityChip');
 
     const migrated = [
+      'AccessGate.tsx',
       'BenchmarkLab.tsx',
       'ConnectionsPage.tsx',
       'DeclaredConnectionsCard.tsx',
+      'FeedbackBrowserPanel.tsx',
+      'FirstOpenGate.tsx',
       'HomePage.tsx',
+      'Layout.tsx',
+      'MonitoringPage.tsx',
       'RunExplorer.tsx',
       'RunHeader.tsx',
       'UserRoleEditor.tsx',
@@ -92,6 +91,9 @@ describe('shared user drilldown links', () => {
     const css = source('styles/shell.css');
     const component = source('UserDrilldownLink.tsx');
     expect(css).toMatch(/\.user-drilldown-link\s*\{[^}]*cursor:\s*pointer/s);
+    expect(css).toMatch(
+      /\.user-drilldown-link\s*\{[^}]*width:\s*fit-content[^}]*justify-self:\s*start[^}]*align-self:\s*start/s
+    );
     expect(css).toContain('.user-drilldown-link:hover');
     expect(css).toContain('.user-drilldown-link:focus-visible');
     expect(css).not.toMatch(/\.user-drilldown-link[^{]*\{[^}]*opacity\s*:/s);

@@ -458,7 +458,10 @@
 }
 .user-drilldown-link {
   display: inline-flex;
+  width: fit-content;
   max-width: 100%;
+  justify-self: start;
+  align-self: start;
   color: inherit;
   text-decoration: none;
   border-radius: var(--radius-sm);

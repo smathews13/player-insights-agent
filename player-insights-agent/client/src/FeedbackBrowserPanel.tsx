@@ -13,7 +13,7 @@ import { PiaEmptyStateMark } from './PiaMark';
 import { Button, Input, Skeleton } from './ui';
 import { Dialog } from './Dialog';
 import { TimeRangeSegments } from './TimeRangeControl';
-import { UserDrilldownLink } from './UserDrilldownLink';
+import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { RoleBadgePill } from './RoleBadge';
 import { badgeLabel } from './role';
 import { astPill } from './pia-pill';
@@ -258,7 +258,7 @@ function FeedbackTable({
                 </td>
                 <td data-label="User" title={row.userEmail}>
                   <span className="monitoring-feedback-user">
-                    <UserDrilldownLink identity={row.userEmail} compact canOpen showArrow />
+                    <OrganizationUserBadge identity={row.userEmail} canOpen showArrow />
                   </span>
                 </td>
                 <td data-label="Role" className="monitoring-feedback-role" title={badgeLabel(row.role)}>
@@ -370,6 +370,12 @@ export function FeedbackBrowserPanel({
               options={(payload?.filters.users ?? []).map((option) => ({
                 value: option.value,
                 label: `${option.label} (${option.count})`,
+                content: (
+                  <>
+                    <OrganizationUserBadge identity={option.value} />
+                    <span className="monitoring-role-filter-count">({option.count})</span>
+                  </>
+                ),
               }))}
               onChange={(user) => onFilters({ ...filters, user })}
             />

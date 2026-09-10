@@ -37,13 +37,13 @@
   height: 14px;
 }
 
-.organization-user-badge > .roster-organization-mark {
+.identity-chip > .roster-organization-mark {
   flex-basis: 16px;
   width: 16px;
   height: 16px;
 }
 
-.organization-user-badge > .roster-organization-mark .roster-organization-fallback {
+.identity-chip > .roster-organization-mark .roster-organization-fallback {
   width: 11px;
   height: 11px;
 }

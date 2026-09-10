@@ -67,7 +67,10 @@ describe('idle Ask keeps the Agent path pane', () => {
   it('restores one opaque card surface around the complete Agent path pane', () => {
     const pane = /\.trace-inspector\s*\{([^}]*)\}/.exec(RAIL)?.[1] ?? '';
     expect(pane).toMatch(/border:\s*1px solid var\(--ast-border-input\)/);
+    expect(pane).toMatch(/border-top:\s*0/);
     expect(pane).toMatch(/border-radius:\s*var\(--ast-radius-card\)/);
+    expect(pane).toMatch(/border-top-left-radius:\s*0/);
+    expect(pane).toMatch(/border-top-right-radius:\s*0/);
     expect(pane).toMatch(/background:\s*var\(--ast-surface-primary\)/);
     expect(pane).toMatch(/background-image:\s*none/);
     expect(pane).toMatch(/backdrop-filter:\s*none/);

@@ -181,7 +181,7 @@ describe('Identity table polish', () => {
     expect(markup).toContain('>EX</span>');
     expect(markup).not.toContain('lucide-building-2');
     for (const entry of payload.entries) {
-      expect(markup).toContain(`title="${entry.email}">${entry.email}</span>`);
+      expect(markup).toContain(`identity-chip-name">${entry.email}</span>`);
       expect(markup).toContain(`aria-label="Copy email ${entry.email}"`);
     }
   });

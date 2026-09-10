@@ -604,6 +604,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.admin-row-address.identity-chip {
+  max-width: 100%;
+}
 
 .roster-email {
   min-width: 0;
