@@ -153,7 +153,7 @@ class ResourceCall(BaseModel):
 
     kind: Literal["genie-space", "vector-index"]
     id: str
-    tool: Literal["data_genie", "dictionary_genie", "search_semantics"]
+    tool: Literal["data_genie", "genie_mcp", "dictionary_genie", "search_semantics"]
     calls: int = 1
 
 
@@ -188,6 +188,7 @@ class TraceSummary(BaseModel):
     stages: list[TraceStage]
     genie_spaces: list[GenieSpace] = Field(default_factory=list)
     resource_calls: list[ResourceCall] = Field(default_factory=list)
+    genie_transport: Literal["direct", "mcp"] = "direct"
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0

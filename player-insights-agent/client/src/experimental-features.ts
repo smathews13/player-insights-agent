@@ -67,6 +67,11 @@ export function showsForecasting(features: ExperimentalFeatures): boolean {
   return features.forecasting;
 }
 
+/** Whether eligible administrators route the data Genie tool through managed MCP. */
+export function usesGenieMcp(features: ExperimentalFeatures): boolean {
+  return features.genieCodeMcp === true;
+}
+
 /** Whether Connections offers notebook selection and staged model-version apply. */
 export function showsNotebookAgentSync(features: ExperimentalFeatures): boolean {
   return features.notebookAgentSync;

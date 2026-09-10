@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { generateKeyPairSync } from 'node:crypto';
 import express, { type Request } from 'express';
 import { serving as sdkServing } from '@databricks/sdk-experimental';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +31,7 @@ import {
   type InsightsAppKit,
   type ServingTransport,
 } from './insights-routes';
+import { managedGenieMcpCapability } from '../lib/genie-mcp-capability';
 import { announceSeedAdmins } from '../lib/admin-roles';
 import servingResponses from './__fixtures__/serving-responses.json';
 import { FakeStore } from '../lib/__fixtures__/fake-run-store';
@@ -1195,6 +1197,89 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
 });
 
 describe('serving request body', () => {
+  it('issues managed Genie MCP authority only from the saved flag plus an authoritative admin role', () => {
+    const pair = generateKeyPairSync('ed25519');
+    const privateKeyPem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const request = {
+      user: 'admin@example.com',
+      requestId: 'request-1',
+      privateKeyPem,
+      nowSeconds: 2_000_000_000,
+      nonce: 'route-test-nonce-0001',
+    };
+
+    expect(
+      managedGenieMcpCapability({
+        ...request,
+        enabled: true,
+        role: 'admin',
+        identityMode: 'signed_in_user',
+      })
+    ).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    expect(
+      managedGenieMcpCapability({
+        ...request,
+        enabled: true,
+        role: 'consumer',
+        identityMode: 'signed_in_user',
+      })
+    ).toBeUndefined();
+    expect(
+      managedGenieMcpCapability({
+        ...request,
+        enabled: false,
+        role: 'super_admin',
+        identityMode: 'signed_in_user',
+      })
+    ).toBeUndefined();
+  });
+
+  it('injects the signed capability with its server-selected transport', () => {
+    const body = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      attachmentText: '',
+      genieMcpCapability: 'signed-capability',
+    });
+
+    expect(body.custom_inputs).toEqual({
+      conversation_id: 'conv-1',
+      genie_transport: 'mcp',
+      genie_mcp_capability: 'signed-capability',
+    });
+  });
+
+  it('keeps the Ask body on direct Genie when an eligible admin key is unavailable', () => {
+    const secretFragment = 'TOP-SECRET-KEY-FRAGMENT';
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const capability = managedGenieMcpCapability({
+        enabled: true,
+        role: 'admin',
+        identityMode: 'signed_in_user',
+        user: 'admin@example.com',
+        requestId: 'request-1',
+        privateKeyPem: secretFragment,
+      });
+      const body = buildAskServingBody({
+        history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+        prompt: NONTRIVIAL_QUESTION,
+        conversationId: 'conv-1',
+        attachmentText: '',
+        genieMcpCapability: capability,
+      });
+
+      expect(body.custom_inputs).toEqual({ conversation_id: 'conv-1' });
+      expect(JSON.stringify(body)).not.toContain('genie_transport');
+      expect(JSON.stringify(body)).not.toContain('genie_mcp_capability');
+      expect(JSON.stringify(warning.mock.calls)).not.toContain(secretFragment);
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('not configured');
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it('injects only the server-resolved route and no browser-selected endpoint', () => {
     const body = buildAskServingBody({
       history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
@@ -1768,6 +1853,18 @@ describe('the answer contract survives the round trip into the HTTP response', (
     expect(parsed.completion_tokens).toBeUndefined();
     // What the tile does with that: the guard can now be false.
     expect(typeof parsed.prompt_tokens === 'number' && typeof parsed.completion_tokens === 'number').toBe(false);
+  });
+
+  it('keeps the selected Genie transport on the persisted trace contract', () => {
+    const parsed = TraceSchema.parse({
+      id: 'tr-mcp',
+      totalMs: 1,
+      toolCalls: 1,
+      stages: [],
+      genie_transport: 'mcp',
+    });
+
+    expect(parsed.genie_transport).toBe('mcp');
   });
 
   /**

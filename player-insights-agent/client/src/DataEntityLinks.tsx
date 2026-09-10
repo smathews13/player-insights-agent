@@ -19,6 +19,7 @@ import { sourceRows, splitSourceName } from './source-rows';
 import type { SourceRef } from './answer-shape';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import { useRequestedEntity, useTrackedTables, useWorkspaceHost } from './data-entity-state';
+import { TableExportMenu } from './ExportMenu';
 
 /**
  * The rendering half of "an answer names a table, the reader can go and see it".
@@ -616,11 +617,19 @@ function ProseBlock({
       const origin = origins?.get(block.start) ?? [];
       return (
         <div className="answer-table-frame">
-          {origin.length > 0 ? (
-            <div className="answer-table-origin" aria-label="Source table">
-              <AnswerOriginLinks sources={origin} />
-            </div>
-          ) : null}
+          <div className="answer-table-tools">
+            {origin.length > 0 ? (
+              <div className="answer-table-origin" aria-label="Source table">
+                <AnswerOriginLinks sources={origin} />
+              </div>
+            ) : (
+              <span />
+            )}
+            <TableExportMenu
+              table={{ block, sources: [...origin] }}
+              name={origin.map((source) => source.name).join('-') || 'answer-table'}
+            />
+          </div>
           <div className="answer-table-wrap">
             <table className="answer-table">
               {block.header ? (

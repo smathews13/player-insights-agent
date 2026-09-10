@@ -22,6 +22,7 @@ from config import Settings
 from tools import GRANTS_DECIDE_NOTE, PlayerInsightTools
 from user_authorization import (
     AI_GATEWAY_SCOPE,
+    GENIE_MCP_SCOPE,
     GENIE_SCOPE,
     MODEL_CONFIG_KEY,
     MODEL_SERVING_SCOPE,
@@ -179,10 +180,10 @@ def test_the_artifact_is_read_with_the_same_closed_fist_as_the_environment(baked
 # ---------------------------------------------------------------------------
 
 
-def test_the_scopes_are_the_two_the_agent_can_justify():
-    """Genie and SQL, because those are the only APIs `tools.py` calls."""
+def test_the_scopes_include_direct_and_managed_genie_plus_sql():
+    """Both Genie transports and SQL are reachable from `tools.py`."""
 
-    assert api_scopes(settings()) == (GENIE_SCOPE, SQL_SCOPE)
+    assert api_scopes(settings()) == (GENIE_SCOPE, GENIE_MCP_SCOPE, SQL_SCOPE)
 
 
 def test_the_model_serving_scope_is_not_requested():
@@ -207,7 +208,13 @@ def test_gateway_capability_bakes_the_two_invoker_scopes():
             llm_gateway_endpoint="catalog.schema.gateway_model",
         )
     )
-    assert scopes == (GENIE_SCOPE, SQL_SCOPE, AI_GATEWAY_SCOPE, MODEL_SERVING_SCOPE)
+    assert scopes == (
+        GENIE_SCOPE,
+        GENIE_MCP_SCOPE,
+        SQL_SCOPE,
+        AI_GATEWAY_SCOPE,
+        MODEL_SERVING_SCOPE,
+    )
 
 
 def test_a_deployment_that_uses_no_genie_space_does_not_ask_for_genie():
@@ -215,7 +222,7 @@ def test_a_deployment_that_uses_no_genie_space_does_not_ask_for_genie():
 
     without_genie = settings(data_genie_space_id="", dictionary_genie_space_id="")
     assert api_scopes(without_genie) == (SQL_SCOPE,)
-    assert api_scopes(settings(warehouse_id="")) == (GENIE_SCOPE,)
+    assert api_scopes(settings(warehouse_id="")) == (GENIE_SCOPE, GENIE_MCP_SCOPE)
     # One space is enough to need the scope: the agent calls whichever it has.
     assert GENIE_SCOPE in api_scopes(settings(dictionary_genie_space_id=""))
 

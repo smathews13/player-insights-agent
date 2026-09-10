@@ -21,6 +21,7 @@ from route_disclosure import RouteLedger, failure_guidance, route_of
 
 def test_only_value_producing_tools_count_as_routes():
     assert route_of("data_genie") == "genie"
+    assert route_of("genie_mcp") == "genie"
     assert route_of("dictionary_genie") == "genie"
     assert route_of("run_sql") == "sql"
     assert route_of("query_named_table") == "sql"
@@ -71,6 +72,18 @@ def test_sql_after_a_genie_outage_is_linked_to_the_route_it_replaced():
         "the id is the link: two Genie failures in one run are otherwise the same entry, and "
         "which attempt this SQL stood in for is the question a reader has"
     )
+
+
+def test_sql_after_managed_genie_mcp_failure_is_disclosed():
+    ledger = RouteLedger()
+    failure = ledger.record_failure("genie_mcp", "managed MCP unavailable")
+
+    substitution = ledger.record_evidence("run_sql")
+
+    assert substitution is not None
+    assert substitution.failure is failure
+    assert substitution.as_record()["failed_tool"] == "genie_mcp"
+    assert "direct SQL over the warehouse was used instead" in ledger.caveat()
 
 
 def test_two_failures_link_to_the_route_the_run_set_out_to_use():

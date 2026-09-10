@@ -1,4 +1,4 @@
-import { FlaskConical, Network, NotebookTabs, Route, Tags, TrendingUp, type LucideIcon } from 'lucide-react';
+import { Bot, FlaskConical, Network, NotebookTabs, Route, Tags, TrendingUp, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 export const EXPERIMENTAL_PANE_HINT = 'Experimental: this pane may be unstable or may not work as expected.';
@@ -19,6 +19,7 @@ export function ExperimentalBadge() {
 export type ExperimentalFeatureKind =
   | 'ai-gateway'
   | 'egress-controls'
+  | 'genie-mcp'
   | 'notebook-agent-sync'
   | 'resource-tags'
   | 'forecasting'
@@ -27,6 +28,7 @@ export type ExperimentalFeatureKind =
 const EXPERIMENTAL_FEATURE_ICONS: Readonly<Record<ExperimentalFeatureKind, LucideIcon>> = {
   'ai-gateway': Route,
   'egress-controls': Network,
+  'genie-mcp': Bot,
   'notebook-agent-sync': NotebookTabs,
   'resource-tags': Tags,
   forecasting: TrendingUp,

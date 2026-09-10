@@ -85,6 +85,8 @@ case "$1 $2" in
     "model_name":               { "value": "test_catalog.test_schema.model" },
     "serving_endpoint_name":    { "value": "test-endpoint" },
     "serving_rollbacks_kept":   { "value": "0" },
+    "bundle_root_path":         { "value": "/Workspace/test" },
+    "genie_mcp_signing_key_version": { "value": "v1" },
     "experiment_path":          { "value": "/Shared/test" },
     "llm_endpoint":             { "value": "test-llm" },
     "llm_direct_endpoint":      { "value": "test-llm" },
@@ -115,6 +117,25 @@ JSON
     ;;
   "auth describe")
     echo '{"details": {"host": "https://fake-workspace.cloud.databricks.com"}}'
+    ;;
+  "secrets list-scopes")
+    echo '{"scopes":[{"name":"test-app-signing"}]}'
+    ;;
+  "secrets list-secrets")
+    echo '{"secrets":[{"key":"genie-mcp-ed25519-private-pem-v1"}]}'
+    ;;
+  "workspace get-status")
+    echo '{"object_type":"FILE"}'
+    ;;
+  "workspace export")
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "--file" ]]; then
+        printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'test-public-key' '-----END PUBLIC KEY-----' > "$2"
+        exit 0
+      fi
+      shift
+    done
+    exit 2
     ;;
   *)
     echo "stub databricks: unexpected: $*" >&2

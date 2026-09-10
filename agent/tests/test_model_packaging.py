@@ -54,7 +54,10 @@ RELEASE_ONLY = {
 
 #: Import name to the distribution that provides it, for the few that differ.
 #: Only what the agent actually imports; this is not a general mapping.
-DISTRIBUTIONS = {"databricks": "databricks-sdk"}
+DISTRIBUTIONS = {
+    "databricks": "databricks-sdk",
+    "databricks_mcp": "databricks-mcp",
+}
 
 
 def _requirement_name(requirement: str) -> str:

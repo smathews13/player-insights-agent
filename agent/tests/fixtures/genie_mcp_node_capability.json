@@ -1,0 +1,8 @@
+{
+  "generator": "node:crypto Ed25519",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAw9K1y+t3S8YL+XOeIxxS4wLymwl3a3VndAdgaa8OCKc=\n-----END PUBLIC KEY-----\n",
+  "capability": "eyJhdWQiOiJwbGF5ZXItaW5zaWdodHMtYWdlbnQiLCJleHAiOjIwMDAwMDAwNDUsImlhdCI6MjAwMDAwMDAwMCwianRpIjoibm9kZS1maXh0dXJlLW5vbmNlLTAwMDEiLCJwdXJwb3NlIjoibWFuYWdlZC1nZW5pZS1tY3AiLCJyZXF1ZXN0X2lkIjoicmVxdWVzdC1ub2RlLWZpeHR1cmUiLCJzdWIiOiJhZG1pbkBleGFtcGxlLmNvbSIsInRyYW5zcG9ydCI6Im1jcCIsInYiOjF9.cJgWQdBnfftBnFjQ9sGkLyMrnQLAATDOIBgwR6xdDlBMysBbk5n22-ULRT2ljnsLnyyViiKR_f2PrkVHrtpTBQ",
+  "request_id": "request-node-fixture",
+  "subject": "admin@example.com",
+  "now": 2000000001
+}

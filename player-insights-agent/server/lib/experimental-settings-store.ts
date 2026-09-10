@@ -83,3 +83,22 @@ export async function readAiGatewayEnabled(client: LakebaseReader): Promise<bool
     return false;
   }
 }
+
+/**
+ * Resolve the managed Genie MCP deployment switch for a new ask.
+ *
+ * Unlike Gateway routing, this capability fails closed on every unreadable
+ * settings snapshot. It grants an additional data transport to administrators,
+ * so remembered process state must never keep it enabled through a store outage.
+ */
+export async function readGenieMcpEnabled(client: LakebaseReader): Promise<boolean> {
+  try {
+    return (await readExperimentalSettings(client, { maxAgeMs: 0 })).settings.genieCodeMcp === true;
+  } catch (error) {
+    console.warn(
+      '[experimental-settings] Genie MCP state could not be read; disabling managed MCP for this ask:',
+      (error as Error).message
+    );
+    return false;
+  }
+}

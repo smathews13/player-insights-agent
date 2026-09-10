@@ -316,7 +316,12 @@
  */
 .answer-card-head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
+}
+.answer-card-head > .answer-takeaway {
+  grid-column: 1 / -1;
 }
 /* The mark and the state chip, at the top left corner of the card and nowhere
    else. `justify-self: start` is what states it: the head is a grid, and a grid
@@ -870,12 +875,18 @@ ol.answer-list {
   border-radius: 0;
   background: transparent;
 }
+.answer-table-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 14px;
+  border-bottom: 1px solid var(--ast-hairline);
+}
 .answer-table-origin {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--ast-hairline);
+  min-width: 0;
 }
 .answer-origin-links {
   display: flex;
@@ -890,6 +901,55 @@ ol.answer-list {
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+.export-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.export-menu [data-slot='button'] svg {
+  width: 14px;
+  height: 14px;
+}
+.export-menu-content {
+  display: grid;
+  gap: 2px;
+  width: 190px;
+  padding: 6px;
+}
+.export-menu-content [role='menuitem'] {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ast-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--ast-fs-12);
+  padding: 8px 10px;
+  text-align: left;
+}
+.export-menu-content [role='menuitem']:hover,
+.export-menu-content [role='menuitem']:focus-visible {
+  background: var(--ast-neutral-fill);
+  outline: none;
+}
+.export-menu-content [role='menuitem']:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.export-outcome {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 2;
+  width: max-content;
+  max-width: 260px;
+  padding-top: 4px;
+  color: var(--ast-text-secondary);
+  font-size: var(--ast-fs-11);
+}
+.export-outcome--error {
+  color: var(--destructive);
 }
 .answer-table {
   /* `collapse` is Tailwind preflight's default and is restated because the row

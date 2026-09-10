@@ -78,6 +78,8 @@ USER_AUTHORIZATION = "user-authorization"
 
 #: Genie: `start_conversation` and `get_message` on both spaces.
 GENIE_SCOPE = "dashboards.genie"
+#: Managed Genie Agent MCP uses a separate OAuth scope from the direct API.
+GENIE_MCP_SCOPE = "genie"
 #: The Statement Execution API, which is also the only supported route to a
 #: Unity Catalog table under user authorization on Model Serving: there is no
 #: separate table scope, the warehouse enforces the caller's grants.
@@ -206,6 +208,8 @@ def api_scopes(settings: Any) -> tuple[str, ...]:
     scopes: list[str] = []
     if settings.data_genie_space_id or settings.dictionary_genie_space_id:
         scopes.append(GENIE_SCOPE)
+    if settings.data_genie_space_id:
+        scopes.append(GENIE_MCP_SCOPE)
     if settings.warehouse_id:
         scopes.append(SQL_SCOPE)
     if getattr(settings, "llm_gateway", "") and getattr(settings, "llm_gateway_endpoint", ""):

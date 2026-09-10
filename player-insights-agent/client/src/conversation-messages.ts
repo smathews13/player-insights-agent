@@ -30,6 +30,27 @@ export async function readConversationMessagePage(
   };
 }
 
+/** Reads every bounded page in stable ascending order for whole-thread export. */
+export async function readCompleteConversationMessages(
+  conversationId: string,
+  options: { signal?: AbortSignal; fetcher?: typeof fetch; limit?: number } = {}
+): Promise<ConversationMessage[]> {
+  let cursor: string | null = null;
+  let hasMore = true;
+  let messages: ConversationMessage[] = [];
+  const seenCursors = new Set<string>();
+  while (hasMore) {
+    const page = await readConversationMessagePage(conversationId, { ...options, cursor });
+    messages = prependConversationMessages(messages, page.messages);
+    hasMore = page.hasMore;
+    cursor = page.nextCursor;
+    if (!hasMore) break;
+    if (!cursor || seenCursors.has(cursor)) throw new Error('Conversation pagination did not advance.');
+    seenCursors.add(cursor);
+  }
+  return messages;
+}
+
 function messageOrder(message: ConversationMessage): string {
   return `${typeof message.created_at === 'string' ? message.created_at : '\uffff'}\u0000${message.id}`;
 }

@@ -49,6 +49,7 @@ ENV_VARS = {
     # Cleared by the release script so a laptop cannot invent them.
     "data_genie_space_title": "PLAYER_INSIGHTS_DATA_GENIE_TITLE",
     "dictionary_genie_space_title": "PLAYER_INSIGHTS_DICTIONARY_GENIE_TITLE",
+    "genie_mcp_public_key": "PLAYER_INSIGHTS_GENIE_MCP_PUBLIC_KEY",
     "llm_endpoint": "PLAYER_INSIGHTS_LLM_ENDPOINT",
     "llm_gateway_endpoint": "PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT",
     "llm_gateway": "PLAYER_INSIGHTS_LLM_GATEWAY",
@@ -78,6 +79,7 @@ BAKED_KEYS = (
     *REQUIRED_KEYS,
     "data_genie_space_title",
     "dictionary_genie_space_title",
+    "genie_mcp_public_key",
     "llm_endpoint",
     "llm_gateway_endpoint",
     "llm_gateway",
@@ -355,6 +357,9 @@ class Settings:
     #: label fallback, never blocks on a failed get_space.
     data_genie_space_title: str = ""
     dictionary_genie_space_title: str = ""
+    #: Ed25519 public key used only to verify short-lived app-issued MCP
+    #: capabilities. The private key never enters the model artifact.
+    genie_mcp_public_key: str = ""
     #: Patterns naming tables that must never be declared, even inside an
     #: allowlisted scope. Applied after the scope listing and before the
     #: data-contract union, so an excluded table cannot be reintroduced.
@@ -541,6 +546,7 @@ class Settings:
             dictionary_genie_space_id=str(resolved["dictionary_genie_space_id"]),
             data_genie_space_title=str(resolved["data_genie_space_title"] or ""),
             dictionary_genie_space_title=str(resolved["dictionary_genie_space_title"] or ""),
+            genie_mcp_public_key=str(resolved["genie_mcp_public_key"] or ""),
             catalog=catalog,
             schema=str(resolved["schema"]),
             catalog_allowlist=_tuple(allowlist),

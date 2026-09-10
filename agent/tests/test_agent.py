@@ -4067,6 +4067,7 @@ APP_TRACE_FIELDS = {
     "stages",
     "genie_spaces",
     "resource_calls",
+    "genie_transport",
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
