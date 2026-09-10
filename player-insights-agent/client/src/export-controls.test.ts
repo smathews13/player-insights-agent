@@ -22,9 +22,11 @@ describe('export controls contract', () => {
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
   });
 
-  it('puts answer export beside completed-answer feedback, not above the question', () => {
+  it('puts answer export beside feedback and whole-conversation export after the transcript', () => {
     expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
-    expect(home).not.toContain('<ConversationExportMenu');
+    expect(home).toContain('<ConversationExportMenu');
+    expect(home.indexOf('<ConversationExportMenu')).toBeGreaterThan(home.indexOf('messages.map'));
+    expect(home).toContain('className="conversation-export-footer"');
     expect(home).not.toContain('className="conversation-export"');
   });
 

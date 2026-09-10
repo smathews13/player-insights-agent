@@ -176,6 +176,7 @@ import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
   prependConversationMessages,
+  readCompleteConversationMessages,
   readConversationMessagePage,
   restorePrependAnchor,
 } from './conversation-messages';
@@ -194,6 +195,7 @@ import { FeedbackWriteQueue } from './feedback-write-queue';
 import { notifyFeedbackChanged } from './feedback-events';
 import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
+import { ConversationExportMenu } from './ExportMenu';
 
 const ConversationFilters = lazy(() =>
   import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
@@ -2425,6 +2427,10 @@ export function HomePage() {
    * shared-height scroll pane above the composer.
    */
   const transcriptEmpty = messages.length === 0 && !loading && !conversationLoading;
+  const conversationTitle =
+    conversations.find((item) => item.id === conversationId)?.title ??
+    messages.find((item) => item.role === 'user')?.content ??
+    'Conversation';
 
   /*
    * Whether the harness column is drawing a run, or the idle silhouette.
@@ -2682,6 +2688,14 @@ export function HomePage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          {!conversationLoading && messages.some((message) => message.role === 'assistant') ? (
+            <div className="conversation-export-footer">
+              <ConversationExportMenu
+                title={conversationTitle}
+                loadMessages={() => readCompleteConversationMessages(conversationId)}
+              />
+            </div>
+          ) : null}
           <div ref={transcriptEndRef} className="transcript-end" aria-hidden="true" />
         </section>
         <form

@@ -38,7 +38,10 @@ export function serializeBlocksMarkdown(blocks: readonly Block[]): string {
           return `${'#'.repeat(block.level)} ${markdownInline(block.children)}`;
         case 'list':
           return block.items
-            .map((item, index) => `${block.ordered ? `${index + 1}.` : '-'} ${markdownInline(item.children)}`)
+            .map(
+              (item, index) =>
+                `${'  '.repeat(item.depth)}${block.ordered ? `${index + 1}.` : '-'} ${markdownInline(item.children)}`
+            )
             .join('\n');
         case 'rule':
           return '---';

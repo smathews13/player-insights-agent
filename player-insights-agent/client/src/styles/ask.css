@@ -93,6 +93,12 @@
   color: var(--destructive);
   font-size: var(--ast-fs-12);
 }
+.conversation-export-footer {
+  display: flex;
+  justify-content: flex-end;
+  width: min(calc(100% - 16px), var(--conversation-measure));
+  margin: 12px auto 4px;
+}
 .conversation-message:focus {
   outline: 2px solid var(--db-blue-600);
   outline-offset: 4px;

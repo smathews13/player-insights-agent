@@ -237,6 +237,7 @@ function capList(block: Extract<Block, { kind: 'list' }>): Extract<Block, { kind
   const merged: ListItem = {
     start: rest[0]?.start ?? block.start,
     children: joinInlineGroups(rest.map((item) => item.children)),
+    depth: rest[0]?.depth ?? 0,
   };
   return { ...block, items: [...head, merged] };
 }
@@ -246,6 +247,7 @@ function asList(start: number, sentences: readonly Inline[][]): Extract<Block, {
   const items: ListItem[] = capped.map((children) => ({
     start: children[0]?.start ?? start,
     children,
+    depth: 0,
   }));
   return { kind: 'list', start: items[0]?.start ?? start, ordered: false, items };
 }
