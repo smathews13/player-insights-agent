@@ -103,7 +103,7 @@ describe('firstOpenReport', () => {
     const report = firstOpenReport(
       identity({
         session: session({
-          tokenScopes: [...DECLARED, 'unity-catalog', 'workspace', 'vector-search', 'postgres', 'access-management'],
+          tokenScopes: [...DECLARED, 'unity-catalog', 'workspace', 'vector-search', 'postgres'],
         }),
       })
     );

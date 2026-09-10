@@ -26,12 +26,6 @@ export interface AppAccessSnapshot {
   message: string;
 }
 
-export type AppAccessMutation =
-  | { kind: 'updated'; snapshot: AppAccessSnapshot }
-  | { kind: 'unchanged'; snapshot: AppAccessSnapshot }
-  | { kind: 'refused'; status: 403 | 409; message: string; snapshot?: AppAccessSnapshot }
-  | { kind: 'failed'; status: number; message: string; snapshot?: AppAccessSnapshot };
-
 export interface AppAccessOptions {
   host: string;
   appName: string;
@@ -78,51 +72,40 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
     };
   }
 
-  const users = new Map(
-    snapshot.principals
-      .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
-      .map((principal) => [principal.name.toLowerCase(), principal])
-  );
-  const entries = payload.entries.map((entry) => {
-    const principal = users.get(entry.email.toLowerCase());
-    users.delete(entry.email.toLowerCase());
-    if (!principal) {
+  const storedByEmail = new Map(payload.entries.map((entry) => [entry.email.toLowerCase(), entry]));
+  const entries = snapshot.principals
+    .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
+    .map((principal) => {
+      const entry = storedByEmail.get(principal.name.toLowerCase());
+      if (entry) {
+        return {
+          ...entry,
+          appAccess: accessState(principal),
+          appAccessDetail: accessDetail(principal),
+        };
+      }
       return {
-        ...entry,
-        appAccess: 'missing' as const,
-        appAccessDetail: 'PIA has a role for this person, but the Databricks App ACL has no explicit user grant.',
-      };
-    }
-    const removableDirectUse = principal.directPermission === 'CAN_USE' && !principal.inherited;
-    return {
-      ...entry,
-      appAccess: accessState(principal),
-      appAccessDetail: accessDetail(principal),
-      canRemove: entry.canRemove && removableDirectUse,
-    };
-  });
-  for (const principal of users.values()) {
-    entries.push({
-      email: principal.name,
-      role: 'consumer',
-      isDeploymentOwner: false,
-      seedFloor: 'consumer',
-      setBy: 'Databricks App permissions',
-      setAt: '',
-      isYou: false,
-      appAccess: accessState(principal),
-      appAccessDetail: accessDetail(principal),
-      assignable: ['admin', 'super_admin'],
-      canRemove: principal.directPermission === 'CAN_USE' && !principal.inherited,
+        email: principal.name,
+        role: 'consumer' as const,
+        isDeploymentOwner: false,
+        seedFloor: 'consumer' as const,
+        setBy: 'Databricks App permissions',
+        setAt: '',
+        isYou: false,
+        appAccess: accessState(principal),
+        appAccessDetail: accessDetail(principal),
+        assignable: ['admin', 'super_admin'],
+        canRemove: false,
+      } satisfies RosterEntry;
     });
-  }
 
   return {
     ...payload,
     entries,
+    superAdminCount: entries.filter((entry) => entry.role === 'super_admin').length,
     appAccessAvailable: true,
     appAccessMessage:
-      'Databricks App permissions control admission. PIA roles control what an admitted person may do inside the app.',
+      'Databricks App permissions determine membership. Player Insights Agent determines each member’s app role.',
     appAccessPrincipals: snapshot.principals
       .filter(
         (principal): principal is AppAccessPrincipal & { kind: 'group' | 'service_principal' } =>
@@ -156,13 +139,6 @@ interface PermissionsBody {
   message?: unknown;
   error?: unknown;
   error_code?: unknown;
-}
-
-interface DirectAccessControl {
-  group_name?: string;
-  service_principal_name?: string;
-  user_name?: string;
-  permission_level: AppPermissionLevel;
 }
 
 function text(value: unknown): string {
@@ -248,20 +224,6 @@ function requestHeaders(options: AppAccessOptions): Record<string, string> {
   };
 }
 
-function unavailable(status: number, body: PermissionsBody): AppAccessMutation {
-  const raw = messageFrom(body, `Databricks answered HTTP ${status}.`);
-  if (status === 403) {
-    return {
-      kind: 'refused',
-      status: 403,
-      message:
-        'Databricks refused the App permission change. The signed-in PIA super admin must also hold CAN MANAGE ' +
-        `on this Databricks App and consent to the access-management scope. (${raw})`,
-    };
-  }
-  return { kind: 'failed', status: status || 502, message: raw };
-}
-
 export async function readAppAccess(options: AppAccessOptions): Promise<AppAccessSnapshot> {
   if (!options.host || !options.appName || !options.userToken) {
     return {
@@ -284,8 +246,7 @@ export async function readAppAccess(options: AppAccessOptions): Promise<AppAcces
         principals: [],
         message:
           response.status === 403
-            ? 'The signed-in PIA super admin must also hold CAN MANAGE on this Databricks App and consent to ' +
-              `the access-management scope before the two lists can be aligned. (${raw})`
+            ? `Databricks did not allow this session to read the App membership list. (${raw})`
             : raw,
       };
     }
@@ -297,109 +258,4 @@ export async function readAppAccess(options: AppAccessOptions): Promise<AppAcces
       message: `Databricks App permissions could not be reached: ${(error as Error).message}`,
     };
   }
-}
-
-function directAccessControls(snapshot: AppAccessSnapshot): DirectAccessControl[] {
-  return snapshot.principals.flatMap((principal) => {
-    if (!principal.directPermission) return [];
-    const identity =
-      principal.kind === 'user'
-        ? { user_name: principal.name }
-        : principal.kind === 'group'
-          ? { group_name: principal.name }
-          : { service_principal_name: principal.name };
-    return [{ ...identity, permission_level: principal.directPermission }];
-  });
-}
-
-async function mutate(
-  options: AppAccessOptions,
-  method: 'PATCH' | 'PUT',
-  accessControlList: DirectAccessControl[]
-): Promise<AppAccessMutation> {
-  const call = options.fetchImpl ?? fetch;
-  let response: Response;
-  try {
-    response = await call(permissionsUrl(options), {
-      method,
-      headers: { ...requestHeaders(options), 'content-type': 'application/json' },
-      body: JSON.stringify({ access_control_list: accessControlList }),
-    });
-  } catch (error) {
-    return { kind: 'failed', status: 502, message: `Databricks could not be reached: ${(error as Error).message}` };
-  }
-  const body = await responseBody(response);
-  if (!response.ok) return unavailable(response.status, body);
-  return {
-    kind: 'updated',
-    snapshot: { available: true, principals: appAccessPrincipals(body), message: '' },
-  };
-}
-
-/** Add direct CAN_USE only. PIA Admin never implies Databricks CAN_MANAGE. */
-export async function grantAppUse(options: AppAccessOptions, email: string): Promise<AppAccessMutation> {
-  const normalized = email.trim().toLowerCase();
-  const before = await readAppAccess(options);
-  if (!before.available) {
-    return { kind: 'failed', status: 503, message: before.message, snapshot: before };
-  }
-  const existing = before.principals.find((principal) => principal.kind === 'user' && principal.name === normalized);
-  if (existing?.directPermission) return { kind: 'unchanged', snapshot: before };
-  return mutate(options, 'PATCH', [{ user_name: normalized, permission_level: 'CAN_USE' }]);
-}
-
-/**
- * Remove only a direct CAN_USE entry. CAN_MANAGE and inherited access belong to
- * the Databricks permission model and are never silently downgraded here.
- */
-export async function revokeDirectAppUse(options: AppAccessOptions, email: string): Promise<AppAccessMutation> {
-  const normalized = email.trim().toLowerCase();
-  const before = await readAppAccess(options);
-  if (!before.available) {
-    return { kind: 'failed', status: 503, message: before.message, snapshot: before };
-  }
-  const existing = before.principals.find((principal) => principal.kind === 'user' && principal.name === normalized);
-  if (!existing?.directPermission) {
-    if (existing?.inherited) {
-      return {
-        kind: 'refused',
-        status: 409,
-        message: `${normalized} inherits App access from a Databricks group. Change that group in Databricks permissions.`,
-        snapshot: before,
-      };
-    }
-    return { kind: 'unchanged', snapshot: before };
-  }
-  if (existing.directPermission === 'CAN_MANAGE') {
-    return {
-      kind: 'refused',
-      status: 409,
-      message: `${normalized} holds CAN MANAGE on the Databricks App. Change that permission in Databricks first.`,
-      snapshot: before,
-    };
-  }
-  const remaining = directAccessControls(before).filter(
-    (principal) => principal.user_name?.toLowerCase() !== normalized
-  );
-  const changed = await mutate(options, 'PUT', remaining);
-  if (changed.kind !== 'updated') return changed;
-  const after = await readAppAccess(options);
-  if (!after.available) {
-    return {
-      kind: 'failed',
-      status: 503,
-      message: 'Databricks accepted the permission update but the app could not confirm it. Reload before retrying.',
-      snapshot: after,
-    };
-  }
-  const stillThere = after.principals.find((principal) => principal.kind === 'user' && principal.name === normalized);
-  if (stillThere?.effectivePermission) {
-    return {
-      kind: 'refused',
-      status: 409,
-      message: `${normalized} still inherits App access from Databricks after its direct CAN USE entry was removed.`,
-      snapshot: after,
-    };
-  }
-  return { kind: 'updated', snapshot: after };
 }

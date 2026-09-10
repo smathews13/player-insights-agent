@@ -135,7 +135,7 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
   app.use(requireAdmin(store, userEmail));
   app.use(requireSuperAdmin(store, userEmail));
   const storedRows = (store as AdminStore & { rows?: Rows }).rows?.roster ?? [];
-  const admitted = new Set([LEAD, DEPUTY, ...storedRows.map((row) => row.email)]);
+  const admitted = new Set([LEAD, DEPUTY, ANALYST, ...storedRows.map((row) => row.email)]);
   const snapshot = () => ({
     available: true,
     principals: [...admitted].map((name) => ({
@@ -150,15 +150,6 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
   });
   const appAccess: AppAccessService = {
     read: () => Promise.resolve(snapshot()),
-    grant: (_req, email) => {
-      const before = admitted.size;
-      admitted.add(email);
-      return Promise.resolve({ kind: before === admitted.size ? 'unchanged' : 'updated', snapshot: snapshot() });
-    },
-    revoke: (_req, email) => {
-      const changed = admitted.delete(email);
-      return Promise.resolve({ kind: changed ? 'updated' : 'unchanged', snapshot: snapshot() });
-    },
   };
   setupUserRoutes(appkit as unknown as InsightsAppKit, {
     readDeploymentOwner: () => Promise.resolve(LEAD),
@@ -298,8 +289,6 @@ describe('the super admin reads the roster', () => {
     }));
     const appAccess: AppAccessService = {
       read: () => Promise.resolve({ available: true, principals, message: '' }),
-      grant: () => Promise.resolve({ kind: 'unchanged', snapshot: { available: true, principals, message: '' } }),
-      revoke: () => Promise.resolve({ kind: 'updated', snapshot: { available: true, principals: [], message: '' } }),
     };
     const app = await startApp(fakeLakebase(), appAccess);
     const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
@@ -334,26 +323,18 @@ describe('appointing an administrator', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('does not store a PIA role when Databricks refuses App admission', async () => {
+  it('does not store an app role for someone outside Databricks App membership', async () => {
     const store = fakeLakebase();
     const snapshot = { available: true, principals: [], message: '' };
     const appAccess: AppAccessService = {
       read: () => Promise.resolve(snapshot),
-      grant: () =>
-        Promise.resolve({
-          kind: 'refused',
-          status: 403,
-          message: 'CAN MANAGE and access-management are required.',
-        }),
-      revoke: () => Promise.resolve({ kind: 'unchanged', snapshot }),
     };
     const app = await startApp(store, appAccess);
     const response = await app.add(LEAD, ANALYST, 'admin');
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(409);
     expect(store.rows.roster).toEqual([]);
     expect((await response.json()) as Record<string, unknown>).toMatchObject({
-      error: 'app_access_refused',
-      detail: 'CAN MANAGE and access-management are required.',
+      error: 'app_membership_required',
     });
   });
 
@@ -606,7 +587,7 @@ describe('when Lakebase is not answering', () => {
     const app = await startApp(broken);
     const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
     expect(payload.storedRosterReadable).toBe(false);
-    expect(payload.entries.map((entry) => entry.email)).toEqual([LEAD, DEPUTY]);
+    expect(payload.entries.map((entry) => entry.email)).toEqual([LEAD, DEPUTY, ANALYST]);
   });
 
   it('fails closed with one store read when no test-only seed floor can admit the caller', async () => {

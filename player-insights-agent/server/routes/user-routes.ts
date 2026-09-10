@@ -62,14 +62,7 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
-import {
-  alignRosterWithAppAccess,
-  grantAppUse,
-  readAppAccess,
-  revokeDirectAppUse,
-  type AppAccessMutation,
-  type AppAccessOptions,
-} from '../lib/app-access-roster';
+import { alignRosterWithAppAccess, readAppAccess, type AppAccessOptions } from '../lib/app-access-roster';
 import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 
@@ -83,19 +76,8 @@ function appAccessOptions(req: Request): AppAccessOptions | null {
   return host && appName && userToken ? { host, appName, userToken } : null;
 }
 
-function appAccessFailure(res: Response, outcome: AppAccessMutation): boolean {
-  if (outcome.kind === 'updated' || outcome.kind === 'unchanged') return false;
-  res.status(outcome.status).json({
-    error: outcome.kind === 'refused' ? 'app_access_refused' : 'app_access_unavailable',
-    detail: outcome.message,
-  });
-  return true;
-}
-
 export interface AppAccessService {
   read(req: Request): ReturnType<typeof readAppAccess>;
-  grant(req: Request, email: string): ReturnType<typeof grantAppUse>;
-  revoke(req: Request, email: string): ReturnType<typeof revokeDirectAppUse>;
 }
 
 const liveAppAccess: AppAccessService = {
@@ -109,28 +91,6 @@ const liveAppAccess: AppAccessService = {
           message:
             'Databricks App permissions are unavailable because this session has no forwarded user token or app identity.',
         };
-  },
-  async grant(req, email) {
-    const options = appAccessOptions(req);
-    if (!options) {
-      return {
-        kind: 'failed',
-        status: 503,
-        message: 'The app could not identify its Databricks App ACL under this signed-in session.',
-      };
-    }
-    return grantAppUse(options, email);
-  },
-  async revoke(req, email) {
-    const options = appAccessOptions(req);
-    if (!options) {
-      return {
-        kind: 'failed',
-        status: 503,
-        message: 'The app could not identify its Databricks App ACL under this signed-in session.',
-      };
-    }
-    return revokeDirectAppUse(options, email);
   },
 };
 
@@ -266,7 +226,7 @@ export function setupUserRoutes(
         res.status(400).json({ error: 'invalid_roster_email', detail: invalid });
         return;
       }
-      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role, true);
+      await setRole(req, res, normalizeAdminEmail(parsed.data.email), parsed.data.role);
     });
 
     /**
@@ -294,7 +254,7 @@ export function setupUserRoutes(
     app.delete('/api/users/:email', async (req, res) => {
       const email = normalizeAdminEmail(req.params.email);
       const actor = userEmail(req);
-      const seed = seedRoles();
+      const configuredSeed = seedRoles();
       let rows: StoredRole[];
       try {
         ({ rows } = await readRosterForRequest(appkit.lakebase, req));
@@ -308,31 +268,30 @@ export function setupUserRoutes(
         });
         return;
       }
+      const appAccess = await appAccessService.read(req);
+      if (!appAccess.available) {
+        res.status(503).json({ error: 'app_access_unavailable', detail: appAccess.message });
+        return;
+      }
+      const admitted = new Set(
+        appAccess.principals
+          .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
+          .map((principal) => principal.name)
+      );
+      rows = rows.filter((row) => admitted.has(row.email));
+      const seed = {
+        superAdmins: configuredSeed.superAdmins.filter((candidate) => admitted.has(candidate)),
+        admins: configuredSeed.admins.filter((candidate) => admitted.has(candidate)),
+      };
       const refusal = removalRefusal({ email, seed, stored: rows });
-      const accessBefore = await appAccessService.read(req);
-      const aclOnlyConsumer =
-        accessBefore.available &&
-        accessBefore.principals.some((principal) => principal.kind === 'user' && principal.name === email);
-      if (refusal && !(refusal === 'not-found' && aclOnlyConsumer)) {
+      if (refusal) {
         refuse(res, refusal);
         return;
       }
       const from = effectiveRole({ seed, stored: rows, email });
       try {
-        const appAccess = await appAccessService.revoke(req, email);
-        if (appAccessFailure(res, appAccess)) return;
-        if (appAccess.kind === 'updated') {
-          await recordAdminAction(appkit.lakebase, {
-            actor,
-            action: 'app-access-revoked',
-            subject: email,
-            detail: `${actor} removed ${email}'s direct CAN USE permission from the Databricks App.`,
-          });
-        }
         await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to: 'consumer' });
-        if (!aclOnlyConsumer || rows.some((row) => row.email === email)) {
-          await deleteRosterRow(appkit.lakebase, email);
-        }
+        await deleteRosterRow(appkit.lakebase, email);
         // After the write, so a row here means the change happened. Awaited, and its
         // own failure never fails the request: see recordAdminAction.
         await recordAdminAction(appkit.lakebase, {
@@ -356,9 +315,9 @@ export function setupUserRoutes(
      * once would otherwise both pass a check made in a browser and leave the
      * deployment with none.
      */
-    async function setRole(req: Request, res: Response, email: string, role: string, allowMissingConsumer = false) {
+    async function setRole(req: Request, res: Response, email: string, role: string) {
       const actor = userEmail(req);
-      const seed = seedRoles();
+      const configuredSeed = seedRoles();
       let rows: StoredRole[];
       let roleColumnPresent: boolean;
       try {
@@ -378,16 +337,32 @@ export function setupUserRoutes(
         res.status(503).json({ error: 'app_access_unavailable', detail: accessBefore.message });
         return;
       }
-      const alreadyAdmitted = accessBefore.principals.some(
-        (principal) => principal.kind === 'user' && principal.name === email && principal.effectivePermission !== null
+      const admitted = new Set(
+        accessBefore.principals
+          .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
+          .map((principal) => principal.name)
       );
+      rows = rows.filter((row) => admitted.has(row.email));
+      const seed = {
+        superAdmins: configuredSeed.superAdmins.filter((candidate) => admitted.has(candidate)),
+        admins: configuredSeed.admins.filter((candidate) => admitted.has(candidate)),
+      };
+      const alreadyAdmitted = admitted.has(email);
+      if (!alreadyAdmitted) {
+        res.status(409).json({
+          error: 'app_membership_required',
+          detail:
+            'Grant this person access in Databricks App permissions first, then reload Identity to assign their app role.',
+        });
+        return;
+      }
       const refusal = roleChangeRefusal({
         email,
         role,
         seed,
         stored: rows,
         roleColumnPresent,
-        allowMissingConsumer: allowMissingConsumer || alreadyAdmitted,
+        allowMissingConsumer: alreadyAdmitted,
       });
       if (refusal) {
         refuse(res, refusal);
@@ -398,16 +373,6 @@ export function setupUserRoutes(
       const from = effectiveRole({ seed, stored: rows, email });
       let roleStored = false;
       try {
-        const appAccess = await appAccessService.grant(req, email);
-        if (appAccessFailure(res, appAccess)) return;
-        if (appAccess.kind === 'updated') {
-          await recordAdminAction(appkit.lakebase, {
-            actor,
-            action: 'app-access-granted',
-            subject: email,
-            detail: `${actor} granted ${email} direct CAN USE on the Databricks App.`,
-          });
-        }
         await writeRole(appkit.lakebase, { email, role: to, actor, roleColumnPresent });
         roleStored = true;
         await recordAdminAction(appkit.lakebase, {
