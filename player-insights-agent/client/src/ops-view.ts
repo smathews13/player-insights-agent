@@ -852,11 +852,25 @@ const RESOURCE_NOTES: Readonly<Record<string, string>> = {
   catalog: 'Unity Catalog container',
   schema: 'Unity Catalog namespace',
   table: 'Governed table',
+  experiment: 'MLflow experiment for traces and evaluation',
+  'experiment-id': 'MLflow experiment for traces and evaluation',
+  'mlflow-experiment': 'MLflow experiment for traces and evaluation',
 };
 
 function noteFor(kind: string, result: DependencyResult): string {
-  const description = RESOURCE_NOTES[kind] ?? 'Connected dependency';
+  const description = RESOURCE_NOTES[kind] ?? 'Databricks dependency';
   return result === 'not-checked' ? `${description} · not checked` : description;
+}
+
+function conciseHealthNote(note: string): string {
+  const cleaned = note
+    .replace(/(?:The\s+)?Connections page lists this[^.]*\.\s*/gi, '')
+    .replace(/\s*\{["']?(?:error_code|message)["']?[\s\S]*$/i, '')
+    .trim();
+  if (/\bHTTP\s*403\b/i.test(cleaned)) {
+    return 'This dependency could not be checked with the current app identity.';
+  }
+  return cleaned.length > 220 ? `${cleaned.slice(0, 217).trimEnd()}…` : cleaned;
 }
 
 /**
@@ -900,7 +914,7 @@ export function healthRows(
       name: row.name,
       connectionsId: row.connectionsId,
       lastCheckedAt: row.lastCheckedAt,
-      notes: (reading?.reason || row.reason || '').trim() || noteFor(row.kind, row.result),
+      notes: conciseHealthNote(reading?.reason || row.reason || '') || noteFor(row.kind, row.result),
       pill: reading
         ? {
             // The platform's own word wins where the platform gave one. It is a
@@ -926,7 +940,7 @@ export function healthRows(
         // The reading was taken on the same pass as the probes, so it is as old as
         // the check the band is dated by. Nothing here invents a fresher time.
         lastCheckedAt: payload.checkedAt ?? '',
-        notes: reading.reason.trim() || noteFor(reading.id, reading.read ? 'answered' : 'not-checked'),
+        notes: conciseHealthNote(reading.reason) || noteFor(reading.id, reading.read ? 'answered' : 'not-checked'),
         pill: {
           label: reading.label,
           value: PRIMARY_CONNECTION_LABEL[resolvedConnectionState(reading.read ? reading.state : '')],

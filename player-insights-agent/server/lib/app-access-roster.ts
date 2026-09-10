@@ -241,21 +241,23 @@ export async function readAppAccess(options: AppAccessOptions): Promise<AppAcces
     const body = await responseBody(response);
     if (!response.ok) {
       const raw = messageFrom(body, `Databricks App permissions answered HTTP ${response.status}.`);
+      console.warn('[identity] Databricks App membership could not be read:', raw);
       return {
         available: false,
         principals: [],
         message:
           response.status === 403
-            ? `Databricks did not allow this session to read the App membership list. (${raw})`
-            : raw,
+            ? 'Databricks App membership could not be read with this session’s permissions.'
+            : `Databricks App membership could not be read (HTTP ${response.status}).`,
       };
     }
     return { available: true, principals: appAccessPrincipals(body), message: '' };
   } catch (error) {
+    console.warn('[identity] Databricks App permissions request failed:', (error as Error).message);
     return {
       available: false,
       principals: [],
-      message: `Databricks App permissions could not be reached: ${(error as Error).message}`,
+      message: 'Databricks App membership could not be reached.',
     };
   }
 }

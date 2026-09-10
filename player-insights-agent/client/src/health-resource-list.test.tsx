@@ -106,7 +106,7 @@ describe('declared tables in the Health resource list', () => {
     expect(aggregates).toHaveLength(1);
     expect(aggregates[0]).toMatchObject({
       label: 'Declared tables \u00b7 12 tables',
-      notes: '12 connected \u00b7 0 unverified \u00b7 0 failed',
+      notes: '12 connected',
       pill: { label: 'Declared tables', value: 'Connected' },
     });
     expect(aggregates[0].pill.tone).toContain('ast-pill--pos');
@@ -150,7 +150,7 @@ describe('declared tables in the Health resource list', () => {
     }
     const aggregate = rows.find((row) => row.id === 'declared-manifest');
     expect(aggregate?.label).toBe('Declared tables \u00b7 1 table');
-    expect(aggregate?.notes).toBe('1 connected \u00b7 0 unverified \u00b7 0 failed');
+    expect(aggregate?.notes).toBe('1 connected');
     expect(aggregate?.notes).not.toContain('1 table');
   });
 

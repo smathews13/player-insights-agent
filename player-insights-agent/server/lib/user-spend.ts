@@ -75,6 +75,7 @@ export interface UserRunSpendEvidence {
 export interface UserQuerySpendEvidence {
   email: string;
   astrolabeExecutionMs: number;
+  askExecutionMs?: number;
   genieSpaces: Array<{ spaceId: string; executionMs: number }>;
 }
 
@@ -568,7 +569,7 @@ export function buildSpendByUser(input: {
         usable = servingCoverage && [...weights.values()].some((value) => value > 0);
         reason = usable ? '' : 'Foundation-model spend lacks complete per-run token coverage.';
       } else if (id === 'sql-warehouse') {
-        weights = new Map(input.queryUsers.map((row) => [row.email, row.astrolabeExecutionMs]));
+        weights = new Map(input.queryUsers.map((row) => [row.email, row.askExecutionMs ?? row.astrolabeExecutionMs]));
         usable = input.queryComplete && [...weights.values()].some((value) => value > 0);
         reason = usable ? '' : 'SQL spend lacks complete user-attributed Query History.';
       } else if (id.startsWith('genie:')) {

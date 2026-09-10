@@ -70,14 +70,14 @@ describe('Identity table polish', () => {
     // 1024px is the supplied capture. The wider modal leaves 812px before the
     // platform scrollbar; the table's 800px floor fits there. At 900px the table
     // scrolls inside its 688px frame instead of widening or escaping the modal.
-    expect(1024 - 32 - 140 - 40).toBe(812);
-    expect(900 - 32 - 140 - 40).toBe(688);
+    expect(1024 - 32 - 180 - 40).toBe(772);
+    expect(900 - 32 - 180 - 40).toBe(648);
     expect(CSS).toMatch(/\.settings-page\.settings-modal \{[^}]*width:\s*min\(1080px,\s*calc\(100vw - 32px\)\)/s);
     expect(CSS).toMatch(
       /\.settings-table-frame \{[^}]*max-width:\s*100%[^}]*overflow-x:\s*auto[^}]*overflow-y:\s*hidden/s
     );
     expect(CSS).toMatch(/\.roles-table \{[^}]*min-width:\s*800px/s);
-    expect(CSS).toMatch(/\.roles-table--editable \.roster-set-by-column \{[^}]*width:\s*140px/s);
+    expect(CSS).toMatch(/\.roles-table--editable \.roster-organization-column \{[^}]*width:\s*180px/s);
     expect(CSS).toMatch(/\.roles-table--editable \.roster-role-column \{[^}]*width:\s*126px/s);
     expect(CSS).toMatch(/\.roles-table--editable \.roster-persona-column \{[^}]*width:\s*136px/s);
     expect(CSS).toMatch(/\.roles-table--editable \.roster-action-column \{[^}]*width:\s*112px/s);
@@ -169,7 +169,7 @@ describe('Identity table polish', () => {
     );
   });
 
-  it('renders the official Databricks mark and a derived domain mark without hiding either full email', () => {
+  it('renders organization marks, short addresses, and full-email copy controls', () => {
     const markup = roster();
     expect(markup).toContain('aria-label="Organization: Databricks"');
     expect(markup).toContain('data-organization-domain="databricks.com"');
@@ -181,7 +181,8 @@ describe('Identity table polish', () => {
     expect(markup).toContain('>EX</span>');
     expect(markup).not.toContain('lucide-building-2');
     for (const entry of payload.entries) {
-      expect(markup).toContain(`identity-chip-name">${entry.email}</span>`);
+      expect(markup).toContain(`identity-chip-name">${entry.email.split('@')[0]}</span>`);
+      expect(markup).toContain(`title="${entry.email}"`);
       expect(markup).toContain(`aria-label="Copy email ${entry.email}"`);
     }
   });

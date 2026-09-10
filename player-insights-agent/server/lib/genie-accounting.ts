@@ -111,6 +111,7 @@ genie_usage AS (
     AND u.usage_date >= LEAST(:from_day, DATE_TRUNC('MONTH', :through_day))
     AND u.usage_date <= :through_day
     AND UPPER(TRIM(u.usage_unit)) = 'DBU'
+    AND COALESCE(NULLIF(UPPER(TRIM(u.usage_metadata.genie.surface)), ''), 'UNKNOWN') <> 'GENIE_CODE'
 ),
 observed_paid_skus AS (
   SELECT cloud, usage_unit, sku_name, MAX(usage_end_time) AS observed_at,
@@ -124,6 +125,7 @@ observed_paid_skus AS (
     AND usage_date BETWEEN DATE_ADD(:through_day, -180) AND :through_day
     AND sku_name <> '${GENIE_FREE_SKU}'
     AND UPPER(TRIM(usage_unit)) = 'DBU'
+    AND COALESCE(NULLIF(UPPER(TRIM(usage_metadata.genie.surface)), ''), 'UNKNOWN') <> 'GENIE_CODE'
   GROUP BY cloud, usage_unit, sku_name
 ),
 workspace_regional_skus AS (

@@ -486,7 +486,7 @@ describe('billing attribution', () => {
     );
   });
 
-  it('estimates SQL from Astrolabe execution-time share rather than whole-warehouse spend', () => {
+  it('estimates SQL from exact Ask-run execution rather than every tagged app query', () => {
     const sql = buildTiles(
       IDS,
       [
@@ -508,12 +508,13 @@ describe('billing attribution', () => {
         totalQueries: 10,
         astrolabeExecutionMs: 25,
         totalExecutionMs: 100,
+        askRuns: [{ runId: 'run-1', executionMs: 10 }],
         genieSpaces: [],
       }
     ).find((tile) => tile.id === 'sql-warehouse');
 
     expect(sql).toMatchObject({
-      amount: 25,
+      amount: 10,
       quality: 'estimate',
       population: 'Interactive Ask queries',
       attribution: 'deployment',

@@ -818,10 +818,19 @@
   line-height: 1.35;
   text-wrap: pretty;
 }
-/* The question and asker stay one connected object at the start of the header. */
+/* The question and asker stay one connected object at the header's right edge. */
 .run-question-attribution {
-  width: 100%;
-  justify-content: flex-start;
+  width: fit-content;
+  max-width: min(100%, 34rem);
+  justify-content: flex-end;
+}
+.run-detail-heading-right {
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 /* What identifies the run, under the prompt: the id chip and status pills. It
    wraps rather than truncating, because each part is now its own object and the

@@ -4,7 +4,12 @@ import type {
   SpPersonaDefinition,
   SpPersonaDefinitionWrite,
 } from '../../shared/sp-identity';
-import type { Role, RosterPayload } from '../../shared/user-roster-contract';
+import type {
+  GroupMembersResponse,
+  Role,
+  RosterPayload,
+  WorkspaceGroupsResponse,
+} from '../../shared/user-roster-contract';
 
 export const EMPTY_SP_IDENTITY: SpIdentityAdminPayload = {
   minting: { available: false, detail: '' },
@@ -218,6 +223,35 @@ export async function writeHumanRoster(url: string, method: string, body: unknow
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  });
+}
+
+export async function loadWorkspaceGroups(): Promise<WorkspaceGroupsResponse['groups']> {
+  const response = await fetch('/api/users/groups', { credentials: 'same-origin' });
+  const body = (await response.json().catch(() => null)) as WorkspaceGroupsResponse | null;
+  if (!response.ok || !body?.readable) {
+    throw rosterFailure(response, body ? { detail: body.detail } : null);
+  }
+  return body.groups;
+}
+
+export async function loadGroupMembers(groupName: string): Promise<GroupMembersResponse> {
+  const response = await fetch(`/api/users/groups/${encodeURIComponent(groupName)}/members`, {
+    credentials: 'same-origin',
+  });
+  const body = (await response.json().catch(() => null)) as GroupMembersResponse | null;
+  if (!response.ok || !body) throw rosterFailure(response, body ? { detail: body.detail } : null);
+  return body;
+}
+
+export async function writeGroupRoleMapping(
+  groupName: string,
+  role: Extract<Role, 'admin' | 'consumer'>
+): Promise<RosterPayload> {
+  return rosterRequest('/api/users/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupName, role }),
   });
 }
 

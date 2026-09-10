@@ -98,7 +98,7 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(source('App.tsx')).toContain('useRuntimeEntityStyles();');
     expect(source('AppSky.tsx')).toContain('<AppTopology');
     expect(source('StarField.tsx')).toContain('<StarGlyphShape');
-    expect(SETTINGS).toMatch(/\.settings-modal-body\s*\{[^}]*grid-template-columns:\s*140px minmax\(0,\s*1fr\)/);
+    expect(SETTINGS).toMatch(/\.settings-modal-body\s*\{[^}]*grid-template-columns:\s*180px minmax\(0,\s*1fr\)/);
   });
 
   it('keeps the spec paints centralized and exact', () => {

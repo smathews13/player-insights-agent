@@ -155,7 +155,8 @@ describe('Settings modal', () => {
     const experimental = render('experimental');
     expect(experimental).toContain('Resource tags');
     expect(experimental).toContain('Applies billing attribution tags to supported Databricks resources.');
-    expect(experimental).toContain('Apply tags');
+    expect(experimental).toContain('Enable resource tags');
+    expect(experimental).not.toContain('Apply tags');
     expect(experimental).not.toContain('Resource tags · Experimental');
     expect(experimental).not.toContain('retired');
   });
@@ -169,7 +170,8 @@ describe('Settings modal', () => {
     expect(markup).toContain('AI Gateway');
     expect(markup).toContain('>On</span>');
     expect(markup).toContain('>Off</span>');
-    expect(markup).toContain('Idle');
+    expect(markup).not.toContain('Idle');
+    expect(markup).toContain('Enable resource tags');
     expect(markup).not.toContain('Egress controls panel ·');
     expect(markup).not.toContain('SP identities ·');
     expect(markup).toContain('Forecasting');

@@ -488,10 +488,11 @@ export function ArchitectureCanvas({
                 className="arch-dot"
                 key={edge.id}
                 data-testid={`arch-dot-${edge.id}`}
+                data-accent={edge.accent}
                 aria-hidden="true"
                 style={{
                   offsetPath: `path('${edge.d}')`,
-                  background: `var(${ACCENT_TOKEN[edge.accent]})`,
+                  background: edge.accent === 'agent' ? 'var(--ast-blue)' : `var(${ACCENT_TOKEN[edge.accent]})`,
                   animationDuration: `${edge.duration}s`,
                   animationDelay: `${edge.delay}s`,
                 }}

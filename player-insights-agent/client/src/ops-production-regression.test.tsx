@@ -133,7 +133,7 @@ describe('production-shaped Ops regressions', () => {
     );
     expect(markup).toContain('Telemetry could not be read');
     expect(markup).not.toContain('App telemetry is off');
-    expect(markup).toContain('App-owned request timings');
+    expect(markup).not.toContain('App-owned request timings');
     expect(markup).toContain('GET');
     expect(markup).toContain('/api/example');
   });

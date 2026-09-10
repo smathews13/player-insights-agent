@@ -49,7 +49,7 @@ import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { PiaEmptyStateMark } from './PiaMark';
 import { Disclosure, PageHeading } from './page-chrome';
 import { RefreshButton, RefreshControl } from './RefreshControl';
-import { ageAgo, checkedAgoLine, readAgo } from './refresh-state';
+import { ageAgo, checkedAgoLine } from './refresh-state';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
@@ -819,7 +819,7 @@ function CostMethodology() {
         },
         {
           label: 'Genie Code',
-          detail: 'Free usage consumes the user’s monthly allowance.',
+          detail: 'Excluded from all Player Insights Agent cost accounting.',
         },
         {
           label: 'Free and charged',
@@ -1161,7 +1161,7 @@ export function LatencyBody({
       <BlockHead
         id="ops-latency-heading"
         title="Latency"
-        meta={payload ? `App-owned request timings · ${readAgo(payload.readAt)}` : ''}
+        meta=""
         control={
           <div className="ops-latency-head-controls">
             <div className="run-search monitoring-search ops-latency-search">
@@ -1184,35 +1184,34 @@ export function LatencyBody({
                 </button>
               ) : null}
             </div>
+            {canFilterTrend ? (
+              <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
+                <button
+                  type="button"
+                  className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
+                  aria-pressed={showWithin}
+                  aria-label="Show routes within baseline"
+                  disabled={block.busy}
+                  onClick={() => setShowWithin((on) => !on)}
+                >
+                  Within baseline
+                </button>
+                <button
+                  type="button"
+                  className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
+                  aria-pressed={showOutside}
+                  aria-label="Show routes outside baseline"
+                  disabled={block.busy}
+                  onClick={() => setShowOutside((on) => !on)}
+                >
+                  Outside baseline
+                </button>
+              </div>
+            ) : null}
             <RefreshButton busy={block.busy} onRefresh={block.refresh} />
           </div>
         }
-      >
-        {canFilterTrend ? (
-          <div className="ops-latency-trend-filters" role="group" aria-label="Filter by trend">
-            <button
-              type="button"
-              className={astPill('pos', 'ops-pill ops-latency-trend-filter')}
-              aria-pressed={showWithin}
-              aria-label="Show routes within baseline"
-              disabled={block.busy}
-              onClick={() => setShowWithin((on) => !on)}
-            >
-              Within baseline
-            </button>
-            <button
-              type="button"
-              className={astPill('neg', 'ops-pill ops-latency-trend-filter')}
-              aria-pressed={showOutside}
-              aria-label="Show routes outside baseline"
-              disabled={block.busy}
-              onClick={() => setShowOutside((on) => !on)}
-            >
-              Outside baseline
-            </button>
-          </div>
-        ) : null}
-      </BlockHead>
+      />
 
       {block.busy && !payload ? null : (
         <BlockBody className={!absence && payload && routes.length > 0 ? 'ops-block-body-flush' : ''}>
@@ -1706,11 +1705,15 @@ export function OpsPage() {
 
   return (
     <div className="page-shell ops-page">
-      <PageHeading title="Ops" />
-      <div className="ops-page-controls">
-        {canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null}
-        {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
-      </div>
+      <PageHeading
+        title="Ops"
+        actions={
+          <div className="ops-page-controls">
+            {canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null}
+            {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
+          </div>
+        }
+      />
       {canCheckHealthResources(role.state) ? scopes.modal : null}
 
       {/* Each measured block reads itself. Four read times on one page rather

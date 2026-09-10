@@ -79,7 +79,6 @@ import {
   questionsAskedTile,
   feedbackTile,
   personFeedbackTile,
-  readScopes,
   tokenCostTile,
   tokensTile,
   userThreadsTile,
@@ -1625,7 +1624,6 @@ export function PersonPanel({
 }) {
   const times = answerTimeTile(panel.durationsMs);
   const outcomes = outcomeTile(panel.summary);
-  const scopes = readScopes(panel);
   const cost = tokenCostTile(panel.tokenCostUsd);
   const askedHeading = profileAskedHeading(panel.displayName, panel.email);
   return (
@@ -1716,20 +1714,6 @@ export function PersonPanel({
           <h4 id="user-profile-permissions-title" className="user-profile-modal-section-title">
             What they can read
           </h4>
-          <p className="user-profile-modal-note">Permissions, not data.</p>
-          {scopes.length > 0 ? (
-            <div className="user-profile-modal-scopes">
-              {scopes.map((scope) => (
-                <span
-                  className={astPill(PILL_FAMILY[scope.tone], 'monitoring-pill user-profile-modal-scope')}
-                  key={scope.label}
-                >
-                  {scope.label}
-                  <span className="user-profile-modal-scope-runs ast-num">{scope.runs}</span>
-                </span>
-              ))}
-            </div>
-          ) : null}
           <div className="user-profile-modal-grants">
             <p className="user-profile-modal-grants-heading">
               {panel.grantsMode === 'live-self'

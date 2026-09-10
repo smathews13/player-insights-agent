@@ -2230,17 +2230,16 @@ describe('the per-user panel', () => {
    * explaining what it did not mean. The counts are the useful part and they are
    * now on the badges.
    */
-  it('states each permission the runs carried as a badge with its run count', () => {
+  it('keeps run-identity helper badges out of the user overview', () => {
     const rendered = text(
       render(
         <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
       )
     );
 
-    expect(rendered).toContain('Their own Unity Catalog grants 41 runs');
-    expect(rendered).toContain('Sign-in verified on the token 39 runs');
-    expect(rendered).toContain('Sign-in confirmed by the endpoint 2 runs');
-    // The application's grants carried nothing here, so no badge claims they did.
+    expect(rendered).not.toContain('Their own Unity Catalog grants');
+    expect(rendered).not.toContain('Sign-in verified on the token');
+    expect(rendered).not.toContain('Sign-in confirmed by the endpoint');
     expect(rendered).not.toContain("The application's grants");
   });
 
@@ -2252,8 +2251,8 @@ describe('the per-user panel', () => {
       )
     );
 
-    expect(rendered).toContain("The application's grants 11 runs");
-    expect(rendered).toContain('Their own Unity Catalog grants 30 runs');
+    expect(rendered).not.toContain("The application's grants");
+    expect(rendered).not.toContain('Their own Unity Catalog grants');
   });
 
   /**
@@ -2275,7 +2274,7 @@ describe('the per-user panel', () => {
       )
     );
 
-    expect(rendered).toContain('Their own Unity Catalog grants 40 runs');
+    expect(rendered).not.toContain('Their own Unity Catalog grants');
     expect(rendered).not.toMatch(/did not record/i);
     expect(rendered).not.toMatch(/identity[^.]{0,40}\bis (?:unconfirmed|unverified|unknown)/i);
   });
@@ -2313,8 +2312,7 @@ describe('the per-user panel', () => {
       <PersonPanel panel={panel()} now={NOW} rangeLabel="last 7 days" onClose={() => {}} onOpenQuestion={() => {}} />
     );
 
-    // Neutral, not the bad tone. Confirmation by the endpoint is ordinary.
-    expect(markup).toMatch(/ast-pill--neutral-outline[^>]*>Sign-in confirmed by the endpoint/);
+    expect(markup).not.toContain('Sign-in confirmed by the endpoint');
     expect(text(markup)).not.toMatch(/unverified|insecure|weaker/i);
   });
 

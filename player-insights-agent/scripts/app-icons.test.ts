@@ -73,7 +73,7 @@ describe('the icon set is the one the app’s markup asks for', () => {
 
     expect([...asked].sort()).toEqual(Object.keys(ICON_FILES).sort());
     expect(html).toContain(`href="/${TAB_ICON_SVG}"`);
-    expect(await committed(TAB_ICON_SVG)).toEqual(Buffer.from(iconSvg(64, 'engraved')));
+    expect(await committed(TAB_ICON_SVG)).toEqual(Buffer.from(iconSvg(64, 'favicon')));
     expect(html).not.toMatch(/href="\/(?:favicon|apple-touch-icon)[^"]*"/);
     expect(manifest.icons).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ src: expect.stringMatching(/^\/favicon-/) })])
@@ -155,11 +155,13 @@ describe('every icon is the Player Insights Agent D-pad on its plate, not a lett
     }
   });
 
-  it('uses a scalable engraved tab mark while retaining simplified PNG fallbacks', () => {
+  it('uses the bold simplified favicon cut without engraved face glyphs', () => {
     const faceGlyphs = ['M32 12.5 L35.5 18.5 H28.5 Z', 'cx="47.5"', 'M29.5 45.5 L34.5 50.5'];
-    for (const { size, cut } of Object.values(ICON_FILES).filter((spec) => spec.cut === 'simplified')) {
+    for (const { size, cut } of Object.values(ICON_FILES).filter((spec) => spec.cut === 'favicon')) {
       const svg = iconSvg(size, cut);
       for (const glyph of faceGlyphs) expect(svg).not.toContain(glyph);
+      expect(svg).toContain('width="22" height="56"');
+      expect(svg).toContain('r="8"');
       expect(svg).not.toMatch(/<animate|<set|<script/i);
     }
     for (const glyph of faceGlyphs) expect(iconSvg(64, 'engraved')).toContain(glyph);

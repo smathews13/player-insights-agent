@@ -65,9 +65,22 @@ import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
 import { alignRosterWithAppAccess, readAppAccess, type AppAccessOptions } from '../lib/app-access-roster';
 import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
+import { readGroupRoleMappings, writeGroupRoleMapping } from '../lib/group-role-mappings';
+import {
+  listWorkspaceGroups,
+  readWorkspaceGroup,
+  readWorkspaceGroupMembers,
+  type WorkspaceGroupRead,
+} from '../lib/workspace-group-members';
+import type { GroupMembersResponse } from '../../shared/user-roster-contract';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
+const GroupMappingBody = z.object({
+  groupName: z.string().trim().min(1).max(255),
+  role: z.enum(['admin', 'consumer']),
+});
 
 function appAccessOptions(req: Request): AppAccessOptions | null {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
@@ -173,11 +186,108 @@ async function withdrawOnDemotion(input: {
 
 export function setupUserRoutes(
   appkit: InsightsAppKit,
-  deps: { readDeploymentOwner?: () => Promise<string>; appAccess?: AppAccessService } = {}
+  deps: {
+    readDeploymentOwner?: () => Promise<string>;
+    appAccess?: AppAccessService;
+    readGroupMembers?: (groupName: string) => Promise<GroupMembersResponse>;
+    readWorkspaceGroup?: (groupName: string) => Promise<WorkspaceGroupRead>;
+  } = {}
 ) {
   const readDeploymentOwner = deps.readDeploymentOwner ?? (() => deploymentOwnerEmail(appkit.lakebase));
   const appAccessService = deps.appAccess ?? liveAppAccess;
+  const readGroupMembers = deps.readGroupMembers ?? readWorkspaceGroupMembers;
+  const confirmWorkspaceGroup = deps.readWorkspaceGroup ?? readWorkspaceGroup;
+
+  async function attachGroupMappings(payload: RosterPayload): Promise<RosterPayload> {
+    const mappings = await readGroupRoleMappings(appkit.lakebase).catch((error) => {
+      console.warn('[admin] Stored group mappings could not be read:', (error as Error).message);
+      return [];
+    });
+    const confirmations = await Promise.all(mappings.map((mapping) => confirmWorkspaceGroup(mapping.groupName)));
+    const identityManagementUrl = accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST);
+    payload.groupRoleMappings = mappings.map((mapping, index) => {
+      const scimConfirmed = confirmations[index].readable && confirmations[index].exists;
+      return {
+        ...mapping,
+        scimConfirmed,
+        identityManagementUrl: scimConfirmed ? identityManagementUrl : '',
+      };
+    });
+    return payload;
+  }
+
   appkit.server.extend((app) => {
+    app.get('/api/users/groups', async (_req, res) => {
+      res.json(await listWorkspaceGroups());
+    });
+
+    app.get('/api/users/groups/:groupName/members', async (req, res) => {
+      const requested = req.params.groupName.trim();
+      const mappings = await readGroupRoleMappings(appkit.lakebase).catch(() => []);
+      const allowed = mappings
+        .map((mapping) => mapping.groupName)
+        .find((group) => group.toLocaleLowerCase() === requested.toLocaleLowerCase());
+      if (!allowed) {
+        res.status(404).json({
+          groupName: requested,
+          members: [],
+          readable: false,
+          detail: 'Only a mapped workspace group can be expanded.',
+        } satisfies GroupMembersResponse);
+        return;
+      }
+      res.json(await readGroupMembers(allowed));
+    });
+
+    app.post('/api/users/groups', async (req, res) => {
+      const parsed = GroupMappingBody.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          error: 'invalid_group_mapping_body',
+          detail: 'Select one existing workspace group and a Player Insights Agent role.',
+        });
+        return;
+      }
+      const confirmation = await confirmWorkspaceGroup(parsed.data.groupName);
+      if (!confirmation.readable) {
+        res.status(503).json({
+          error: 'group_confirmation_unavailable',
+          detail: 'The workspace could not confirm that group. No mapping was saved.',
+        });
+        return;
+      }
+      if (!confirmation.exists) {
+        res.status(404).json({
+          error: 'workspace_group_not_found',
+          detail: 'That workspace group does not exist. Create it in Databricks first, then retry.',
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        await writeGroupRoleMapping(appkit.lakebase, {
+          groupName: confirmation.groupName,
+          role: parsed.data.role,
+          actor,
+        });
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'group-role-mapped',
+          subject: confirmation.groupName,
+          detail: `${actor} mapped existing workspace group ${confirmation.groupName} to Player Insights Agent ${ROLE_WORD[
+            parsed.data.role
+          ].toLowerCase()}.`,
+        });
+        await replyWithRoster(req, res, appkit.lakebase, actor);
+      } catch (error) {
+        console.error('[admin] The workspace group mapping could not be saved:', (error as Error).message);
+        res.status(503).json({
+          error: 'group_mapping_store_unavailable',
+          detail: 'Lakebase could not save the group mapping. No workspace group or App permission was changed.',
+        });
+      }
+    });
+
     /**
      * The whole roster: everybody either half of the list knows, with the role each
      * holds and what may be done to the row.
@@ -204,7 +314,7 @@ export function setupUserRoutes(
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       const appAccess = await appAccessService.read(req);
-      res.json(alignRosterWithAppAccess(payload, appAccess));
+      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
     });
 
     /**
@@ -425,7 +535,7 @@ export function setupUserRoutes(
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
       const appAccess = await appAccessService.read(req);
-      res.json(alignRosterWithAppAccess(payload, appAccess));
+      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
     }
   });
 }

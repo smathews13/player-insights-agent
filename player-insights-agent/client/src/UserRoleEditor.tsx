@@ -21,7 +21,7 @@
  * of the role, so it is no longer on this screen.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Copy, Trash2, UserPlus } from 'lucide-react';
+import { ChevronRight, Copy, ExternalLink, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { Button, Input } from './ui';
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { CopyableCommand } from './AdminListEditor';
@@ -32,7 +32,6 @@ import {
   normalizeRosterEmail,
   roleWord,
   rosterEmailError,
-  setOn,
   stepsDownFrom,
   type RosterEntry,
 } from './user-roster';
@@ -42,7 +41,7 @@ import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
 import { RoleBadgePill } from './RoleBadge';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
-import { normalizedHumanEmail } from './user-drilldown';
+import { OrganizationAvatar } from './OrganizationAvatar';
 import { organizationForEmail } from '../../shared/organization-mapping';
 import { notifyIdentitySettingsChanged } from './identity-settings-events';
 import {
@@ -53,11 +52,14 @@ import {
   createSpPersonaDefinition,
   deleteSpPersonaDefinition,
   EMPTY_SP_IDENTITY,
+  loadGroupMembers,
   loadHumanRoster,
+  loadWorkspaceGroups,
   loadSpIdentityAdmin,
   renameSpPersona,
   UNASSIGNED_PERSONA,
   updateSpPersonaDefinition,
+  writeGroupRoleMapping,
   writeHumanRoster,
 } from './identity-settings-api';
 import { SpIdentityEditor, type SpIdentityMutationError } from './SpIdentityPanel';
@@ -137,8 +139,8 @@ const APP_ACCESS_LABEL = {
 } as const;
 
 export function AppAccessBadge({ state, detail }: { state: RosterEntry['appAccess']; detail?: string }) {
-  if (!state) return null;
-  const tone = state === 'missing' ? 'ast-pill--neg' : state === 'unknown' ? '' : 'ast-pill--pos';
+  if (!state || state === 'unknown') return null;
+  const tone = state === 'missing' ? 'ast-pill--neg' : 'ast-pill--pos';
   return (
     <span className={`ast-pill roster-app-access ${tone}`.trim()} title={detail || undefined}>
       {APP_ACCESS_LABEL[state]}
@@ -238,7 +240,7 @@ export function RosterAddRow({
           {feedback}
         </span>
       </td>
-      <td className="roster-add-help">Added by you</td>
+      <td className="roster-organization">—</td>
       <td className="roster-role">
         <AppSelect<Role>
           label="User role"
@@ -335,7 +337,7 @@ export function RosterRows({
         >
           <colgroup>
             <col className="roster-email-column" />
-            {manageHumanRoles ? <col className="roster-set-by-column" /> : null}
+            <col className="roster-organization-column" />
             <col className="roster-role-column" />
             {showPersona ? <col className="roster-persona-column" /> : null}
             {manageHumanRoles ? <col className="roster-action-column" /> : null}
@@ -343,7 +345,7 @@ export function RosterRows({
           <thead>
             <tr>
               <th scope="col">Email</th>
-              {manageHumanRoles ? <th scope="col">Set by</th> : null}
+              <th scope="col">Organization</th>
               <th scope="col">User role</th>
               {showPersona ? <th scope="col">Persona</th> : null}
               {manageHumanRoles ? <th scope="col">Actions</th> : null}
@@ -351,7 +353,6 @@ export function RosterRows({
           </thead>
           <tbody>
             {payload.entries.map((entry) => {
-              const setDate = setOn(entry);
               const organization = organizationForEmail(entry.email, payload.organizations ?? []);
               return (
                 <tr key={entry.email} className="admin-row">
@@ -361,11 +362,9 @@ export function RosterRows({
                         <OrganizationUserBadge
                           identity={entry.email}
                           organization={organization}
-                          showFullIdentity
                           className="admin-row-address"
                           canOpen
                         />
-                        <span className="roster-organization-name">{organization.name}</span>
                         <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
                       </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
@@ -381,22 +380,12 @@ export function RosterRows({
                       </Button>
                     </span>
                   </td>
-                  {manageHumanRoles ? (
-                    <td className="roster-set-by">
-                      {entry.seedFloor !== 'consumer' ? (
-                        <span title="Set at deployment. Edit the bundle variable to change it.">Deployment</span>
-                      ) : (
-                        <>
-                          {normalizedHumanEmail(entry.setBy) ? (
-                            <OrganizationUserBadge identity={entry.setBy} showFullIdentity canOpen />
-                          ) : (
-                            <span title={entry.setBy || undefined}>{entry.setBy || '—'}</span>
-                          )}
-                          {setDate ? <time dateTime={entry.setAt}>{setDate}</time> : null}
-                        </>
-                      )}
-                    </td>
-                  ) : null}
+                  <td className="roster-organization">
+                    <span className="roster-organization-value">
+                      <OrganizationAvatar organization={organization} />
+                      <span>{organization.name}</span>
+                    </span>
+                  </td>
                   <td className="roster-role">
                     <RoleControl
                       entry={manageHumanRoles ? entry : { ...entry, assignable: [] }}
@@ -442,6 +431,221 @@ export function RosterRows({
         </table>
       </div>
     </>
+  );
+}
+
+type GroupRoleEntry = NonNullable<RosterPayload['groupRoleMappings']>[number];
+
+function GroupRoleRow({
+  entry,
+  busy,
+  onRoleChange,
+}: {
+  entry: GroupRoleEntry;
+  busy: boolean;
+  onRoleChange: (entry: GroupRoleEntry, role: Extract<Role, 'admin' | 'consumer'>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [members, setMembers] = useState<Array<{ email: string; displayName: string }> | null>(null);
+  const [detail, setDetail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (!next || members) return;
+    setLoading(true);
+    setDetail('');
+    try {
+      const result = await loadGroupMembers(entry.groupName);
+      setMembers(result.members);
+      setDetail(result.detail);
+    } catch (cause) {
+      setDetail(cause instanceof Error ? cause.message : 'Workspace membership could not be read.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <tr className="admin-row group-role-row">
+        <td title={entry.groupName}>
+          <div className="group-role-identity">
+            <button
+              type="button"
+              className="group-role-toggle"
+              aria-expanded={open}
+              aria-label={`${open ? 'Hide' : 'Show'} members of ${entry.groupName}`}
+              onClick={() => void toggle()}
+            >
+              <ChevronRight className={open ? 'rotate-90' : ''} aria-hidden="true" />
+            </button>
+            <UsersRound aria-hidden="true" />
+            {entry.scimConfirmed && entry.identityManagementUrl ? (
+              <a
+                className="group-role-link"
+                href={entry.identityManagementUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={`Open Databricks identity management for ${entry.groupName}`}
+              >
+                <span>{entry.groupName}</span>
+                <ExternalLink aria-hidden="true" />
+              </a>
+            ) : (
+              <span>{entry.groupName}</span>
+            )}
+          </div>
+        </td>
+        <td>
+          <AppSelect
+            label="Player Insights Agent role"
+            ariaLabel={`Player Insights Agent role for ${entry.groupName}`}
+            value={entry.role}
+            disabled={busy}
+            onValueChange={(role) => onRoleChange(entry, role)}
+            options={(['admin', 'consumer'] as const).map((role) => ({
+              value: role,
+              label: roleWord(role),
+              content: <RoleBadgePill state={role} />,
+            }))}
+            className="roster-control roster-role-select group-role-select"
+          />
+        </td>
+      </tr>
+      {open ? (
+        <tr className="group-role-members-row">
+          <td colSpan={2}>
+            {loading ? <PiaLoader variant="inline" label="Reading group members" className="settings-status" /> : null}
+            {!loading && members ? (
+              <div className="group-role-members">
+                <p>
+                  {members.length} individual {members.length === 1 ? 'member' : 'members'}
+                </p>
+                {members.length > 0 ? (
+                  <ul>
+                    {members.map((member) => (
+                      <li key={member.email}>
+                        <OrganizationUserBadge identity={member.email} label={member.displayName} canOpen />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {detail ? <p className="settings-status">{detail}</p> : null}
+              </div>
+            ) : null}
+            {!loading && !members && detail ? (
+              <p className="settings-status settings-error" role="alert">
+                {detail}
+              </p>
+            ) : null}
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+function GroupMappingAddRow({
+  mapped,
+  busy,
+  onAdd,
+}: {
+  mapped: readonly string[];
+  busy: boolean;
+  onAdd: (groupName: string, role: Extract<Role, 'admin' | 'consumer'>) => Promise<boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [groupName, setGroupName] = useState('');
+  const [role, setRole] = useState<Extract<Role, 'admin' | 'consumer'>>('consumer');
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  const [error, setError] = useState('');
+
+  const openPicker = async () => {
+    setOpen(true);
+    if (state === 'loading' || state === 'ready') return;
+    setState('loading');
+    try {
+      const excluded = new Set(mapped.map((name) => name.toLocaleLowerCase()));
+      setGroups((await loadWorkspaceGroups()).filter((group) => !excluded.has(group.displayName.toLocaleLowerCase())));
+      setState('ready');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Workspace groups could not be listed.');
+      setState('failed');
+    }
+  };
+
+  if (!open) {
+    return (
+      <tr className="roster-add-row group-mapping-add-row">
+        <td colSpan={2}>
+          <Button type="button" variant="outline" onClick={() => void openPicker()}>
+            <UserPlus className="roster-action-icon" aria-hidden="true" />
+            Add group
+          </Button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="roster-add-row group-mapping-add-row">
+      <td>
+        <AppSelect
+          label="Workspace group"
+          ariaLabel="Select a Databricks workspace group"
+          value={groupName || '__select_group__'}
+          disabled={busy || state === 'loading' || groups.length === 0}
+          onValueChange={(value) => setGroupName(value === '__select_group__' ? '' : value)}
+          options={[
+            { value: '__select_group__', label: state === 'loading' ? 'Loading groups…' : 'Select a group' },
+            ...groups.map((group) => ({ value: group.displayName, label: group.displayName, code: group.id })),
+          ]}
+          className="roster-control group-mapping-group-select"
+        />
+        {error ? (
+          <span className="roster-add-feedback admin-list-error" role="alert">
+            {error}
+          </span>
+        ) : null}
+      </td>
+      <td>
+        <div className="group-mapping-actions">
+          <AppSelect
+            label="Player Insights Agent role"
+            ariaLabel="Player Insights Agent role for the existing group"
+            value={role}
+            disabled={busy}
+            onValueChange={setRole}
+            options={(['admin', 'consumer'] as const).map((option) => ({
+              value: option,
+              label: roleWord(option),
+              content: <RoleBadgePill state={option} />,
+            }))}
+            className="roster-control roster-role-select"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || !groupName}
+            onClick={() =>
+              void onAdd(groupName, role).then((added) => {
+                if (added) {
+                  setGroupName('');
+                  setOpen(false);
+                  setState('idle');
+                }
+              })
+            }
+          >
+            Add
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -547,6 +751,56 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
 
   return (
     <div className="identity-table-content">
+      {canManageHumanRoles && payload ? (
+        <section className="settings-identity-section" aria-labelledby="group-roles-title">
+          <h4 id="group-roles-title" className="settings-section-title">
+            Databricks workspace groups and Player Insights Agent roles
+          </h4>
+          <div className="settings-table-frame roster-frame">
+            <table className="settings-data-table roles-table group-roles-table">
+              <colgroup>
+                <col />
+                <col className="roster-role-column" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Workspace group</th>
+                  <th scope="col">User role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(payload.groupRoleMappings ?? []).map((entry) => (
+                  <GroupRoleRow
+                    key={entry.groupName}
+                    entry={entry}
+                    busy={busy}
+                    onRoleChange={(mapping, role) =>
+                      void run(
+                        () => writeGroupRoleMapping(mapping.groupName, role),
+                        `${mapping.groupName} now maps to ${roleWord(role).toLowerCase()}.`,
+                        { apply: setPayload }
+                      )
+                    }
+                  />
+                ))}
+              </tbody>
+              <tfoot>
+                <GroupMappingAddRow
+                  mapped={(payload.groupRoleMappings ?? []).map((entry) => entry.groupName)}
+                  busy={busy}
+                  onAdd={(groupName, role) =>
+                    run(
+                      () => writeGroupRoleMapping(groupName, role),
+                      `${groupName} now maps to ${roleWord(role).toLowerCase()}.`,
+                      { apply: setPayload }
+                    )
+                  }
+                />
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      ) : null}
       <section className="settings-identity-section" aria-labelledby="human-roles-title">
         <h4 id="human-roles-title" className="settings-section-title">
           Databricks App members and Player Insights Agent roles
@@ -559,10 +813,12 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
         ) : null}
         {payload ? (
           <>
-            <p className={`admin-list-note ${payload.appAccessAvailable === false ? 'admin-list-error' : ''}`.trim()}>
-              {payload.appAccessMessage ||
-                'Databricks App permissions determine membership. Player Insights Agent determines each member’s app role.'}
-            </p>
+            {payload.appAccessAvailable === false ? null : (
+              <p className="admin-list-note">
+                {payload.appAccessMessage ||
+                  'Databricks App permissions determine membership. Player Insights Agent determines each member’s app role.'}
+              </p>
+            )}
             <RosterRows
               payload={payload}
               busy={busy}

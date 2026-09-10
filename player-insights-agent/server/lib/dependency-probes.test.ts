@@ -262,6 +262,14 @@ describe('which subjects a deployment has at all', () => {
     expect(built).toEqual([]);
   });
 
+  it('does not report a configured model service as disconnected from an OAuth-ineligible metadata probe', () => {
+    const built = connectionSubjects({
+      configured: { 'llm-gateway': 'catalog.schema.gateway_service' },
+      tables: [],
+    });
+    expect(built.some((subject) => subject.id === 'llm-gateway')).toBe(false);
+  });
+
   // `true` is a decision, not a name: it tells the agent to derive the index
   // from the catalog and schema, and there is nothing to GET until the artifact
   // reports what it derived.

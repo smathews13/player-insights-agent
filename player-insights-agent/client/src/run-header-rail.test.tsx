@@ -127,10 +127,9 @@ describe('only an administrator can edit the rail labels', () => {
     expect(rule('.run-detail-ident .run-header-label-editor')).toContain('margin-top: 0');
   });
 
-  it('puts the pencil after every metadata, outcome, and feedback badge at rest', () => {
+  it('puts the pencil after run metadata and the question identity on the header right', () => {
     const markup = header({ canEdit: true });
     const ordered = [
-      'organization-user-badge',
       'conversation-context-badge',
       'title="Run 1 in this conversation"',
       'run-id-chip',
@@ -142,6 +141,7 @@ describe('only an administrator can edit the rail labels', () => {
 
     expect(ordered.every((position) => position >= 0)).toBe(true);
     expect(ordered).toEqual([...ordered].sort((left, right) => left - right));
+    expect(markup.indexOf('aria-label="Edit run labels"')).toBeLessThan(markup.indexOf('organization-user-badge'));
     expect(markup).toContain('aria-expanded="false"');
   });
 });

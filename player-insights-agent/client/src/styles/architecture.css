@@ -230,8 +230,9 @@
   fill: none;
   stroke: var(--ast-border-input);
   stroke-width: 1.5;
-  stroke-dasharray: 4 4;
-  animation: arch-dash 1.2s linear infinite;
+  stroke-linecap: round;
+  stroke-dasharray: none;
+  animation: none;
   transition: stroke-width 120ms ease;
 }
 /*
@@ -322,6 +323,8 @@
   offset-anchor: 50% 50%;
   opacity: 0;
   z-index: 1;
+  outline: 1px solid color-mix(in srgb, var(--foreground) 70%, white);
+  outline-offset: 1px;
   animation-name: arch-travel;
   animation-timing-function: linear;
   animation-iteration-count: infinite;

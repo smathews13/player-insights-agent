@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { PiaBusyButtonContent } from './PiaLoader';
 import { ExperimentalFeatureName } from './ExperimentalBadge';
-import { Button } from './ui';
+import { Button, Switch } from './ui';
 
 export const RESOURCE_TAG_REQUEST_TIMEOUT_MS = 20_000;
 
@@ -189,7 +189,15 @@ export function ResourceTagResults({
 
 export function ResourceTagsApplyButton({ running, onClick }: { running: boolean; onClick?: () => void }) {
   return (
-    <Button type="button" disabled={running} aria-busy={running || undefined} onClick={onClick}>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="resource-tags-apply"
+      disabled={running}
+      aria-busy={running || undefined}
+      onClick={onClick}
+    >
       <PiaBusyButtonContent busy={running} label="Apply tags" busyLabel="Applying tags" />
     </Button>
   );
@@ -208,6 +216,7 @@ export function resourceTagStatus(
 }
 
 export function ResourceTagsPanel() {
+  const [enabled, setEnabled] = useState(false);
   const [running, setRunning] = useState(false);
   const [summary, setSummary] = useState<TagSummary | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -227,6 +236,7 @@ export function ResourceTagsPanel() {
         const saved = body && typeof body === 'object' ? (body as { summary?: unknown }).summary : null;
         if (saved !== null && !isSummary(saved)) throw new Error('The saved Resource Tags result is invalid.');
         setSummary(saved);
+        setEnabled(saved !== null);
       })
       .catch((cause) => {
         if (cause instanceof Error && cause.name === 'AbortError') return;
@@ -299,11 +309,19 @@ export function ResourceTagsPanel() {
           ) : null}
         </td>
         <td className="exp-feature-status">
-          <span className={`ast-pill ${status.tone}`}>{status.label}</span>
+          <span className={`ast-pill ${enabled ? status.tone : 'ast-pill--neutral'}`}>
+            {enabled ? status.label : 'Off'}
+          </span>
         </td>
         <td className="exp-feature-control">
           <div className="exp-feature-control-inner">
-            <ResourceTagsApplyButton running={running} onClick={() => void apply()} />
+            {enabled ? <ResourceTagsApplyButton running={running} onClick={() => void apply()} /> : null}
+            <Switch
+              checked={enabled}
+              disabled={running}
+              aria-label="Enable resource tags"
+              onCheckedChange={setEnabled}
+            />
           </div>
         </td>
       </tr>

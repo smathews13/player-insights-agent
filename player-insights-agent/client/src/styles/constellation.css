@@ -326,25 +326,11 @@
 .agent-activity-marks {
   flex: none;
   display: flex;
+  justify-content: flex-end;
   align-items: flex-start;
-  gap: 6px;
   width: 42px;
   min-width: 42px;
   height: 20px;
-}
-
-.agent-identity-mark {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid color-mix(in srgb, var(--ast-white) 72%, transparent);
-  border-radius: 50%;
-}
-
-.agent-identity-mark svg {
-  width: 11px;
-  height: 11px;
 }
 
 /*
@@ -622,11 +608,6 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
   margin-right: 2px;
 }
 
-.step-rail-meta .agent-identity-mark {
-  border-color: var(--ast-hairline);
-  background: var(--ast-white);
-}
-
 /*
  * What became of the step, where that is not simply "it finished".
  *
@@ -683,8 +664,4 @@ html:not([data-theme='dark']) .agent-path > .step-rail {
 }
 
 @media (forced-colors: active) {
-  .agent-identity-mark {
-    border-color: CanvasText;
-    background: Canvas;
-  }
 }

@@ -283,22 +283,10 @@ function railTime(stage: TraceStage, live: boolean, elapsedMs: number | null): s
   return stage.duration > 0 ? formatMs(stage.duration) : '';
 }
 
-/**
- * The agent's persistent identity and its separate working signal.
- *
- * The engraved D-pad never swaps out: it identifies who owns the status line.
- * While that line names the step currently being worked, the reserved sibling
- * seat mounts the canonical 16px face-button loader. Keeping the seat present
- * after the loader unmounts prevents the status text from shifting when a run
- * completes or errors. The loader is decorative inside the line's single status
- * region, but retains `aria-busy` so reduced motion still exposes busy state.
- */
+/** The canonical working signal, held in its right-hand seat so text never shifts. */
 function AgentActivityMarks({ busy, tone }: { busy: boolean; tone: BrandTone }) {
   return (
     <span className="agent-activity-marks">
-      <span className="agent-identity-mark" aria-hidden="true">
-        <PiaAvatar size={11} tone={tone} />
-      </span>
       <span className="agent-busy-mark">
         {busy ? <PiaLoader variant="button" tone={tone} label={null} announce={false} as="span" /> : null}
       </span>
@@ -758,17 +746,10 @@ export function AgentPathConstellation({
       */}
         <p ref={statusRef} className="ast-sky-status" role="status" aria-live="polite" aria-atomic="true">
           {/*
-          THE ENGRAVED D-PAD STAYS WHILE THE STEP IT NAMES IS BEING WORKED ON,
-          and a separate face-button loader occupies the reserved sibling slot.
-
-          Replacing the identity with a loader made the agent disappear exactly
-          while it worked. Mounting both without reserving the second slot moved
-          the step sentence when the run completed. One persistent identity and
-          one conditionally mounted loader in fixed geometry avoid both failures.
-
-          `PiaLoader variant="button"` rather than the large swap loader: it is
-          the canonical 16px face-button cycle used by controls, with no D-pad
-          phase competing with the persistent identity.
+          The canonical face-button loader occupies the reserved right-hand slot.
+          The status used to put a static D-pad beside it, which made one activity
+          state look like two competing indicators. The seat remains fixed so the
+          step sentence does not shift when the loader unmounts.
 
           `flickering` is not `inFlight` alone, because the line does not always
           name the step the run is on. A pinned step is a settled step the reader

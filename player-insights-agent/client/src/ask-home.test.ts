@@ -256,7 +256,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(body('.conversation-main')).toMatch(/max-height:\s*none/);
     expect(body('.conversation-main')).toMatch(/overflow-y:\s*visible/);
     expect(STYLESHEET).toMatch(
-      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*overflow-y:\s*auto/
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*overflow:\s*hidden/
     );
     expect(body('.conversation-column')).toMatch(/gap:\s*12px/);
     expect(withoutComments(STYLESHEET)).not.toContain('--composer-reserve');

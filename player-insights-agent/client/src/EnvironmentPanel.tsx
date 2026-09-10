@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { Check, Copy, Search } from 'lucide-react';
 import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
 import { AccessGuideDownload } from './AccessGuideDownload';
-import { AgentCodeRow } from './AgentCodeRow';
+import { AgentCodeRow, AppCodeRow } from './AgentCodeRow';
 import { filterEnvironmentItems } from './environment-filter';
 import { environmentInfoFromResponse } from './environment-response';
 import { environmentTabKeyTarget, type EnvironmentTab } from './environment-tab-state';
@@ -91,7 +91,10 @@ export function EnvironmentPanel({
           is answering, and where its source is, is not an environment variable
           of THIS process -- the app container is never told it -- and burying it
           in a hundred-row table is how a fact stops being read. */}
-      <AgentCodeRow initialData={initialAgentModel} />
+      <div className="environment-code-links">
+        <AppCodeRow />
+        <AgentCodeRow initialData={initialAgentModel} />
+      </div>
 
       {showAccessGuide ? (
         <section className="environment-access-guide" aria-label="Environment operating guide">

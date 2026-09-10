@@ -151,6 +151,11 @@
   }
   .monitoring-users-toolbar {
     top: -14px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .monitoring-users-toolbar-filters,
+  .monitoring-users-toolbar-view {
+    flex-wrap: wrap;
   }
   .monitoring-users-toolbar-view {
     justify-content: flex-start;
@@ -162,9 +167,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .monitoring-feedback-toolbar-primary {
+    grid-column: 1;
+    grid-row: 2;
     flex-wrap: wrap;
   }
   .monitoring-feedback-filter-row {
+    grid-column: 1;
+    grid-row: 1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .monitoring-feedback-filter-trigger {

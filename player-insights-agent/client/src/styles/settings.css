@@ -805,12 +805,119 @@
   min-width: 800px;
 }
 
+.group-roles-table {
+  min-width: 560px;
+}
+
+.group-roles-table th:nth-child(2),
+.group-roles-table td:nth-child(2) {
+  width: 220px;
+}
+
+.group-role-identity,
+.group-role-link {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.group-role-identity {
+  max-width: 100%;
+}
+
+.group-role-identity > svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.group-role-link {
+  color: var(--ast-blue);
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.group-role-link > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-role-link:hover {
+  text-decoration: underline;
+}
+
+.group-role-link svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.group-role-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.group-role-toggle svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 120ms ease;
+}
+
+.group-role-members-row > td {
+  padding: 0 12px 12px;
+}
+
+.group-role-members {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.group-role-members > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
+.group-role-members ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 6px 18px;
+  max-height: 320px;
+  margin: 9px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.group-role-members li {
+  min-width: 0;
+}
+
+.group-mapping-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .roles-table--editable .roster-email-column {
   width: auto;
 }
 
-.roles-table--editable .roster-set-by-column {
-  width: 140px;
+.roles-table--editable .roster-organization-column {
+  width: 180px;
 }
 
 .roles-table--editable .roster-role-column {
@@ -831,6 +938,10 @@
 
 .roles-table--assignment-only .roster-email-column {
   width: auto;
+}
+
+.roles-table--assignment-only .roster-organization-column {
+  width: 160px;
 }
 
 .roles-table--assignment-only .roster-role-column {
@@ -1068,24 +1179,20 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   color: var(--muted-foreground);
 }
 
-.roster-set-by {
+.roster-organization-value {
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--ast-text-long);
-  font-size: 11.5px;
+  font-size: var(--text-sm);
   overflow: hidden;
 }
 
-.roster-set-by > * {
-  display: block;
+.roster-organization-value > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.roster-set-by time,
-.roster-add-help {
-  color: var(--muted-foreground);
-  font-size: 11px;
 }
 
 /* Settings is a modal over the current route. The shell is fixed; only the
@@ -1225,7 +1332,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .settings-modal-body {
   min-height: 0;
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -1263,6 +1370,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 .settings-section-label {
   min-width: 0;
   color: currentColor;
+  white-space: nowrap;
 }
 
 .settings-rail button + button {
@@ -2036,6 +2144,10 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 /* Where the running agent's own code can be opened. Ruled off below rather than
    above, because it sits directly under the pane heading and a line there would
    read as a second heading rule. */
+.environment-code-links {
+  display: grid;
+}
+
 .agent-code-row {
   align-items: center;
   padding-bottom: 12px;
