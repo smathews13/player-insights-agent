@@ -703,6 +703,8 @@ describe('the inspector while a run is still going', () => {
     // revised away. See plan-revision.test.ts.
     expect(HOME_PAGE).toContain("const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';");
     expect(HOME_PAGE).toContain('label: PLAN_APPROVAL_LABEL,');
+    expect(HOME_PAGE).toContain('plan: response.plan,');
+    expect(HOME_PAGE).toContain('approvedPlan: approval?.plan,');
   });
 
   it('uses the constellation as its only run view before and after completion', () => {

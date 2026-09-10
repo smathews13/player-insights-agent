@@ -120,15 +120,16 @@ describe('a column named in a plan is bold and inert', () => {
 describe('the plan card asks for that treatment on every line it draws', () => {
   it('routes the summary, each step title and each step detail through the helper', () => {
     expect(PLAN).toContain('<PlanText text={plan.summary} columns={columns} />');
-    expect(PLAN).toContain('<PlanText text={step.title} columns={columns} />');
+    expect(PLAN).toContain('<PlanText text={title} columns={columns} />');
     expect(PLAN).toContain('<PlanText text={step.description} columns={columns} />');
   });
 
   it('declares no candidate set of its own', () => {
-    // One implementation. The card states which columns the plan declared and
+    // One implementation. The card states which identifiers the plan named and
     // nothing else about matching; the rules live in data-entities.ts and the
     // rendering in DataEntityLinks.tsx.
-    expect(PLAN).toContain('declaredColumns([plan.summary');
+    expect(PLAN).toContain('declaredColumns(lines)');
+    expect(PLAN).toContain('mentionedIdentifiers(lines)');
     // The empty candidate set this replaces. `EntityText` is the right helper
     // for a surface that declares its own sources, and a plan declares none.
     expect(PLAN).not.toContain('<EntityText');

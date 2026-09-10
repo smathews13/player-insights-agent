@@ -231,28 +231,37 @@ describe('the Sources module lists each source as its own bullet', () => {
   });
 });
 
-describe('the plan card marks the steps that are a call on a product', () => {
+describe('the plan card marks every source as a warehouse read', () => {
   /**
-   * One of each kind the agent writes, in the order it writes them.
+   * Ranked data sources, which is what the live plan stage now writes.
    *
-   * The titles are the agent's own, copied from `_build_plan` and
-   * `_plan_table_steps` in agent.py, so that this fixture is a plan the app can
-   * actually receive rather than one invented to suit the assertion.
+   * Every step is `kind: "data"`, so each one carries the Databricks SQL mark.
+   * Context and dictionary steps no longer appear on the card; that disclosure
+   * lives in the summary when the agent still needs the dictionary.
    */
   const plan: AnalysisPlan = {
     id: 'plan-1',
-    question: 'How did the title do last month?',
-    summary: 'Confirm definitions, analyze governed data, then synthesize.',
+    question: 'How many customers play VLHO?',
+    summary: 'Count distinct players who have ever played VLH Online, all-time.',
     steps: [
-      { id: 'context', title: 'Establish context', description: 'Resolve references.', kind: 'context' },
       {
-        id: 'definitions',
-        title: 'Confirm metric definitions',
-        description: 'Ask the dictionary.',
-        kind: 'definitions',
+        id: 'source-1',
+        title: 'cdp_northwind_prod.gold_di.gtav_daily_summary (recommended)',
+        description: 'brand_firstpartyid — the governed default unit for counting users.',
+        kind: 'data',
       },
-      { id: 'data-1', title: 'Query gold_title_daily_summary', description: 'Read the table.', kind: 'data' },
-      { id: 'synthesis', title: 'Synthesize findings', description: 'Answer with evidence.', kind: 'synthesis' },
+      {
+        id: 'source-2',
+        title: 'cdp_share_prod.global_production.play_by_title',
+        description: 'gtao — per-customer flag for VLH Online play.',
+        kind: 'data',
+      },
+      {
+        id: 'source-3',
+        title: 'catalog.schema.fallback_table',
+        description: 'title_code — a last-resort cross-title rollup.',
+        kind: 'data',
+      },
     ],
     requires_approval: true,
     uses_conversation_context: false,
@@ -271,21 +280,17 @@ describe('the plan card marks the steps that are a call on a product', () => {
       />
     );
 
-  it('draws Genie on the definitions step and Databricks SQL on the data step', () => {
+  it('draws Databricks SQL on every source, because every source is a warehouse read', () => {
     const drawn = markup();
 
-    expect(drawn).toContain(asset('genie'));
     expect(drawn).toContain(asset('databricks-sql'));
+    expect(drawn).not.toContain(asset('genie'));
   });
 
-  it('leaves context and synthesis unmarked, because neither calls a product', () => {
-    // Two marks for four steps. A plan that put a logo on every line would be
-    // claiming the model's own writing is a Databricks product call, and the
-    // reader loses the one thing the marks are for: seeing which steps leave
-    // the app.
+  it('marks each source once, and does not invent a product for the model’s own writing', () => {
     const marks = markup().match(/<span class="brand-icon"/g) ?? [];
 
-    expect(marks).toHaveLength(2);
+    expect(marks).toHaveLength(3);
   });
 
   it('sizes them at 14px and keeps them decorative beside the step title', () => {
@@ -386,7 +391,17 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
     totalMs: 24_009,
     toolCalls: 6,
     stages: [
-      { id: 'step-1', name: 'Chose the next step', kind: 'agent', start: 0, duration: 2_350, status: 'complete' as const, calls: 1, input: '', output: '' },
+      {
+        id: 'step-1',
+        name: 'Chose the next step',
+        kind: 'agent',
+        start: 0,
+        duration: 2_350,
+        status: 'complete' as const,
+        calls: 1,
+        input: '',
+        output: '',
+      },
       {
         id: 'step-1-1-describe_table',
         name: "Read a table's columns",
@@ -398,7 +413,17 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
         input: '{"full_name": "cdp_share_prod.acme.gold_title_daily"}',
         output: '',
       },
-      { id: 'step-2', name: 'Chose the next step', kind: 'agent', start: 2_428, duration: 7_510, status: 'complete' as const, calls: 1, input: '', output: '' },
+      {
+        id: 'step-2',
+        name: 'Chose the next step',
+        kind: 'agent',
+        start: 2_428,
+        duration: 7_510,
+        status: 'complete' as const,
+        calls: 1,
+        input: '',
+        output: '',
+      },
       {
         id: 'step-2-1-query_named_table',
         name: 'Queried the named table',
@@ -410,9 +435,39 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
         input: JSON.stringify({ sql: "SELECT COUNT(CASE WHEN title = 'Hoops23' THEN 1 END) AS games FROM gold" }),
         output: '',
       },
-      { id: 'step-3', name: 'Prepared the findings', kind: 'agent', start: 13_558, duration: 5_080, status: 'complete' as const, calls: 1, input: '', output: '' },
-      { id: 'plot', name: 'Built the charts', kind: 'tool', start: 18_638, duration: 1_180, status: 'complete' as const, calls: 1, input: '{"data":[{"x":["Hoops23"]}]}', output: '' },
-      { id: 'synthesis', name: 'Prepared the answer', kind: 'agent', start: 19_818, duration: 4_180, status: 'complete' as const, calls: 1, input: '', output: '' },
+      {
+        id: 'step-3',
+        name: 'Prepared the findings',
+        kind: 'agent',
+        start: 13_558,
+        duration: 5_080,
+        status: 'complete' as const,
+        calls: 1,
+        input: '',
+        output: '',
+      },
+      {
+        id: 'plot',
+        name: 'Built the charts',
+        kind: 'tool',
+        start: 18_638,
+        duration: 1_180,
+        status: 'complete' as const,
+        calls: 1,
+        input: '{"data":[{"x":["Hoops23"]}]}',
+        output: '',
+      },
+      {
+        id: 'synthesis',
+        name: 'Prepared the answer',
+        kind: 'agent',
+        start: 19_818,
+        duration: 4_180,
+        status: 'complete' as const,
+        calls: 1,
+        input: '',
+        output: '',
+      },
     ],
   };
 
@@ -454,9 +509,7 @@ describe('Run Explorer Timeline uses the notebook vocabulary', () => {
   });
 
   it('leaves Ask on stakeholder names, product marks, and the tile roll-up', () => {
-    const drawn = renderToStaticMarkup(
-      <TraceTimeline trace={notebookViz} question="How many Hoops games do we have?" />
-    );
+    const drawn = renderToStaticMarkup(<TraceTimeline trace={notebookViz} question="How many Hoops games do we have?" />);
 
     expect(drawn).not.toContain('trace-timeline--explorer');
     expect(drawn).toContain('Time by tool type');

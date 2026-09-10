@@ -354,6 +354,12 @@ const AskBody = z.object({
   conversationId: z.string().min(1),
   prompt: z.string().min(2).max(5000),
   approvedPlanId: z.string().min(1).optional(),
+  /**
+   * The plan object the browser last received, posted back on approval so the
+   * agent can honour the sources the reader saw. Unknown extra fields are kept:
+   * stripping them would approve a different plan than the one on screen.
+   */
+  approvedPlan: z.unknown().optional(),
   executePlan: z.boolean().optional(),
 });
 
@@ -2868,6 +2874,11 @@ interface AskServingInputs {
   prompt: string;
   conversationId: string;
   approvedPlanId?: string;
+  /**
+   * The plan the reader approved, exactly as the agent proposed it. Sent so the
+   * next turn does not have to re-plan; omitted on ordinary questions.
+   */
+  approvedPlan?: Record<string, unknown>;
   executePlan?: boolean;
   attachmentText: string;
   /** Ask the endpoint for Server-Sent Events rather than one JSON body. */
@@ -2916,6 +2927,7 @@ export function buildAskServingBody({
   prompt,
   conversationId,
   approvedPlanId,
+  approvedPlan,
   executePlan,
   attachmentText,
   stream,
@@ -2931,6 +2943,7 @@ export function buildAskServingBody({
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
+  if (approvedPlan) custom_inputs.approved_plan = approvedPlan;
   if (executePlan !== undefined) custom_inputs.execute_plan = executePlan;
   if (attachmentText) custom_inputs.attachment_text = attachmentText;
   if (requestId) custom_inputs.request_id = requestId;
@@ -4524,7 +4537,11 @@ export function setupInsightsRoutes(
         reply.status(400).json({ error: 'A conversation and question are required.' });
         return;
       }
-      const { conversationId, prompt, approvedPlanId, executePlan } = parsed.data;
+      const { conversationId, prompt, approvedPlanId, approvedPlan: approvedPlanRaw, executePlan } = parsed.data;
+      const approvedPlan =
+        approvedPlanRaw && typeof approvedPlanRaw === 'object' && !Array.isArray(approvedPlanRaw)
+          ? (approvedPlanRaw as Record<string, unknown>)
+          : undefined;
       const email = userEmail(req);
       invalidateUserSpendCache();
 
@@ -4936,6 +4953,7 @@ export function setupInsightsRoutes(
             prompt,
             conversationId,
             approvedPlanId,
+            approvedPlan,
             executePlan,
             attachmentText,
             stream: reply.wantsStream,
