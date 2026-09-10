@@ -32,6 +32,8 @@
 export const WORKSPACE_READ_USER_API_SCOPE = 'workspace.workspace:read' as const;
 /** Official Databricks API scope for Lakebase Postgres control-plane operations. */
 export const LAKEBASE_USER_API_SCOPE = 'postgres' as const;
+/** Read and align the Databricks App ACL from the PIA Identity roster. */
+export const APP_ACCESS_MANAGEMENT_USER_API_SCOPE = 'access-management' as const;
 
 export const OPTIONAL_USER_API_SCOPES = [
   'catalog.catalogs:read',
@@ -52,6 +54,10 @@ export const OPTIONAL_USER_API_SCOPES = [
   // Apps accepts `postgres` (also used for OBO Lakebase queries). Without it
   // the Connections Lakebase picker stays a typed full resource name.
   LAKEBASE_USER_API_SCOPE,
+  // Databricks App permissions. Only a signed-in user who separately holds
+  // CAN MANAGE on this App may change the ACL; this scope grants no authority
+  // by itself and remains optional for ordinary Ask users.
+  APP_ACCESS_MANAGEMENT_USER_API_SCOPE,
 ] as const;
 
 export type OptionalUserApiScope = (typeof OPTIONAL_USER_API_SCOPES)[number];

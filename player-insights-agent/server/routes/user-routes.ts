@@ -62,9 +62,77 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
+import {
+  alignRosterWithAppAccess,
+  grantAppUse,
+  readAppAccess,
+  revokeDirectAppUse,
+  type AppAccessMutation,
+  type AppAccessOptions,
+} from '../lib/app-access-roster';
+import { forwardedUserToken } from './access-verification';
+import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
+
+function appAccessOptions(req: Request): AppAccessOptions | null {
+  const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+  const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
+  const userToken = forwardedUserToken(req) ?? '';
+  return host && appName && userToken ? { host, appName, userToken } : null;
+}
+
+function appAccessFailure(res: Response, outcome: AppAccessMutation): boolean {
+  if (outcome.kind === 'updated' || outcome.kind === 'unchanged') return false;
+  res.status(outcome.status).json({
+    error: outcome.kind === 'refused' ? 'app_access_refused' : 'app_access_unavailable',
+    detail: outcome.message,
+  });
+  return true;
+}
+
+export interface AppAccessService {
+  read(req: Request): ReturnType<typeof readAppAccess>;
+  grant(req: Request, email: string): ReturnType<typeof grantAppUse>;
+  revoke(req: Request, email: string): ReturnType<typeof revokeDirectAppUse>;
+}
+
+const liveAppAccess: AppAccessService = {
+  async read(req) {
+    const options = appAccessOptions(req);
+    return options
+      ? readAppAccess(options)
+      : {
+          available: false,
+          principals: [],
+          message:
+            'Databricks App permissions are unavailable because this session has no forwarded user token or app identity.',
+        };
+  },
+  async grant(req, email) {
+    const options = appAccessOptions(req);
+    if (!options) {
+      return {
+        kind: 'failed',
+        status: 503,
+        message: 'The app could not identify its Databricks App ACL under this signed-in session.',
+      };
+    }
+    return grantAppUse(options, email);
+  },
+  async revoke(req, email) {
+    const options = appAccessOptions(req);
+    if (!options) {
+      return {
+        kind: 'failed',
+        status: 503,
+        message: 'The app could not identify its Databricks App ACL under this signed-in session.',
+      };
+    }
+    return revokeDirectAppUse(options, email);
+  },
+};
 
 /**
  * The roster as read, and whether the stored half answered.
@@ -143,8 +211,12 @@ async function withdrawOnDemotion(input: {
   });
 }
 
-export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOwner?: () => Promise<string> } = {}) {
+export function setupUserRoutes(
+  appkit: InsightsAppKit,
+  deps: { readDeploymentOwner?: () => Promise<string>; appAccess?: AppAccessService } = {}
+) {
   const readDeploymentOwner = deps.readDeploymentOwner ?? (() => deploymentOwnerEmail(appkit.lakebase));
+  const appAccessService = deps.appAccess ?? liveAppAccess;
   appkit.server.extend((app) => {
     /**
      * The whole roster: everybody either half of the list knows, with the role each
@@ -171,7 +243,8 @@ export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOw
         deploymentOwner,
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
-      res.json(payload);
+      const appAccess = await appAccessService.read(req);
+      res.json(alignRosterWithAppAccess(payload, appAccess));
     });
 
     /**
@@ -236,14 +309,30 @@ export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOw
         return;
       }
       const refusal = removalRefusal({ email, seed, stored: rows });
-      if (refusal) {
+      const accessBefore = await appAccessService.read(req);
+      const aclOnlyConsumer =
+        accessBefore.available &&
+        accessBefore.principals.some((principal) => principal.kind === 'user' && principal.name === email);
+      if (refusal && !(refusal === 'not-found' && aclOnlyConsumer)) {
         refuse(res, refusal);
         return;
       }
       const from = effectiveRole({ seed, stored: rows, email });
       try {
+        const appAccess = await appAccessService.revoke(req, email);
+        if (appAccessFailure(res, appAccess)) return;
+        if (appAccess.kind === 'updated') {
+          await recordAdminAction(appkit.lakebase, {
+            actor,
+            action: 'app-access-revoked',
+            subject: email,
+            detail: `${actor} removed ${email}'s direct CAN USE permission from the Databricks App.`,
+          });
+        }
         await withdrawOnDemotion({ req, store: appkit.lakebase, email, actor, from, to: 'consumer' });
-        await deleteRosterRow(appkit.lakebase, email);
+        if (!aclOnlyConsumer || rows.some((row) => row.email === email)) {
+          await deleteRosterRow(appkit.lakebase, email);
+        }
         // After the write, so a row here means the change happened. Awaited, and its
         // own failure never fails the request: see recordAdminAction.
         await recordAdminAction(appkit.lakebase, {
@@ -284,13 +373,21 @@ export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOw
         });
         return;
       }
+      const accessBefore = await appAccessService.read(req);
+      if (!accessBefore.available) {
+        res.status(503).json({ error: 'app_access_unavailable', detail: accessBefore.message });
+        return;
+      }
+      const alreadyAdmitted = accessBefore.principals.some(
+        (principal) => principal.kind === 'user' && principal.name === email && principal.effectivePermission !== null
+      );
       const refusal = roleChangeRefusal({
         email,
         role,
         seed,
         stored: rows,
         roleColumnPresent,
-        allowMissingConsumer,
+        allowMissingConsumer: allowMissingConsumer || alreadyAdmitted,
       });
       if (refusal) {
         refuse(res, refusal);
@@ -301,6 +398,16 @@ export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOw
       const from = effectiveRole({ seed, stored: rows, email });
       let roleStored = false;
       try {
+        const appAccess = await appAccessService.grant(req, email);
+        if (appAccessFailure(res, appAccess)) return;
+        if (appAccess.kind === 'updated') {
+          await recordAdminAction(appkit.lakebase, {
+            actor,
+            action: 'app-access-granted',
+            subject: email,
+            detail: `${actor} granted ${email} direct CAN USE on the Databricks App.`,
+          });
+        }
         await writeRole(appkit.lakebase, { email, role: to, actor, roleColumnPresent });
         roleStored = true;
         await recordAdminAction(appkit.lakebase, {
@@ -352,7 +459,8 @@ export function setupUserRoutes(appkit: InsightsAppKit, deps: { readDeploymentOw
         deploymentOwner,
       });
       payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
-      res.json(payload);
+      const appAccess = await appAccessService.read(req);
+      res.json(alignRosterWithAppAccess(payload, appAccess));
     }
   });
 }

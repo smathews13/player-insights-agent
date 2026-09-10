@@ -219,6 +219,10 @@ variables:
       - vectorsearch.vector-search-endpoints:read
       # Official Lakebase/Postgres API family scope.
       - postgres
+      # Read and align the Databricks App ACL from Settings → Identity. The
+      # signed-in user must also hold CAN MANAGE on the App; this scope alone
+      # grants no permission.
+      - access-management
   app_source_code_path:
     description: >-
       REQUIRED FOR THE INITIAL BUNDLE BOOTSTRAP AND CLI APP RELEASE. Absolute

@@ -129,6 +129,24 @@ function RoleControl({
   );
 }
 
+const APP_ACCESS_LABEL = {
+  can_use: 'Can use app',
+  can_manage: 'Can manage app',
+  inherited: 'Inherited app access',
+  missing: 'No app access',
+  unknown: 'App access not checked',
+} as const;
+
+export function AppAccessBadge({ state, detail }: { state: RosterEntry['appAccess']; detail?: string }) {
+  if (!state) return null;
+  const tone = state === 'missing' ? 'ast-pill--neg' : state === 'unknown' ? '' : 'ast-pill--pos';
+  return (
+    <span className={`ast-pill roster-app-access ${tone}`.trim()} title={detail || undefined}>
+      {APP_ACCESS_LABEL[state]}
+    </span>
+  );
+}
+
 function PersonaControl({
   email,
   personaId,
@@ -352,6 +370,7 @@ export function RosterRows({
                           {entry.email}
                         </UserDrilldownLink>
                         <span className="roster-organization-name">{organization.name}</span>
+                        <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
                       </span>
                       {entry.isYou ? <span className="admin-row-you">you</span> : null}
                       <Button
@@ -540,7 +559,7 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
     setAddError('');
     const added = await run(
       () => writeHumanRoster('/api/users', 'POST', { email, role: draftRole }),
-      `${email} is now ${roleWord(draftRole).toLowerCase()}.`,
+      `${email} can now use the app as ${roleWord(draftRole).toLowerCase()}.`,
       { action: 'add', apply: setPayload, onError: setAddError }
     );
     if (added && submittedDraftIsCurrent(submittedDraftVersion, draftVersion.current)) setDraft('');
@@ -552,7 +571,7 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
     <div className="identity-table-content">
       <section className="settings-identity-section" aria-labelledby="human-roles-title">
         <h4 id="human-roles-title" className="settings-section-title">
-          Human roles and admins
+          App access and PIA roles
         </h4>
         {loading ? <PiaLoader variant="inline" label="Reading identity settings" className="admin-list-note" /> : null}
         {error ? (
@@ -561,89 +580,113 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
           </p>
         ) : null}
         {payload ? (
-          <RosterRows
-            payload={payload}
-            busy={busy}
-            personas={spPayload.personas}
-            personaByEmail={personaByEmail}
-            personaDisabled={Boolean(spError) && !spLoaded}
-            showPersona={true}
-            manageHumanRoles={canManageHumanRoles}
-            onPersonaChange={(email, personaId) =>
-              (() => {
-                if (mutationInFlight.current) return;
-                const before = spPayload;
-                setSpPayload((current) => ({
-                  ...current,
-                  roster: current.roster.map((row) => (row.email === email ? { ...row, personaId } : row)),
-                }));
+          <>
+            <p className={`admin-list-note ${payload.appAccessAvailable === false ? 'admin-list-error' : ''}`.trim()}>
+              {payload.appAccessMessage ||
+                'Databricks App permissions control admission. PIA roles control what an admitted person may do.'}
+            </p>
+            <RosterRows
+              payload={payload}
+              busy={busy}
+              personas={spPayload.personas}
+              personaByEmail={personaByEmail}
+              personaDisabled={Boolean(spError) && !spLoaded}
+              showPersona={true}
+              manageHumanRoles={canManageHumanRoles}
+              onPersonaChange={(email, personaId) =>
+                (() => {
+                  if (mutationInFlight.current) return;
+                  const before = spPayload;
+                  setSpPayload((current) => ({
+                    ...current,
+                    roster: current.roster.map((row) => (row.email === email ? { ...row, personaId } : row)),
+                  }));
+                  void run(
+                    () => assignSpPersona(email, personaId),
+                    personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`,
+                    {
+                      apply: setSpPayload,
+                      onError: (message) => {
+                        setSpPayload(before);
+                        setWriteError(message);
+                      },
+                    }
+                  );
+                })()
+              }
+              onChange={(entry, role) =>
+                (() => {
+                  if (mutationInFlight.current) return;
+                  const before = payload;
+                  setPayload((current) =>
+                    current
+                      ? {
+                          ...current,
+                          entries: current.entries.map((row) => (row.email === entry.email ? { ...row, role } : row)),
+                        }
+                      : current
+                  );
+                  void run(
+                    () => changeHumanRole(entry.email, role),
+                    [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
+                      .filter(Boolean)
+                      .join(' '),
+                    {
+                      apply: setPayload,
+                      onError: (message) => {
+                        setPayload(before);
+                        setWriteError(message);
+                      },
+                    }
+                  );
+                })()
+              }
+              onRemove={(entry) =>
                 void run(
-                  () => assignSpPersona(email, personaId),
-                  personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`,
-                  {
-                    apply: setSpPayload,
-                    onError: (message) => {
-                      setSpPayload(before);
-                      setWriteError(message);
-                    },
-                  }
-                );
-              })()
-            }
-            onChange={(entry, role) =>
-              (() => {
-                if (mutationInFlight.current) return;
-                const before = payload;
-                setPayload((current) =>
-                  current
-                    ? {
-                        ...current,
-                        entries: current.entries.map((row) => (row.email === entry.email ? { ...row, role } : row)),
+                  () => writeHumanRoster(`/api/users/${encodeURIComponent(entry.email)}`, 'DELETE', {}),
+                  `${entry.email} can no longer access this app directly.`,
+                  { apply: setPayload }
+                )
+              }
+              footer={
+                canManageHumanRoles ? (
+                  <RosterAddRow
+                    draft={draft}
+                    role={draftRole}
+                    busy={busy}
+                    adding={busyAction === 'add'}
+                    error={addError}
+                    descriptionId={addDescriptionId}
+                    onDraftChange={(value) => {
+                      draftVersion.current += 1;
+                      setDraft(value);
+                      setAddError('');
+                    }}
+                    onRoleChange={setDraftRole}
+                    onAdd={() => void add()}
+                  />
+                ) : undefined
+              }
+            />
+            {payload.appAccessPrincipals?.length ? (
+              <div className="roster-app-principals" aria-label="Other Databricks App access">
+                <span className="roster-app-principals-title">Groups and service principals</span>
+                <div className="roster-app-principal-list">
+                  {payload.appAccessPrincipals.map((principal) => (
+                    <span
+                      key={`${principal.kind}:${principal.name}`}
+                      className="ast-pill roster-app-principal"
+                      title={
+                        principal.inherited ? 'Inherited Databricks App permission' : 'Direct Databricks App permission'
                       }
-                    : current
-                );
-                void run(
-                  () => changeHumanRole(entry.email, role),
-                  [`${entry.email} is now ${roleWord(role).toLowerCase()}.`, stepsDownFrom(entry, role)]
-                    .filter(Boolean)
-                    .join(' '),
-                  {
-                    apply: setPayload,
-                    onError: (message) => {
-                      setPayload(before);
-                      setWriteError(message);
-                    },
-                  }
-                );
-              })()
-            }
-            onRemove={(entry) =>
-              void run(
-                () => writeHumanRoster(`/api/users/${encodeURIComponent(entry.email)}`, 'DELETE', {}),
-                `${entry.email} is off the roster.`,
-                { apply: setPayload }
-              )
-            }
-            footer={
-              canManageHumanRoles ? (
-                <RosterAddRow
-                  draft={draft}
-                  role={draftRole}
-                  busy={busy}
-                  adding={busyAction === 'add'}
-                  error={addError}
-                  descriptionId={addDescriptionId}
-                  onDraftChange={(value) => {
-                    draftVersion.current += 1;
-                    setDraft(value);
-                    setAddError('');
-                  }}
-                  onRoleChange={setDraftRole}
-                  onAdd={() => void add()}
-                />
-              ) : undefined
-            }
-          />
+                    >
+                      {principal.displayName} · {principal.permission === 'CAN_MANAGE' ? 'Can manage' : 'Can use'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </section>
 

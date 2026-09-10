@@ -632,6 +632,44 @@
   line-height: 1.2;
 }
 
+.roster-app-access {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.roster-app-principals {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.roster-app-principals-title {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.roster-app-principal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.roster-app-principal {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* "You", so the reader can see which row is theirs before they press Remove on
    it. The route refuses the last administrator whoever they are, but a person
    removing themselves from a deployment with two admins is a legitimate action

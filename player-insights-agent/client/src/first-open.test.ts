@@ -75,12 +75,7 @@ describe('firstOpenReport', () => {
     expect(report.verdict).toBe('granted');
     expect(report.oauthVerified).toBe(true);
     expect(report.signedInAs).toBe('jordan.lee@example.com');
-    expect(requiredScopeRows(report.scopes).map((s) => s.status)).toEqual([
-      'granted',
-      'granted',
-      'granted',
-      'granted',
-    ]);
+    expect(requiredScopeRows(report.scopes).map((s) => s.status)).toEqual(['granted', 'granted', 'granted', 'granted']);
     expect(optionalScopeRows(report.scopes).every((s) => s.status === 'not_declared')).toBe(true);
     expect(report.footer).toBeNull();
     expect(offersRefresh(report)).toBe(false);
@@ -90,12 +85,8 @@ describe('firstOpenReport', () => {
     const report = firstOpenReport(identity());
 
     expect(requiredScopeRows(report.scopes).map((scope) => scope.name)).toEqual(DECLARED);
-    expect(report.footer?.lead ?? '').not.toContain(
-      'This deployment does not declare any required scopes.'
-    );
-    expect(optionalScopeRows(report.scopes).map((scope) => scope.name)).toEqual([
-      ...OPTIONAL_USER_API_SCOPES,
-    ]);
+    expect(report.footer?.lead ?? '').not.toContain('This deployment does not declare any required scopes.');
+    expect(optionalScopeRows(report.scopes).map((scope) => scope.name)).toEqual([...OPTIONAL_USER_API_SCOPES]);
   });
 
   /*
@@ -104,9 +95,7 @@ describe('firstOpenReport', () => {
    */
   it('lists declared scopes first, then optional catalog scopes not on the deploy', () => {
     const declared = ['alpha.one', 'beta.two:read', 'gamma.three'];
-    const report = firstOpenReport(
-      identity({ session: session({ declaredScopes: declared, tokenScopes: declared }) })
-    );
+    const report = firstOpenReport(identity({ session: session({ declaredScopes: declared, tokenScopes: declared }) }));
     expect(report.scopes.map((s) => s.name)).toEqual([...declared, ...OPTIONAL_USER_API_SCOPES]);
   });
 
@@ -114,13 +103,7 @@ describe('firstOpenReport', () => {
     const report = firstOpenReport(
       identity({
         session: session({
-          tokenScopes: [
-            ...DECLARED,
-            'unity-catalog',
-            'workspace',
-            'vector-search',
-            'postgres',
-          ],
+          tokenScopes: [...DECLARED, 'unity-catalog', 'workspace', 'vector-search', 'postgres', 'access-management'],
         }),
       })
     );
@@ -245,9 +228,7 @@ describe('firstOpenReport', () => {
    * red rows and this card sent them elsewhere for several days.
    */
   it('sends the reader to a new sign-in rather than to their workspace admin', () => {
-    const report = firstOpenReport(
-      identity({ session: session({ state: 'stale', missingScopes: ['sql'] }) })
-    );
+    const report = firstOpenReport(identity({ session: session({ state: 'stale', missingScopes: ['sql'] }) }));
     expect(report.footer?.tail).toContain('private browsing window');
     expect(report.footer?.tail).toContain('Signing out of Databricks does not clear');
     expect(report.footer?.tail).not.toMatch(/workspace admin/i);
@@ -276,9 +257,7 @@ describe('firstOpenReport', () => {
   });
 
   it('says so when the comparison could not be made, and grants nothing', () => {
-    const report = firstOpenReport(
-      identity({ session: session({ state: 'undetermined', tokenScopes: null }) })
-    );
+    const report = firstOpenReport(identity({ session: session({ state: 'undetermined', tokenScopes: null }) }));
     expect(report.verdict).toBe('unchecked');
     expect(requiredScopeRows(report.scopes).every((s) => s.status === 'unchecked')).toBe(true);
     expect(report.missing).toEqual([]);
@@ -304,9 +283,7 @@ describe('firstOpenReport', () => {
   });
 
   it('does not report a shortfall where the deployment declares nothing', () => {
-    const report = firstOpenReport(
-      identity({ session: session({ declaredScopes: null, missingScopes: [] }) })
-    );
+    const report = firstOpenReport(identity({ session: session({ declaredScopes: null, missingScopes: [] }) }));
     expect(report.verdict).toBe('unchecked');
     expect(report.footer?.lead).toContain('does not declare');
   });
