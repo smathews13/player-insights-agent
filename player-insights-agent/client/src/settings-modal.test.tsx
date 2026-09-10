@@ -128,7 +128,7 @@ describe('Settings modal', () => {
     const appearance = render('appearance');
     const experimental = render('experimental');
     expect(identity).toContain('<h3>Identity</h3>');
-    expect(identity).toContain('App access and PIA roles');
+    expect(identity).toContain('Databricks App members and Player Insights Agent roles');
     expect(identity).toContain('SP Personas');
     expect(identity).not.toContain('SP user roles');
     expect(runtime).toContain('<h3>Runtime</h3>');
@@ -358,7 +358,7 @@ describe('Settings modal', () => {
     for (const identity of hostileIdentities) {
       const markup = render('identity', roleFrom(identityFromResponse(identity)));
       expect(markup).toContain('<h3>Identity</h3>');
-      expect(markup).toContain('App access and PIA roles');
+      expect(markup).toContain('Databricks App members and Player Insights Agent roles');
       expect(markup).not.toContain('This view could not be displayed');
     }
   });
