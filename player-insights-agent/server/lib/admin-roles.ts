@@ -646,10 +646,6 @@ export type AdminAction =
   | 'role-changed'
   /** A person taken off the roster entirely, whatever role they held. */
   | 'user-removed'
-  /** A super admin aligned Databricks App admission with the PIA roster. */
-  | 'app-access-granted'
-  /** A super admin removed a direct CAN USE entry while removing a PIA user. */
-  | 'app-access-revoked'
   | 'conversation-read'
   | 'access-revoked'
   | 'runtime-settings-updated'

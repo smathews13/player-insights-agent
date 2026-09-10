@@ -189,7 +189,6 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
       'postgres',
-      'access-management',
     ]);
   });
 
@@ -373,7 +372,6 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'vectorsearch.vector-search-indexes:read',
       'vectorsearch.vector-search-endpoints:read',
       'postgres',
-      'access-management',
     ]);
   });
 });

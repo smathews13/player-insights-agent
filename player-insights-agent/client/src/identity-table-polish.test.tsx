@@ -95,10 +95,10 @@ describe('Identity table polish', () => {
     expect(markup).toContain('settings-actions-table');
     expect(markup).toContain('<th scope="col">Actions</th>');
     expect(markup).toContain(
-      'aria-label="Remove an.identity.with.a.deliberately.long.local.part@outside.example.invalid"'
+      'aria-label="Reset an.identity.with.a.deliberately.long.local.part@outside.example.invalid to Consumer"'
     );
     expect(markup).toContain('data-variant="destructive"');
-    expect(markup).toMatch(/roster-action-icon[\s\S]*Remove<\/button>/);
+    expect(markup).toMatch(/roster-action-icon[\s\S]*Reset role<\/button>/);
     expect(CSS).toMatch(
       /\.settings-actions-table th:last-child,\s*\.settings-actions-table td:last-child \{[^}]*position:\s*sticky[^}]*right:\s*0/s
     );
@@ -260,7 +260,7 @@ describe('Identity table polish', () => {
   it('disables destructive controls while a roster mutation is in progress', () => {
     const markup = roster(true);
     expect(markup).toMatch(
-      /disabled=""[^>]*aria-label="Remove an\.identity\.with\.a\.deliberately\.long\.local\.part@outside\.example\.invalid"/
+      /disabled=""[^>]*aria-label="Reset an\.identity\.with\.a\.deliberately\.long\.local\.part@outside\.example\.invalid to Consumer"/
     );
   });
 });

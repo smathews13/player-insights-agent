@@ -2,9 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   alignRosterWithAppAccess,
   appAccessPrincipals,
-  grantAppUse,
   readAppAccess,
-  revokeDirectAppUse,
   type AppAccessOptions,
 } from './app-access-roster';
 import type { RosterPayload } from '../../shared/user-roster-contract';
@@ -20,12 +18,6 @@ function response(body: unknown, status = 200): Response {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}
-
-function requestBody(call: ReturnType<typeof vi.fn<typeof fetch>>, index: number): unknown {
-  const body = call.mock.calls[index]?.[1]?.body;
-  if (typeof body !== 'string') throw new Error(`Request ${index} carried no JSON string body.`);
-  return JSON.parse(body) as unknown;
 }
 
 const acl = {
@@ -95,22 +87,18 @@ describe('Databricks App access roster', () => {
           email: 'owner@example.com',
           role: 'super_admin',
           appAccess: 'can_manage',
-          canRemove: false,
-        }),
-        expect.objectContaining({
-          email: 'pia-only@example.com',
-          role: 'admin',
-          appAccess: 'missing',
+          canRemove: true,
         }),
         expect.objectContaining({
           email: 'reader@example.com',
           role: 'consumer',
           setBy: 'Databricks App permissions',
           appAccess: 'can_use',
-          canRemove: true,
+          canRemove: false,
         }),
       ])
     );
+    expect(aligned.entries.map((entry) => entry.email)).toEqual(['owner@example.com', 'reader@example.com']);
     expect(aligned.appAccessPrincipals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'group', name: 'Executives' }),
@@ -119,11 +107,11 @@ describe('Databricks App access roster', () => {
     );
   });
 
-  it('keeps the PIA roster visible and marks access unknown when the ACL cannot be read', () => {
+  it('keeps stored roles visible and marks membership unknown when the App ACL cannot be read', () => {
     const aligned = alignRosterWithAppAccess(roster, {
       available: false,
       principals: [],
-      message: 'access-management scope missing',
+      message: 'Databricks denied the membership read.',
     });
     expect(aligned.entries).toHaveLength(2);
     expect(aligned.entries.every((entry) => entry.appAccess === 'unknown')).toBe(true);
@@ -175,145 +163,5 @@ describe('Databricks App access roster', () => {
     expect(call.mock.calls[0]?.[0]).toBe('https://workspace.example/api/2.0/permissions/apps/astrolabe');
     expect(call.mock.calls[0]?.[1]?.method).toBe('GET');
     expect(new Headers(call.mock.calls[0]?.[1]?.headers).get('authorization')).toBe('Bearer obo-token');
-  });
-
-  it('adds direct CAN_USE without upgrading a PIA admin to CAN_MANAGE', async () => {
-    const call = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(response({ access_control_list: [] }))
-      .mockResolvedValueOnce(
-        response({
-          access_control_list: [
-            {
-              user_name: 'new@example.com',
-              all_permissions: [{ permission_level: 'CAN_USE', inherited: false }],
-            },
-          ],
-        })
-      );
-    const result = await grantAppUse({ ...options, fetchImpl: call }, 'NEW@example.com');
-    expect(result.kind).toBe('updated');
-    const update = call.mock.calls[1];
-    expect(update?.[1]?.method).toBe('PATCH');
-    expect(requestBody(call, 1)).toEqual({
-      access_control_list: [{ user_name: 'new@example.com', permission_level: 'CAN_USE' }],
-    });
-  });
-
-  it('does not overwrite an existing effective permission', async () => {
-    const call = vi.fn(() => Promise.resolve(response(acl)));
-    const result = await grantAppUse({ ...options, fetchImpl: call }, 'reader@example.com');
-    expect(result.kind).toBe('unchanged');
-    expect(call).toHaveBeenCalledTimes(1);
-  });
-
-  it('adds an explicit user entry when access was only inherited', async () => {
-    const inherited = {
-      access_control_list: [
-        {
-          user_name: 'reader@example.com',
-          all_permissions: [{ permission_level: 'CAN_USE', inherited: true }],
-        },
-      ],
-    };
-    const direct = {
-      access_control_list: [
-        {
-          user_name: 'reader@example.com',
-          all_permissions: [
-            { permission_level: 'CAN_USE', inherited: true },
-            { permission_level: 'CAN_USE', inherited: false },
-          ],
-        },
-      ],
-    };
-    const call = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(response(inherited))
-      .mockResolvedValueOnce(response(direct));
-    const result = await grantAppUse({ ...options, fetchImpl: call }, 'reader@example.com');
-    expect(result.kind).toBe('updated');
-    expect(call.mock.calls[1]?.[1]?.method).toBe('PATCH');
-  });
-
-  it('refuses to downgrade a direct CAN_MANAGE principal', async () => {
-    const call = vi.fn(() => Promise.resolve(response(acl)));
-    const result = await revokeDirectAppUse({ ...options, fetchImpl: call }, 'owner@example.com');
-    expect(result).toMatchObject({ kind: 'refused', status: 409 });
-    expect(call).toHaveBeenCalledTimes(1);
-  });
-
-  it('preserves every other direct ACL entry when removing direct CAN_USE', async () => {
-    const after = {
-      access_control_list: [
-        {
-          user_name: 'owner@example.com',
-          all_permissions: [{ permission_level: 'CAN_MANAGE', inherited: false }],
-        },
-        {
-          service_principal_name: 'service-principal-id',
-          all_permissions: [{ permission_level: 'CAN_USE', inherited: false }],
-        },
-        {
-          group_name: 'Executives',
-          all_permissions: [{ permission_level: 'CAN_USE', inherited: true }],
-        },
-      ],
-    };
-    const call = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(response(acl))
-      .mockResolvedValueOnce(response(after))
-      .mockResolvedValueOnce(response(after));
-    const result = await revokeDirectAppUse({ ...options, fetchImpl: call }, 'reader@example.com');
-    expect(result.kind).toBe('updated');
-    const update = call.mock.calls[1];
-    expect(update?.[1]?.method).toBe('PUT');
-    expect(requestBody(call, 1)).toEqual({
-      access_control_list: [
-        { service_principal_name: 'service-principal-id', permission_level: 'CAN_USE' },
-        { user_name: 'owner@example.com', permission_level: 'CAN_MANAGE' },
-      ],
-    });
-  });
-
-  it('reports the second authority when inherited access remains', async () => {
-    const inherited = {
-      access_control_list: [
-        {
-          user_name: 'reader@example.com',
-          all_permissions: [
-            { permission_level: 'CAN_USE', inherited: false },
-            { permission_level: 'CAN_USE', inherited: true },
-          ],
-        },
-      ],
-    };
-    const after = {
-      access_control_list: [
-        {
-          user_name: 'reader@example.com',
-          all_permissions: [{ permission_level: 'CAN_USE', inherited: true }],
-        },
-      ],
-    };
-    const call = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(response(inherited))
-      .mockResolvedValueOnce(response(after))
-      .mockResolvedValueOnce(response(after));
-    const result = await revokeDirectAppUse({ ...options, fetchImpl: call }, 'reader@example.com');
-    expect(result).toMatchObject({ kind: 'refused', status: 409 });
-    expect(result.kind === 'refused' ? result.message : '').toMatch(/still inherits/i);
-  });
-
-  it('explains the dual authority when Databricks refuses the write', async () => {
-    const call = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(response({ access_control_list: [] }))
-      .mockResolvedValueOnce(response({ error_code: 'PERMISSION_DENIED' }, 403));
-    const result = await grantAppUse({ ...options, fetchImpl: call }, 'new@example.com');
-    expect(result).toMatchObject({ kind: 'refused', status: 403 });
-    expect(result.kind === 'refused' ? result.message : '').toMatch(/PIA super admin.*CAN MANAGE.*access-management/i);
   });
 });

@@ -20,7 +20,7 @@
  * to billing is a separate request to a metastore admin, and it is not a condition
  * of the role, so it is no longer on this screen.
  */
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Copy, Trash2, UserPlus } from 'lucide-react';
 import { Button, Input } from './ui';
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
@@ -34,7 +34,6 @@ import {
   rosterEmailError,
   setOn,
   stepsDownFrom,
-  submittedDraftIsCurrent,
   type RosterEntry,
 } from './user-roster';
 import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
@@ -426,10 +425,10 @@ export function RosterRows({
                           size="sm"
                           disabled={busy}
                           onClick={() => onRemove(entry)}
-                          aria-label={`Remove ${entry.email}`}
+                          aria-label={`Reset ${entry.email} to Consumer`}
                         >
                           <Trash2 className="roster-action-icon" aria-hidden="true" />
-                          Remove
+                          Reset role
                         </Button>
                       ) : null}
                     </td>
@@ -453,16 +452,11 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
   const [error, setError] = useState('');
   const [spError, setSpError] = useState<string | null>(null);
   const [spMutationError, setSpMutationError] = useState<SpIdentityMutationError | null>(null);
-  const [draft, setDraft] = useState('');
-  const [draftRole, setDraftRole] = useState<Role>('admin');
   const [busyAction, setBusyAction] = useState<'add' | 'other' | null>(null);
   const [writeError, setWriteError] = useState('');
-  const [addError, setAddError] = useState('');
   const [notice, setNotice] = useState('');
   const loadGeneration = useRef(0);
   const mutationInFlight = useRef(false);
-  const draftVersion = useRef(0);
-  const addDescriptionId = useId();
   const busy = busyAction !== null;
 
   /** The roster and persona assignment are one screen, so one refresh reads both. */
@@ -548,30 +542,13 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
     }
   }
 
-  async function add() {
-    const validationError = rosterEmailError(draft);
-    if (validationError || busy) {
-      if (validationError) setAddError(validationError);
-      return;
-    }
-    const email = normalizeRosterEmail(draft);
-    const submittedDraftVersion = draftVersion.current;
-    setAddError('');
-    const added = await run(
-      () => writeHumanRoster('/api/users', 'POST', { email, role: draftRole }),
-      `${email} can now use the app as ${roleWord(draftRole).toLowerCase()}.`,
-      { action: 'add', apply: setPayload, onError: setAddError }
-    );
-    if (added && submittedDraftIsCurrent(submittedDraftVersion, draftVersion.current)) setDraft('');
-  }
-
   const personaByEmail = new Map(spPayload.roster.map((row) => [row.email, row.personaId]));
 
   return (
     <div className="identity-table-content">
       <section className="settings-identity-section" aria-labelledby="human-roles-title">
         <h4 id="human-roles-title" className="settings-section-title">
-          App access and PIA roles
+          Databricks App members and Player Insights Agent roles
         </h4>
         {loading ? <PiaLoader variant="inline" label="Reading identity settings" className="admin-list-note" /> : null}
         {error ? (
@@ -583,7 +560,7 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
           <>
             <p className={`admin-list-note ${payload.appAccessAvailable === false ? 'admin-list-error' : ''}`.trim()}>
               {payload.appAccessMessage ||
-                'Databricks App permissions control admission. PIA roles control what an admitted person may do.'}
+                'Databricks App permissions determine membership. Player Insights Agent determines each member’s app role.'}
             </p>
             <RosterRows
               payload={payload}
@@ -644,28 +621,9 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
               onRemove={(entry) =>
                 void run(
                   () => writeHumanRoster(`/api/users/${encodeURIComponent(entry.email)}`, 'DELETE', {}),
-                  `${entry.email} can no longer access this app directly.`,
+                  `${entry.email} is now a Consumer. Their Databricks App access is unchanged.`,
                   { apply: setPayload }
                 )
-              }
-              footer={
-                canManageHumanRoles ? (
-                  <RosterAddRow
-                    draft={draft}
-                    role={draftRole}
-                    busy={busy}
-                    adding={busyAction === 'add'}
-                    error={addError}
-                    descriptionId={addDescriptionId}
-                    onDraftChange={(value) => {
-                      draftVersion.current += 1;
-                      setDraft(value);
-                      setAddError('');
-                    }}
-                    onRoleChange={setDraftRole}
-                    onAdd={() => void add()}
-                  />
-                ) : undefined
               }
             />
             {payload.appAccessPrincipals?.length ? (
