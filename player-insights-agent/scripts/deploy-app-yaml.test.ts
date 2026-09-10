@@ -35,7 +35,7 @@ const DEPLOY_OVERRIDES = {
   command: "['node', 'server.mjs']",
   env: [{ name: 'NODE_ENV', value: 'production' }],
 };
-const REQUIRED_ASK_SCOPES = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie'];
+const REQUIRED_ASK_SCOPES = ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie', 'genie'];
 const GIT_DEPLOY_SCOPES = [...REQUIRED_ASK_SCOPES, 'workspace.workspace:read', 'postgres'];
 const OPTIONAL_BROWSE_SCOPES = [
   'catalog.catalogs:read',

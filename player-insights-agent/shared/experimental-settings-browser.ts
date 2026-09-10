@@ -10,6 +10,7 @@ export interface ExperimentalFeatures {
   benchmarkLab: boolean;
   egressControls: boolean;
   forecasting: boolean;
+  genieCodeMcp?: boolean;
   notebookAgentSync: boolean;
 }
 
@@ -18,6 +19,7 @@ export const EXPERIMENTAL_FEATURE_KEYS = [
   'benchmarkLab',
   'egressControls',
   'forecasting',
+  'genieCodeMcp',
   'notebookAgentSync',
 ] as const;
 
@@ -26,6 +28,7 @@ export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   benchmarkLab: false,
   egressControls: false,
   forecasting: false,
+  genieCodeMcp: false,
   notebookAgentSync: false,
 };
 
@@ -62,6 +65,7 @@ export function decodeExperimentalSettingsDocument(
       benchmarkLab: settings.benchmarkLab === true,
       egressControls: settings.egressControls === true,
       forecasting: settings.forecasting === true,
+      genieCodeMcp: settings.genieCodeMcp === true,
       notebookAgentSync: settings.notebookAgentSync === true,
     },
     revision: Number(revision),

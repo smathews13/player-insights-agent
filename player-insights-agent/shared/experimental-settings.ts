@@ -17,6 +17,7 @@ export const ExperimentalSettingsSchema = z.object({
   benchmarkLab: z.boolean().default(false),
   egressControls: z.boolean().default(false),
   forecasting: z.boolean().default(false),
+  genieCodeMcp: z.boolean().default(false),
   notebookAgentSync: z.boolean().default(false),
 });
 
@@ -25,5 +26,6 @@ export const ExperimentalSettingsPatchSchema = z.strictObject({
   benchmarkLab: z.boolean().optional(),
   egressControls: z.boolean().optional(),
   forecasting: z.boolean().optional(),
+  genieCodeMcp: z.boolean().optional(),
   notebookAgentSync: z.boolean().optional(),
 });

@@ -56,6 +56,7 @@ import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import { answerHasGeneratedSql } from './answer-sql';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import { toolStageDurationMs } from './run-explorer-state';
+import { AnswerExportMenu } from './ExportMenu';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -256,6 +257,7 @@ export function AnswerCard({
               <EntityText text={headline} sources={readerAnswer.sources} />
             </CardTitle>
           ) : null}
+          <AnswerExportMenu question={question} answer={readerAnswer} />
         </div>
       </CardHeader>
       <CardContent className="answer-card-content">

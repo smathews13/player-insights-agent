@@ -182,6 +182,7 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'model-serving',
       'sql',
       'dashboards.genie',
+      'genie',
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',
@@ -327,7 +328,7 @@ describe('the shared default every customer / T2 deployment inherits', () => {
 
   it('still carries the four load-bearing base scopes', () => {
     const declared = defaultScopes();
-    for (const scope of ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie']) {
+    for (const scope of ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie', 'genie']) {
       expect(declared).toContain(scope);
     }
   });
@@ -365,6 +366,7 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'model-serving',
       'sql',
       'dashboards.genie',
+      'genie',
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',

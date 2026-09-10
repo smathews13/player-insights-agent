@@ -87,6 +87,12 @@ variables:
       0. Each retained served entity adds standing capacity cost; pruned
       versions remain available in the model registry.
     default: 0
+  genie_mcp_signing_key_version:
+    description: >-
+      Version suffix for the Player Insights Agent Ed25519 app-to-model signing key. Defaults to
+      v1. Rotate by changing this value and running the normal agent and app
+      release; older versioned keys remain available for rollback.
+    default: v1
   llm_direct_endpoint:
     description: >-
       Direct foundation-model serving endpoint. This remains available when an
@@ -210,6 +216,7 @@ variables:
       - model-serving
       - sql
       - dashboards.genie
+      - genie
       # Resource-browser scopes accepted by the Apps API.
       - catalog.catalogs:read
       - catalog.schemas:read

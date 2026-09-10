@@ -353,6 +353,9 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # observability nicety: a version logged without it fails to LOAD.
             str(ROOT / "llm_usage.py"),
             str(ROOT / "llm_routing.py"),
+            # Per-request Genie transport selection is part of the served
+            # artifact; omitting it makes every logged version fail to load.
+            str(ROOT / "genie_routing.py"),
             # config.py imports from this at module scope, so without it the
             # model fails to LOAD inside the container, long after the log ran.
             str(ROOT / "preflight.py"),
@@ -393,6 +396,12 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
         pip_requirements=[
             "mlflow>=3.14.0",
             "databricks-sdk>=0.81.0",
+            # Direct import: verifies app-issued Ed25519 capabilities before the
+            # privileged managed Genie MCP tool is exposed.
+            "cryptography>=44.0.0",
+            # The managed Genie Agent transport discovers its tool schema at
+            # runtime with the official Model Serving MCP client.
+            "databricks-mcp>=0.9.2",
             # CAPPED BELOW 3.0 ON PURPOSE. openai 3 swapped its transport from
             # `httpx` to `httpx2`, and both clients that reach the reasoning model
             # build an `httpx.Client` and hand it over as `http_client`: the one in

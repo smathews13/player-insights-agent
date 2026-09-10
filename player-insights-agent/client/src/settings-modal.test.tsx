@@ -184,6 +184,7 @@ describe('Settings modal', () => {
     for (const description of [
       'Configures approved outbound network destinations for app requests.',
       'Routes model requests through the configured Unity Catalog AI Gateway service and its policies.',
+      'Routes governed data questions from eligible administrators through the configured managed Genie Agent MCP server.',
       'Selects the agent notebook and applies staged agent versions.',
       'Applies billing attribution tags to supported Databricks resources.',
       'Projects 7- and 30-day costs from configurable usage assumptions.',
@@ -191,13 +192,13 @@ describe('Settings modal', () => {
     ]) {
       expect(featureTable).toContain(description);
     }
-    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(6);
+    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(7);
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
     const markup = render('experimental');
-    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(6);
-    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(6);
+    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(7);
+    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(7);
     expect(markup.match(/class="exp-feature-status-column"/g) ?? []).toHaveLength(1);
     expect(markup.match(/class="exp-feature-control-column"/g) ?? []).toHaveLength(1);
     expect(SETTINGS_STYLES).toMatch(
@@ -214,11 +215,12 @@ describe('Settings modal', () => {
   it('puts a distinct icon, title, then one shared Experimental badge on every feature', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
-    expect(badges).toBe(6);
+    expect(badges).toBe(7);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
     for (const [feature, kind, iconName] of [
       ['AI Gateway', 'ai-gateway', 'lucide-route'],
       ['Egress controls panel', 'egress-controls', 'lucide-network'],
+      ['Genie MCP', 'genie-mcp', 'lucide-bot'],
       ['Notebook agent sync', 'notebook-agent-sync', 'lucide-notebook-tabs'],
       ['Resource tags', 'resource-tags', 'lucide-tags'],
       ['Forecasting', 'forecasting', 'lucide-trending-up'],

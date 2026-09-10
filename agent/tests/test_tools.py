@@ -10,6 +10,8 @@ can act on, rather than failing at the warehouse two steps later.
 
 import dataclasses
 import itertools
+import json
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -160,6 +162,86 @@ def build(workspace=None, manifest=MANIFEST) -> PlayerInsightTools:
         declared_manifest=manifest,
     )
     return PlayerInsightTools(settings, workspace or FakeWarehouse(["a"], [["1"]]))
+
+
+class FakeMcpResult:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def model_dump(self, **_kwargs):
+        return self.payload
+
+
+class FakeMcpClient:
+    calls = []
+    result = None
+
+    def __init__(self, *, server_url, workspace_client):
+        self.server_url = server_url
+        self.workspace_client = workspace_client
+
+    def list_tools(self):
+        return [SimpleNamespace(name="genie_ask", inputSchema={"properties": {"question": {}}})]
+
+    def call_tool(self, name, arguments):
+        self.calls.append((self.server_url, self.workspace_client, name, arguments))
+        return self.result
+
+
+@pytest.fixture
+def managed_mcp(monkeypatch):
+    FakeMcpClient.calls = []
+    FakeMcpClient.result = None
+    monkeypatch.setitem(
+        sys.modules,
+        "databricks_mcp",
+        SimpleNamespace(DatabricksMCPClient=FakeMcpClient),
+    )
+    return FakeMcpClient
+
+
+def test_managed_genie_mcp_discovers_the_tool_and_preserves_sql_provenance(managed_mcp):
+    managed_mcp.result = FakeMcpResult(
+        {
+            "content": [
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "answer": "There are 8,413 active players.",
+                            "sql": f"SELECT count(*) AS players FROM {ACTIVITY}",
+                            "columns": [{"name": "players"}],
+                            "rows": [[8413]],
+                        }
+                    ),
+                }
+            ]
+        }
+    )
+    workspace = SimpleNamespace(config=SimpleNamespace(host="https://workspace.example"))
+
+    result = build(workspace).data_genie_mcp("How many active players?")
+
+    assert result.sources == [ACTIVITY]
+    assert result.sql == f"SELECT count(*) AS players FROM {ACTIVITY}"
+    assert managed_mcp.calls == [
+        (
+            "https://workspace.example/api/2.0/mcp/genie/data",
+            workspace,
+            "genie_ask",
+            {"question": "How many active players?"},
+        )
+    ]
+
+
+def test_managed_genie_mcp_fails_closed_without_structured_sql(managed_mcp):
+    managed_mcp.result = FakeMcpResult(
+        {"content": [{"type": "text", "text": "There are 8,413 active players."}]}
+    )
+    workspace = SimpleNamespace(config=SimpleNamespace(host="https://workspace.example"))
+
+    with pytest.raises(tools_module.EvidenceRefused):
+        build(workspace).data_genie_mcp("How many active players?")
 
 
 def wide_rows(count: int) -> list[list[str]]:

@@ -50,7 +50,8 @@ import { RUN_LEDGER_DDL } from '../lib/run-ledger-schema';
 import { workspaceLinksAllowed } from '../lib/egress-store';
 import { ADMIN_ROLES_DDL } from '../lib/admin-roles-schema';
 import { readRuntimeSettings } from '../lib/runtime-settings-store';
-import { readAiGatewayEnabled } from '../lib/experimental-settings-store';
+import { readAiGatewayEnabled, readGenieMcpEnabled } from '../lib/experimental-settings-store';
+import { managedGenieMcpCapability } from '../lib/genie-mcp-capability';
 import { readBenchmarkSettings } from '../lib/benchmark-settings-store';
 import { loadConversationTurns } from '../lib/eval-conversation';
 import { scheduleLiveAskScore } from '../lib/live-ask-scoring';
@@ -453,7 +454,7 @@ const GenieSpaceSchema = z.looseObject({ id: z.string(), title: z.string().defau
 const ResourceCallSchema = z.looseObject({
   kind: z.enum(['genie-space', 'vector-index']),
   id: z.string(),
-  tool: z.enum(['data_genie', 'dictionary_genie', 'search_semantics']),
+  tool: z.enum(['data_genie', 'genie_mcp', 'dictionary_genie', 'search_semantics']),
   calls: z.number().int().nonnegative(),
 });
 const TokenInvocationSchema = z.object({
@@ -493,6 +494,8 @@ export const TraceSchema = z.looseObject({
    * record resource identity and a current trace that recorded zero calls.
    */
   resource_calls: z.array(ResourceCallSchema).optional(),
+  /** Data Genie transport selected by the server for this run. */
+  genie_transport: z.enum(['direct', 'mcp']).optional(),
   // OPTIONAL WITHOUT A DEFAULT, and the difference is the whole point. Optional is
   // what lets an answer stored before the agent metered tokens still parse, and it
   // is enough to keep `undeclaredAnswerKeys` from calling a metered run drift.
@@ -2898,6 +2901,8 @@ interface AskServingInputs {
   identityMode?: string;
   /** Server-resolved app-wide route. Browser input is never consulted. */
   llmRoute?: 'direct' | 'ai_gateway';
+  /** Short-lived app-signed authority for the privileged managed Genie route. */
+  genieMcpCapability?: string;
 }
 
 /**
@@ -2922,6 +2927,7 @@ export function buildAskServingBody({
   evalGuidance,
   identityMode,
   llmRoute,
+  genieMcpCapability,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2932,6 +2938,10 @@ export function buildAskServingBody({
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
   if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
   if (llmRoute) custom_inputs.llm_route = llmRoute;
+  if (genieMcpCapability) {
+    custom_inputs.genie_transport = 'mcp';
+    custom_inputs.genie_mcp_capability = genieMcpCapability;
+  }
   if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
   // The mode travels with the user it names, and neither travels alone. A mode
   // with nobody named is a request the endpoint's gate refuses for having
@@ -4912,9 +4922,12 @@ export function setupInsightsRoutes(
           if (approvedPlanId && servingHistory.length > 0) {
             servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
           }
-          const [runtime, aiGatewayEnabled] = await Promise.all([
+          await options.rolesReady?.();
+          const [runtime, aiGatewayEnabled, genieMcpEnabled, role] = await Promise.all([
             readRuntimeSettings(appkit),
             readAiGatewayEnabled(appkit),
+            readGenieMcpEnabled(appkit),
+            resolveRole(appkit.lakebase, email),
           ]);
           askRuntime = runtime;
           const evalGuidance = await resolveAskGuidance(appkit);
@@ -4932,6 +4945,13 @@ export function setupInsightsRoutes(
             deadlineAt: runDeadlineAt.toISOString(),
             runtimeSettings: askRuntime,
             llmRoute: aiGatewayEnabled ? 'ai_gateway' : 'direct',
+            genieMcpCapability: managedGenieMcpCapability({
+              enabled: genieMcpEnabled,
+              role: role.role,
+              identityMode: identity.mode,
+              user: email,
+              requestId: identity.correlationId,
+            }),
             evalGuidance,
           });
           // Counted on the way past, so a failure can say where the run died

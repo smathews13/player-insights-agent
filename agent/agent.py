@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 import correlation
 import execution_identity
+import genie_routing
 import knowledge
 import llm_routing
 import provenance
@@ -105,6 +106,7 @@ from tools import (
     combine_dictionary_questions,
     data_genie_tool,
     dictionary_genie_tool,
+    genie_mcp_tool,
     normalise_dictionary_question,
     reports_dependency_unavailable,
 )
@@ -657,6 +659,24 @@ DATA_SOURCE_FINDER_TOOLS = [
     REQUEST_CLARIFICATION_TOOL,
 ]
 CACHED_FINDER_TOOLS = _cacheable_tools(DATA_SOURCE_FINDER_TOOLS)
+MCP_DATA_SOURCE_FINDER_TOOLS = [
+    genie_mcp_tool(_SETTINGS.data_genie_space_title)
+    if tool.get("function", {}).get("name") == "data_genie"
+    else tool
+    for tool in DATA_SOURCE_FINDER_TOOLS
+]
+CACHED_MCP_FINDER_TOOLS = _cacheable_tools(MCP_DATA_SOURCE_FINDER_TOOLS)
+
+
+def _finder_tools() -> list[dict[str, Any]]:
+    """Expose exactly one data-Genie transport for the active request."""
+
+    return (
+        CACHED_MCP_FINDER_TOOLS
+        if genie_routing.current() == genie_routing.MCP
+        else CACHED_FINDER_TOOLS
+    )
+
 
 # The orchestrator plans, delegates, and synthesizes. It has no governed-data
 # tools of its own; those belong exclusively to the in-process finder above.
@@ -1564,12 +1584,12 @@ def reasoning_endpoint_failure(error: Exception) -> str:
 #: The tools whose failure can mean "this space was never shared with me".
 #: Only the two Genie tools, because only they reach an object whose sharing is
 #: performed by hand in a UI and can therefore simply never have been done.
-GENIE_TOOLS = ("data_genie", "dictionary_genie")
+GENIE_TOOLS = ("data_genie", "genie_mcp", "dictionary_genie")
 
 #: The tools that can return rows, as opposed to definitions and column lists.
 #: Read by `RunLog.plot_evidence`, which decides both whether the charting step
 #: runs and what it is handed.
-DATA_RETURNING_TOOLS = frozenset({"data_genie", "run_sql", "query_named_table"})
+DATA_RETURNING_TOOLS = frozenset({"data_genie", "genie_mcp", "run_sql", "query_named_table"})
 
 #: The tool whose repeated calls in one step are asked as one question. Only this
 #: one: it answers with lists of definitions, so a question naming eight fields
@@ -2079,6 +2099,7 @@ def _tool_arguments(call: Any) -> dict[str, Any] | None:
 #: knowledge drew a knowledge hit for tools that never ran.
 _TOOL_KINDS = {
     "data_genie": "genie",
+    "genie_mcp": "genie",
     "dictionary_genie": "genie",
     "run_sql": "sql",
     "query_named_table": "sql",
@@ -2106,6 +2127,7 @@ def stage_kind(name: str) -> str:
 #: sentence about what failed, so the surfaces get their own names.
 _TOOL_SURFACES = {
     "data_genie": "the governed data Genie space",
+    "genie_mcp": "the managed Genie MCP server",
     "dictionary_genie": "the data dictionary Genie space",
     "list_data_assets": "the table listing",
     "search_tagged_assets": "the catalog's tag metadata",
@@ -2599,6 +2621,7 @@ class RunLog:
             stages=self.stages,
             genie_spaces=list(self.genie_spaces),
             resource_calls=list(self.resource_calls),
+            genie_transport=genie_routing.current(),
             prompt_tokens=self.prompt_tokens,
             completion_tokens=self.completion_tokens,
             total_tokens=self.total_tokens,
@@ -3121,6 +3144,33 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             },
         )
 
+    def _genie_transport_unavailable(self, error: Exception) -> ResponsesAgentResponse:
+        """Refuse an untrusted or invalid transport selector rather than guessing."""
+
+        if isinstance(error, genie_routing.UntrustedGenieTransport):
+            message = (
+                "Genie MCP is unavailable because this model cannot verify an "
+                "app-issued administrator capability. Caller-provided Model Serving "
+                "inputs are not accepted as authorization."
+            )
+        else:
+            message = "This request named an invalid Genie transport and was refused."
+        print(f"[genie-transport] REFUSED {type(error).__name__}: {error}")
+        return ResponsesAgentResponse(
+            output=[
+                self.create_text_output_item(
+                    text=message, id="response-genie-transport-unavailable"
+                )
+            ],
+            custom_outputs={
+                "type": "unavailable",
+                "code": "GENIE_TRANSPORT_UNAVAILABLE",
+                "layer": "genie-transport",
+                "retryable": False,
+                "message": message,
+            },
+        )
+
     # -----------------------------------------------------------------------
     # The loop
     # -----------------------------------------------------------------------
@@ -3421,6 +3471,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
         if name == "data_genie":
             return tools.data_genie(str(arguments.get("question") or ""))
+        if name == "genie_mcp":
+            return tools.data_genie_mcp(str(arguments.get("question") or ""))
         if name == "dictionary_genie":
             return tools.dictionary_genie(str(arguments.get("question") or ""))
         if name == "search_semantics":
@@ -3569,7 +3621,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         messages=messages,
                         temperature=0.1,
                         max_tokens=self.settings.max_output_tokens,
-                        tools=CACHED_FINDER_TOOLS,
+                        tools=_finder_tools(),
                         tool_choice="auto",
                         timeout=max(1.0, log.remaining),
                     )
@@ -5046,6 +5098,7 @@ Tables available to this analysis, with their columns:
         finally:
             _TURN_CREDENTIALS.set(None)
             llm_routing.clear()
+            genie_routing.clear()
             correlation.clear_query_ids()
 
     def _turn_within_request(
@@ -5061,6 +5114,23 @@ Tables available to this analysis, with their columns:
         """
 
         custom_inputs = _custom_inputs(request)
+        # A signed MCP capability is bearer-like during its short lifetime.
+        # Remove it from the request object before any trace span or stored
+        # snapshot can inspect custom_inputs; genie_routing holds it only in the
+        # request-local ContextVar until identity verification below.
+        genie_routing.consume(custom_inputs)
+        try:
+            request.custom_inputs = custom_inputs
+        except (AttributeError, TypeError, ValueError):
+            # ResponsesAgentRequest currently exposes a mutable dictionary. If
+            # MLflow changes that contract, refuse MCP rather than leave the
+            # capability attached to a traceable request object.
+            if genie_routing.capability_pending():
+                return self._genie_transport_unavailable(
+                    genie_routing.UntrustedGenieTransport(
+                        "Genie MCP capability could not be removed from the request"
+                    )
+                )
         try:
             selection = llm_routing.activate(custom_inputs, self.settings)
         except (llm_routing.InvalidLlmRoute, llm_routing.AiGatewayNotConfigured) as error:
@@ -5119,6 +5189,16 @@ Tables available to this analysis, with their columns:
         )
         if refusal is not None:
             return self._identity_unavailable(required, refusal)
+        try:
+            genie_routing.activate(
+                custom_inputs,
+                public_key_pem=self.settings.genie_mcp_public_key,
+                request_id=required.request_id,
+                observed_user=observed,
+            )
+        except genie_routing.InvalidGenieTransport as error:
+            return self._genie_transport_unavailable(error)
+        mlflow.update_current_trace(tags=genie_routing.trace_metadata())
         question, history = _request_context(request)
         attachment_context = _attachment_context(custom_inputs)
         discovery_request = DiscoveryRequest(
@@ -5199,6 +5279,7 @@ Tables available to this analysis, with their columns:
             turn_facts = {
                 **correlation.facts(required, self.settings),
                 **selection.trace_metadata,
+                **genie_routing.trace_metadata(),
             }
             if turn_facts:
                 mlflow.update_current_trace(tags=turn_facts)

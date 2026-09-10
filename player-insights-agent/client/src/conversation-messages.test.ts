@@ -5,6 +5,7 @@ import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
   prependConversationMessages,
+  readCompleteConversationMessages,
   readConversationMessagePage,
   restorePrependAnchor,
 } from './conversation-messages';
@@ -38,6 +39,24 @@ describe('conversation message pages', () => {
       nextCursor: null,
       hasMore: false,
     });
+  });
+
+  it('fetches every page for export instead of exporting only the mounted newest 50', async () => {
+    const all = Array.from({ length: 120 }, (_, index) => message(index));
+    const pages = [
+      { messages: all.slice(70), nextCursor: 'page-2', hasMore: true },
+      { messages: all.slice(20, 70), nextCursor: 'page-3', hasMore: true },
+      { messages: all.slice(0, 20), nextCursor: null, hasMore: false },
+    ];
+    const fetcher = vi.fn(() => Promise.resolve(new Response(JSON.stringify(pages.shift()))));
+
+    const result = await readCompleteConversationMessages('conv', { fetcher });
+
+    expect(result.map((entry) => entry.id)).toEqual(all.map((entry) => entry.id));
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/conversations/conv/messages?limit=50&cursor=page-2', {
+      signal: undefined,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
   it('assembles a 120-message thread in ascending order without duplicates', () => {

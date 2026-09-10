@@ -274,6 +274,20 @@ fi
 # remove it three times while being printed in this very readout on every run.
 decisions_gate || exit $?
 
+# The private key is created in a Databricks secret and never enters this
+# process. The helper prints only the public PEM, which is safe to bake into the
+# model artifact. A dry run mutates nothing.
+GENIE_MCP_PUBLIC_KEY=""
+if [[ "$APPLY" == true ]]; then
+  GENIE_MCP_PUBLIC_KEY="$(
+    TARGET="$TARGET" PROFILE="$PROFILE" PIA_BUNDLE_JSON_CACHE="$PIA_BUNDLE_JSON_CACHE" \
+      bash "$BUNDLE_ROOT/bundle/genie-mcp-signing-key.sh"
+  )"
+else
+  note "Genie MCP signer     apply will ensure ${APP_NAME:-$(bundle_var app_name)}-signing/"
+  note "                     genie-mcp-ed25519-private-pem-$(bundle_var genie_mcp_signing_key_version)"
+fi
+
 # These reach `log_model.py`, which resolves them into Settings and BAKES them
 # into the model artifact (mlflow model_config). That is the only way they reach
 # the serving container: a served entity inherits nothing from this shell, and
@@ -311,6 +325,8 @@ export PLAYER_INSIGHTS_ALLOW_UNATTRIBUTED_FIGURES="$ALLOW_UNATTRIBUTED_FIGURES"
 # Export an explicit empty value when semantic retrieval is disabled so stale
 # shell configuration cannot enable a missing index.
 export PLAYER_INSIGHTS_SEMANTIC_INDEX="$SEMANTIC_INDEX"
+export PLAYER_INSIGHTS_GENIE_MCP_PUBLIC_KEY="$GENIE_MCP_PUBLIC_KEY"
+unset PLAYER_INSIGHTS_GENIE_MCP_PRIVATE_KEY
 
 # The denylist is exported unconditionally, EMPTY INCLUDED. Assigning "" is the
 # half that makes the bundle authoritative rather than merely consulted: without

@@ -34,6 +34,12 @@
   overflow: visible;
   scrollbar-gutter: auto;
 }
+.conversation-export {
+  display: flex;
+  justify-content: flex-end;
+  width: min(100%, var(--conversation-measure));
+  margin: 0 auto 8px;
+}
 /*
  * An answer starts one page-spacing token below the chrome. The empty hero keeps
  * the roomier 56px opening from the base rule, while current and stored turns use

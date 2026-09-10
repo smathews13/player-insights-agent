@@ -13,6 +13,7 @@ answer.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Sequence
@@ -893,6 +894,98 @@ class ToolResult:
     verdicts: tuple[Verdict, ...] = ()
 
 
+def _mcp_dump(value: Any) -> Any:
+    """Convert MCP/Pydantic response objects to ordinary recursive values."""
+
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        return dump(by_alias=True)
+    if isinstance(value, dict):
+        return {str(key): _mcp_dump(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mcp_dump(item) for item in value]
+    return value
+
+
+def _mcp_documents(value: Any) -> list[Any]:
+    """Return the result plus JSON documents carried in MCP text blocks."""
+
+    root = _mcp_dump(value)
+    documents = [root]
+
+    def visit(item: Any) -> None:
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                if key == "text" and isinstance(nested, str):
+                    try:
+                        decoded = json.loads(nested)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    documents.append(decoded)
+                    visit(decoded)
+                else:
+                    visit(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                visit(nested)
+
+    visit(root)
+    return documents
+
+
+def _mcp_named_strings(value: Any, name: str) -> list[str]:
+    found: list[str] = []
+
+    def visit(item: Any) -> None:
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                if key == name and isinstance(nested, str) and nested.strip():
+                    found.append(nested.strip())
+                else:
+                    visit(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                visit(nested)
+
+    visit(value)
+    return list(dict.fromkeys(found))
+
+
+def _mcp_columns(value: Any) -> list[str]:
+    found: list[str] = []
+
+    def visit(item: Any) -> None:
+        if isinstance(item, dict):
+            columns = item.get("columns")
+            if isinstance(columns, list):
+                for column in columns:
+                    if isinstance(column, str):
+                        found.append(column)
+                    elif isinstance(column, dict) and isinstance(column.get("name"), str):
+                        found.append(column["name"])
+            for nested in item.values():
+                visit(nested)
+        elif isinstance(item, list):
+            for nested in item:
+                visit(nested)
+
+    visit(value)
+    return list(dict.fromkeys(found))
+
+
+def _mcp_text(value: Any) -> str:
+    """Render only standard MCP text blocks; structured fields remain provenance."""
+
+    root = _mcp_dump(value)
+    blocks: list[str] = []
+    content = root.get("content") if isinstance(root, dict) else None
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                blocks.append(block["text"].strip())
+    return "\n\n".join(part for part in blocks if part)
+
+
 class PlayerInsightTools:
     def __init__(
         self,
@@ -1472,6 +1565,101 @@ class PlayerInsightTools:
             tool="data_genie",
             space_title=self.settings.data_genie_space_title,
         )
+
+    def data_genie_mcp(self, question: str) -> ToolResult:
+        """Ask the configured managed Genie Agent through MCP, then gate its SQL."""
+
+        from databricks_mcp import DatabricksMCPClient
+
+        host = str(getattr(getattr(self.workspace, "config", None), "host", "") or "").rstrip("/")
+        if not host:
+            raise RuntimeError("The OBO workspace client did not expose a workspace host.")
+        server_url = f"{host}/api/2.0/mcp/genie/{self.settings.data_genie_space_id}"
+        with mlflow.start_span(name="data_source_finder.genie_mcp", span_type="TOOL") as span:
+            span.set_inputs(
+                {
+                    "question": question,
+                    "space_id": self.settings.data_genie_space_id,
+                    "transport": "mcp",
+                }
+            )
+            client = DatabricksMCPClient(server_url=server_url, workspace_client=self.workspace)
+            discovered = list(client.list_tools())
+            available = {str(getattr(tool, "name", "")): tool for tool in discovered}
+            tool_name = next((name for name in ("genie_ask", "ask_genie") if name in available), "")
+            if not tool_name:
+                raise RuntimeError(
+                    "The managed Genie MCP server exposed no supported ask tool "
+                    f"(discovered: {', '.join(sorted(filter(None, available))) or 'none'})."
+                )
+            result = client.call_tool(tool_name, {"question": question})
+            dumped = _mcp_dump(result)
+            if isinstance(dumped, dict) and dumped.get("isError") is True:
+                raise RuntimeError(
+                    _mcp_text(result) or "The managed Genie MCP tool returned an error."
+                )
+
+            documents = _mcp_documents(result)
+            sql = list(
+                dict.fromkeys(
+                    statement
+                    for document in documents
+                    for statement in _mcp_named_strings(document, "sql")
+                )
+            )
+            columns = list(
+                dict.fromkeys(column for document in documents for column in _mcp_columns(document))
+            )
+            gate = self.gateway()
+            verdicts = [gate.admit_genie_query("genie_mcp", statement) for statement in sql]
+            rejected = [verdict for verdict in verdicts if not verdict.accepted]
+            if rejected:
+                raise EvidenceRefused(rejected[0], verdicts)
+            if not sql:
+                verdict = gate.admit_genie_visualization("genie_mcp")
+                raise EvidenceRefused(verdict, [verdict])
+            leaked = restricted_output_columns(columns)
+            if leaked:
+                raise SqlRefused(
+                    f"Refused after running: Genie MCP returned {', '.join(leaked)}, which "
+                    "identifies individual players, so its result was withheld."
+                )
+            if (
+                any(re.search(r"\bselect\s+\*", statement, re.I) for statement in sql)
+                and not columns
+            ):
+                raise SqlRefused(
+                    "Refused after running: Genie MCP returned SELECT * without a structured "
+                    "result schema, so restricted output columns could not be ruled out."
+                )
+
+            text = _mcp_text(result)
+            if not text:
+                raise RuntimeError("The managed Genie MCP tool returned no standard text content.")
+            sources = list(
+                dict.fromkeys(source for verdict in verdicts for source in verdict.sources)
+            )
+            space_label = format_genie_space(
+                self.settings.data_genie_space_id,
+                self.settings.data_genie_space_title,
+            )
+            output = ToolResult(
+                text=f"Asking managed Genie MCP for {space_label}.\n\n{text}",
+                sql="\n\n".join(sql),
+                sources=sources,
+                attributed=all(not verdict.waived for verdict in verdicts),
+                verdicts=tuple(verdicts),
+            )
+            span.set_outputs(
+                {
+                    "transport": "mcp",
+                    "tool": tool_name,
+                    "sql_count": len(sql),
+                    "sources": sources,
+                    "validation": [verdict.as_record() for verdict in verdicts],
+                }
+            )
+            return output
 
     def dictionary_genie(self, question: str) -> ToolResult:
         """Ask the dictionary space about the FIELD, not about a table's copy of it.
@@ -2182,6 +2370,21 @@ def data_genie_tool(space_title: str = "") -> dict[str, Any]:
         "traced and will be rejected.",
         "question",
         "A self-contained natural-language question.",
+    )
+
+
+def genie_mcp_tool(space_title: str = "") -> dict[str, Any]:
+    """The managed Genie Agent MCP tool exposed only on privileged MCP turns."""
+
+    named = f' "{space_title}"' if space_title.strip() else ""
+    return _one_arg(
+        "genie_mcp",
+        f"Ask the curated managed Genie Agent MCP server{named} for governed player figures. "
+        "It discovers the server's ask tool at runtime and admits only responses whose generated "
+        "read-only SQL passes this agent's evidence policy. Ask for a table, rows, counts, or a "
+        "grouping rather than a chart so the result carries inspectable query provenance.",
+        "question",
+        "A self-contained natural-language data question.",
     )
 
 

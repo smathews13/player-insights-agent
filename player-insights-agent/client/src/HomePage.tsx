@@ -176,6 +176,7 @@ import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
   prependConversationMessages,
+  readCompleteConversationMessages,
   readConversationMessagePage,
   restorePrependAnchor,
 } from './conversation-messages';
@@ -194,6 +195,7 @@ import { FeedbackWriteQueue } from './feedback-write-queue';
 import { notifyFeedbackChanged } from './feedback-events';
 import { QuestionAttributionBubble } from './QuestionAttributionBubble';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
+import { ConversationExportMenu } from './ExportMenu';
 
 const ConversationFilters = lazy(() =>
   import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
@@ -2150,6 +2152,10 @@ export function HomePage() {
     const owner = conversations.find((item) => item.id === conversationId)?.user_email;
     return typeof owner === 'string' && owner.trim() ? owner : identity.signedInAs;
   }, [conversations, conversationId, identity.signedInAs]);
+  const conversationTitle =
+    conversations.find((item) => item.id === conversationId)?.title ??
+    messages.find((item) => item.role === 'user')?.content ??
+    'Conversation';
 
   /** Owner and persona are ANDed; each multiselect is ORed within itself. */
   const visibleEntries = useMemo(() => {
@@ -2488,6 +2494,15 @@ export function HomePage() {
               <h2>What would you like to understand about your players?</h2>
             </div>
           )}
+
+          {!conversationLoading && messages.some((message) => message.role === 'assistant') ? (
+            <div className="conversation-export">
+              <ConversationExportMenu
+                title={conversationTitle}
+                loadMessages={() => readCompleteConversationMessages(conversationId)}
+              />
+            </div>
+          ) : null}
 
           {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
             <div className="message-pagination" aria-live="polite">

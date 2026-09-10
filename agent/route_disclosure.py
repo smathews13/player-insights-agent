@@ -42,6 +42,7 @@ from dataclasses import dataclass, field
 #: skip it.
 ROUTE_OF_TOOL = {
     "data_genie": "genie",
+    "genie_mcp": "genie",
     "dictionary_genie": "genie",
     "run_sql": "sql",
     "query_named_table": "sql",

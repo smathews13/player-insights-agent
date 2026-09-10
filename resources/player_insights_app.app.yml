@@ -59,6 +59,14 @@ resources:
           serving_endpoint:
             name: ${var.serving_endpoint_name}
             permission: CAN_QUERY
+        # Private half of the app-to-model Ed25519 capability signer. The
+        # release helper creates it if absent; Model Serving receives only the
+        # public key and cannot mint administrator capabilities.
+        - name: genie-mcp-signing-key
+          secret:
+            scope: ${var.app_name}-signing
+            key: genie-mcp-ed25519-private-pem-${var.genie_mcp_signing_key_version}
+            permission: READ
         # This binding supplies the warehouse ID and grants app access.
         # CAN_USE, not CAN_MANAGE: the app only runs queries on this warehouse,
         # and a deployer who does not already hold MANAGE on it cannot grant

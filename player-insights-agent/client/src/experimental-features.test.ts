@@ -11,6 +11,7 @@ import {
   showsForecasting,
   showsNotebookAgentSync,
   usesAiGateway,
+  usesGenieMcp,
   withExperimentalFeature,
 } from './experimental-features';
 
@@ -27,12 +28,14 @@ describe('deployment-wide experimental feature contract', () => {
       benchmarkLab: true,
       egressControls: true,
       forecasting: true,
+      genieCodeMcp: true,
       notebookAgentSync: true,
     };
     expect(ExperimentalSettingsSchema.parse(enabled)).toEqual(enabled);
     expect(showsBenchmarkLab(enabled)).toBe(true);
     expect(showsEgressControls(enabled)).toBe(true);
     expect(showsForecasting(enabled)).toBe(true);
+    expect(usesGenieMcp(enabled)).toBe(true);
     expect(showsNotebookAgentSync(enabled)).toBe(true);
     expect(usesAiGateway(enabled)).toBe(true);
   });

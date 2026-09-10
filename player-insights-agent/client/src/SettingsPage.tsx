@@ -12,6 +12,7 @@ import {
   showsForecasting,
   showsNotebookAgentSync,
   usesAiGateway,
+  usesGenieMcp,
   withExperimentalFeature,
   type ExperimentalFeatures,
 } from './experimental-features';
@@ -366,6 +367,33 @@ export function SettingsPage({
                               setSaveState(SETTINGS_SAVE_IDLE);
                             }}
                             aria-label="Enable AI Gateway"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName kind="genie-mcp">Genie MCP</ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Routes governed data questions from eligible administrators through the configured managed
+                          Genie Agent MCP server.
+                        </p>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={usesGenieMcp(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={usesGenieMcp(draftFeatures)}
+                            disabled={!experimentalLoaded || !showsAdminSurfaces(role.state)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) =>
+                                withExperimentalFeature(current, 'genieCodeMcp', enabled)
+                              );
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Enable Genie MCP"
                           />
                         </div>
                       </td>
