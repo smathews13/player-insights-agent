@@ -37,7 +37,7 @@ scope_exists() {
     die "Could not list secret scopes; refusing to infer that $SCOPE is absent."
   fi
   printf '%s' "$metadata" |
-    python3 -c 'import json,sys; wanted=sys.argv[1]; raise SystemExit(0 if any(x.get("name")==wanted for x in json.load(sys.stdin).get("scopes",[])) else 1)' "$SCOPE"
+    python3 -c 'import json,sys; wanted=sys.argv[1]; body=json.load(sys.stdin); rows=body.get("scopes",[]) if isinstance(body,dict) else body; raise SystemExit(0 if any(x.get("name")==wanted for x in rows) else 1)' "$SCOPE"
 }
 
 private_exists() {
@@ -46,7 +46,7 @@ private_exists() {
     die "Could not list keys in $SCOPE; refusing to infer that $PRIVATE_KEY is absent."
   fi
   printf '%s' "$metadata" |
-    python3 -c 'import json,sys; wanted=sys.argv[1]; raise SystemExit(0 if any(x.get("key")==wanted for x in json.load(sys.stdin).get("secrets",[])) else 1)' "$PRIVATE_KEY"
+    python3 -c 'import json,sys; wanted=sys.argv[1]; body=json.load(sys.stdin); rows=body.get("secrets",[]) if isinstance(body,dict) else body; raise SystemExit(0 if any(x.get("key")==wanted for x in rows) else 1)' "$PRIVATE_KEY"
 }
 
 public_exists() {
@@ -84,5 +84,5 @@ fi
 
 rm -f "$PUBLIC_FILE"
 databricks workspace export "$PUBLIC_PATH" \
-  --file "$PUBLIC_FILE" --format RAW "${PROFILE_ARGS[@]}"
+  --file "$PUBLIC_FILE" --format RAW --direct-download "${PROFILE_ARGS[@]}"
 cat "$PUBLIC_FILE"
