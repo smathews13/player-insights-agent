@@ -59,7 +59,7 @@ const CONTAINER_TYPES = new Set<ToolType>(['run']);
 
 export interface TimelineRow {
   id: string;
-  /** Position in the table, 1-based, matching the `step` column. */
+  /** Recorded-step position; zero belongs only to the unnumbered run envelope. */
   step: number;
   name: string;
   type: ToolType;
@@ -402,7 +402,7 @@ export function buildTimeline(
   if (wallClockMs !== null) {
     rows.push({
       id: '__run__',
-      step: 1,
+      step: 0,
       name: 'Orchestrator run',
       type: 'run',
       status: 'complete',
@@ -417,12 +417,12 @@ export function buildTimeline(
     });
   }
 
-  for (const stage of stages) {
+  for (const [index, stage] of stages.entries()) {
     const measured = stage.startMeasured !== false;
     const startMs = measured ? stage.start - origin : null;
     rows.push({
       id: stage.id,
-      step: rows.length + 1,
+      step: index + 1,
       name: stage.name,
       type: stageType(stage),
       status: stage.status,

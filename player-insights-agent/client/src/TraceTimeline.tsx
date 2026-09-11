@@ -405,10 +405,19 @@ function GanttRow({
         onClick={onToggle}
       >
         <td className="trace-step ast-num">
-          <span className="step-rail-num" aria-hidden="true">
-            {stepNumber(row.step)}
-          </span>
-          <span className="sr-only">Step {row.step}</span>
+          {row.container ? (
+            <>
+              <span aria-hidden="true">—</span>
+              <span className="sr-only">Run summary</span>
+            </>
+          ) : (
+            <>
+              <span className="step-rail-num" aria-hidden="true">
+                {stepNumber(row.step)}
+              </span>
+              <span className="sr-only">Step {row.step}</span>
+            </>
+          )}
         </td>
         <td>
           <KindCell row={row} variant={variant} />

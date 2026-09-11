@@ -274,6 +274,8 @@ describe('the agent map fits the page it is drawn on', () => {
     expect(markup).toContain('class="dag-step run-envelope"');
     expect(markup).toContain('12.34s');
     expect(markup).toContain('3 tool calls');
+    expect(markup).toMatch(/run-envelope[\s\S]*?dag-index ast-num agent">—<\/span>/);
+    expect(markup).toContain('dag-index ast-num agent">01</span>');
     expect(rule('.trace-dag.map .dag-step.run-envelope')).toMatch(/grid-column: 1 \/ -1/);
     expect(markup).toContain('class="trace-dag map"');
     expect(markup).not.toContain('has-run-envelope');
@@ -307,6 +309,8 @@ describe('the agent map fits the page it is drawn on', () => {
       />
     );
     expect(markup).toContain('Run summary');
+    expect(markup).toContain('Run summary · <span class="dag-name">Orchestrator run</span>');
+    expect(markup).not.toContain('Step 1 ·');
     expect(markup).toContain('aria-label="Run summary evidence"');
     expect(markup).toContain('8</span> stages');
     expect(markup).toContain('3</span> tool calls');

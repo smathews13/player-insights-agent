@@ -1449,7 +1449,7 @@ def _needs_dictionary(question: str) -> bool:
 
 _INVENTORY_REQUEST = re.compile(
     r"^\s*(?:what|which|show|list)\s+(?:governed\s+)?data(?:\s+sources?)?"
-    r"(?:\s+do\s+(?:you|i)\s+have\s+access\s+to|\s+(?:is|are)\s+available)?[?/.]?\s*$",
+    r"(?:\s+do\s+(?:you|i)\s+have\s+access\s+to|\s+can\s+(?:you|i)\s+see|\s+(?:is|are)\s+available)?[?/.]?\s*$",
     re.IGNORECASE,
 )
 
