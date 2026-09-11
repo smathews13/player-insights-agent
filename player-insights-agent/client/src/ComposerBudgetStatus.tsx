@@ -17,7 +17,7 @@ export function ComposerBudgetStatus({
   error: string;
   onApprove: () => void;
 }) {
-  if (!status || (status.level !== 'warning' && status.level !== 'approval-required')) return null;
+  if (!admin || !status || (status.level !== 'warning' && status.level !== 'approval-required')) return null;
 
   const approvalRequired = status.level === 'approval-required';
   return (
@@ -29,16 +29,12 @@ export function ComposerBudgetStatus({
       <CircleAlert aria-hidden="true" />
       <AlertDescription>
         {approvalRequired ? (
-          admin ? (
-            <>
-              Monthly app budget reached.{' '}
-              <Button type="button" size="sm" disabled={busy} aria-busy={busy || undefined} onClick={onApprove}>
-                <PiaBusyButtonContent busy={busy} label="Approve continued usage" busyLabel="Approving" />
-              </Button>
-            </>
-          ) : (
-            'An administrator must approve continued usage.'
-          )
+          <>
+            Monthly app budget reached.{' '}
+            <Button type="button" size="sm" disabled={busy} aria-busy={busy || undefined} onClick={onApprove}>
+              <PiaBusyButtonContent busy={busy} label="Approve continued usage" busyLabel="Approving" />
+            </Button>
+          </>
         ) : (
           <>Monthly app budget is {status.percent?.toFixed(2)}% used.</>
         )}
