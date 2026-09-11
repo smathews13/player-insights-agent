@@ -156,6 +156,7 @@ async function main() {
         );
         const inserted = await client.query(
           `INSERT INTO ${target}.${table} (${columns.join(', ')})
+           OVERRIDING SYSTEM VALUE
            SELECT ${columns.join(', ')} FROM ${source}.${table}
            ON CONFLICT DO NOTHING`
         );
