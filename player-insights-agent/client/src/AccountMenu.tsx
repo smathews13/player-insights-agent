@@ -38,13 +38,12 @@ export function AccountMenu({ identity, role }: { identity: Identity; role: Role
             data-testid="identity-chip"
             type="button"
             title={canonicalEmail}
-            aria-label={`Signed in as ${canonicalEmail}`}
+            aria-label={`Account for ${canonicalEmail}`}
             aria-expanded={open}
             aria-controls={menuId}
           >
             <OrganizationAvatar organization={organization} />
             <span className="identity-chip-text">
-              <span className="identity-chip-label">Signed in </span>
               <strong className="identity-chip-name">{name}</strong>
             </span>
           </button>

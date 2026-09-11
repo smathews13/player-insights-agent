@@ -265,7 +265,7 @@ describe('badge, then who, then what they can open, then who built it', () => {
     expect(chip, 'shell.css seats .identity-chip').not.toEqual('');
     expect(chip).not.toMatch(/margin/);
     const markup = clusterWithGear('admin');
-    expect(markup).toContain('Signed in');
+    expect(markup).not.toContain('Signed in');
     expect(markup).toContain('<your-username>');
   });
 
