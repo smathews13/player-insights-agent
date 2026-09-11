@@ -63,6 +63,7 @@ describe('Genie MCP app-issued capability', () => {
     { enabled: false, role: 'admin' as const, identityMode: 'signed_in_user' },
     { enabled: true, role: 'consumer' as const, identityMode: 'signed_in_user' },
     { enabled: true, role: 'super_admin' as const, identityMode: 'assigned_service_principal' },
+    { enabled: true, role: 'admin' as const, identityMode: 'signed_in_user', tokenScopes: ['dashboards.genie'] },
   ])('emits nothing for an ineligible request without reading a secret', (request) => {
     expect(
       managedGenieMcpCapability({
@@ -96,6 +97,7 @@ describe('Genie MCP app-issued capability', () => {
             identityMode: 'signed_in_user',
             user: 'admin@example.com',
             requestId: 'request-123',
+            tokenScopes: ['genie'],
             privateKeyPem,
           })
         ).toBeUndefined();

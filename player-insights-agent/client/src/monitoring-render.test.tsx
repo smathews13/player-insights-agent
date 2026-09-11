@@ -2129,9 +2129,9 @@ describe('the per-user panel', () => {
     expect(markup).toContain('class="identity-chip organization-user-badge user-profile-modal-identity-chip"');
     expect(markup).toContain('data-organization-id="acme-interactive"');
     expect(markup).toContain('aria-label="Organization: Acme Interactive"');
-    expect(markup).toMatch(/data-organization-id="acme-interactive"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).toMatch(/data-organization-id="acme-interactive"[^>]*data-organization-mark="raw"[^>]*><img/);
     expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
-    expect(markup).not.toContain('roster-organization-logo');
+    expect(markup).toContain('roster-organization-logo-image');
     expect(markup).toContain('customer.admin@take2games.com');
     expect(markup).toContain('user-profile-modal-identity-chip');
     expect(markup).not.toContain('user-profile-modal-organization');

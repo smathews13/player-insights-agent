@@ -486,7 +486,7 @@ describe('billing attribution', () => {
     );
   });
 
-  it('estimates SQL from exact Ask-run execution rather than every tagged app query', () => {
+  it('estimates SQL from attributed app and Genie execution', () => {
     const sql = buildTiles(
       IDS,
       [
@@ -509,14 +509,14 @@ describe('billing attribution', () => {
         astrolabeExecutionMs: 25,
         totalExecutionMs: 100,
         askRuns: [{ runId: 'run-1', executionMs: 10 }],
-        genieSpaces: [],
+        genieSpaces: [{ spaceId: 'space-1', queries: 1, executionMs: 15 }],
       }
     ).find((tile) => tile.id === 'sql-warehouse');
 
     expect(sql).toMatchObject({
-      amount: 10,
+      amount: 40,
       quality: 'estimate',
-      population: 'Interactive Ask queries',
+      population: 'Attributed app and Genie queries',
       attribution: 'deployment',
       evidence: {
         billingRows: 4,

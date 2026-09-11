@@ -1121,9 +1121,9 @@ const DESCRIPTIONS: Record<
     variable: 'DATABRICKS_SERVING_ENDPOINT_NAME',
   },
   'sql-warehouse': {
-    label: 'Ask SQL',
+    label: 'App and Genie SQL',
     quality: 'estimate',
-    population: 'Interactive Ask queries',
+    population: 'Attributed app and Genie queries',
     basis: 'total-in-range',
     variable: 'DATABRICKS_SQL_WAREHOUSE_ID',
   },
@@ -1512,10 +1512,9 @@ function componentTile(
     });
   }
   if (component === 'sql-warehouse') {
-    const askExecutionMs =
-      warehouseAttribution.askRuns === undefined
-        ? warehouseAttribution.astrolabeExecutionMs
-        : warehouseAttribution.askRuns.reduce((sum, run) => sum + run.executionMs, 0);
+    const attributedExecutionMs =
+      warehouseAttribution.astrolabeExecutionMs +
+      warehouseAttribution.genieSpaces.reduce((sum, space) => sum + space.executionMs, 0);
     if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
       return withMeta({
         ...base,
@@ -1530,8 +1529,8 @@ function componentTile(
     }
     return withMeta({
       ...base,
-      amount: (amount * askExecutionMs) / warehouseAttribution.totalExecutionMs,
-      dbus: dbus === null ? null : (dbus * askExecutionMs) / warehouseAttribution.totalExecutionMs,
+      amount: (amount * attributedExecutionMs) / warehouseAttribution.totalExecutionMs,
+      dbus: dbus === null ? null : (dbus * attributedExecutionMs) / warehouseAttribution.totalExecutionMs,
       pricing,
       note: '',
       unavailable: '',

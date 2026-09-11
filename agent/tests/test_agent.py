@@ -259,6 +259,7 @@ class FakeTools:
         self.settings = settings()
         self.workspace = SimpleNamespace()
         self.invocations: list[tuple[str, dict]] = []
+        self.scoped_tables: tuple[str, ...] | None = None
         self._results: dict[str, ToolResult | Exception] = {
             "data_genie": ToolResult(
                 text="Northwind VLH Online has 8,413 active players in the latest 30-day window.",
@@ -273,6 +274,10 @@ class FakeTools:
             ),
         }
         self._results.update(results)
+
+    def scoped_to_tables(self, tables: tuple[str, ...]):
+        self.scoped_tables = tables
+        return self
 
     # Positional-only, so a tool whose own argument is called `name` (resolve_table)
     # does not collide with the tool name and arrive as "multiple values for
@@ -2563,6 +2568,68 @@ def test_an_approved_plan_runs_the_loop():
 
     assert response.custom_outputs["type"] == "answer"
     assert len(tools.named("data_genie")) == 1
+
+
+def test_an_approved_plan_scopes_every_data_tool_to_the_sources_the_user_saw():
+    tools = FakeTools()
+    question = "Analyze activity by label."
+    issued = _plan_id(question, "")
+    llm = ScriptedLlm([Call("data_genie", {"question": "activity by label"})], "Done.")
+
+    response = build(llm, tools).predict(
+        app_request(
+            input=[{"role": "user", "content": question}],
+            custom_inputs={
+                "approved_plan_id": issued,
+                "approved_plan": {
+                    "id": issued,
+                    "question": question,
+                    "summary": "Use the approved activity source.",
+                    "steps": [
+                        {
+                            "id": "source-1",
+                            "title": f"{ACTIVITY} (recommended)",
+                            "description": "Approved aggregate activity.",
+                            "kind": "data",
+                        }
+                    ],
+                },
+                "execute_plan": True,
+            },
+        )
+    )
+
+    assert response.custom_outputs["type"] == "answer"
+    assert tools.scoped_tables == (ACTIVITY,)
+
+
+def test_an_approved_plan_with_no_declared_source_is_reissued_instead_of_executed():
+    tools = FakeTools()
+    question = "Analyze activity by label."
+    issued = _plan_id(question, "")
+    response = build(ScriptedLlm(), tools).predict(
+        app_request(
+            input=[{"role": "user", "content": question}],
+            custom_inputs={
+                "approved_plan_id": issued,
+                "approved_plan": {
+                    "id": issued,
+                    "steps": [
+                        {
+                            "id": "source-1",
+                            "title": "other_catalog.secret_schema.players (recommended)",
+                            "description": "Not declared by this model.",
+                            "kind": "data",
+                        }
+                    ],
+                },
+                "execute_plan": True,
+            },
+        )
+    )
+
+    assert response.custom_outputs["type"] == "plan"
+    assert analysis_calls(tools) == []
 
 
 def test_an_approval_for_a_different_question_re_issues_the_plan():

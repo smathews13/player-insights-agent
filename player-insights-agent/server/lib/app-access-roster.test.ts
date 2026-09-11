@@ -75,7 +75,7 @@ const roster: RosterPayload = {
 };
 
 describe('Databricks App access roster', () => {
-  it('overlays PIA roles on explicit App users and adds ACL-only users as consumers', () => {
+  it('overlays App users and keeps effective stored admins visible for demotion', () => {
     const aligned = alignRosterWithAppAccess(roster, {
       available: true,
       principals: appAccessPrincipals(acl),
@@ -96,9 +96,19 @@ describe('Databricks App access roster', () => {
           appAccess: 'can_use',
           canRemove: false,
         }),
+        expect.objectContaining({
+          email: 'pia-only@example.com',
+          role: 'admin',
+          appAccess: 'inherited',
+          canRemove: true,
+        }),
       ])
     );
-    expect(aligned.entries.map((entry) => entry.email)).toEqual(['owner@example.com', 'reader@example.com']);
+    expect(aligned.entries.map((entry) => entry.email)).toEqual([
+      'owner@example.com',
+      'reader@example.com',
+      'pia-only@example.com',
+    ]);
     expect(aligned.appAccessPrincipals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'group', name: 'Executives' }),

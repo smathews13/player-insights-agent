@@ -262,7 +262,7 @@ describe('price join golden outputs', () => {
     const componentTotal = tiles.reduce((sum, tile) => sum + (tile.amount ?? 0), 0);
     const summary = appCostSummary({ range: RANGE, tiles, currency: 'USD' });
     expect(summary.amount).toBe(componentTotal);
-    expect(summary.amount).toBeCloseTo(64 + 12 + 11.4, 8);
+    expect(summary.amount).toBeCloseTo(64 + 6 + 12 + 11.4, 8);
   });
 
   it('emits exact components once and excludes shared meters without an attribution denominator', () => {
@@ -393,11 +393,11 @@ describe('coverage, shared meters, and Genie', () => {
     expect(coverage.propagation.find((item) => item.product === 'SQL')?.status).toBe('propagated');
   });
 
-  it('withholds a warehouse meter until Query History proves the Astrolabe share', () => {
+  it('withholds a warehouse meter until Query History proves the app and Genie share', () => {
     const tile = buildTiles(IDS, [row({ component: 'sql-warehouse', spend: 50 })]).find(
       (item) => item.id === 'sql-warehouse'
     );
-    expect(tile?.population).toBe('Interactive Ask queries');
+    expect(tile?.population).toBe('Attributed app and Genie queries');
     expect(tile?.attribution).toBe('unavailable');
   });
 

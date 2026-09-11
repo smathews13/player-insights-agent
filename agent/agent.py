@@ -965,6 +965,36 @@ def _is_approved(custom_inputs: dict[str, Any], plan_id: str) -> bool:
     )
 
 
+def _approved_plan_sources(
+    custom_inputs: dict[str, Any], plan_id: str, declared: Sequence[str]
+) -> tuple[str, ...] | None:
+    """The governed source boundary carried by the plan the user approved.
+
+    ``None`` means an older caller supplied no plan object. An empty tuple means
+    a plan object was supplied but could not be proven to be this plan's ranked
+    source list, so the approval must not execute.
+    """
+
+    raw = custom_inputs.get("approved_plan")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or str(raw.get("id") or "").strip() != plan_id:
+        return ()
+    steps = raw.get("steps")
+    if not isinstance(steps, list):
+        return ()
+    names: list[str] = []
+    for step in steps:
+        if not isinstance(step, dict) or step.get("kind") != "data":
+            continue
+        title = re.sub(
+            r"\s*\(recommended\)\s*$", "", str(step.get("title") or ""), flags=re.I
+        ).strip()
+        if title:
+            names.append(title)
+    return tuple(_declared_only(names, declared))
+
+
 def _is_nontrivial(question: str) -> bool:
     lowered = re.sub(r"\s+", " ", question.lower()).strip()
     analytical_markers = (
@@ -2850,7 +2880,9 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             plan=self._discovered_plan,
         )
 
-    def _runtime(self) -> tuple[PlayerInsightTools, Any]:
+    def _runtime(
+        self, allowed_tables: tuple[str, ...] | None = None
+    ) -> tuple[PlayerInsightTools, Any]:
         """The tools and the model client for THIS call.
 
         The LLM client is cached on the agent, and so are the tools when they
@@ -2884,7 +2916,13 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
         llm_client = self._llm_client or self._turn_llm_client()
         if self._tools is not None:
-            return self._tools, llm_client
+            scoped = getattr(self._tools, "scoped_to_tables", None)
+            return (
+                scoped(allowed_tables)
+                if allowed_tables is not None and callable(scoped)
+                else self._tools,
+                llm_client,
+            )
         if not self.user_authorization:
             raise RuntimeError(
                 "This model version was logged without a user auth policy, so there is no "
@@ -2898,6 +2936,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 self._authorized_client(),
                 user_authorized=True,
                 allow_unattributed_figures=ALLOW_UNATTRIBUTED_FIGURES.enabled,
+                readable_tables=allowed_tables,
             ),
             llm_client,
         )
@@ -3520,6 +3559,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         *,
         parent_id: str = "",
         depth: int = 0,
+        allowed_tables: tuple[str, ...] | None = None,
     ) -> Generator[TraceStage, None, LoopOutcome]:
         """Let the model choose the steps, and bound what that can cost.
 
@@ -3534,7 +3574,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         attention.
         """
 
-        tools, client = self._runtime()
+        tools, client = self._runtime(allowed_tables)
         # Measured, not assumed. The SDK does not report a missing invoker token:
         # it falls back to the default chain and the agent answers normally,
         # having run as a service principal while the caveats said otherwise.
@@ -5212,9 +5252,14 @@ Tables available to this analysis, with their columns:
         )
         # The id costs only a hash (see `_plan_id`), so the comparison is made
         # first and the plan is only discovered when the answer will be a plan.
-        if _is_nontrivial(question) and not _is_approved(
-            custom_inputs, _plan_id(question, attachment_context)
-        ):
+        expected_plan_id = _plan_id(question, attachment_context)
+        approved_sources = _approved_plan_sources(
+            custom_inputs, expected_plan_id, self.settings.readable_tables
+        )
+        approved = _is_approved(custom_inputs, expected_plan_id) and (
+            approved_sources is None or bool(approved_sources)
+        )
+        if _is_nontrivial(question) and not approved:
             plan = self.data_source_finder.plan(discovery_request)
             text_item = self.create_text_output_item(
                 text=f"{plan.summary}\n\nReview and approve this plan to run the analysis.",
@@ -5223,6 +5268,13 @@ Tables available to this analysis, with their columns:
             return ResponsesAgentResponse(
                 output=[text_item],
                 custom_outputs={"type": "plan", "plan": plan.model_dump()},
+            )
+        if approved_sources:
+            discovery_request = DiscoveryRequest(
+                intent=discovery_request.intent,
+                established_context=discovery_request.established_context,
+                attachment_context=discovery_request.attachment_context,
+                approved_tables=approved_sources,
             )
 
         run_id = uuid.uuid4().hex

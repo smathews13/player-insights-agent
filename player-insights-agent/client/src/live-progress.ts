@@ -269,6 +269,8 @@ export function describeStage(stage: TraceStage, question = ''): string {
       return quoted('Asked the governed data Genie space', field(shown.input, 'question'));
     case 'dictionary_genie':
       return quoted('Asked the data dictionary Genie space', field(shown.input, 'question'));
+    case 'genie_mcp':
+      return quoted('Asked a managed Genie space', field(shown.input, 'question'));
     case 'run_sql': {
       const sql = sqlFromStageInput(shown.input);
       const shownSql = truncateSql(sql).text;

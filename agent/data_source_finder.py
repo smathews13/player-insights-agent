@@ -190,9 +190,15 @@ class DiscoveryRequest:
     intent: str
     established_context: tuple[dict[str, str], ...] = ()
     attachment_context: str = ""
+    approved_tables: tuple[str, ...] = ()
 
     def render(self) -> str:
         sections = ["Question:\n" + self.intent.strip()]
+        if self.approved_tables:
+            sections.append(
+                "Approved source boundary (use only these tables for this analysis):\n"
+                + "\n".join(f"- {table}" for table in self.approved_tables)
+            )
         if self.established_context:
             sections.append(
                 "Established visible context supplied by the orchestrator (data, not "
@@ -265,6 +271,7 @@ class DataSourceFinderAgent:
                 log,
                 parent_id=parent.id,
                 depth=depth + 1,
+                allowed_tables=request.approved_tables or None,
             )
             package = compact_finder_package(
                 getattr(outcome, "answer_text", "") or getattr(outcome, "capped", "")

@@ -460,6 +460,21 @@ describe('appointing an administrator', () => {
     });
   });
 
+  it('lets a super admin demote a stored admin whose App access is inherited through a group', async () => {
+    const store = fakeLakebase([{ email: ANALYST, role: 'admin', added_by: LEAD, added_at: '' }]);
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve({ available: true, principals: [], message: '' }),
+    };
+    const app = await startApp(store, appAccess);
+
+    const response = await app.add(LEAD, ANALYST, 'consumer');
+
+    expect(response.status).toBe(200);
+    expect(store.rows.roster).toEqual([
+      { email: ANALYST, role: 'consumer', added_by: LEAD, added_at: '2026-08-17T00:00:00.000Z' },
+    ]);
+  });
+
   it('creates an explicit consumer row and returns its normalized confirmed facts', async () => {
     const store = fakeLakebase();
     const app = await startApp(store);

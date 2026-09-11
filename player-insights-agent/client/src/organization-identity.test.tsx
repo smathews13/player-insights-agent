@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
@@ -10,7 +11,7 @@ import {
 } from '../../shared/organization-mapping';
 import { OrganizationAvatar } from './OrganizationAvatar';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
-import { ORGANIZATION_LOGOS } from './organization-logos';
+import { ORGANIZATION_LOGO_IMAGES, ORGANIZATION_LOGOS } from './organization-logos';
 import {
   organizationSelectOptions,
   organizationSelectionSummary,
@@ -52,8 +53,16 @@ function rule(stylesheet: string, selector: string): string {
 }
 
 describe('organization identity assets', () => {
+  it('keeps the supplied Acme logo byte-for-byte', () => {
+    const logo = readFileSync(new URL('./assets/organization/publisher-logo.png', import.meta.url));
+    expect(createHash('sha256').update(logo).digest('hex')).toBe(
+      'd2bc69313706fa866e7edcfbf2692bbb5a5d70164de2180546494a100eee1c6f'
+    );
+  });
+
   it('renders each canonical local mark with the manifest label and stable id', () => {
     for (const organization of ORGANIZATION_MANIFEST) {
+      if (organization.logoKey === 'acme') continue;
       const markup = renderToStaticMarkup(<OrganizationAvatar organization={organization} />);
       expect(markup).toContain(`data-organization-id="${organization.id}"`);
       expect(markup).toContain(`aria-label="${organization.ariaLabel}"`);
@@ -141,7 +150,11 @@ describe('organization user badges', () => {
     );
     expect(markup).toContain(`data-organization-id="${organizationId}"`);
     expect(markup).toContain(`>${handle}<`);
-    expect(markup).toMatch(/data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).toMatch(
+      organizationId === 'acme-interactive'
+        ? /data-organization-mark="raw"[^>]*><img/
+        : /data-organization-mark="raw"[^>]*><svg/
+    );
     expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
     expect(markup.match(/data-organization-mark="raw"/g)).toHaveLength(1);
     expect(markup).toContain('identity-chip-link-arrow');
@@ -202,12 +215,22 @@ describe('User Monitoring organization multiselect', () => {
     expect(MONITORING_CSS).toMatch(/\.monitoring-users-filter-menu[^}]*scrollbar-gutter:\s*stable/s);
   });
 
+  it('uses the supplied unaltered Acme image', () => {
+    const organization = organizationForEmail('person@take2games.com');
+    const markup = renderToStaticMarkup(<OrganizationAvatar organization={organization} />);
+
+    expect(markup).toContain(ORGANIZATION_LOGO_IMAGES['acme']);
+    expect(markup).toContain('roster-organization-logo-image');
+    expect(markup).toContain('roster-organization-mark--acme');
+  });
+
   it('ORs selections within the filter and clears through All', () => {
     expect(toggleOrganizationSelection([], 'domain:studio.example')).toEqual(['domain:studio.example']);
     expect(toggleOrganizationSelection(['domain:studio.example'], 'domain:partner.example')).toEqual([
       'domain:studio.example',
       'domain:partner.example',
     ]);
+
     expect(
       toggleOrganizationSelection(['domain:studio.example', 'domain:partner.example'], 'domain:studio.example')
     ).toEqual(['domain:partner.example']);

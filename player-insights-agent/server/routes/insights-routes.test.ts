@@ -1206,6 +1206,7 @@ describe('serving request body', () => {
       privateKeyPem,
       nowSeconds: 2_000_000_000,
       nonce: 'route-test-nonce-0001',
+      tokenScopes: ['genie'],
     };
 
     expect(
@@ -1260,6 +1261,7 @@ describe('serving request body', () => {
         identityMode: 'signed_in_user',
         user: 'admin@example.com',
         requestId: 'request-1',
+        tokenScopes: ['genie'],
         privateKeyPem: secretFragment,
       });
       const body = buildAskServingBody({

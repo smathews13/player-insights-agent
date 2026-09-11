@@ -129,9 +129,7 @@ export async function readWorkspaceGroupMembers(
         if (!email) return null;
         return { email, displayName: text(user.displayName) || memberLabel || email } satisfies GroupMember;
       } catch {
-        return memberLabel.includes('@')
-          ? ({ email: memberLabel, displayName: memberLabel } satisfies GroupMember)
-          : null;
+        return null;
       }
     });
     const deduplicated = new Map<string, GroupMember>();

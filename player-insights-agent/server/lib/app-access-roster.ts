@@ -73,7 +73,7 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
   }
 
   const storedByEmail = new Map(payload.entries.map((entry) => [entry.email.toLowerCase(), entry]));
-  const entries = snapshot.principals
+  const directEntries = snapshot.principals
     .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
     .map((principal) => {
       const entry = storedByEmail.get(principal.name.toLowerCase());
@@ -98,6 +98,16 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
         canRemove: false,
       } satisfies RosterEntry;
     });
+  const directEmails = new Set(directEntries.map((entry) => entry.email.toLowerCase()));
+  const inheritedOrStored = payload.entries
+    .filter((entry) => !directEmails.has(entry.email.toLowerCase()) && entry.role !== 'consumer')
+    .map((entry) => ({
+      ...entry,
+      appAccess: 'inherited' as const,
+      appAccessDetail:
+        'This app role is stored, but direct App access is not listed. It may still apply through a Databricks App group.',
+    }));
+  const entries = [...directEntries, ...inheritedOrStored];
 
   return {
     ...payload,
