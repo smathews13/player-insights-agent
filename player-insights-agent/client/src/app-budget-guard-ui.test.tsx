@@ -81,7 +81,10 @@ describe('app budget guard UI', () => {
   });
 
   it('announces only actionable threshold changes and restores Ask after approval', () => {
-    const warning = composer(status('warning', { measured: 80, ratio: 0.8, percent: 80 }));
+    expect(composer(status('warning', { measured: 80, ratio: 0.8, percent: 80 }))).toBe('');
+    expect(composer(status('approval-required'))).toBe('');
+
+    const warning = composer(status('warning', { measured: 80, ratio: 0.8, percent: 80 }), true);
     expect(warning).toContain('Monthly app budget is 80.00% used.');
     expect(warning).toContain('role="status"');
     expect(warning).not.toContain('New questions remain available');
@@ -278,7 +281,7 @@ describe('app budget guard UI', () => {
     expect(source).toContain("const budgetBlocked = budgetStatus?.level === 'approval-required'");
     expect(source).toContain('<ComposerBudgetStatus');
     expect(readFileSync(new URL('./ComposerBudgetStatus.tsx', import.meta.url), 'utf8')).toContain(
-      'An administrator must approve continued usage.'
+      'if (!admin || !status'
     );
   });
 
