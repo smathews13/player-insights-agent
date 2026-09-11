@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from data_source_finder import (
     FINDER_SYSTEM_PROMPT,
     MAX_FINDER_PACKAGE_CHARS,
@@ -315,7 +317,15 @@ def test_long_data_package_is_compacted_by_more_than_half():
     assert "Optional detail was clipped" in compact
 
 
-def test_simple_inventory_uses_only_the_manifest_listing():
+@pytest.mark.parametrize(
+    "question",
+    [
+        "what data do you have access to",
+        "what data can you see?",
+        "what data can I see?",
+    ],
+)
+def test_simple_inventory_uses_only_the_manifest_listing(question):
     llm = ScriptedLlm(charts=False)
     tools = FakeTools(
         list_data_assets=ToolResult(
@@ -324,7 +334,7 @@ def test_simple_inventory_uses_only_the_manifest_listing():
         )
     )
 
-    response = execute(build(llm, tools), "what data do you have access to")
+    response = execute(build(llm, tools), question)
 
     assert response.custom_outputs["type"] == "answer"
     assert len(tools.named("list_data_assets")) == 1

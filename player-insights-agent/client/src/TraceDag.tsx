@@ -550,7 +550,6 @@ function RunSummaryDetail({
   stage,
   summary,
   id,
-  step,
   headingRef,
   backButtonRef,
   onBackToMap,
@@ -558,7 +557,6 @@ function RunSummaryDetail({
   stage: TraceStage;
   summary: RunContainerSummary;
   id: string;
-  step: number;
   headingRef?: RefObject<HTMLElement | null>;
   backButtonRef?: RefObject<HTMLButtonElement | null>;
   onBackToMap?: () => void;
@@ -568,7 +566,7 @@ function RunSummaryDetail({
       <div className="dag-detail-head">
         <KindChip stage={stage} />
         <strong ref={headingRef} role="heading" aria-level={3} tabIndex={-1}>
-          Step {step} · <StageName stage={stage} mono clamp={false} />
+          Run summary · <StageName stage={stage} mono clamp={false} />
         </strong>
         <Badge variant="outline" className={astPill(summary.status)}>
           {summary.status}
@@ -719,7 +717,6 @@ export function StageDetail({
         stage={stage}
         summary={runSummary}
         id={id}
-        step={step}
         headingRef={headingRef}
         backButtonRef={backButtonRef}
         onBackToMap={onBackToMap}
@@ -1017,6 +1014,7 @@ export function TraceDag({
         const next = displayedStages[index + 1];
         const isOpen = open?.id === item.id;
         const runEnvelope = item.id === '__run__';
+        const step = runEnvelope ? 0 : index + (envelopeStage ? 0 : 1);
         const itemStatus = runEnvelope && summary ? summary.status : item.status;
         const statusClass = itemStatus.replaceAll(' ', '-');
         const nodeClass = `dag-node ${statusClass} ${displayedActiveIndex === index ? 'active' : ''}`;
@@ -1056,7 +1054,7 @@ export function TraceDag({
                     width of a "0" in that family. A column of step numbers set in
                     it does not line up however it is marked. */}
                 <span className={`dag-num ast-num ${item.kind === 'agent' ? 'agent' : 'tool'}`}>
-                  {stepNumber(index + 1)}
+                  {runEnvelope ? '—' : stepNumber(step)}
                 </span>
                 <RailMark stage={item} />
                 <strong>
@@ -1094,7 +1092,7 @@ export function TraceDag({
                 onClick={(event) => selectStep(item, event)}
               >
                 <span className={`dag-index ast-num ${item.kind === 'agent' ? 'agent' : 'tool'}`}>
-                  {stepNumber(index + 1)}
+                  {runEnvelope ? '—' : stepNumber(step)}
                 </span>
                 <span className="dag-card-body">
                   <span className="dag-card-title">
@@ -1159,7 +1157,7 @@ export function TraceDag({
         <StageDetail
           key={open.id}
           stage={open}
-          step={openIndex + 1}
+          step={open.id === '__run__' ? 0 : openIndex + (envelopeStage ? 0 : 1)}
           origin={origin}
           id={panelId}
           charts={charts}
