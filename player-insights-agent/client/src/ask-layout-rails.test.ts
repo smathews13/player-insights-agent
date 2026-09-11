@@ -111,10 +111,10 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(RAIL).not.toContain('.trace-idle-sky');
   });
 
-  it('reserves the inspector scrollbar so the first overflow cannot shove the path', () => {
-    // Around step 15 the path first exceeds the pane. A bar that appears then
-    // shrinks the SVG and leaves tool-mark ghosts at the old seats.
-    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*scrollbar-gutter:\s*stable/);
+  it('keeps the inspector in page flow without creating its own scrollbar', () => {
+    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*position:\s*sticky/);
+    expect(RAIL).toMatch(/\.trace-inspector\s*\{[^}]*overflow-y:\s*visible/);
+    expect(RAIL).not.toMatch(/\.trace-inspector\s*\{[^}]*scrollbar-gutter:\s*stable/);
     expect(RAIL).toMatch(/\.trace-inspector \.ast-sky\s*\{[^}]*overflow:\s*visible/);
   });
 

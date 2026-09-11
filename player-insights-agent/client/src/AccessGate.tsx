@@ -425,9 +425,9 @@ export function LimitsReport({ limits }: { limits: readonly NotChecked[] }) {
 export function GateIntro({ signedInAs, id }: { signedInAs: string; id?: string }) {
   return (
     <p id={id}>
-      <OrganizationUserBadge identity={signedInAs} label="Signed in as" />. This checks your access under your own
-      token: the SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs the
-      questions that follow; that is reported on Connections.
+      Checking access for <OrganizationUserBadge identity={signedInAs} />. This checks your access under your own token:
+      the SQL warehouse, the tables behind answers, and the Genie spaces. It does not decide who runs the questions that
+      follow; that is reported on Connections.
     </p>
   );
 }

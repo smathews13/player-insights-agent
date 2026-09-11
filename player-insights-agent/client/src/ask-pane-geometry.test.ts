@@ -60,13 +60,15 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     );
   });
 
-  it('keeps Agent path tall and independently scrollable', () => {
+  it('keeps Agent path sticky while the page owns scrolling', () => {
     const right = rule(RAIL, '.trace-inspector');
-    for (const property of ['height', 'min-height', 'max-height']) {
-      expect(right).toContain(`${property}: var(--workspace-pane-block-size)`);
-    }
+    expect(right).toContain('position: sticky');
+    expect(right).toContain('top: var(--app-header-h)');
+    expect(right).toContain('height: auto');
+    expect(right).toContain('min-height: var(--workspace-pane-block-size)');
+    expect(right).toContain('max-height: none');
     expect(right).not.toContain('var(--ask-active-card');
-    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
+    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*visible/);
     expect(rule(RAIL, '.ask-layout > .conversation-rail')).toMatch(/grid-column:\s*1/);
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*grid-column:\s*3/);
   });
@@ -87,7 +89,7 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
   it('keeps the graph intrinsic and the live step list in page flow', () => {
     expect(rule(CONSTELLATION, '.ast-sky')).toMatch(/overflow:\s*clip[\s\S]*flex:\s*none/);
     expect(rule(CONSTELLATION, '.ast-sky-canvas')).toMatch(/height:\s*auto[\s\S]*flex:\s*none/);
-    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
+    expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*visible/);
     const live = rule(LIVE, '.live-steps');
     expect(live).toMatch(/overflow:\s*visible/);
     expect(live).toMatch(/max-height:\s*none/);

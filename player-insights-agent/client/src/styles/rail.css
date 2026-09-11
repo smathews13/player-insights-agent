@@ -143,17 +143,19 @@
    run: three things that belong to each other, unlike the rail's three blocks. */
 .trace-inspector {
   grid-column: 3;
-  position: static;
-  height: var(--workspace-pane-block-size);
+  position: sticky;
+  top: var(--app-header-h);
+  align-self: start;
+  height: auto;
   min-height: var(--workspace-pane-block-size);
-  max-height: var(--workspace-pane-block-size);
+  max-height: none;
   box-sizing: border-box;
   border: 1px solid var(--ast-border-input);
   border-top: 0;
   border-radius: var(--ast-radius-card);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   /* No hairline against the middle column. The navy panel is its own edge, and a
      translucent white rule on the dark sky read as a seam rather than a
      boundary. The column's width and the grid's gap are untouched: they are
@@ -163,18 +165,8 @@
   gap: 14px;
   padding: 20px 12px 20px 20px;
   overflow-x: clip;
-  overflow-y: auto;
-  /*
-   * RESERVE THE BAR FROM THE FIRST PAINT. The numbered path grows until it
-   * first overflows this pane -- on a typical laptop that is around step 15,
-   * "Preparing the answer". A gutter that appears then shrinks the SVG's
-   * 100% width, every star slides sideways, and the tool marks (SVG <image>)
-   * leave a copy at the old seat. Sparkles redraw cleanly, so only the
-   * product icons looked doubled. Same reserve the conversation rail already
-   * pays; the 8px taken here is the 8px that used to come out of the right
-   * padding the moment the bar arrived.
-   */
-  scrollbar-gutter: stable;
+  overflow-y: visible;
+  scrollbar-gutter: auto;
   /*
    * THE BROWSER DOES NOT ALSO GET A VOTE ON THIS COLUMN'S SCROLL.
    *

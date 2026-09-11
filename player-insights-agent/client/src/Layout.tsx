@@ -284,7 +284,7 @@ export function NavLinks({
 }
 
 /**
- * Who is reading: person icon, "Signed in", and the email local part.
+ * Who is reading: organization mark and the email local part.
  *
  * Restored from the pre-avatar treatment. The navy initials circle saved header
  * width but hid the name behind a puzzle ("SM") that only `title` and a screen
@@ -295,9 +295,7 @@ export function NavLinks({
  * time, gear, then the Built on Databricks attribution past the chrome rule.
  */
 export function IdentityChip({ identity }: { identity: Identity }) {
-  return (
-    <OrganizationUserBadge identity={identity.signedInAs} label="Signed in" compact={false} testId="identity-chip" />
-  );
+  return <OrganizationUserBadge identity={identity.signedInAs} compact={false} testId="identity-chip" />;
 }
 
 /**
@@ -410,7 +408,6 @@ export function IdentityChips({
         fallback={
           <OrganizationUserBadge
             identity={identity.canonicalEmail ?? identity.signedInAs}
-            label="Signed in"
             compact={false}
             className="account-menu-trigger"
             testId="identity-chip"

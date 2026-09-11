@@ -110,7 +110,9 @@ describe('the opening block', () => {
 
   it('still says what was checked and what the check does not decide', () => {
     const read = text(markup);
-    expect(read).toContain('Signed in as reader');
+    expect(read).toContain('Checking access for');
+    expect(read).toContain('reader');
+    expect(read).not.toContain('Signed in');
     expect(markup).toContain('identity-chip identity-chip--compact');
     expect(read).toContain('under your own token');
     expect(read).toContain('SQL warehouse');
@@ -134,7 +136,7 @@ describe('the count line', () => {
     // The app's count line everywhere else drops a zero rather than printing
     // "0 refused", which reads as a category the reader has to think about.
     expect(tableCountLine({ verified: false, ok: 12, denied: 0, errored: 0, verdicts: [] })).toBe(
-      '12 of 12 tables readable',
+      '12 of 12 tables readable'
     );
   });
 

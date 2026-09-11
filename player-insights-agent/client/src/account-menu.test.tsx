@@ -40,9 +40,10 @@ describe('account menu', () => {
       expect(markup).toContain('aria-label="Organization: Databricks"');
       expect(markup).not.toContain('lucide-user-round');
     }
-    expect(trigger).toContain('aria-label="Signed in as employee@example.com"');
+    expect(trigger).toContain('aria-label="Account for employee@example.com"');
     expect(trigger).toContain('title="employee@example.com"');
     expect(trigger).toContain('<strong class="identity-chip-name">employee</strong>');
+    expect(trigger).not.toContain('Signed in');
   });
 
   it('uses one canonical Identity record for the short trigger, full panel, and deployment organization', () => {
