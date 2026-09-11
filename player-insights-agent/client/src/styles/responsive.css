@@ -206,7 +206,9 @@
     scrollbar-gutter: auto;
   }
   .composer {
-    width: calc(100% - 24px);
+    /* The answer is viewport width minus the pane's 32px padding and its own
+       16px inset. Keep the question surface on those same edges. */
+    width: calc(100% - 48px);
   }
   .composer-actions > .composer-ai-note {
     display: none;

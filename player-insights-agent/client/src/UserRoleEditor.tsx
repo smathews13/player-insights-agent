@@ -54,9 +54,9 @@ import {
   EMPTY_SP_IDENTITY,
   loadGroupMembers,
   loadHumanRoster,
-  loadWorkspaceGroups,
   loadSpIdentityAdmin,
   renameSpPersona,
+  resetGroupRoleMapping,
   UNASSIGNED_PERSONA,
   updateSpPersonaDefinition,
   writeGroupRoleMapping,
@@ -302,6 +302,8 @@ export function RosterRows({
   onPersonaChange,
   showPersona = false,
   manageHumanRoles = true,
+  onGroupRoleChange,
+  onGroupReset,
   footer,
 }: {
   payload: RosterPayload;
@@ -314,6 +316,8 @@ export function RosterRows({
   onPersonaChange?: (email: string, personaId: string | null) => void;
   showPersona?: boolean;
   manageHumanRoles?: boolean;
+  onGroupRoleChange?: (entry: GroupRoleEntry, role: Extract<Role, 'admin' | 'consumer'>) => void;
+  onGroupReset?: (entry: GroupRoleEntry) => void;
   footer?: ReactNode;
 }) {
   return (
@@ -352,6 +356,18 @@ export function RosterRows({
             </tr>
           </thead>
           <tbody>
+            {showPersona && manageHumanRoles
+              ? (payload.groupRoleMappings ?? []).map((entry) => (
+                  <GroupRoleRow
+                    key={`group:${entry.groupName}`}
+                    entry={entry}
+                    busy={busy}
+                    organizations={payload.organizations}
+                    onRoleChange={(mapping, role) => onGroupRoleChange?.(mapping, role)}
+                    onReset={(mapping) => onGroupReset?.(mapping)}
+                  />
+                ))
+              : null}
             {payload.entries.map((entry) => {
               const organization = organizationForEmail(entry.email, payload.organizations ?? []);
               return (
@@ -440,10 +456,14 @@ function GroupRoleRow({
   entry,
   busy,
   onRoleChange,
+  onReset,
+  organizations,
 }: {
   entry: GroupRoleEntry;
   busy: boolean;
   onRoleChange: (entry: GroupRoleEntry, role: Extract<Role, 'admin' | 'consumer'>) => void;
+  onReset: (entry: GroupRoleEntry) => void;
+  organizations: RosterPayload['organizations'];
 }) {
   const [open, setOpen] = useState(false);
   const [members, setMembers] = useState<Array<{ email: string; displayName: string }> | null>(null);
@@ -466,12 +486,13 @@ function GroupRoleRow({
       setLoading(false);
     }
   };
+  const organization = organizationForEmail('group@example.com', organizations ?? []);
 
   return (
     <>
       <tr className="admin-row group-role-row">
-        <td title={entry.groupName}>
-          <div className="group-role-identity">
+        <td className="roster-email" title={entry.groupName}>
+          <div className="group-role-identity admin-row-email">
             <button
               type="button"
               className="group-role-toggle"
@@ -498,7 +519,13 @@ function GroupRoleRow({
             )}
           </div>
         </td>
-        <td>
+        <td className="roster-organization">
+          <span className="roster-organization-value">
+            <OrganizationAvatar organization={organization} />
+            <span>{organization.name}</span>
+          </span>
+        </td>
+        <td className="roster-role">
           <AppSelect
             label="Player Insights Agent role"
             ariaLabel={`Player Insights Agent role for ${entry.groupName}`}
@@ -513,10 +540,37 @@ function GroupRoleRow({
             className="roster-control roster-role-select group-role-select"
           />
         </td>
+        <td className="roster-persona">
+          <AppSelect
+            label="Persona"
+            ariaLabel={`Persona for group ${entry.groupName}`}
+            value={UNASSIGNED_PERSONA}
+            disabled
+            onValueChange={() => undefined}
+            options={[{ value: UNASSIGNED_PERSONA, label: 'No persona' }]}
+            className="roster-control roster-persona-select"
+          />
+        </td>
+        <td className="roster-action">
+          {entry.setBy ? (
+            <Button
+              variant="destructive"
+              data-variant="destructive"
+              className="roster-control settings-destructive roster-action-button"
+              size="sm"
+              disabled={busy}
+              onClick={() => onReset(entry)}
+              aria-label={`Reset ${entry.groupName} to Consumer`}
+            >
+              <Trash2 className="roster-action-icon" aria-hidden="true" />
+              Reset role
+            </Button>
+          ) : null}
+        </td>
       </tr>
       {open ? (
         <tr className="group-role-members-row">
-          <td colSpan={2}>
+          <td colSpan={5}>
             {loading ? <PiaLoader variant="inline" label="Reading group members" className="settings-status" /> : null}
             {!loading && members ? (
               <div className="group-role-members">
@@ -544,108 +598,6 @@ function GroupRoleRow({
         </tr>
       ) : null}
     </>
-  );
-}
-
-function GroupMappingAddRow({
-  mapped,
-  busy,
-  onAdd,
-}: {
-  mapped: readonly string[];
-  busy: boolean;
-  onAdd: (groupName: string, role: Extract<Role, 'admin' | 'consumer'>) => Promise<boolean>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [groups, setGroups] = useState<Array<{ id: string; displayName: string }>>([]);
-  const [groupName, setGroupName] = useState('');
-  const [role, setRole] = useState<Extract<Role, 'admin' | 'consumer'>>('consumer');
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
-  const [error, setError] = useState('');
-
-  const openPicker = async () => {
-    setOpen(true);
-    if (state === 'loading' || state === 'ready') return;
-    setState('loading');
-    try {
-      const excluded = new Set(mapped.map((name) => name.toLocaleLowerCase()));
-      setGroups((await loadWorkspaceGroups()).filter((group) => !excluded.has(group.displayName.toLocaleLowerCase())));
-      setState('ready');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Workspace groups could not be listed.');
-      setState('failed');
-    }
-  };
-
-  if (!open) {
-    return (
-      <tr className="roster-add-row group-mapping-add-row">
-        <td colSpan={2}>
-          <Button type="button" variant="outline" onClick={() => void openPicker()}>
-            <UserPlus className="roster-action-icon" aria-hidden="true" />
-            Add group
-          </Button>
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="roster-add-row group-mapping-add-row">
-      <td>
-        <AppSelect
-          label="Workspace group"
-          ariaLabel="Select a Databricks workspace group"
-          value={groupName || '__select_group__'}
-          disabled={busy || state === 'loading' || groups.length === 0}
-          onValueChange={(value) => setGroupName(value === '__select_group__' ? '' : value)}
-          options={[
-            { value: '__select_group__', label: state === 'loading' ? 'Loading groups…' : 'Select a group' },
-            ...groups.map((group) => ({ value: group.displayName, label: group.displayName, code: group.id })),
-          ]}
-          className="roster-control group-mapping-group-select"
-        />
-        {error ? (
-          <span className="roster-add-feedback admin-list-error" role="alert">
-            {error}
-          </span>
-        ) : null}
-      </td>
-      <td>
-        <div className="group-mapping-actions">
-          <AppSelect
-            label="Player Insights Agent role"
-            ariaLabel="Player Insights Agent role for the existing group"
-            value={role}
-            disabled={busy}
-            onValueChange={setRole}
-            options={(['admin', 'consumer'] as const).map((option) => ({
-              value: option,
-              label: roleWord(option),
-              content: <RoleBadgePill state={option} />,
-            }))}
-            className="roster-control roster-role-select"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || !groupName}
-            onClick={() =>
-              void onAdd(groupName, role).then((added) => {
-                if (added) {
-                  setGroupName('');
-                  setOpen(false);
-                  setState('idle');
-                }
-              })
-            }
-          >
-            Add
-          </Button>
-        </div>
-      </td>
-    </tr>
   );
 }
 
@@ -751,56 +703,6 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
 
   return (
     <div className="identity-table-content">
-      {canManageHumanRoles && payload ? (
-        <section className="settings-identity-section" aria-labelledby="group-roles-title">
-          <h4 id="group-roles-title" className="settings-section-title">
-            Databricks workspace groups and Player Insights Agent roles
-          </h4>
-          <div className="settings-table-frame roster-frame">
-            <table className="settings-data-table roles-table group-roles-table">
-              <colgroup>
-                <col />
-                <col className="roster-role-column" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">Workspace group</th>
-                  <th scope="col">User role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(payload.groupRoleMappings ?? []).map((entry) => (
-                  <GroupRoleRow
-                    key={entry.groupName}
-                    entry={entry}
-                    busy={busy}
-                    onRoleChange={(mapping, role) =>
-                      void run(
-                        () => writeGroupRoleMapping(mapping.groupName, role),
-                        `${mapping.groupName} now maps to ${roleWord(role).toLowerCase()}.`,
-                        { apply: setPayload }
-                      )
-                    }
-                  />
-                ))}
-              </tbody>
-              <tfoot>
-                <GroupMappingAddRow
-                  mapped={(payload.groupRoleMappings ?? []).map((entry) => entry.groupName)}
-                  busy={busy}
-                  onAdd={(groupName, role) =>
-                    run(
-                      () => writeGroupRoleMapping(groupName, role),
-                      `${groupName} now maps to ${roleWord(role).toLowerCase()}.`,
-                      { apply: setPayload }
-                    )
-                  }
-                />
-              </tfoot>
-            </table>
-          </div>
-        </section>
-      ) : null}
       <section className="settings-identity-section" aria-labelledby="human-roles-title">
         <h4 id="human-roles-title" className="settings-section-title">
           Databricks App members and Player Insights Agent roles
@@ -827,6 +729,18 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
               personaDisabled={Boolean(spError) && !spLoaded}
               showPersona={true}
               manageHumanRoles={canManageHumanRoles}
+              onGroupRoleChange={(mapping, role) =>
+                void run(
+                  () => writeGroupRoleMapping(mapping.groupName, role),
+                  `${mapping.groupName} now maps to ${roleWord(role).toLowerCase()}.`,
+                  { apply: setPayload }
+                )
+              }
+              onGroupReset={(mapping) =>
+                void run(() => resetGroupRoleMapping(mapping.groupName), `${mapping.groupName} is now a Consumer.`, {
+                  apply: setPayload,
+                })
+              }
               onPersonaChange={(email, personaId) =>
                 (() => {
                   if (mutationInFlight.current) return;
@@ -883,21 +797,25 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
                 )
               }
             />
-            {payload.appAccessPrincipals?.length ? (
+            {payload.appAccessPrincipals?.some((principal) => principal.kind === 'service_principal') ? (
               <div className="roster-app-principals" aria-label="Other Databricks App access">
-                <span className="roster-app-principals-title">Groups and service principals</span>
+                <span className="roster-app-principals-title">Service principals</span>
                 <div className="roster-app-principal-list">
-                  {payload.appAccessPrincipals.map((principal) => (
-                    <span
-                      key={`${principal.kind}:${principal.name}`}
-                      className="ast-pill roster-app-principal"
-                      title={
-                        principal.inherited ? 'Inherited Databricks App permission' : 'Direct Databricks App permission'
-                      }
-                    >
-                      {principal.displayName} · {principal.permission === 'CAN_MANAGE' ? 'Can manage' : 'Can use'}
-                    </span>
-                  ))}
+                  {payload.appAccessPrincipals
+                    .filter((principal) => principal.kind === 'service_principal')
+                    .map((principal) => (
+                      <span
+                        key={`${principal.kind}:${principal.name}`}
+                        className="ast-pill roster-app-principal"
+                        title={
+                          principal.inherited
+                            ? 'Inherited Databricks App permission'
+                            : 'Direct Databricks App permission'
+                        }
+                      >
+                        {principal.displayName} · {principal.permission === 'CAN_MANAGE' ? 'Can manage' : 'Can use'}
+                      </span>
+                    ))}
                 </div>
               </div>
             ) : null}

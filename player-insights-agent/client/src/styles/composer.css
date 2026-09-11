@@ -1,11 +1,12 @@
 .composer {
   position: static;
-  width: calc(100% - 2 * var(--conversation-inset));
+  width: calc(100% - 2 * var(--conversation-inset) - 16px);
   margin-inline: auto;
-  /* Stretch inside the center column with the same inset as the pane above.
-     The empty-state rule puts the 720px cap back so its hero and field share a
-     center line. */
-  max-width: none;
+  /* Match the completed answer's outer measure exactly. The transcript card is
+     16px narrower than its already-inset content track, so the sibling composer
+     applies both parts here. The empty-state rule narrows this to the hero's
+     720px measure. */
+  max-width: var(--conversation-measure);
   /*
    * The sky's pane, asked for explicitly, and THE ONE PLACE IN THE APP WHERE THIS
    * TOKEN IS NOT FREE. The composer now follows the pane in normal flow, so its

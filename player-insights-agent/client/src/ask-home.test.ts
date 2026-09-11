@@ -235,7 +235,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // was made a token to prevent, one page over.
     expect(partial('tokens.css')).toMatch(/--conversation-inset:\s*clamp\(/);
     expect(body('.conversation-main')).toMatch(/padding:\s*56px var\(--conversation-inset\) 32px/);
-    expect(body('.composer')).toMatch(/width:\s*calc\(100% - 2 \* var\(--conversation-inset\)\)/);
+    expect(body('.composer')).toMatch(/width:\s*calc\(100% - 2 \* var\(--conversation-inset\) - 16px\)/);
     // No copy of the old literal left anywhere. A single survivor is worse than
     // none of this, because it would be the one rule that stopped moving.
     expect(withoutComments(STYLESHEET)).not.toMatch(/clamp\(28px,\s*3\.5vw,\s*64px\)/);
@@ -349,23 +349,20 @@ describe('the ask home is the geometry the mockup gives it', () => {
     );
   });
 
-  it('lets the answer keep more measure than the box that prompts it', () => {
-    // An answer carries tables, charts and a source list; a prompt is one line of
-    // somebody's question. Capping them together at 720px would have been the
-    // tidier-looking rule and it would have taken width off the thing being read.
+  it('gives the answer and in-conversation composer the same outer measure', () => {
     const measure = Number.parseInt(partial('tokens.css').match(/--conversation-measure:\s*(\d+)px/)?.[1] ?? '0', 10);
-    expect(measure).toBeGreaterThan(720);
-    // Wide enough for result tables; prose still lives inside surfaced cards and
-    // truly wide tables retain their own horizontal scroller.
     expect(measure).toBeGreaterThanOrEqual(1100);
+    expect(body('.composer')).toMatch(/max-width:\s*var\(--conversation-measure\)/);
+    expect(body('.composer')).toMatch(/- 16px\)/);
+    expect(groupedBody('.conversation-main .answer-card', partial('ask.css'))).toMatch(/width:\s*calc\(100% - 16px\)/);
+    expect(atWidth(800)).toMatch(/\.composer\s*\{[^}]*width:\s*calc\(100% - 48px\)/);
   });
 
   it('gives the headline and the empty-state composer one width to share', () => {
-    // The in-conversation composer stretches between the rails. The empty state
-    // still needs one centre line with the hero, so the 720px cap lives only
-    // there — otherwise the first-ask box would become a second island.
+    // The empty state still needs one centre line with the hero, so its narrower
+    // 720px cap overrides the shared in-conversation measure.
     expect(body('.ask-hero')).toMatch(/max-width:\s*720px/);
-    expect(body('.composer')).toMatch(/max-width:\s*none/);
+    expect(body('.composer')).toMatch(/max-width:\s*var\(--conversation-measure\)/);
     expect(body(".ask-layout[data-transcript='empty'] .composer")).toMatch(/max-width:\s*720px/);
     expect(body('.composer')).toMatch(/margin-inline:\s*auto/);
   });

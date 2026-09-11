@@ -3,8 +3,7 @@
   /*
    * THE TRACK FILLS; THE CARDS CENTRE IN IT. Equal 340px rails leave a middle
    * column that is the leftover window, and that column is still 100% of the
-   * track — otherwise the normal-flow composer below it would disagree with
-   * the transcript. The answer and working cards
+   * track. The answer, working card and normal-flow composer
    * cap at `--conversation-measure` and sit in the middle of that track, so a
    * wide monitor gets modest gutters rather than an edge-to-edge slab, and a
    * laptop still fills the gap (the cap is wider than the leftover column).
@@ -116,8 +115,8 @@
   margin-inline: auto;
   /*
    * A few extra pixels off each side, so the working and answer cards sit a
-   * little off both rails. The track still fills and the composer still uses
-   * `--conversation-inset`; only these cards shorten. 16px is 8px a side.
+   * little off both rails. The composer applies the same 16px (8px a side) in
+   * its sibling row so all three surfaces share their outer edges.
    * Specificity beats `.answer-card { width: 100% }` in answer.css.
    */
   width: calc(100% - 16px);

@@ -66,13 +66,8 @@ import { alignRosterWithAppAccess, readAppAccess, type AppAccessOptions } from '
 import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
-import { readGroupRoleMappings, writeGroupRoleMapping } from '../lib/group-role-mappings';
-import {
-  listWorkspaceGroups,
-  readWorkspaceGroup,
-  readWorkspaceGroupMembers,
-  type WorkspaceGroupRead,
-} from '../lib/workspace-group-members';
+import { deleteGroupRoleMapping, readGroupRoleMappings, writeGroupRoleMapping } from '../lib/group-role-mappings';
+import { readWorkspaceGroup, readWorkspaceGroupMembers, type WorkspaceGroupRead } from '../lib/workspace-group-members';
 import type { GroupMembersResponse } from '../../shared/user-roster-contract';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
@@ -203,12 +198,18 @@ export function setupUserRoutes(
       console.warn('[admin] Stored group mappings could not be read:', (error as Error).message);
       return [];
     });
-    const confirmations = await Promise.all(mappings.map((mapping) => confirmWorkspaceGroup(mapping.groupName)));
+    const storedByName = new Map(mappings.map((mapping) => [mapping.groupName.toLocaleLowerCase(), mapping]));
+    const appGroups = (payload.appAccessPrincipals ?? []).filter((principal) => principal.kind === 'group');
+    const confirmations = await Promise.all(appGroups.map((group) => confirmWorkspaceGroup(group.name)));
     const identityManagementUrl = accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST);
-    payload.groupRoleMappings = mappings.map((mapping, index) => {
+    payload.groupRoleMappings = appGroups.map((group, index) => {
+      const mapping = storedByName.get(group.name.toLocaleLowerCase());
       const scimConfirmed = confirmations[index].readable && confirmations[index].exists;
       return {
-        ...mapping,
+        groupName: group.name,
+        role: mapping?.role ?? 'consumer',
+        setBy: mapping?.setBy ?? '',
+        setAt: mapping?.setAt ?? '',
         scimConfirmed,
         identityManagementUrl: scimConfirmed ? identityManagementUrl : '',
       };
@@ -217,26 +218,44 @@ export function setupUserRoutes(
   }
 
   appkit.server.extend((app) => {
-    app.get('/api/users/groups', async (_req, res) => {
-      res.json(await listWorkspaceGroups());
-    });
-
     app.get('/api/users/groups/:groupName/members', async (req, res) => {
       const requested = req.params.groupName.trim();
-      const mappings = await readGroupRoleMappings(appkit.lakebase).catch(() => []);
-      const allowed = mappings
-        .map((mapping) => mapping.groupName)
+      const appAccess = await appAccessService.read(req);
+      const allowed = appAccess.principals
+        .filter((principal) => principal.kind === 'group' && principal.effectivePermission !== null)
+        .map((principal) => principal.name)
         .find((group) => group.toLocaleLowerCase() === requested.toLocaleLowerCase());
       if (!allowed) {
         res.status(404).json({
           groupName: requested,
           members: [],
           readable: false,
-          detail: 'Only a mapped workspace group can be expanded.',
+          detail: 'Only a group with Databricks App access can be expanded.',
         } satisfies GroupMembersResponse);
         return;
       }
       res.json(await readGroupMembers(allowed));
+    });
+
+    app.delete('/api/users/groups/:groupName', async (req, res) => {
+      const groupName = req.params.groupName.trim();
+      const actor = userEmail(req);
+      try {
+        await deleteGroupRoleMapping(appkit.lakebase, groupName);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'group-role-mapped',
+          subject: groupName,
+          detail: `${actor} reset Databricks App group ${groupName} to Player Insights Agent consumer.`,
+        });
+        await replyWithRoster(req, res, appkit.lakebase, actor);
+      } catch (error) {
+        console.error('[admin] The workspace group mapping could not be reset:', (error as Error).message);
+        res.status(503).json({
+          error: 'group_mapping_store_unavailable',
+          detail: 'Lakebase could not reset the group role. Databricks App access was unchanged.',
+        });
+      }
     });
 
     app.post('/api/users/groups', async (req, res) => {
@@ -248,7 +267,21 @@ export function setupUserRoutes(
         });
         return;
       }
-      const confirmation = await confirmWorkspaceGroup(parsed.data.groupName);
+      const appAccess = await appAccessService.read(req);
+      const appGroup = appAccess.principals.find(
+        (principal) =>
+          principal.kind === 'group' &&
+          principal.effectivePermission !== null &&
+          principal.name.toLocaleLowerCase() === parsed.data.groupName.toLocaleLowerCase()
+      );
+      if (!appGroup) {
+        res.status(404).json({
+          error: 'app_group_not_found',
+          detail: 'Add that group to the Databricks App permissions first, then reload Identity.',
+        });
+        return;
+      }
+      const confirmation = await confirmWorkspaceGroup(appGroup.name);
       if (!confirmation.readable) {
         res.status(503).json({
           error: 'group_confirmation_unavailable',
