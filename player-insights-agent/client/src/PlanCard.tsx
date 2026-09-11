@@ -96,6 +96,7 @@ export function PlanCard({
   loading,
   resolved,
   approved,
+  canRevise,
   onApprove,
   onRevise,
 }: {
@@ -111,6 +112,8 @@ export function PlanCard({
    * replaced it is telling the reader something they did not do.
    */
   approved: boolean;
+  /** A plan may be revised once. The revised plan must be approved or left behind. */
+  canRevise: boolean;
   onApprove: () => void;
   /** The revised question to ask, composed from the picker below. */
   onRevise: (request: string) => void;
@@ -249,7 +252,9 @@ export function PlanCard({
               {state === 'approved'
                 ? 'You approved this plan. The analysis below was produced by running these steps.'
                 : state === 'review'
-                  ? 'No analytical query runs until you approve this plan. You can revise the request first.'
+                  ? canRevise
+                    ? 'No analytical query runs until you approve this plan. You can revise the request once.'
+                    : 'This plan already includes your revision. Approve it to start the analysis.'
                   : 'None of these steps ran. The turn below replaced this plan.'}
             </p>
           </AlertDescription>
@@ -279,16 +284,18 @@ export function PlanCard({
             </div>
           ) : (
             <div className="plan-actions">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => dispatch({ type: 'open', plan })}
-                disabled={loading}
-              >
-                Revise request
-              </Button>
+              {canRevise ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => dispatch({ type: 'open', plan })}
+                  disabled={loading}
+                >
+                  Revise request
+                </Button>
+              ) : null}
               <Button type="button" onClick={onApprove} disabled={loading}>
-                <Play /> Approve and run
+                <Play /> {canRevise ? 'Approve and run' : 'Run revised plan'}
               </Button>
             </div>
           ))}

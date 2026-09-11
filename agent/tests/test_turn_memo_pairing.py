@@ -33,10 +33,9 @@ from __future__ import annotations
 
 import threading
 
-from test_agent import FakeTools, ScriptedLlm, build
-
 from agent import _TURN_CREDENTIALS
 from semantic_retrieval import SemanticRetrieval
+from tests.test_agent import FakeTools, ScriptedLlm, build
 
 #: Long enough that a genuinely stuck thread is a failure rather than a hang,
 #: short enough that a failing run does not look like a broken suite.

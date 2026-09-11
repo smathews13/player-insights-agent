@@ -20,9 +20,8 @@ Three things are being pinned here, and only the first is about features.
 
 from __future__ import annotations
 
-from test_agent import Call, FakeTools, ScriptedLlm, ask, build
-
 import provenance
+from tests.test_agent import Call, FakeTools, ScriptedLlm, ask, build
 from tools import ToolResult
 
 ACTIVITY = "test_catalog.test_schema.gold_player_activity_daily"

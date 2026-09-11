@@ -30,8 +30,7 @@ Four properties matter beyond the saving, and each has cost something before:
 
 from __future__ import annotations
 
-from test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build, stages
-
+from tests.test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build, stages
 from tools import ToolResult, combine_dictionary_questions, normalise_dictionary_question
 
 FIELDS = (
@@ -67,7 +66,7 @@ def tool_replies(llm):
 def synthesis_prompt(llm) -> str:
     """The user half of the closing synthesis call, which is where evidence lands."""
 
-    from test_agent import PLANNER_PREFIX
+    from tests.test_agent import PLANNER_PREFIX
 
     closing = [
         call

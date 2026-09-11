@@ -12,7 +12,7 @@
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .pia-splash-run {
@@ -23,7 +23,7 @@
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .live-progress-detail {
@@ -37,8 +37,8 @@
  *
  * The rows used to be separate 10px cards with a gap between them, which at four
  * steps read as four unrelated objects. They are rows of one list, so they get one
- * frame and a rule between them. The card shell stays fixed while this list owns
- * the bounded action viewport and follows the newest reported step.
+ * frame and a rule between them. The list stays in page flow so it never
+ * captures the reader's wheel gesture.
  */
 .live-steps {
   list-style: none;
@@ -52,10 +52,8 @@
   border: 1px solid var(--db-line);
   border-radius: var(--radius-sm);
   min-height: 0;
-  max-height: clamp(220px, 42vh, 420px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  max-height: none;
+  overflow: visible;
 }
 
 .live-step {

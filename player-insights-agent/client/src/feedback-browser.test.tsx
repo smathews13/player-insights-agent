@@ -169,9 +169,7 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('lucide-thumbs-down');
     expect(markup).toContain('Comments captured');
     expect(markup).toContain('Helpful rate');
-    expect(markup).toContain(
-      'Open user overview for User coach@example.com; organization example.com'
-    );
+    expect(markup).toContain('Open user overview for User coach@example.com; organization example.com');
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
     expect(markup).toContain('data-role-state="consumer"');
     expect(markup).toContain('data-role-state="super_admin"');

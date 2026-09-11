@@ -70,6 +70,64 @@ export interface LiveRun {
   steps: LiveStep[];
 }
 
+function harnessStage(id: string, name: string, status: TraceStage['status'], start: number): TraceStage {
+  return {
+    id,
+    name,
+    kind: 'agent',
+    start,
+    duration: 0,
+    status,
+    calls: status === 'running' ? 0 : 1,
+    input: '',
+    output: '',
+    startMeasured: false,
+  };
+}
+
+/**
+ * The two user-visible phases that surround the endpoint's reported work.
+ *
+ * Planning is real application work even when the model does not emit a stage
+ * for it. Answer preparation is the quiet interval after the last reported
+ * operation and before the terminal response reaches the browser. These rows
+ * are presentation-only; stored traces remain the endpoint's measurements.
+ */
+export function liveHarnessStages({
+  stages,
+  loading,
+  openedAt,
+}: {
+  stages: TraceStage[];
+  loading: boolean;
+  openedAt: number | null;
+}): TraceStage[] {
+  if (!loading) return stages;
+  const withoutPresentation = stages.filter((stage) => stage.id !== 'ui-plan-stage' && stage.id !== 'ui-answer-stage');
+  if (withoutPresentation.length === 0) {
+    return [
+      harnessStage('ui-plan-stage', openedAt === null ? 'Sending the question' : 'Planning the analysis', 'running', 0),
+    ];
+  }
+
+  const firstStart = withoutPresentation[0]?.start ?? 0;
+  const hasPlanStage = withoutPresentation.some(
+    (stage) => stage.id === 'plan' || /\bplann?(?:ed|ing)\b/i.test(stage.name)
+  );
+  const shown = [
+    ...(hasPlanStage ? [] : [harnessStage('ui-plan-stage', 'Planned the analysis', 'complete', firstStart)]),
+    ...withoutPresentation,
+  ];
+  const hasAnswerStage = withoutPresentation.some(
+    (stage) => stage.id === 'synthesis' || /\b(?:prepar(?:ed|ing)|wrote|writing) the answer\b/i.test(stage.name)
+  );
+  if (!hasAnswerStage && !withoutPresentation.some((stage) => stage.status === 'running')) {
+    const last = withoutPresentation[withoutPresentation.length - 1];
+    shown.push(harnessStage('ui-answer-stage', 'Preparing the answer', 'running', last.start + last.duration));
+  }
+  return shown;
+}
+
 /** Longest recorded value shown inline on a step row. */
 const DETAIL_LIMIT = 180;
 

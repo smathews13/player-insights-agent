@@ -27,8 +27,8 @@ from __future__ import annotations
 import mlflow
 import pytest
 from mlflow.tracking import MlflowClient
-from test_agent import Call, FakeTools, ScriptedLlm, ask, build
 
+from tests.test_agent import Call, FakeTools, ScriptedLlm, ask, build
 from tools import ToolResult
 
 FIELDS = (

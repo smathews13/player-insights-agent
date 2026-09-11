@@ -6,6 +6,7 @@ import {
   buildLiveRun,
   describeStage,
   isAtBottom,
+  liveHarnessStages,
   mergeLiveStage,
   mergeReplayedStages,
   nextFollowState,
@@ -351,6 +352,38 @@ describe('buildLiveRun', () => {
   });
 });
 
+describe('live harness boundary stages', () => {
+  it('shows planning before the endpoint reports its first stage', () => {
+    expect(liveHarnessStages({ stages: [], loading: true, openedAt: 1_000 })).toMatchObject([
+      { id: 'ui-plan-stage', name: 'Planning the analysis', status: 'running' },
+    ]);
+  });
+
+  it('includes planning and answer preparation around reported work', () => {
+    const stages = [
+      stage({ id: 'step-1', name: 'Queried governed data', status: 'complete', start: 10, duration: 20 }),
+    ];
+    expect(liveHarnessStages({ stages, loading: true, openedAt: 1_000 }).map((item) => item.name)).toEqual([
+      'Planned the analysis',
+      'Queried governed data',
+      'Preparing the answer',
+    ]);
+  });
+
+  it('does not persist presentation-only stages after the run', () => {
+    const stages = [stage({ id: 'step-1' })];
+    expect(liveHarnessStages({ stages, loading: false, openedAt: 1_000 })).toBe(stages);
+  });
+
+  it('does not duplicate plan or answer stages reported by the endpoint', () => {
+    const stages = [
+      stage({ id: 'plan', name: 'Planned the analysis', status: 'complete' }),
+      stage({ id: 'synthesis', name: 'Prepared the answer', status: 'complete' }),
+    ];
+    expect(liveHarnessStages({ stages, loading: true, openedAt: 1_000 })).toEqual(stages);
+  });
+});
+
 describe('isAtBottom', () => {
   it('counts a container scrolled to its end as being at the bottom', () => {
     expect(isAtBottom({ scrollTop: 260, scrollHeight: 600, clientHeight: 340 })).toBe(true);
@@ -393,15 +426,13 @@ describe('nextFollowState', () => {
   });
 });
 
-describe('the live timeline keeps the newest active step in a stable card', () => {
-  it('owns a bounded scroller and follows new work until the reader scrolls away', () => {
-    expect(PANEL).toContain('onScroll={(event) =>');
-    expect(PANEL).toContain('onWheelCapture={(event) =>');
-    expect(PANEL).toContain('if (event.deltaY < 0) followsNewest.current = false;');
-    expect(PANEL).toContain('list.scrollTop = list.scrollHeight - list.clientHeight');
-    expect(PANEL).toContain('useRef<HTMLOListElement');
-    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*max-height:\s*clamp\(/);
-    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow-y:\s*auto/);
+describe('the live timeline belongs to the page scroll', () => {
+  it('does not capture wheel or scroll input in a nested viewport', () => {
+    expect(PANEL).not.toContain('onScroll=');
+    expect(PANEL).not.toContain('onWheel');
+    expect(PANEL).not.toContain('scrollTop');
+    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*max-height:\s*none/);
+    expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*overflow:\s*visible/);
   });
 });
 

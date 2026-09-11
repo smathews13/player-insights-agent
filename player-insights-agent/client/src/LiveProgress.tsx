@@ -11,22 +11,20 @@
  * - While the run is active, the list owns the card's one bounded scroll
  *   viewport. The card shell stays fixed so its loader cannot clip later steps.
  */
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { Badge } from './ui';
 
 import type { TraceStage } from './answer-shape';
 import { PiaAvatar } from './PiaMark';
 import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
-import { buildLiveRun, nextFollowState, type LiveStep } from './live-progress';
+import { buildLiveRun, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
 import { astPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
 import { EntityText, TableEntityList } from './InlineEntityText';
 import { InlineSqlCode } from './SqlPresentation';
 import { PiaLoader } from './PiaLoader';
-
-const useFollowEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * One reported step.
@@ -175,44 +173,11 @@ export function LiveProgress({
   elapsedMs?: number | null;
 }) {
   const run = buildLiveRun({ openedAt, stages, question });
-  const listRef = useRef<HTMLOListElement>(null);
-  const followsNewest = useRef(true);
-  const previousTop = useRef(0);
-  const frontier = run.steps.map((step) => `${step.id}:${step.status}:${step.detail}:${step.result}`).join('|');
-
-  useFollowEffect(() => {
-    const list = listRef.current;
-    if (!list || !followsNewest.current) return;
-    list.scrollTop = list.scrollHeight - list.clientHeight;
-    previousTop.current = list.scrollTop;
-  }, [frontier]);
 
   return (
     <div className="live-progress">
       {run.steps.length > 0 && (
-        <ol
-          ref={listRef}
-          className="live-steps"
-          onWheelCapture={(event) => {
-            // A live update can arrive between the wheel gesture and the browser's
-            // scroll event. Release follow on the gesture itself so that update
-            // cannot snap the list back to the newest row before the reader moves.
-            if (event.deltaY < 0) followsNewest.current = false;
-          }}
-          onScroll={(event) => {
-            const list = event.currentTarget;
-            followsNewest.current = nextFollowState({
-              view: {
-                scrollTop: list.scrollTop,
-                scrollHeight: list.scrollHeight,
-                clientHeight: list.clientHeight,
-              },
-              previousTop: previousTop.current,
-              following: followsNewest.current,
-            });
-            previousTop.current = list.scrollTop;
-          }}
-        >
+        <ol className="live-steps">
           {run.steps.map((step, index) => (
             <StepRow
               key={step.id}

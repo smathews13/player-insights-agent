@@ -33,7 +33,8 @@ part of their own answer is missing.
 from __future__ import annotations
 
 import pytest
-from test_agent import (
+
+from tests.test_agent import (
     ACTIVITY,
     PLAN_COLUMNS,
     PLAN_FACTS,
@@ -46,7 +47,6 @@ from test_agent import (
     build,
     describe_result,
 )
-
 from tools import SqlDenied, ToolResult
 
 #: The three candidates the planner picks. `TITLE_DAILY` is the one `PLAN_FACTS`

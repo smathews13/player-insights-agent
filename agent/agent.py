@@ -1169,8 +1169,10 @@ chooses which tables an analysis would read. Return ONE JSON object and nothing 
 {{"tables": ["catalog.schema.table", ...]}}
 
 Rules:
-- At most {limit} tables, fully qualified, copied exactly from the listing below. A name
-  that is not in the listing will be discarded.
+- Return exactly {limit} ranked tables whenever the listing contains at least {limit}
+  plausible sources for a data question. Return every plausible source when fewer exist.
+  Names must be fully qualified and copied exactly from the listing below; a name that is
+  not in the listing will be discarded. Never pad with an unrelated table.
 - Choose from what the listing and the table descriptions establish. Do not infer what a
   table holds, or which of two is authoritative, from the shape of its name.
 - Where the question turns on what a field MEANS rather than on a figure, include whatever

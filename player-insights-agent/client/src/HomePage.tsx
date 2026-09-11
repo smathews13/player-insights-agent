@@ -108,7 +108,7 @@ import {
   type ActiveRunPollingController,
 } from './active-run-polling';
 import { LiveProgress } from './LiveProgress';
-import { railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
+import { liveHarnessStages, railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import {
   beginLiveAsk,
@@ -163,6 +163,7 @@ import { ComposerBudgetStatus } from './ComposerBudgetStatus';
 import { AIAnalysisCaveat } from './AIAnalysisCaveat';
 import { conversationAge } from './conversation-age';
 import { PlanCard } from './PlanCard';
+import { isPlanRevisionRequest } from './plan-revision';
 import { AgentPathConstellation } from './AgentConstellation';
 import { StoredAnswerBoundary } from './StoredAnswerBoundary';
 import { deriveCurrentStageView } from './current-stage-view';
@@ -216,6 +217,12 @@ const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
  * conversation loaded from the store.
  */
 const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';
+
+/** Whether this is the first proposal, rather than the one allowed revision. */
+function canRevisePlanAt(messages: ConversationMessage[], planIndex: number): boolean {
+  const request = messages[planIndex - 1];
+  return request?.role !== 'user' || !isPlanRevisionRequest(request.content);
+}
 
 /**
  * The empty step list, allocated once.
@@ -593,6 +600,11 @@ export function HomePage() {
    */
   const streamOpenedAt = liveAsk?.streamOpenedAt ?? durableRunOpenedAt;
   const lastStageAt = liveAsk?.lastStageAt ?? null;
+  const harnessStages = liveHarnessStages({
+    stages: liveStages,
+    loading,
+    openedAt: streamOpenedAt,
+  });
   const [now, setNow] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -652,7 +664,7 @@ export function HomePage() {
     railStagesFor({
       loading,
       runStopped: Boolean(displayedRunStopped),
-      liveStages,
+      liveStages: harnessStages,
       answeredStages: answer?.trace.stages ?? [],
       clarificationStages: asked?.trace.stages ?? [],
       recorded: isMlflowTraceId(answer?.trace.id) || isMlflowTraceId(asked?.trace.id),
@@ -680,7 +692,7 @@ export function HomePage() {
    * it has finished, and zero in the gap between one step finishing and the next
    * being announced.
    */
-  const runningStep = runningStepNumber(liveStages);
+  const runningStep = runningStepNumber(harnessStages);
   /**
    * The card the rail rings, and only while a run is actually in flight.
    *
@@ -712,7 +724,7 @@ export function HomePage() {
    * beat while retaining the final observed step.
    */
   const railActiveIndex =
-    (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? liveStages.length - 1 : -1;
+    (loading || Boolean(displayedRunStopped)) && harnessStages.length > 0 ? harnessStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *
@@ -2567,6 +2579,7 @@ export function HomePage() {
                     // turn -- here and on the server -- so the turn under the plan
                     // is what says which happened.
                     approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
+                    canRevisePlan={canRevisePlanAt(messages, index)}
                     // The turn this answered, for the timeline's envelope row. Read
                     // from the transcript rather than the trace, which does not
                     // carry the prompt.
@@ -2663,7 +2676,7 @@ export function HomePage() {
                 ) : (
                   <div className={workingSeat === 'splash' ? 'pia-splash-run' : undefined}>
                     <LiveProgress
-                      stages={liveStages}
+                      stages={harnessStages}
                       openedAt={streamOpenedAt}
                       lastStageAt={lastStageAt}
                       now={now}
@@ -3024,6 +3037,7 @@ const MessageItem = memo(function MessageItem({
   loading,
   resolved,
   approved,
+  canRevisePlan,
   question,
   feedback,
   showFeedback,
@@ -3042,6 +3056,8 @@ const MessageItem = memo(function MessageItem({
   resolved: boolean;
   /** Whether the turn that superseded a plan was the reader approving it. */
   approved: boolean;
+  /** Whether this proposal still has its one allowed revision available. */
+  canRevisePlan: boolean;
   /** The question this answered, or '' where the row above is not one. */
   question: string;
   feedback: FeedbackEntry;
@@ -3093,6 +3109,7 @@ const MessageItem = memo(function MessageItem({
         loading={loading}
         resolved={resolved}
         approved={approved}
+        canRevise={canRevisePlan}
         onApprove={() =>
           onAsk(response.plan.question, {
             planId: response.plan.id,

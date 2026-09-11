@@ -21,6 +21,12 @@
 import type { AnalysisPlan } from './app-types';
 
 const RECOMMENDED_TITLE_SUFFIX = /\s*\(recommended\)\s*$/i;
+const PLAN_REVISION_PREFIX = 'Revise the proposed analysis plan for this question:';
+
+/** Whether a user turn is the one allowed plan-revision request. */
+export function isPlanRevisionRequest(content: string): boolean {
+  return content.trimStart().startsWith(PLAN_REVISION_PREFIX);
+}
 
 /** Whether this step is the one the agent marked as its pick. */
 export function isRecommendedSourceTitle(title: string): boolean {

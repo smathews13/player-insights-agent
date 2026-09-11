@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import mlflow
 import pytest
-from test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build
+
+from tests.test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build
 
 
 @pytest.fixture()

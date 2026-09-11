@@ -2422,6 +2422,13 @@ def plan_for(question=PLAN_QUESTION, **kwargs):
     return response.custom_outputs["plan"], tools, llm
 
 
+def test_planner_requests_three_ranked_sources_without_inventing_padding():
+    instructions = agent.PLAN_SELECTION_INSTRUCTIONS.format(limit=agent.PLAN_MAX_TABLES)
+
+    assert "Return exactly 3 ranked tables" in instructions
+    assert "Never pad with an unrelated table" in instructions
+
+
 def test_the_plan_names_the_tables_columns_and_filters_the_run_will_use():
     plan, tools, _ = plan_for()
 
