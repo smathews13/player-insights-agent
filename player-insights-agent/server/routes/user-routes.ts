@@ -62,13 +62,20 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
 import { parseOrganizationMappings } from '../../shared/organization-mapping';
 import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
-import { alignRosterWithAppAccess, readAppAccess, type AppAccessOptions } from '../lib/app-access-roster';
+import {
+  alignRosterWithAppAccess,
+  mergeAppAccessSnapshots,
+  readAppAccess,
+  readAppAccessAsApp,
+  type AppAccessOptions,
+} from '../lib/app-access-roster';
 import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
 import { deleteGroupRoleMapping, readGroupRoleMappings, writeGroupRoleMapping } from '../lib/group-role-mappings';
 import { readWorkspaceGroup, readWorkspaceGroupMembers, type WorkspaceGroupRead } from '../lib/workspace-group-members';
 import type { GroupMembersResponse } from '../../shared/user-roster-contract';
+import { workspaceControlPlaneReader } from '../lib/control-plane-identity';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
@@ -90,15 +97,18 @@ export interface AppAccessService {
 
 const liveAppAccess: AppAccessService = {
   async read(req) {
+    const appName = (process.env.DATABRICKS_APP_NAME ?? '').trim();
     const options = appAccessOptions(req);
-    return options
-      ? readAppAccess(options)
-      : {
-          available: false,
-          principals: [],
-          message:
-            'Databricks App permissions are unavailable because this session has no forwarded user token or app identity.',
-        };
+    const unavailable = {
+      available: false as const,
+      principals: [],
+      message: 'Databricks App permissions are unavailable because this session has no forwarded user token.',
+    };
+    const [appSnapshot, userSnapshot] = await Promise.all([
+      readAppAccessAsApp(appName, workspaceControlPlaneReader),
+      options ? readAppAccess(options) : unavailable,
+    ]);
+    return mergeAppAccessSnapshots(appSnapshot, userSnapshot);
   },
 };
 
@@ -485,12 +495,12 @@ export function setupUserRoutes(
           .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
           .map((principal) => principal.name)
       );
+      rows = rows.filter((row) => admitted.has(row.email));
       const seed = {
-        superAdmins: configuredSeed.superAdmins,
-        admins: configuredSeed.admins,
+        superAdmins: configuredSeed.superAdmins.filter((candidate) => admitted.has(candidate)),
+        admins: configuredSeed.admins.filter((candidate) => admitted.has(candidate)),
       };
-      const alreadyAdmitted =
-        admitted.has(email) || rows.some((row) => row.email.toLocaleLowerCase() === email.toLocaleLowerCase());
+      const alreadyAdmitted = admitted.has(email);
       if (!alreadyAdmitted) {
         res.status(409).json({
           error: 'app_membership_required',

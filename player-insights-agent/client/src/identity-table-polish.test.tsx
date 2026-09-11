@@ -169,7 +169,7 @@ describe('Identity table polish', () => {
     );
   });
 
-  it('renders organization marks, short addresses, and full-email copy controls', () => {
+  it('renders organization marks, full addresses, and copy controls', () => {
     const markup = roster();
     expect(markup).toContain('aria-label="Organization: Databricks"');
     expect(markup).toContain('data-organization-domain="databricks.com"');
@@ -181,7 +181,7 @@ describe('Identity table polish', () => {
     expect(markup).toContain('>EX</span>');
     expect(markup).not.toContain('lucide-building-2');
     for (const entry of payload.entries) {
-      expect(markup).toContain(`identity-chip-name">${entry.email.split('@')[0]}</span>`);
+      expect(markup).toContain(`identity-chip-name">${entry.email}</span>`);
       expect(markup).toContain(`title="${entry.email}"`);
       expect(markup).toContain(`aria-label="Copy email ${entry.email}"`);
     }

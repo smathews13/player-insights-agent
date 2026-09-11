@@ -1,1 +1,0 @@
-import"./appkit-ui-2pC2aTvu.js";import{t as e}from"./RunRatingBadge-CF53NE4x.js";export{e as RunRatingBadge};
