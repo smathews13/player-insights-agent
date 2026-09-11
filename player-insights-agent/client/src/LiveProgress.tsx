@@ -8,8 +8,8 @@
  *   evenly spread stages once a run passed four steps, so a twenty-one step run
  *   showed four of them and silently dropped seventeen: the opposite of what
  *   a live view is for.
- * - The list grows inside the bounded live answer card. It never creates a
- *   second vertical viewport inside that pane.
+ * - While the run is active, the list owns the card's one bounded scroll
+ *   viewport. The card shell stays fixed so its loader cannot clip later steps.
  */
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { Badge } from './ui';
@@ -193,6 +193,12 @@ export function LiveProgress({
         <ol
           ref={listRef}
           className="live-steps"
+          onWheelCapture={(event) => {
+            // A live update can arrive between the wheel gesture and the browser's
+            // scroll event. Release follow on the gesture itself so that update
+            // cannot snap the list back to the newest row before the reader moves.
+            if (event.deltaY < 0) followsNewest.current = false;
+          }}
           onScroll={(event) => {
             const list = event.currentTarget;
             followsNewest.current = nextFollowState({
