@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   alignRosterWithAppAccess,
   appAccessPrincipals,
+  mergeAppAccessSnapshots,
   readAppAccess,
+  readAppAccessAsApp,
   type AppAccessOptions,
 } from './app-access-roster';
 import type { RosterPayload } from '../../shared/user-roster-contract';
@@ -75,7 +77,7 @@ const roster: RosterPayload = {
 };
 
 describe('Databricks App access roster', () => {
-  it('overlays App users and keeps effective stored admins visible for demotion', () => {
+  it('overlays PIA roles on explicit App users and adds ACL-only users as consumers', () => {
     const aligned = alignRosterWithAppAccess(roster, {
       available: true,
       principals: appAccessPrincipals(acl),
@@ -96,19 +98,9 @@ describe('Databricks App access roster', () => {
           appAccess: 'can_use',
           canRemove: false,
         }),
-        expect.objectContaining({
-          email: 'pia-only@example.com',
-          role: 'admin',
-          appAccess: 'inherited',
-          canRemove: true,
-        }),
       ])
     );
-    expect(aligned.entries.map((entry) => entry.email)).toEqual([
-      'owner@example.com',
-      'reader@example.com',
-      'pia-only@example.com',
-    ]);
+    expect(aligned.entries.map((entry) => entry.email)).toEqual(['owner@example.com', 'reader@example.com']);
     expect(aligned.appAccessPrincipals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'group', name: 'Executives' }),
@@ -173,5 +165,37 @@ describe('Databricks App access roster', () => {
     expect(call.mock.calls[0]?.[0]).toBe('https://workspace.example/api/2.0/permissions/apps/astrolabe');
     expect(call.mock.calls[0]?.[1]?.method).toBe('GET');
     expect(new Headers(call.mock.calls[0]?.[1]?.headers).get('authorization')).toBe('Bearer obo-token');
+  });
+
+  it('reads the authoritative ACL with the app identity when the route supplies a control-plane reader', async () => {
+    const read = vi.fn(() => Promise.resolve(acl));
+    const result = await readAppAccessAsApp('astrolabe', read);
+
+    expect(result.available).toBe(true);
+    expect(result.principals.filter((principal) => principal.kind === 'user')).toHaveLength(2);
+    expect(read).toHaveBeenCalledWith('/api/2.0/permissions/apps/astrolabe');
+  });
+
+  it('unions app and user-token ACL views without duplicating the same principal', () => {
+    const appView = { available: true, principals: appAccessPrincipals(acl), message: '' };
+    const userView = {
+      available: true,
+      principals: appAccessPrincipals({
+        access_control_list: [
+          acl.access_control_list[0],
+          {
+            user_name: 'third@example.com',
+            all_permissions: [{ permission_level: 'CAN_USE', inherited: false }],
+          },
+        ],
+      }),
+      message: '',
+    };
+
+    const merged = mergeAppAccessSnapshots(appView, userView);
+
+    expect(
+      merged.principals.filter((principal) => principal.kind === 'user').map((principal) => principal.name)
+    ).toEqual(['owner@example.com', 'reader@example.com', 'third@example.com']);
   });
 });

@@ -7,6 +7,7 @@
  * without granting CAN_MANAGE for an in-app administrator role.
  */
 import type { RosterEntry, RosterPayload } from '../../shared/user-roster-contract';
+import type { ControlPlaneReader } from './control-plane-identity';
 
 export type AppPermissionLevel = 'CAN_MANAGE' | 'CAN_USE';
 export type AppAccessPrincipalKind = 'user' | 'group' | 'service_principal';
@@ -73,7 +74,7 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
   }
 
   const storedByEmail = new Map(payload.entries.map((entry) => [entry.email.toLowerCase(), entry]));
-  const directEntries = snapshot.principals
+  const entries = snapshot.principals
     .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
     .map((principal) => {
       const entry = storedByEmail.get(principal.name.toLowerCase());
@@ -98,17 +99,6 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
         canRemove: false,
       } satisfies RosterEntry;
     });
-  const directEmails = new Set(directEntries.map((entry) => entry.email.toLowerCase()));
-  const inheritedOrStored = payload.entries
-    .filter((entry) => !directEmails.has(entry.email.toLowerCase()) && entry.role !== 'consumer')
-    .map((entry) => ({
-      ...entry,
-      appAccess: 'inherited' as const,
-      appAccessDetail:
-        'This app role is stored, but direct App access is not listed. It may still apply through a Databricks App group.',
-    }));
-  const entries = [...directEntries, ...inheritedOrStored];
-
   return {
     ...payload,
     entries,
@@ -163,6 +153,44 @@ function higher(left: AppPermissionLevel | null, right: AppPermissionLevel | nul
   if (left === 'CAN_MANAGE' || right === 'CAN_MANAGE') return 'CAN_MANAGE';
   if (left === 'CAN_USE' || right === 'CAN_USE') return 'CAN_USE';
   return null;
+}
+
+/** Union two successful reads so one token's partial view cannot hide a member. */
+export function mergeAppAccessSnapshots(primary: AppAccessSnapshot, secondary: AppAccessSnapshot): AppAccessSnapshot {
+  const available = [primary, secondary].filter((snapshot) => snapshot.available);
+  if (available.length === 0) {
+    return {
+      available: false,
+      principals: [],
+      message: primary.message || secondary.message,
+    };
+  }
+  const merged = new Map<string, AppAccessPrincipal>();
+  for (const snapshot of available) {
+    for (const principal of snapshot.principals) {
+      const key = `${principal.kind}:${principal.name.toLocaleLowerCase()}`;
+      const held = merged.get(key);
+      merged.set(
+        key,
+        held
+          ? {
+              ...held,
+              displayName: held.displayName || principal.displayName,
+              directPermission: higher(held.directPermission, principal.directPermission),
+              effectivePermission: higher(held.effectivePermission, principal.effectivePermission),
+              inherited: held.inherited || principal.inherited,
+            }
+          : principal
+      );
+    }
+  }
+  return {
+    available: true,
+    principals: [...merged.values()].sort(
+      (left, right) => left.kind.localeCompare(right.kind) || left.name.localeCompare(right.name)
+    ),
+    message: '',
+  };
 }
 
 function messageFrom(body: PermissionsBody, fallback: string): string {
@@ -268,6 +296,25 @@ export async function readAppAccess(options: AppAccessOptions): Promise<AppAcces
       available: false,
       principals: [],
       message: 'Databricks App membership could not be reached.',
+    };
+  }
+}
+
+/** Read this App's own ACL with the App service principal. */
+export async function readAppAccessAsApp(appName: string, reader: ControlPlaneReader): Promise<AppAccessSnapshot> {
+  const name = appName.trim();
+  if (!name) {
+    return { available: false, principals: [], message: 'The running app could not establish its App name.' };
+  }
+  try {
+    const body = await reader(`/api/2.0/permissions/apps/${encodeURIComponent(name)}`);
+    return { available: true, principals: appAccessPrincipals(body), message: '' };
+  } catch (error) {
+    console.warn('[identity] Databricks App membership could not be read as the app:', (error as Error).message);
+    return {
+      available: false,
+      principals: [],
+      message: 'Databricks App membership could not be read with the app identity.',
     };
   }
 }

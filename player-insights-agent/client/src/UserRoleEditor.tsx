@@ -380,6 +380,7 @@ export function RosterRows({
                           organization={organization}
                           className="admin-row-address"
                           canOpen
+                          showFullIdentity
                         />
                         <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
                       </span>
