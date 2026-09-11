@@ -50,27 +50,26 @@
 /*
  * Every in-flight state uses the same compact pane, including planning before
  * the first event and searching/preparing/finding after events arrive. The
- * working card itself is the one scroll owner, so a long timeline stays inside
- * the bounded pane without turning the whole center track into a second
- * viewport.
+ * working card remains in document flow, so wheel input over a long timeline
+ * continues to move the page instead of being captured by a nested viewport.
  */
 .ask-layout[data-center-state='working'] .conversation-main {
   min-height: 0;
 }
 .ask-layout[data-center-state='working'] .conversation-main > .answer-card {
-  height: var(--ask-active-card-max-block-size);
+  height: auto;
   min-height: var(--ask-active-card-min-block-size);
-  max-height: var(--ask-active-card-max-block-size);
+  max-height: none;
   margin-bottom: 0;
-  overflow: hidden;
-  overscroll-behavior: contain;
+  overflow: visible;
+  overscroll-behavior: auto;
 }
 .ask-layout[data-center-state='working'] .conversation-main > .answer-card > [data-slot='card-content'] {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 .ask-layout[data-center-state='working'] .conversation-main > .answer-card .live-progress,
 .ask-layout[data-center-state='working'] .conversation-main > .answer-card .live-steps {

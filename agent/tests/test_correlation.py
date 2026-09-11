@@ -28,9 +28,9 @@ from types import SimpleNamespace
 import mlflow
 import pytest
 from mlflow.tracking import MlflowClient
-from test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build, settings
 
 import correlation
+from tests.test_agent import ACTIVITY, Call, FakeTools, ScriptedLlm, ask, build, settings
 from tools import ToolResult
 
 #: A well-formed id in the shape `shared/correlation.ts` mints: the prefix, then

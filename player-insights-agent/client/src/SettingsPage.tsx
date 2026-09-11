@@ -388,9 +388,7 @@ export function SettingsPage({
                             checked={usesGenieMcp(draftFeatures)}
                             disabled={!experimentalLoaded || !showsAdminSurfaces(role.state)}
                             onCheckedChange={(enabled) => {
-                              setDraftFeatures((current) =>
-                                withExperimentalFeature(current, 'genieCodeMcp', enabled)
-                              );
+                              setDraftFeatures((current) => withExperimentalFeature(current, 'genieCodeMcp', enabled));
                               setSaveState(SETTINGS_SAVE_IDLE);
                             }}
                             aria-label="Enable Genie MCP"

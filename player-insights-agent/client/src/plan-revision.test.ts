@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canSubmitRevision,
   displaySourceTitle,
+  isPlanRevisionRequest,
   planRevisionReducer,
   recommendedSourceId,
   revisedRequest,
@@ -164,5 +165,19 @@ describe('a revised plan is not an approved one', () => {
     expect(home).toContain("const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';");
     expect(home).toContain('approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}');
     expect(home).toContain('label: PLAN_APPROVAL_LABEL,');
+  });
+});
+
+describe('one revision maximum', () => {
+  it('recognizes the revision wrapper and no ordinary question as a revision', () => {
+    expect(
+      isPlanRevisionRequest(revisedRequest(PLAN, { note: 'Use the second source.', selectedStepId: 'source-2' }))
+    ).toBe(true);
+    expect(isPlanRevisionRequest(PLAN.question)).toBe(false);
+  });
+
+  it('removes the revision action from the revised plan and leaves execution available', () => {
+    expect(CARD).toContain('canRevise ?');
+    expect(CARD).toContain("'Run revised plan'");
   });
 });

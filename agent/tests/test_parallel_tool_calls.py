@@ -39,7 +39,9 @@ import threading
 import time
 
 import pytest
-from test_agent import (
+
+from agent import ORCHESTRATOR_INSTRUCTIONS
+from tests.test_agent import (
     ACTIVITY,
     Call,
     FakeTools,
@@ -49,8 +51,6 @@ from test_agent import (
     resource_calls,
     stages,
 )
-
-from agent import ORCHESTRATOR_INSTRUCTIONS
 from tools import SqlRefused
 
 

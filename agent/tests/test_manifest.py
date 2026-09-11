@@ -1610,6 +1610,7 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         "warehouse_id",
         "data_genie_space_id",
         "dictionary_genie_space_id",
+            "genie_mcp_public_key",
         "llm_endpoint",
         "llm_gateway_endpoint",
         "llm_gateway",

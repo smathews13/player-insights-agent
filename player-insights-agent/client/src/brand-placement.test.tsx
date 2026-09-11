@@ -275,6 +275,7 @@ describe('the plan card marks every source as a warehouse read', () => {
         loading={false}
         resolved={false}
         approved={false}
+        canRevise={true}
         onApprove={() => {}}
         onRevise={() => {}}
       />

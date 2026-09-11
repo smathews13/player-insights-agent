@@ -27,9 +27,8 @@ from __future__ import annotations
 import threading
 import time
 
-from test_agent import PLAN_COLUMNS, FakeTools, ScriptedLlm, build, describe_result
-
 from agent import MAX_PARALLEL_TOOL_CALLS
+from tests.test_agent import PLAN_COLUMNS, FakeTools, ScriptedLlm, build, describe_result
 
 NAMESPACE = "test_catalog.test_schema"
 

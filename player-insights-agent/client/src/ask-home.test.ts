@@ -256,7 +256,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     expect(body('.conversation-main')).toMatch(/max-height:\s*none/);
     expect(body('.conversation-main')).toMatch(/overflow-y:\s*visible/);
     expect(STYLESHEET).toMatch(
-      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*overflow:\s*hidden/
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*overflow:\s*visible/
     );
     expect(body('.conversation-column')).toMatch(/gap:\s*12px/);
     expect(withoutComments(STYLESHEET)).not.toContain('--composer-reserve');
@@ -736,13 +736,13 @@ describe('the inspector while a run is still going', () => {
      * Busy is now derived from the conversation-keyed live registry (or a
      * durable run explicitly matching the open conversation), so another
      * conversation can keep running without locking navigation or lighting this
-     * rail. The `liveStages` guard remains load-bearing: with no live steps yet
-     * the rail falls back to the previous answer's trace.
+     * rail. `harnessStages` includes the visible planning and answer-preparation
+     * phases around the endpoint's own reported work.
      */
     expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
     expect(HOME_PAGE).toMatch(/liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/);
     expect(HOME_PAGE).toMatch(
-      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? liveStages\.length - 1 : -1;/
+      /\(loading \|\| Boolean\(displayedRunStopped\)\) && harnessStages\.length > 0 \? harnessStages\.length - 1 : -1;/
     );
     expect(HOME_PAGE).not.toMatch(/liveStages\.length > 0 \? currentStage\.index : -1/);
     expect(HOME_PAGE).toContain('const currentStage = deriveCurrentStageView({');
@@ -754,7 +754,7 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE).not.toMatch(/\(runningStep \|\| railStages\.length\) - 1/);
     // Still read, and still the number the pill's failure label needs: the step a
     // run DIED inside is a different claim from how far it got.
-    expect(HOME_PAGE).toMatch(/const runningStep = runningStepNumber\(liveStages\);/);
+    expect(HOME_PAGE).toMatch(/const runningStep = runningStepNumber\(harnessStages\);/);
     expect(HOME_PAGE).toMatch(/runningStep,/);
   });
 

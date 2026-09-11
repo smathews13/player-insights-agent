@@ -8,8 +8,7 @@ export const GENIE_MCP_TRANSPORT = 'mcp';
 export const GENIE_MCP_CAPABILITY_VERSION = 1;
 export const GENIE_MCP_CAPABILITY_TTL_SECONDS = 45;
 export const GENIE_MCP_PRIVATE_KEY_ENV = 'PLAYER_INSIGHTS_GENIE_MCP_PRIVATE_KEY';
-export const GENIE_MCP_SIGNING_WARNING =
-  '[genie-mcp] Signing is unavailable; this request will use direct Genie.';
+export const GENIE_MCP_SIGNING_WARNING = '[genie-mcp] Signing is unavailable; this request will use direct Genie.';
 
 export interface GenieMcpCapabilityPayload {
   aud: typeof GENIE_MCP_AUDIENCE;
@@ -38,9 +37,7 @@ export function canonicalJson(value: unknown): string {
     return encoded;
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-    left.localeCompare(right)
-  );
+  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right));
   return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
 }
 

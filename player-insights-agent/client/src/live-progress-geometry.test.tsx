@@ -83,13 +83,13 @@ describe('streamed progress geometry', () => {
     expect(rule('.live-step-detail .semantic-sql-code--inline')).toMatch(/overflow-wrap:\s*anywhere/);
   });
 
-  it('bounds long actions in a fixed card and scrolls only the step list', () => {
-    expect(rule('.live-steps')).toMatch(/overflow-y:\s*auto/);
-    expect(rule('.live-steps')).toMatch(/max-height:\s*clamp\(/);
-    expect(rule('.live-steps')).toMatch(/overscroll-behavior:\s*contain/);
-    expect(rule('.live-steps')).toMatch(/scrollbar-gutter:\s*stable/);
+  it('lets long actions grow into the page scroll', () => {
+    expect(rule('.live-steps')).toMatch(/overflow:\s*visible/);
+    expect(rule('.live-steps')).toMatch(/max-height:\s*none/);
+    expect(rule('.live-steps')).not.toMatch(/overflow-y:\s*(auto|scroll)/);
+    expect(rule('.live-steps')).not.toMatch(/overscroll-behavior:\s*contain/);
     expect(ASK_CSS).toMatch(
-      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*height:\s*var\(--ask-active-card-max-block-size\)[^}]*overflow:\s*hidden/
+      /\.ask-layout\[data-center-state='working'\] \.conversation-main > \.answer-card\s*\{[^}]*height:\s*auto[^}]*max-height:\s*none[^}]*overflow:\s*visible/
     );
 
     const mobile = LIVE_CSS.slice(LIVE_CSS.indexOf('@container answer-card (max-width: 800px)'));
@@ -100,16 +100,16 @@ describe('streamed progress geometry', () => {
     );
   });
 
-  it('follows inside the action list without scrolling page ancestors', () => {
+  it('leaves page ancestors as the only vertical scroll owner', () => {
     expect(rule('.live-progress')).toMatch(/flex:\s*1 1 auto/);
     expect(rule('.live-progress')).toMatch(/min-height:\s*0/);
-    expect(rule('.live-progress')).toMatch(/overflow:\s*hidden/);
+    expect(rule('.live-progress')).toMatch(/overflow:\s*visible/);
     expect(rule('.pia-splash-run')).toMatch(/align-self:\s*stretch/);
     expect(rule('.pia-splash-run')).toMatch(/width:\s*100%/);
     expect(rule('.pia-splash-run')).toMatch(/max-width:\s*100%/);
 
-    expect(PANEL).toContain('list.scrollTop = list.scrollHeight - list.clientHeight');
-    expect(PANEL).toContain('onScroll=');
+    expect(PANEL).not.toContain('scrollTop');
+    expect(PANEL).not.toContain('onScroll=');
     expect(PANEL).not.toContain('.scrollIntoView(');
   });
 

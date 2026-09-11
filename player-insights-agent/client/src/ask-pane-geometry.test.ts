@@ -29,15 +29,15 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(RUNS, '.run-explorer')).not.toContain('var(--workspace-pane-block-size)');
   });
 
-  it('keeps every active-loading card compact at 360–520px and at most 60dvh', () => {
+  it('keeps active-loading cards in page flow with the compact minimum', () => {
     const layout = rule(RAIL, '.ask-layout');
     expect(layout).toContain('--ask-active-card-min-block-size: min(360px, 60dvh)');
     expect(layout).toContain('--ask-active-card-max-block-size: min(520px, 60dvh)');
     const working = rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main > .answer-card");
-    expect(working).toContain('height: var(--ask-active-card-max-block-size)');
+    expect(working).toContain('height: auto');
     expect(working).toContain('min-height: var(--ask-active-card-min-block-size)');
-    expect(working).toContain('max-height: var(--ask-active-card-max-block-size)');
-    expect(working).toContain('overflow: hidden');
+    expect(working).toContain('max-height: none');
+    expect(working).toContain('overflow: visible');
     expect(rule(ASK, ".ask-layout[data-center-state='working'] .conversation-main")).toContain('min-height: 0');
     expect(HOME).toContain("data-center-state={loading ? 'working'");
   });
@@ -84,13 +84,13 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(ANSWER_BODY, '.answer-card-content')).toMatch(/grid-auto-rows:\s*auto[\s\S]*overflow:\s*visible/);
   });
 
-  it('keeps the graph intrinsic and gives the live step list one bounded scroller', () => {
+  it('keeps the graph intrinsic and the live step list in page flow', () => {
     expect(rule(CONSTELLATION, '.ast-sky')).toMatch(/overflow:\s*clip[\s\S]*flex:\s*none/);
     expect(rule(CONSTELLATION, '.ast-sky-canvas')).toMatch(/height:\s*auto[\s\S]*flex:\s*none/);
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*overflow-y:\s*auto/);
     const live = rule(LIVE, '.live-steps');
-    expect(live).toMatch(/overflow-y:\s*auto/);
-    expect(live).toMatch(/max-height:\s*clamp\(/);
+    expect(live).toMatch(/overflow:\s*visible/);
+    expect(live).toMatch(/max-height:\s*none/);
   });
 
   it('returns Ask and Run panes to auto-height page flow on narrow screens', () => {
