@@ -1,6 +1,6 @@
 import { Building2 } from 'lucide-react';
 import type { OrganizationMapping } from '../../shared/organization-contract';
-import { ORGANIZATION_LOGOS } from './organization-logos';
+import { ORGANIZATION_LOGO_IMAGES, ORGANIZATION_LOGOS } from './organization-logos';
 import './styles/organization-avatar.css';
 
 /**
@@ -13,9 +13,10 @@ import './styles/organization-avatar.css';
  */
 export function OrganizationAvatar({ organization }: { organization: OrganizationMapping }) {
   const logo = ORGANIZATION_LOGOS[organization.logoKey];
+  const image = ORGANIZATION_LOGO_IMAGES[organization.logoKey];
   const unknown = organization.fallback === 'building';
   const markClass = `roster-organization-mark roster-organization-mark--${
-    logo ? 'logo' : unknown ? 'fallback' : 'monogram'
+    logo || image ? 'logo' : unknown ? 'fallback' : 'monogram'
   }`;
 
   const attributes = {
@@ -27,6 +28,14 @@ export function OrganizationAvatar({ organization }: { organization: Organizatio
     'data-organization-domain': organization.domain || undefined,
     'data-organization-mark': 'raw',
   } as const;
+
+  if (image) {
+    return (
+      <span {...attributes} className={`${markClass} roster-organization-mark--acme`}>
+        <img className="roster-organization-logo-image" src={image} alt="" aria-hidden="true" />
+      </span>
+    );
+  }
 
   if (logo) {
     return <span {...attributes} dangerouslySetInnerHTML={{ __html: logo }} />;

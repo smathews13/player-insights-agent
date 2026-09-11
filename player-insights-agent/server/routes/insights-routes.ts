@@ -177,6 +177,7 @@ import {
   isVerified,
   limitsOfThisCheck,
   presentedTokenAge,
+  scopesFromToken,
   statementRunnerFor,
   statusForOutcome,
   tokenGrantsGenie,
@@ -350,16 +351,36 @@ export const schemaStatements = [
   ...ADMIN_ROLES_DDL,
 ];
 
+const ApprovedPlanBodySchema = z.object({
+  id: z.string().min(1).max(120),
+  question: z.string().min(1).max(5000),
+  summary: z.string().min(1).max(4000),
+  steps: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(120),
+        title: z.string().min(1).max(500),
+        description: z.string().min(1).max(2000),
+        kind: z.enum(['context', 'definitions', 'data', 'synthesis']),
+      })
+    )
+    .min(1)
+    .max(3),
+  requires_approval: z.boolean().optional(),
+  uses_conversation_context: z.boolean().optional(),
+  uses_attachment_context: z.boolean().optional(),
+});
+
 const AskBody = z.object({
   conversationId: z.string().min(1),
   prompt: z.string().min(2).max(5000),
   approvedPlanId: z.string().min(1).optional(),
   /**
    * The plan object the browser last received, posted back on approval so the
-   * agent can honour the sources the reader saw. Unknown extra fields are kept:
-   * stripping them would approve a different plan than the one on screen.
+   * agent can honour the sources the reader saw. Bounded here because this
+   * browser-controlled object is forwarded to Model Serving.
    */
-  approvedPlan: z.unknown().optional(),
+  approvedPlan: ApprovedPlanBodySchema.optional(),
   executePlan: z.boolean().optional(),
 });
 
@@ -4969,6 +4990,7 @@ export function setupInsightsRoutes(
               identityMode: identity.mode,
               user: email,
               requestId: identity.correlationId,
+              tokenScopes: scopesFromToken(identity.token) ?? [],
             }),
             evalGuidance,
           });

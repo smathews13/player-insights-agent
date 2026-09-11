@@ -13,6 +13,7 @@ answer.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import time
@@ -993,6 +994,7 @@ class PlayerInsightTools:
         workspace_client: Any | None = None,
         user_authorized: bool = False,
         allow_unattributed_figures: bool = False,
+        readable_tables: tuple[str, ...] | None = None,
     ):
         self.settings = settings
         if workspace_client is None:
@@ -1019,6 +1021,22 @@ class PlayerInsightTools:
         #: at every other layer: a test, a script or a caller that predates the
         #: flag gets the safe behaviour without knowing the flag exists.
         self.allow_unattributed_figures = allow_unattributed_figures
+        self._readable_tables = readable_tables
+
+    @property
+    def readable_tables(self) -> tuple[str, ...]:
+        return (
+            self.settings.readable_tables
+            if self._readable_tables is None
+            else self._readable_tables
+        )
+
+    def scoped_to_tables(self, tables: tuple[str, ...]) -> PlayerInsightTools:
+        """Return a request-local view bounded to the sources the user approved."""
+
+        scoped = copy.copy(self)
+        scoped._readable_tables = tables
+        return scoped
 
     # -----------------------------------------------------------------------
     # Admission control
@@ -1053,7 +1071,7 @@ class PlayerInsightTools:
         """
 
         return EvidenceGateway(
-            self.settings.readable_tables,
+            self.readable_tables,
             identity_mode=self.identity_mode(),
             # The manifest is the reviewed release boundary for every SQL route.
             # Genie spaces are live objects and may gain tables after this model
@@ -1678,7 +1696,7 @@ class PlayerInsightTools:
         space answers with lists of definitions, and the list is the answer.
         """
 
-        asked, dropped = unscope_dictionary_question(question, self.settings.readable_tables)
+        asked, dropped = unscope_dictionary_question(question, self.readable_tables)
         if dropped:
             asked = f"{asked} {DICTIONARY_SCOPE_INSTRUCTION}"
         return self._genie(
@@ -1964,7 +1982,7 @@ class PlayerInsightTools:
         a missing tag is untagged, not "no such data".
         """
 
-        declared = self.settings.readable_tables
+        declared = self.readable_tables
         catalog = catalog.strip().strip("`")
         schema = schema.strip().strip("`")
         tags = dict(self.settings.franchise_tags)
@@ -2056,7 +2074,7 @@ class PlayerInsightTools:
                 )
             )
 
-        declared = list(self.settings.readable_tables)
+        declared = list(self.readable_tables)
         if not declared:
             return ToolResult(text="(no tables were declared with this model)")
 
@@ -2127,7 +2145,7 @@ class PlayerInsightTools:
         by Unity Catalog at query time, as it is for every other tool.
         """
 
-        declared = self.settings.readable_tables
+        declared = self.readable_tables
         if not declared:
             return ToolResult(text="(no tables were declared with this model)")
 
@@ -2219,7 +2237,7 @@ class PlayerInsightTools:
                     "request_clarification. Do not guess it and do not crawl to find it."
                 )
             )
-        declared = {table.lower() for table in self.settings.readable_tables}
+        declared = {table.lower() for table in self.readable_tables}
         if name.lower() not in declared:
             return ToolResult(
                 text=(

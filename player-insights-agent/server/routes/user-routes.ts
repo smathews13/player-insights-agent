@@ -485,12 +485,12 @@ export function setupUserRoutes(
           .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
           .map((principal) => principal.name)
       );
-      rows = rows.filter((row) => admitted.has(row.email));
       const seed = {
-        superAdmins: configuredSeed.superAdmins.filter((candidate) => admitted.has(candidate)),
-        admins: configuredSeed.admins.filter((candidate) => admitted.has(candidate)),
+        superAdmins: configuredSeed.superAdmins,
+        admins: configuredSeed.admins,
       };
-      const alreadyAdmitted = admitted.has(email);
+      const alreadyAdmitted =
+        admitted.has(email) || rows.some((row) => row.email.toLocaleLowerCase() === email.toLocaleLowerCase());
       if (!alreadyAdmitted) {
         res.status(409).json({
           error: 'app_membership_required',

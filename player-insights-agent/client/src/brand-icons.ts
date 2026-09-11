@@ -280,6 +280,7 @@ const TOOL_PRODUCTS: Record<string, BrandProduct> = {
   run_sql: 'databricks-sql',
   query_named_table: 'databricks-sql',
   dictionary_genie: 'genie',
+  genie_mcp: 'genie',
 };
 
 /** The product behind a tool call, or null if the tool is not one of ours. */

@@ -364,6 +364,7 @@ describe('one map, and it is this one', () => {
     expect(productForTool('describe_table')).toBe('unity-catalog');
     expect(productForTool('run_sql')).toBe('databricks-sql');
     expect(productForTool('dictionary_genie')).toBe('genie');
+    expect(productForTool('genie_mcp')).toBe('genie');
     expect(productForTool('something_nobody_has_classified')).toBeNull();
 
     // No tool filed under two products, and every product it names is one we have

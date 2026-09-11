@@ -194,6 +194,16 @@ describe('toLiveStep', () => {
     expect(listed.tables).toEqual(['<your_catalog>.<your_schema>.gold_title_daily']);
     expect(listed.result).toBe('');
   });
+
+  it('labels managed Genie MCP without exposing raw arguments', () => {
+    const managed = stage({
+      id: 'step-1-1-genie_mcp',
+      kind: 'tool',
+      input: JSON.stringify({ question: 'Which title grew?', capability: 'secret' }),
+    });
+
+    expect(describeStage(managed)).toBe('Asked a managed Genie space: “Which title grew?”');
+  });
 });
 
 describe('discovery table entities', () => {

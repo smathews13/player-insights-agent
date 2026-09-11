@@ -57,8 +57,8 @@ import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
-import { effectiveRole, everyKnownUser, readRosterForRequest } from '../lib/user-roster';
-import { invalidAdminEmail, seedRoles } from '../lib/admin-roles';
+import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
+import { invalidAdminEmail, resolveRole, seedRoles } from '../lib/admin-roles';
 import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
@@ -1481,7 +1481,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         listSpPersonas(appkit).catch(() => []),
         listSpAssignments(appkit).catch(() => []),
       ]);
-      const role = effectiveRole({ seed: seedRoles(), stored: roster.rows, email: person });
+      const role = (await resolveRole(appkit.lakebase, person)).role;
       const assignment = personaAssignments.find((entry) => entry.email.toLowerCase() === person.toLowerCase());
       const assignedPersona = assignment
         ? personaCatalog.find((entry) => entry.id === assignment.personaId)

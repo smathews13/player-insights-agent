@@ -84,6 +84,7 @@ export function managedGenieMcpCapability({
   identityMode,
   user,
   requestId,
+  tokenScopes = [],
   privateKeyPem = process.env[GENIE_MCP_PRIVATE_KEY_ENV] ?? '',
   nowSeconds,
   nonce,
@@ -93,11 +94,13 @@ export function managedGenieMcpCapability({
   identityMode: string;
   user: string;
   requestId: string;
+  tokenScopes?: string[];
   privateKeyPem?: string;
   nowSeconds?: number;
   nonce?: string;
 }): string | undefined {
-  if (!enabled || !opensAdminSurfaces(role) || identityMode !== 'signed_in_user') return undefined;
+  const hasGenieScope = tokenScopes.includes('genie') || tokenScopes.includes('all-apis');
+  if (!enabled || !opensAdminSurfaces(role) || identityMode !== 'signed_in_user' || !hasGenieScope) return undefined;
   try {
     return issueGenieMcpCapability({ user, requestId, privateKeyPem, nowSeconds, nonce });
   } catch (error) {
