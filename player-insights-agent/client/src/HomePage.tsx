@@ -711,7 +711,8 @@ export function HomePage() {
    * made the path pop; AgentPathConstellation uses the absent clock to stop every
    * beat while retaining the final observed step.
    */
-  const railActiveIndex = (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? currentStage.index : -1;
+  const railActiveIndex =
+    (loading || Boolean(displayedRunStopped)) && liveStages.length > 0 ? liveStages.length - 1 : -1;
   /**
    * How long the step in progress has been going, for the one row that ticks.
    *

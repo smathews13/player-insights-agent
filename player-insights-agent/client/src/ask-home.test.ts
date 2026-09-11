@@ -742,8 +742,9 @@ describe('the inspector while a run is still going', () => {
     expect(HOME_PAGE).toMatch(/const liveAsk = useLiveAsk\(conversationId\);/);
     expect(HOME_PAGE).toMatch(/liveAsk\?\.inFlight \|\| isWorkingConversationRun\(activeConversationRun\)/);
     expect(HOME_PAGE).toMatch(
-      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? currentStage\.index : -1;/
+      /\(loading \|\| Boolean\(displayedRunStopped\)\) && liveStages\.length > 0 \? liveStages\.length - 1 : -1;/
     );
+    expect(HOME_PAGE).not.toMatch(/liveStages\.length > 0 \? currentStage\.index : -1/);
     expect(HOME_PAGE).toContain('const currentStage = deriveCurrentStageView({');
     expect(HOME_PAGE).toMatch(
       /const stillInThisConversation = \(\) => activeConversationRef\.current === runConversationId;/

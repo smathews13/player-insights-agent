@@ -396,6 +396,8 @@ describe('nextFollowState', () => {
 describe('the live timeline keeps the newest active step in a stable card', () => {
   it('owns a bounded scroller and follows new work until the reader scrolls away', () => {
     expect(PANEL).toContain('onScroll={(event) =>');
+    expect(PANEL).toContain('onWheelCapture={(event) =>');
+    expect(PANEL).toContain('if (event.deltaY < 0) followsNewest.current = false;');
     expect(PANEL).toContain('list.scrollTop = list.scrollHeight - list.clientHeight');
     expect(PANEL).toContain('useRef<HTMLOListElement');
     expect(LIVE_CSS).toMatch(/\.live-steps \{[^}]*max-height:\s*clamp\(/);
