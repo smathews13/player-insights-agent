@@ -201,7 +201,7 @@ export interface RosterPayload {
   appAccessMessage?: string;
   /** Non-user ACL entries cannot be truthfully expanded into individual emails. */
   appAccessPrincipals?: RosterAppAccessPrincipal[];
-  /** Operator-added workspace groups. Empty by default; deployment never seeds these. */
+  /** Groups with live Databricks App access, overlaid with their stored PIA role. */
   groupRoleMappings?: GroupRoleMappingEntry[];
 }
 

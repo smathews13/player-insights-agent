@@ -50,3 +50,7 @@ export async function writeGroupRoleMapping(
     [input.groupName.trim(), input.role, normalizeAdminEmail(input.actor)]
   );
 }
+
+export async function deleteGroupRoleMapping(store: AdminStore, groupName: string): Promise<void> {
+  await store.query(`DELETE FROM ${GROUP_ROLE_MAPPINGS_TABLE} WHERE lower(group_name) = lower($1)`, [groupName.trim()]);
+}

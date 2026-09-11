@@ -18,6 +18,7 @@ import { setupUserRoutes, type AppAccessService } from './user-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import { announceSeedAdmins, requireAdmin, requireSuperAdmin, type AdminStore } from '../lib/admin-roles';
 import { ADDED_ADMINS_TABLE, ADMIN_AUDIT_TABLE, ADMIN_GRANTS_TABLE } from '../lib/admin-roles-schema';
+import { GROUP_ROLE_MAPPINGS_TABLE } from '../lib/group-role-mappings';
 import type { RosterPayload } from '../../shared/user-roster-contract';
 
 const LEAD = 'lead@example.invalid';
@@ -29,13 +30,14 @@ const TELEMETRY = 'example_catalog.player_insights_telemetry';
 
 interface Rows {
   roster: { email: string; role: string; added_by: string; added_at: string }[];
+  groups: { group_name: string; role: string; added_by: string; added_at: string }[];
   audit: { actor: string; action: string; subject: string; detail: string }[];
   grants: { email: string; object: string; privilege: string; provenance: string }[];
 }
 
 /** Enough Lakebase for the three tables this family touches, so the real SQL runs. */
 function fakeLakebase(seedRows: Rows['roster'] = []): AdminStore & { rows: Rows } {
-  const rows: Rows = { roster: [...seedRows], audit: [], grants: [] };
+  const rows: Rows = { roster: [...seedRows], groups: [], audit: [], grants: [] };
   return {
     rows,
     query(text: string, params: unknown[] = []) {
@@ -60,6 +62,26 @@ function fakeLakebase(seedRows: Rows['roster'] = []): AdminStore & { rows: Rows 
       if (sql.includes(ADMIN_AUDIT_TABLE)) {
         rows.audit.push({ actor: values[1], action: values[2], subject: values[3], detail: values[4] });
         return Promise.resolve({ rows: [] });
+      }
+      if (sql.includes(GROUP_ROLE_MAPPINGS_TABLE)) {
+        if (sql.startsWith('INSERT')) {
+          const at = rows.groups.findIndex((row) => row.group_name.toLowerCase() === values[0].toLowerCase());
+          const row = {
+            group_name: values[0],
+            role: values[1],
+            added_by: values[2],
+            added_at: '2026-09-10T00:00:00.000Z',
+          };
+          if (at >= 0) rows.groups[at] = row;
+          else rows.groups.push(row);
+          return Promise.resolve({ rows: [] });
+        }
+        if (sql.startsWith('DELETE')) {
+          const at = rows.groups.findIndex((row) => row.group_name.toLowerCase() === values[0].toLowerCase());
+          if (at >= 0) rows.groups.splice(at, 1);
+          return Promise.resolve({ rows: [] });
+        }
+        return Promise.resolve({ rows: rows.groups as unknown as Record<string, unknown>[] });
       }
       if (sql.includes(ADMIN_GRANTS_TABLE)) {
         if (sql.startsWith('INSERT')) {
@@ -154,6 +176,8 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
   setupUserRoutes(appkit as unknown as InsightsAppKit, {
     readDeploymentOwner: () => Promise.resolve(LEAD),
     appAccess: suppliedAppAccess ?? appAccess,
+    readWorkspaceGroup: (groupName) =>
+      Promise.resolve({ groupName, groupId: `group:${groupName}`, exists: true, readable: true }),
   });
 
   server = app.listen(0, '127.0.0.1');
@@ -183,6 +207,17 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
       }),
     remove: (email: string, target: string) =>
       fetch(`${base}/api/users/${encodeURIComponent(target)}`, { method: 'DELETE', headers: headers(email) }),
+    mapGroup: (email: string, groupName: string, role: string) =>
+      fetch(`${base}/api/users/groups`, {
+        method: 'POST',
+        headers: headers(email),
+        body: JSON.stringify({ groupName, role }),
+      }),
+    resetGroup: (email: string, groupName: string) =>
+      fetch(`${base}/api/users/groups/${encodeURIComponent(groupName)}`, {
+        method: 'DELETE',
+        headers: headers(email),
+      }),
   };
 }
 
@@ -297,6 +332,93 @@ describe('the super admin reads the roster', () => {
       setBy: 'Databricks App permissions',
       appAccess: 'can_use',
     });
+  });
+
+  it('shows only Databricks App groups as default-consumer group rows', async () => {
+    const principals = [
+      ...[LEAD, DEPUTY].map((name) => ({
+        kind: 'user' as const,
+        name,
+        displayName: name,
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      })),
+      {
+        kind: 'group' as const,
+        name: 'App analysts',
+        displayName: 'App analysts',
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      },
+    ];
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve({ available: true, principals, message: '' }),
+    };
+    const app = await startApp(fakeLakebase(), appAccess);
+    const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+    expect(payload.groupRoleMappings).toEqual([
+      expect.objectContaining({ groupName: 'App analysts', role: 'consumer', setBy: '' }),
+    ]);
+  });
+
+  it('refuses an ad hoc workspace group that is not assigned to the Databricks App', async () => {
+    const app = await startApp(fakeLakebase());
+    const response = await app.mapGroup(LEAD, 'Workspace-only group', 'admin');
+    expect(response.status).toBe(404);
+    expect((await response.json()) as Record<string, unknown>).toMatchObject({
+      error: 'app_group_not_found',
+    });
+  });
+
+  it('changes and resets the role of a group already assigned to the Databricks App', async () => {
+    const store = fakeLakebase();
+    const principals = [
+      ...[LEAD, DEPUTY].map((name) => ({
+        kind: 'user' as const,
+        name,
+        displayName: name,
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      })),
+      {
+        kind: 'group' as const,
+        name: 'App analysts',
+        displayName: 'App analysts',
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      },
+    ];
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve({ available: true, principals, message: '' }),
+    };
+    const app = await startApp(store, appAccess);
+
+    const changed = await app.mapGroup(LEAD, 'App analysts', 'admin');
+    const changedPayload = (await changed.json()) as RosterPayload;
+    expect(changed.status).toBe(200);
+    expect(store.rows.groups).toEqual([
+      {
+        group_name: 'App analysts',
+        role: 'admin',
+        added_by: LEAD,
+        added_at: '2026-09-10T00:00:00.000Z',
+      },
+    ]);
+    expect(changedPayload.groupRoleMappings).toEqual([
+      expect.objectContaining({ groupName: 'App analysts', role: 'admin', setBy: LEAD }),
+    ]);
+
+    const reset = await app.resetGroup(LEAD, 'App analysts');
+    const resetPayload = (await reset.json()) as RosterPayload;
+    expect(reset.status).toBe(200);
+    expect(store.rows.groups).toEqual([]);
+    expect(resetPayload.groupRoleMappings).toEqual([
+      expect.objectContaining({ groupName: 'App analysts', role: 'consumer', setBy: '' }),
+    ]);
   });
 });
 

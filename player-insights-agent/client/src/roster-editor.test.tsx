@@ -230,6 +230,47 @@ describe('the #24a Roles geometry', () => {
     expect(editor).toContain('roster-frame');
   });
 
+  it('puts Databricks App groups and users in one table with no in-app group picker', () => {
+    const payload: RosterPayload = {
+      entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
+      storedRosterReadable: true,
+      roleColumnPresent: true,
+      pendingSchemaStatement: '',
+      superAdminCount: 0,
+      recoveryStatement: '',
+      groupRoleMappings: [
+        {
+          groupName: 'Example analysts',
+          role: 'admin',
+          setBy: LEAD,
+          setAt: '2026-09-10T00:00:00.000Z',
+          scimConfirmed: true,
+          identityManagementUrl: 'https://workspace.example.invalid/settings/identity-and-access',
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={payload}
+        busy={false}
+        showPersona
+        onChange={() => {}}
+        onRemove={() => {}}
+        onGroupRoleChange={() => {}}
+        onGroupReset={() => {}}
+      />
+    );
+    expect(markup.match(/<table/g)).toHaveLength(1);
+    expect(text(markup)).toContain('Example analysts');
+    expect(text(markup)).toContain('analyst');
+    expect(markup).toContain('aria-label="Reset Example analysts to Consumer"');
+    expect(markup).toContain('aria-label="Persona for group Example analysts: No persona"');
+    const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
+    expect(editor).not.toContain('Add group');
+    expect(editor).not.toContain('Select a Databricks workspace group');
+    expect(editor).not.toContain('Databricks workspace groups and Player Insights Agent roles');
+  });
+
   it('keeps role and action controls compact within their columns', () => {
     expect(css).toMatch(/\.roster-role-select,\s*\.roster-persona-select \{[^}]*flex:\s*0 0 auto/);
     expect(css).toMatch(/\.roster-role-select \{[^}]*max-width:\s*7rem/);
@@ -274,7 +315,7 @@ describe('the #24a Roles geometry', () => {
     expect(markup).toContain(`aria-label="User role for ${ANALYST}: Admin"`);
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
     expect(editor).toContain('ariaLabel="User role to give them"');
-    expect(editor.match(/className="roster-control roster-role-select"/g) ?? []).toHaveLength(3);
+    expect(editor.match(/className="roster-control roster-role-select"/g) ?? []).toHaveLength(2);
     expect(editor).not.toContain('showLabel=');
   });
 });

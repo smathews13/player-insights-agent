@@ -805,15 +805,6 @@
   min-width: 800px;
 }
 
-.group-roles-table {
-  min-width: 560px;
-}
-
-.group-roles-table th:nth-child(2),
-.group-roles-table td:nth-child(2) {
-  width: 220px;
-}
-
 .group-role-identity,
 .group-role-link {
   min-width: 0;
@@ -902,14 +893,6 @@
 
 .group-role-members li {
   min-width: 0;
-}
-
-.group-mapping-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  white-space: nowrap;
 }
 
 .roles-table--editable .roster-email-column {
