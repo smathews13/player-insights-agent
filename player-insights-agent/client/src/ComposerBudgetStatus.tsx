@@ -17,7 +17,14 @@ export function ComposerBudgetStatus({
   error: string;
   onApprove: () => void;
 }) {
-  if (!admin || !status || (status.level !== 'warning' && status.level !== 'approval-required')) return null;
+  if (!status || (status.level !== 'warning' && status.level !== 'approval-required')) return null;
+  if (!admin) {
+    return status.level === 'approval-required' ? (
+      <p className="composer-notice" role="status">
+        Ask is paused. Contact an administrator.
+      </p>
+    ) : null;
+  }
 
   const approvalRequired = status.level === 'approval-required';
   return (

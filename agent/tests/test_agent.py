@@ -2685,6 +2685,68 @@ def test_a_source_substitution_is_never_silent_after_approval():
     )
 
 
+def test_using_the_approved_primary_with_an_additional_source_is_not_a_substitution():
+    question = "Analyze activity by label."
+    issued = _plan_id(question, "")
+    approved_plan = {
+        "id": issued,
+        "question": question,
+        "summary": "Use profiles with activity context.",
+        "steps": [
+            {
+                "id": "source-1",
+                "title": f"{PROFILES} (recommended)",
+                "description": "brand_firstpartyid · player profile — why: requested source",
+                "kind": "data",
+            },
+            {
+                "id": "source-2",
+                "title": ACTIVITY,
+                "description": "activity_date · activity context — why: supporting source",
+                "kind": "data",
+            },
+        ],
+        "candidates": [
+            {
+                "table": PROFILES,
+                "field": "brand_firstpartyid",
+                "definition": "Governed brand-level player identifier.",
+                "why": "Requested source.",
+                "recommended": True,
+            },
+            {
+                "table": ACTIVITY,
+                "field": "activity_date",
+                "definition": "Activity date.",
+                "why": "Supporting context.",
+                "recommended": False,
+            },
+        ],
+    }
+    tools = FakeTools(
+        data_genie=ToolResult(
+            text="Profile and activity sources answered.",
+            sources=[PROFILES, ACTIVITY],
+            sql=f"SELECT count(*) FROM {PROFILES} JOIN {ACTIVITY} ON 1=1",
+        )
+    )
+    llm = ScriptedLlm([Call("data_genie", {"question": "activity by label"})], "Done.")
+
+    response = build(llm, tools).predict(
+        app_request(
+            input=[{"role": "user", "content": question}],
+            custom_inputs={
+                "approved_plan_id": issued,
+                "approved_plan": approved_plan,
+                "execute_plan": True,
+            },
+        )
+    )
+
+    caveats = response.custom_outputs["answer"]["caveats"]
+    assert not any("NOT computed from the source you approved" in caveat for caveat in caveats)
+
+
 def test_an_approved_plan_with_no_declared_source_is_reissued_instead_of_executed():
     tools = FakeTools()
     question = "Analyze activity by label."

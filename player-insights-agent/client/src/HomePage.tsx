@@ -2553,6 +2553,9 @@ export function HomePage() {
                   ? feedback[response.id]
                   : undefined;
               const entry = rated ?? emptyFeedback;
+              const planApproved = messages[index + 1]?.content === PLAN_APPROVAL_LABEL;
+              const approvalResponse =
+                messages[index + 2]?.role === 'assistant' ? parsedResponses.get(messages[index + 2].id) : undefined;
               return (
                 <div
                   key={message.id}
@@ -2578,7 +2581,9 @@ export function HomePage() {
                     // anything. The approval writes a known sentence as its user
                     // turn -- here and on the server -- so the turn under the plan
                     // is what says which happened.
-                    approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}
+                    approved={planApproved}
+                    approvalExecuted={planApproved && Boolean(approvalResponse && approvalResponse.type !== 'plan')}
+                    approvalPending={planApproved && loading && index === lastAssistantIndex}
                     canRevisePlan={canRevisePlanAt(messages, index)}
                     // The turn this answered, for the timeline's envelope row. Read
                     // from the transcript rather than the trace, which does not
@@ -3037,6 +3042,8 @@ const MessageItem = memo(function MessageItem({
   loading,
   resolved,
   approved,
+  approvalExecuted,
+  approvalPending,
   canRevisePlan,
   question,
   feedback,
@@ -3056,6 +3063,10 @@ const MessageItem = memo(function MessageItem({
   resolved: boolean;
   /** Whether the turn that superseded a plan was the reader approving it. */
   approved: boolean;
+  /** Whether approval produced an answer/clarification rather than a replacement plan. */
+  approvalExecuted: boolean;
+  /** Whether the approved continuation is still running. */
+  approvalPending: boolean;
   /** Whether this proposal still has its one allowed revision available. */
   canRevisePlan: boolean;
   /** The question this answered, or '' where the row above is not one. */
@@ -3109,6 +3120,8 @@ const MessageItem = memo(function MessageItem({
         loading={loading}
         resolved={resolved}
         approved={approved}
+        approvalExecuted={approvalExecuted}
+        approvalPending={approvalPending}
         canRevise={canRevisePlan}
         onApprove={() =>
           onAsk(response.plan.question, {

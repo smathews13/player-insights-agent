@@ -341,7 +341,9 @@ describe('the plan card says which state it is in, in the colour that state mean
     // Load-bearing copy. The card is a consent gate, and this is the line that
     // tells the reader what approving it will do.
     expect(PLAN).toContain('No analytical query runs until you approve this plan.');
-    expect(PLAN).toContain('You approved this plan. The analysis below was produced by running these steps.');
+    expect(PLAN).toContain('You approved this plan. The analysis is running now.');
+    expect(PLAN).toContain('You approved this plan. The next turn ran the approved source decision.');
+    expect(PLAN).toContain('You approved this plan, but it was not executed.');
     // And the third: claiming an approval the reader never gave is the same
     // defect in the other direction.
     expect(PLAN).toContain('None of these steps ran. The turn below replaced this plan.');
