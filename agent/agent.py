@@ -5781,7 +5781,7 @@ Tables available to this analysis, with their columns:
             if not reading_sources:
                 reading_sources = list(log.sources)
             substituted = [source for source in reading_sources if source != log.approved_primary]
-            if substituted:
+            if log.approved_primary not in reading_sources and substituted:
                 field_note = f" (field `{log.approved_field}`)" if log.approved_field else ""
                 caveats.insert(
                     0,

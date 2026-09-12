@@ -298,6 +298,8 @@ describe('the plan card marks every source as a warehouse read', () => {
         loading={false}
         resolved={false}
         approved={false}
+        approvalExecuted={false}
+        approvalPending={false}
         canRevise={true}
         onApprove={() => {}}
         onRevise={() => {}}
@@ -324,6 +326,24 @@ describe('the plan card marks every source as a warehouse read', () => {
     expect(drawn).toContain('<strong>Definition</strong>');
     expect(drawn).toContain('<strong>Why</strong>');
     expect(drawn.match(/<li>/g)).toHaveLength(9);
+  });
+
+  it('does not turn legacy procedural steps into source-choice radios', () => {
+    const legacy = { ...plan, candidates: undefined };
+    const drawn = renderToStaticMarkup(
+      <PlanCard
+        plan={legacy}
+        loading={false}
+        resolved={false}
+        approved={false}
+        approvalExecuted={false}
+        approvalPending={false}
+        canRevise={true}
+        onApprove={() => {}}
+        onRevise={() => {}}
+      />
+    );
+    expect(drawn).not.toContain('type="radio"');
   });
 
   it('sizes them at 14px and keeps them decorative beside the step title', () => {

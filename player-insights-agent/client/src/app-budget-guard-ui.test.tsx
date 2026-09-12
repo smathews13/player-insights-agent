@@ -82,7 +82,9 @@ describe('app budget guard UI', () => {
 
   it('announces only actionable threshold changes and restores Ask after approval', () => {
     expect(composer(status('warning', { measured: 80, ratio: 0.8, percent: 80 }))).toBe('');
-    expect(composer(status('approval-required'))).toBe('');
+    const consumerBlocked = composer(status('approval-required'));
+    expect(consumerBlocked).toContain('Ask is paused. Contact an administrator.');
+    expect(consumerBlocked).not.toMatch(/budget|percent|approve/i);
 
     const warning = composer(status('warning', { measured: 80, ratio: 0.8, percent: 80 }), true);
     expect(warning).toContain('Monthly app budget is 80.00% used.');
@@ -280,9 +282,7 @@ describe('app budget guard UI', () => {
     expect(source).toContain('forgetActiveConversationRun(runs, runConversationId)');
     expect(source).toContain("const budgetBlocked = budgetStatus?.level === 'approval-required'");
     expect(source).toContain('<ComposerBudgetStatus');
-    expect(readFileSync(new URL('./ComposerBudgetStatus.tsx', import.meta.url), 'utf8')).toContain(
-      'if (!admin || !status'
-    );
+    expect(readFileSync(new URL('./ComposerBudgetStatus.tsx', import.meta.url), 'utf8')).toContain('if (!admin)');
   });
 
   it('keeps enforcement constants while removing budget explanations from Cost methodology', () => {

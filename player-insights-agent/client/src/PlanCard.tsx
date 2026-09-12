@@ -119,6 +119,8 @@ export function PlanCard({
   loading,
   resolved,
   approved,
+  approvalExecuted,
+  approvalPending,
   canRevise,
   onApprove,
   onRevise,
@@ -135,6 +137,8 @@ export function PlanCard({
    * replaced it is telling the reader something they did not do.
    */
   approved: boolean;
+  approvalExecuted: boolean;
+  approvalPending: boolean;
   /** A plan may be revised once. The revised plan must be approved or left behind. */
   canRevise: boolean;
   onApprove: () => void;
@@ -233,11 +237,15 @@ export function PlanCard({
                   index={index}
                   columns={columns}
                   candidate={plan.candidates?.[index]}
-                  pick={{
-                    name: `plan-source-${plan.id}`,
-                    checked: revision.selectedStepId === step.id,
-                    onSelect: () => dispatch({ type: 'select', id: step.id }),
-                  }}
+                  pick={
+                    plan.candidates?.[index]
+                      ? {
+                          name: `plan-source-${plan.id}`,
+                          checked: revision.selectedStepId === step.id,
+                          onSelect: () => dispatch({ type: 'select', id: step.id }),
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -280,7 +288,11 @@ export function PlanCard({
           <AlertDescription>
             <p>
               {state === 'approved'
-                ? 'You approved this plan. The analysis below was produced by running these steps.'
+                ? approvalPending
+                  ? 'You approved this plan. The analysis is running now.'
+                  : approvalExecuted
+                    ? 'You approved this plan. The next turn ran the approved source decision.'
+                    : 'You approved this plan, but it was not executed. Review the replacement plan below.'
                 : state === 'review'
                   ? canRevise
                     ? 'No analytical query runs until you approve this plan. You can revise the request once.'

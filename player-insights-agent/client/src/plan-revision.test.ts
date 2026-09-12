@@ -179,7 +179,8 @@ describe('a revised plan is not an approved one', () => {
     const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 
     expect(home).toContain("const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';");
-    expect(home).toContain('approved={messages[index + 1]?.content === PLAN_APPROVAL_LABEL}');
+    expect(home).toContain('const planApproved = messages[index + 1]?.content === PLAN_APPROVAL_LABEL');
+    expect(home).toContain('approved={planApproved}');
     expect(home).toContain('label: PLAN_APPROVAL_LABEL,');
   });
 });
@@ -195,5 +196,21 @@ describe('one revision maximum', () => {
   it('removes the revision action from the revised plan and leaves execution available', () => {
     expect(CARD).toContain('canRevise ?');
     expect(CARD).toContain("'Run revised plan'");
+  });
+});
+
+describe('approval outcome copy', () => {
+  it('does not treat the approval click itself as proof that analysis ran', () => {
+    expect(CARD).toContain('approvalExecuted');
+    expect(CARD).toContain('but it was not executed');
+    const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+    expect(home).toContain("approvalResponse.type !== 'plan'");
+  });
+});
+
+describe('legacy plan revision safety', () => {
+  it('only offers source radios for structured candidates', () => {
+    expect(CARD).toContain('plan.candidates?.[index]');
+    expect(CARD).toContain('? {');
   });
 });
