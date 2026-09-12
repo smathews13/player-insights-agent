@@ -2371,6 +2371,15 @@ def test_nontrivial_question_returns_plan_without_querying_data():
     assert analysis_calls(tools) == []
 
 
+def test_a_measurement_question_gets_a_plan_even_when_it_names_a_table():
+    question = f"How many users are in {TITLE_DAILY}?"
+    response = build(ScriptedLlm(), FakeTools()).predict(
+        app_request(input=[{"role": "user", "content": question}])
+    )
+
+    assert response.custom_outputs["type"] == "plan"
+
+
 # ---------------------------------------------------------------------------
 # What the plan is a plan OF
 #
@@ -2386,6 +2395,7 @@ PLAN_FACTS = {
     "tables": [
         {
             "name": TITLE_DAILY,
+            "field": "net_bookings_usd",
             "purpose": "net bookings and 30-day actives per title per day",
             "columns": ["activity_date", "title_name", "net_bookings_usd", "active_players_30d"],
             "filters": [
@@ -2437,10 +2447,10 @@ def test_planner_requests_three_ranked_sources_without_inventing_padding():
 def test_the_plan_names_the_tables_columns_and_filters_the_run_will_use():
     plan, tools, _ = plan_for()
 
-    described = " ".join(step["description"] for step in plan["steps"])
-    assert TITLE_DAILY in described, "a reviewer cannot refuse a table nobody named"
-    assert "net_bookings_usd" in described
-    assert "activity_date >= current_date() - INTERVAL 180 DAYS" in described
+    assert plan["candidates"][0]["table"] == TITLE_DAILY
+    assert plan["candidates"][0]["field"] == "net_bookings_usd"
+    assert plan["candidates"][0]["recommended"] is True
+    assert plan["steps"][0]["title"] == f"{TITLE_DAILY} (recommended)"
     assert "180" in plan["summary"]
     # The columns came out of a real describe of the table, not out of the
     # question, which is the whole difference between this plan and the one it
@@ -2452,13 +2462,13 @@ def test_the_plan_names_the_tables_columns_and_filters_the_run_will_use():
     assert tools.named("describe_table") == [{"full_name": TITLE_DAILY, "columns": ""}]
 
 
-def test_the_plan_names_the_quality_checks_by_column():
+def test_the_plan_publishes_the_field_definition_and_selection_reason():
     plan, _, _ = plan_for()
 
-    quality = next(step for step in plan["steps"] if step["id"] == "quality")
-    assert "null ratio of net_bookings_usd, active_players_30d" in quality["description"]
-    assert "activity_date" in quality["description"]
-    assert quality["kind"] == "data"
+    candidate = plan["candidates"][0]
+    assert candidate["definition"] == "what net_bookings_usd holds"
+    assert candidate["why"] == "net bookings and 30-day actives per title per day"
+    assert plan["steps"][0]["kind"] == "data"
 
 
 def test_planning_reads_metadata_and_never_the_data_itself():
@@ -2521,6 +2531,7 @@ def test_a_discovered_plan_keeps_the_contract_the_app_reads():
         "question",
         "summary",
         "steps",
+        "candidates",
         "requires_approval",
         "uses_conversation_context",
         "uses_attachment_context",
@@ -2532,6 +2543,8 @@ def test_a_discovered_plan_keeps_the_contract_the_app_reads():
         # screen rendering until the app is released too.
         assert step["kind"] in {"context", "definitions", "data", "synthesis"}
     assert len({step["id"] for step in plan["steps"]}) == len(plan["steps"])
+    assert len(plan["candidates"]) == len(plan["steps"])
+    assert sum(candidate["recommended"] for candidate in plan["candidates"]) == 1
 
 
 def test_discovery_does_not_change_the_id_the_approval_names():
@@ -2593,6 +2606,15 @@ def test_an_approved_plan_scopes_every_data_tool_to_the_sources_the_user_saw():
                             "kind": "data",
                         }
                     ],
+                    "candidates": [
+                        {
+                            "table": ACTIVITY,
+                            "field": "brand_firstpartyid",
+                            "definition": "Governed brand-level player identifier.",
+                            "why": "Matches the requested activity grain.",
+                            "recommended": True,
+                        }
+                    ],
                 },
                 "execute_plan": True,
             },
@@ -2601,6 +2623,66 @@ def test_an_approved_plan_scopes_every_data_tool_to_the_sources_the_user_saw():
 
     assert response.custom_outputs["type"] == "answer"
     assert tools.scoped_tables == (ACTIVITY,)
+
+
+def test_a_revised_plan_keeps_the_clean_question_and_gets_a_new_id():
+    original = "Compare activity by label."
+    revised = (
+        f"Revise the proposed analysis plan for this question: {original}\n\n"
+        f"What to change: Use {PROFILES} instead.\n\n"
+        "Propose an updated plan for approval. Do not run the analysis yet."
+    )
+    plan, _, _ = plan_for(question=revised)
+
+    assert plan["question"] == original
+    assert plan["id"] == _plan_id(original, "", f"Use {PROFILES} instead.")
+    assert plan["id"] != _plan_id(original, "")
+
+
+def test_a_source_substitution_is_never_silent_after_approval():
+    tools = FakeTools()
+    question = "Analyze activity by label."
+    issued = _plan_id(question, "")
+    approved_plan = {
+        "id": issued,
+        "question": question,
+        "summary": "Use profiles.",
+        "steps": [
+            {
+                "id": "source-1",
+                "title": f"{PROFILES} (recommended)",
+                "description": "brand_firstpartyid · player profile — why: requested source",
+                "kind": "data",
+            }
+        ],
+        "candidates": [
+            {
+                "table": PROFILES,
+                "field": "brand_firstpartyid",
+                "definition": "Governed brand-level player identifier.",
+                "why": "Requested source.",
+                "recommended": True,
+            }
+        ],
+    }
+    llm = ScriptedLlm([Call("data_genie", {"question": "activity by label"})], "Done.")
+
+    response = build(llm, tools).predict(
+        app_request(
+            input=[{"role": "user", "content": question}],
+            custom_inputs={
+                "approved_plan_id": issued,
+                "approved_plan": approved_plan,
+                "execute_plan": True,
+            },
+        )
+    )
+
+    caveats = response.custom_outputs["answer"]["caveats"]
+    assert any(
+        caveat.startswith("This answer is degraded:") and PROFILES in caveat and ACTIVITY in caveat
+        for caveat in caveats
+    )
 
 
 def test_an_approved_plan_with_no_declared_source_is_reissued_instead_of_executed():
@@ -4310,6 +4392,7 @@ def test_plan_contract_matches_exactly_what_the_app_reads():
         "question",
         "summary",
         "steps",
+        "candidates",
         "requires_approval",
         "uses_conversation_context",
         "uses_attachment_context",

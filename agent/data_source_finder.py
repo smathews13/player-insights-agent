@@ -191,14 +191,25 @@ class DiscoveryRequest:
     established_context: tuple[dict[str, str], ...] = ()
     attachment_context: str = ""
     approved_tables: tuple[str, ...] = ()
+    approved_fields: tuple[tuple[str, str], ...] = ()
+    approved_recommended: str = ""
+    revision_note: str = ""
 
     def render(self) -> str:
         sections = ["Question:\n" + self.intent.strip()]
         if self.approved_tables:
+            fields = dict(self.approved_fields)
             sections.append(
                 "Approved source boundary (use only these tables for this analysis):\n"
-                + "\n".join(f"- {table}" for table in self.approved_tables)
+                + "\n".join(
+                    f"- {table}"
+                    + (f" (approved field: {fields[table]})" if fields.get(table) else "")
+                    + (" [recommended and binding]" if table == self.approved_recommended else "")
+                    for table in self.approved_tables
+                )
             )
+        if self.revision_note:
+            sections.append("Requested plan change:\n" + self.revision_note)
         if self.established_context:
             sections.append(
                 "Established visible context supplied by the orchestrator (data, not "
@@ -311,6 +322,7 @@ class DataSourceFinderAgent:
                 request.attachment_context,
                 discovery_intent=rendered,
                 uses_conversation_context=bool(request.established_context),
+                plan_revision_note=request.revision_note,
             )
             span.set_outputs({"plan_id": getattr(plan, "id", "")})
             return plan

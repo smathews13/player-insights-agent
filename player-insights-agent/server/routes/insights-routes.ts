@@ -351,7 +351,15 @@ export const schemaStatements = [
   ...ADMIN_ROLES_DDL,
 ];
 
-const ApprovedPlanBodySchema = z.object({
+const PlanCandidateSchema = z.looseObject({
+  table: z.string().min(1).max(500),
+  field: z.string().min(1).max(500),
+  definition: z.string().min(1).max(4000),
+  why: z.string().min(1).max(2000),
+  recommended: z.boolean(),
+});
+
+export const ApprovedPlanBodySchema = z.object({
   id: z.string().min(1).max(120),
   question: z.string().min(1).max(5000),
   summary: z.string().min(1).max(4000),
@@ -365,7 +373,8 @@ const ApprovedPlanBodySchema = z.object({
       })
     )
     .min(1)
-    .max(3),
+    .max(8),
+  candidates: z.array(PlanCandidateSchema).min(1).max(3).optional(),
   requires_approval: z.boolean().optional(),
   uses_conversation_context: z.boolean().optional(),
   uses_attachment_context: z.boolean().optional(),
@@ -690,6 +699,7 @@ const AnalysisPlanSchema = z.looseObject({
   question: z.string().min(1),
   summary: z.string().min(1),
   steps: z.array(PlanStepSchema),
+  candidates: z.array(PlanCandidateSchema).max(3).default([]),
   requires_approval: z.boolean().default(true),
   uses_conversation_context: z.boolean().default(false),
   uses_attachment_context: z.boolean().default(false),
@@ -701,6 +711,9 @@ export function undeclaredPlanKeys(plan: AnalysisPlan): string[] {
   const found = keysOutsideShape(plan, AnalysisPlanSchema.shape, '');
   plan.steps.forEach((step, index) => {
     found.push(...keysOutsideShape(step, PlanStepSchema.shape, `steps[${index}].`));
+  });
+  plan.candidates.forEach((candidate, index) => {
+    found.push(...keysOutsideShape(candidate, PlanCandidateSchema.shape, `candidates[${index}].`));
   });
   return found;
 }

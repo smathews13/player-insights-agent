@@ -36,10 +36,14 @@ import {
   planRevisionReducer,
   revisedRequest,
 } from './plan-revision';
-import type { AnalysisPlan } from './app-types';
+import type { AnalysisPlan, PlanCandidate } from './app-types';
 
 function planColumnNames(plan: AnalysisPlan): string[] {
-  const lines = [plan.summary, ...plan.steps.flatMap((step) => [step.title, step.description])];
+  const lines = [
+    plan.summary,
+    ...plan.steps.flatMap((step) => [step.title, step.description]),
+    ...(plan.candidates ?? []).flatMap((candidate) => [candidate.table, candidate.field, candidate.definition]),
+  ];
   const declared = declaredColumns(lines);
   const mentioned = mentionedIdentifiers(lines);
   return [...declared, ...mentioned.filter((name) => !declared.includes(name))];
@@ -49,16 +53,18 @@ function PlanSourceStep({
   step,
   index,
   columns,
+  candidate,
   pick,
 }: {
   step: AnalysisPlan['steps'][number];
   index: number;
   columns: string[];
+  candidate?: PlanCandidate;
   pick?: { name: string; checked: boolean; onSelect: () => void };
 }) {
   const product = productForPlanKind(step.kind);
-  const recommended = isRecommendedSourceTitle(step.title);
-  const title = displaySourceTitle(step.title);
+  const recommended = candidate?.recommended ?? isRecommendedSourceTitle(step.title);
+  const title = candidate?.table ?? displaySourceTitle(step.title);
   return (
     <div className={`plan-step${pick ? ' plan-step-pick' : ''}`}>
       {pick ? (
@@ -83,9 +89,26 @@ function PlanSourceStep({
             </Badge>
           ) : null}
         </div>
-        <p>
-          <PlanText text={step.description} columns={columns} />
-        </p>
+        {candidate ? (
+          <ul className="plan-candidate-details">
+            <li>
+              <strong>Field</strong>
+              <PlanText text={candidate.field} columns={columns} />
+            </li>
+            <li>
+              <strong>Definition</strong>
+              <PlanText text={candidate.definition} columns={columns} />
+            </li>
+            <li>
+              <strong>Why</strong>
+              <PlanText text={candidate.why} columns={columns} />
+            </li>
+          </ul>
+        ) : (
+          <p>
+            <PlanText text={step.description} columns={columns} />
+          </p>
+        )}
       </div>
     </div>
   );
@@ -209,6 +232,7 @@ export function PlanCard({
                   step={step}
                   index={index}
                   columns={columns}
+                  candidate={plan.candidates?.[index]}
                   pick={{
                     name: `plan-source-${plan.id}`,
                     checked: revision.selectedStepId === step.id,
@@ -233,7 +257,13 @@ export function PlanCard({
         ) : (
           <div className="plan-steps">
             {plan.steps.map((step, index) => (
-              <PlanSourceStep key={step.id} step={step} index={index} columns={columns} />
+              <PlanSourceStep
+                key={step.id}
+                step={step}
+                index={index}
+                columns={columns}
+                candidate={plan.candidates?.[index]}
+              />
             ))}
           </div>
         )}

@@ -47,6 +47,22 @@ const PLAN: AnalysisPlan = {
       kind: 'data',
     },
   ],
+  candidates: [
+    {
+      table: 'cdp_northwind_prod.gold_di.gtav_daily_summary',
+      field: 'brand_firstpartyid',
+      definition: 'The governed default unit for counting users.',
+      why: 'Franchise tag Northwind.',
+      recommended: true,
+    },
+    {
+      table: 'cdp_share_prod.global_production.play_by_title',
+      field: 'gtao',
+      definition: 'Per-customer flag for VLH Online play.',
+      why: 'One row per customer across titles.',
+      recommended: false,
+    },
+  ],
   requires_approval: true,
   uses_conversation_context: false,
   uses_attachment_context: false,

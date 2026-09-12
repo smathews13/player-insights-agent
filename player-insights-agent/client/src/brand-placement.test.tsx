@@ -263,6 +263,29 @@ describe('the plan card marks every source as a warehouse read', () => {
         kind: 'data',
       },
     ],
+    candidates: [
+      {
+        table: 'cdp_northwind_prod.gold_di.gtav_daily_summary',
+        field: 'brand_firstpartyid',
+        definition: 'The governed default unit for counting users.',
+        why: 'Franchise tag Northwind.',
+        recommended: true,
+      },
+      {
+        table: 'cdp_share_prod.global_production.play_by_title',
+        field: 'gtao',
+        definition: 'Per-customer flag for VLH Online play.',
+        why: 'One row per customer across titles.',
+        recommended: false,
+      },
+      {
+        table: 'catalog.schema.fallback_table',
+        field: 'title_code',
+        definition: 'Cross-title classification.',
+        why: 'Fallback governed rollup.',
+        recommended: false,
+      },
+    ],
     requires_approval: true,
     uses_conversation_context: false,
     uses_attachment_context: false,
@@ -292,6 +315,15 @@ describe('the plan card marks every source as a warehouse read', () => {
     const marks = markup().match(/<span class="brand-icon"/g) ?? [];
 
     expect(marks).toHaveLength(3);
+  });
+
+  it('renders structured candidate fields as real list items', () => {
+    const drawn = markup();
+    expect(drawn).toContain('class="plan-candidate-details"');
+    expect(drawn).toContain('<strong>Field</strong>');
+    expect(drawn).toContain('<strong>Definition</strong>');
+    expect(drawn).toContain('<strong>Why</strong>');
+    expect(drawn.match(/<li>/g)).toHaveLength(9);
   });
 
   it('sizes them at 14px and keeps them decorative beside the step title', () => {

@@ -67,6 +67,24 @@ function card(value: Answer): string {
 }
 
 describe('answer hierarchy', () => {
+  it('lifts an approved-source substitution above otherwise valid figures', () => {
+    const caveat =
+      `${DEGRADED_ANSWER_MARKER} This answer was NOT computed from the source you approved. ` +
+      'You approved `catalog.schema.approved`, and the figures came from `catalog.schema.fallback` instead.';
+    const markup = card(
+      answer({
+        caveats: [caveat],
+        sources: [{ name: 'catalog.schema.fallback', freshness: 'Read during this run', role: 'reading' }],
+      })
+    );
+
+    expect(markup).toContain('answer-source-degradation');
+    expect(markup).toContain('Answer source degraded.');
+    expect(markup).toContain('catalog.schema.approved');
+    expect(markup).toContain('catalog.schema.fallback');
+    expect(markup.indexOf('answer-source-degradation')).toBeLessThan(markup.indexOf('answer-narrative'));
+  });
+
   it('keeps the supplied takeaway exact and renders ordered context bullets directly below it', () => {
     const supplied = '42 million unique users';
     const markup = card(
