@@ -25,6 +25,13 @@ import type { FeedbackDirection } from '../../shared/feedback-direction';
  * `WireAnswer` in answer-shape.ts, and nothing in this file should hold one.
  */
 export type Answer = Omit<NormalizedAnswer, 'charts'> & { charts?: Chart[] };
+export interface PlanCandidate {
+  table: string;
+  field: string;
+  definition: string;
+  why: string;
+  recommended: boolean;
+}
 export interface AnalysisPlan {
   id: string;
   question: string;
@@ -35,6 +42,7 @@ export interface AnalysisPlan {
     description: string;
     kind: 'context' | 'definitions' | 'data' | 'synthesis';
   }[];
+  candidates?: PlanCandidate[];
   requires_approval: boolean;
   uses_conversation_context: boolean;
   uses_attachment_context: boolean;

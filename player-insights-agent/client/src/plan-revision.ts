@@ -44,6 +44,8 @@ export function displaySourceTitle(title: string): string {
 
 /** The step the picker starts on: the recommended source, else the first. */
 export function recommendedSourceId(plan: AnalysisPlan): string {
+  const candidateIndex = plan.candidates?.findIndex((candidate) => candidate.recommended) ?? -1;
+  if (candidateIndex >= 0) return plan.steps[candidateIndex]?.id ?? '';
   const marked = plan.steps.find((step) => isRecommendedSourceTitle(step.title));
   return marked?.id ?? plan.steps[0]?.id ?? '';
 }
@@ -101,7 +103,11 @@ export function sourceChoiceNote(plan: AnalysisPlan, revision: PlanRevision): st
   const selected = plan.steps.find((step) => step.id === revision.selectedStepId);
   const recommended = plan.steps.find((step) => step.id === recommendedSourceId(plan));
   if (!selected || !recommended) return '';
-  return `Use ${displaySourceTitle(selected.title)} instead of ${displaySourceTitle(recommended.title)}.`;
+  const selectedIndex = plan.steps.indexOf(selected);
+  const recommendedIndex = plan.steps.indexOf(recommended);
+  const selectedTable = plan.candidates?.[selectedIndex]?.table ?? displaySourceTitle(selected.title);
+  const recommendedTable = plan.candidates?.[recommendedIndex]?.table ?? displaySourceTitle(recommended.title);
+  return `Use ${selectedTable} instead of ${recommendedTable}.`;
 }
 
 /**

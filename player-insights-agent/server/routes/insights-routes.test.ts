@@ -6,6 +6,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAskServingBody,
   buildServingHistory,
+  ApprovedPlanBodySchema,
   createServingTransport,
   DEVELOPMENT_IDENTITY,
   discloseAnswerProvenance,
@@ -278,6 +279,15 @@ describe('plan and conversation contracts', () => {
     question: 'Compare active players by title',
     summary: 'Confirm definitions, then analyze.',
     steps: [{ id: 'data', title: 'Analyze', description: 'Run an approved aggregate.', kind: 'data' }],
+    candidates: [
+      {
+        table: 'catalog.schema.player_activity',
+        field: 'brand_firstpartyid',
+        definition: 'Governed brand-level player identifier.',
+        why: 'Matches the requested player grain.',
+        recommended: true,
+      },
+    ],
     requires_approval: true,
     uses_conversation_context: false,
     uses_attachment_context: false,
@@ -323,6 +333,13 @@ describe('plan and conversation contracts', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it('keeps structured candidates through parsing and approval', () => {
+    const parsed = extractAnalysisPlan(planResponse(wholePlan));
+    expect(parsed?.candidates).toEqual(wholePlan.candidates);
+    const approved = ApprovedPlanBodySchema.safeParse(parsed);
+    expect(approved.success && approved.data.candidates).toEqual(wholePlan.candidates);
   });
 
   it.each(['requires_approval', 'uses_conversation_context', 'uses_attachment_context'])(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class Figure(BaseModel):
@@ -201,14 +201,33 @@ class PlanStep(BaseModel):
     kind: Literal["context", "definitions", "data", "synthesis"]
 
 
+class PlanCandidate(BaseModel):
+    table: str
+    field: str
+    definition: str
+    why: str
+    recommended: bool = False
+
+
 class AnalysisPlan(BaseModel):
     id: str
     question: str
     summary: str
     steps: list[PlanStep]
+    candidates: list[PlanCandidate] = Field(default_factory=list, max_length=3)
     requires_approval: bool = True
     uses_conversation_context: bool = False
     uses_attachment_context: bool = False
+
+    @model_validator(mode="after")
+    def candidates_match_steps(self) -> AnalysisPlan:
+        if not self.candidates:
+            return self
+        if len(self.candidates) != len(self.steps):
+            raise ValueError("plan candidates must be index-aligned with steps")
+        if sum(candidate.recommended for candidate in self.candidates) != 1:
+            raise ValueError("exactly one plan candidate must be recommended")
+        return self
 
 
 class Clarification(BaseModel):

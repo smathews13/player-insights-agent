@@ -60,6 +60,7 @@ from contracts import (
     DocumentSnippet,
     Figure,
     GenieSpace,
+    PlanCandidate,
     PlanStep,
     ResourceCall,
     Source,
@@ -966,7 +967,7 @@ def _is_approved(custom_inputs: dict[str, Any], plan_id: str) -> bool:
 
 
 def _approved_plan_sources(
-    custom_inputs: dict[str, Any], plan_id: str, declared: Sequence[str]
+    custom_inputs: dict[str, Any], question: str, declared: Sequence[str]
 ) -> tuple[str, ...] | None:
     """The governed source boundary carried by the plan the user approved.
 
@@ -978,8 +979,46 @@ def _approved_plan_sources(
     raw = custom_inputs.get("approved_plan")
     if raw is None:
         return None
-    if not isinstance(raw, dict) or str(raw.get("id") or "").strip() != plan_id:
+    approved_plan_id = str(custom_inputs.get("approved_plan_id") or "").strip()
+    if not re.fullmatch(r"plan-[0-9a-f]{16}", approved_plan_id):
         return ()
+    if not isinstance(raw, dict) or str(raw.get("id") or "").strip() != approved_plan_id:
+        return ()
+    if str(raw.get("question") or "").strip() != question.strip():
+        return ()
+    if raw.get("requires_approval") is False:
+        return ()
+    candidates = raw.get("candidates")
+    if isinstance(candidates, list):
+        if not 1 <= len(candidates) <= PLAN_MAX_TABLES:
+            return ()
+        names = [candidate.get("table") for candidate in candidates if isinstance(candidate, dict)]
+        if len(names) != len(candidates):
+            return ()
+        steps = raw.get("steps")
+        if not isinstance(steps, list) or len(steps) != len(candidates):
+            return ()
+        for candidate, step in zip(candidates, steps, strict=True):
+            if not isinstance(candidate, dict) or not isinstance(step, dict):
+                return ()
+            if not all(
+                str(candidate.get(key) or "").strip()
+                for key in ("table", "field", "definition", "why")
+            ):
+                return ()
+            title = str(step.get("title") or "").strip()
+            step_table = re.sub(r"\s*\(recommended\)\s*$", "", title, flags=re.I).strip()
+            if step_table != str(candidate.get("table") or "").strip():
+                return ()
+            if title.lower().endswith(" (recommended)") != (candidate.get("recommended") is True):
+                return ()
+        resolved = tuple(_declared_only(names, declared))
+        recommended = sum(
+            1
+            for candidate in candidates
+            if isinstance(candidate, dict) and candidate.get("recommended") is True
+        )
+        return resolved if len(resolved) == len(candidates) and recommended == 1 else ()
     steps = raw.get("steps")
     if not isinstance(steps, list):
         return ()
@@ -993,6 +1032,51 @@ def _approved_plan_sources(
         if title:
             names.append(title)
     return tuple(_declared_only(names, declared))
+
+
+def _revision_request(question: str) -> tuple[str, str]:
+    """Unwrap the app's one-turn revision envelope into its clean question and note."""
+
+    match = re.fullmatch(
+        r"\s*Revise the proposed analysis plan for this question:\s*(.+?)"
+        r"(?:\n\nWhat to change:\s*(.+?))?"
+        r"\n\nPropose an updated plan for approval\. Do not run the analysis yet\.\s*",
+        question,
+        flags=re.DOTALL,
+    )
+    if not match:
+        return question, ""
+    return match.group(1).strip(), (match.group(2) or "").strip()
+
+
+def _approved_plan_fields(
+    custom_inputs: Mapping[str, Any], approved_sources: Sequence[str]
+) -> tuple[tuple[str, str], ...]:
+    raw = custom_inputs.get("approved_plan")
+    candidates = raw.get("candidates") if isinstance(raw, dict) else None
+    if not isinstance(candidates, list):
+        return ()
+    approved = set(approved_sources)
+    return tuple(
+        (str(candidate.get("table")), str(candidate.get("field")))
+        for candidate in candidates
+        if isinstance(candidate, dict)
+        and candidate.get("table") in approved
+        and str(candidate.get("field") or "").strip()
+    )
+
+
+def _approved_primary_source(custom_inputs: Mapping[str, Any]) -> tuple[str, str]:
+    raw = custom_inputs.get("approved_plan")
+    candidates = raw.get("candidates") if isinstance(raw, dict) else None
+    if not isinstance(candidates, list):
+        return "", ""
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate.get("recommended") is True:
+            return str(candidate.get("table") or "").strip(), str(
+                candidate.get("field") or ""
+            ).strip()
+    return "", ""
 
 
 def _is_nontrivial(question: str) -> bool:
@@ -1017,11 +1101,17 @@ def _is_nontrivial(question: str) -> bool:
         "by brand and",
         "forecast",
         "impact",
+        "how many",
+        "count",
+        "total",
+        "average",
+        "rate",
+        "percent",
     )
     return any(marker in lowered for marker in analytical_markers)
 
 
-def _plan_id(question: str, attachment_context: str) -> str:
+def _plan_id(question: str, attachment_context: str, revision_note: str = "") -> str:
     """The identity of the plan a question produces, which is what approval names.
 
     Over the question and the attachment, and deliberately NOT over the
@@ -1040,7 +1130,7 @@ def _plan_id(question: str, attachment_context: str) -> str:
     """
 
     fingerprint = json.dumps(
-        {"question": question, "attachment": attachment_context},
+        {"question": question, "attachment": attachment_context, "revision": revision_note},
         sort_keys=True,
         ensure_ascii=False,
     )
@@ -1221,6 +1311,7 @@ useless. Return ONE JSON object and nothing else:
   "tables": [
     {
       "name": "catalog.schema.table",
+      "field": "the field whose governed meaning determines the requested figure",
       "purpose": "what this table contributes, in one clause",
       "columns": ["column", ...],
       "filters": ["a concrete SQL predicate", ...]
@@ -1236,7 +1327,11 @@ useless. Return ONE JSON object and nothing else:
 }
 
 Rules:
+- Include every table described below in the "tables" array, in the order shown. They are
+  the ranked alternatives the user must be able to compare; do not collapse them to one.
 - Every table name must be one of the tables described below, spelled the same way.
+- "field" must be one column from that table's description and must be the field whose
+  meaning or grain determines the answer, not merely a date or filter column.
 - Every column must appear in that table's description below. Do not invent one, and do
   not name a column because it sounds likely.
 - Filters must be predicates a reader can check: a date range with its bound, a label or
@@ -1308,6 +1403,8 @@ class PlanDiscovery:
 
     #: Table -> its column names, for every candidate that answered.
     described: dict[str, list[str]]
+    #: Table -> the bounded DESCRIBE rendering, including field comments.
+    details: dict[str, str]
     #: Table -> why it contributed nothing, in reader-facing words. One of the
     #: `PLAN_TABLE_*` reasons above.
     unreadable: dict[str, str]
@@ -1395,6 +1492,81 @@ def _plan_table_steps(
         if len(steps) >= PLAN_MAX_TABLES:
             break
     return steps, planned
+
+
+def _field_definition(description: str, field: str) -> str:
+    """The comment attached to one described field, without its data type."""
+
+    for raw in description.splitlines():
+        line = raw.strip()
+        if not line.startswith(f"- {field}:"):
+            continue
+        tail = line.split(":", 1)[1].strip()
+        match = re.search(r"\((.+)\)\s*$", tail)
+        if match:
+            return re.sub(r"\s+", " ", match.group(1)).strip()
+    return (
+        "The selected field is present in the governed table; "
+        "no additional definition was returned."
+    )
+
+
+def _plan_source_decision(
+    facts: dict[str, Any],
+    described: Mapping[str, list[str]],
+    details: Mapping[str, str],
+) -> tuple[list[PlanStep], list[PlanCandidate]]:
+    """Build one index-aligned step and structured record per ranked source."""
+
+    entries = facts.get("tables")
+    by_table: dict[str, dict[str, Any]] = {}
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            resolved = _declared_only([entry.get("name")], list(described))
+            if resolved:
+                by_table[resolved[0]] = entry
+
+    steps: list[PlanStep] = []
+    candidates: list[PlanCandidate] = []
+    for index, (table, available) in enumerate(described.items()):
+        if index >= PLAN_MAX_TABLES:
+            break
+        entry = by_table.get(table, {})
+        requested = [
+            value
+            for value in (entry.get("columns") or [])
+            if isinstance(value, str) and value in available
+        ]
+        chosen_field = str(entry.get("field") or "").strip()
+        field = (
+            chosen_field
+            if chosen_field in available
+            else (requested[0] if requested else available[0])
+        )
+        definition = _field_definition(details.get(table, ""), field)
+        why = re.sub(r"\s+", " ", str(entry.get("purpose") or "")).strip()
+        if not why:
+            why = "ranked by governed metadata for this question"
+        recommended = index == 0
+        candidate = PlanCandidate(
+            table=table,
+            field=field,
+            definition=definition,
+            why=why,
+            recommended=recommended,
+        )
+        candidates.append(candidate)
+        steps.append(
+            PlanStep(
+                id=f"source-{index + 1}",
+                title=f"{table}{' (recommended)' if recommended else ''}",
+                description=f"{field} · {definition} — why: {why}",
+                kind="data",
+            )
+        )
+    return steps, candidates
 
 
 def _plan_quality_step(
@@ -2442,6 +2614,8 @@ class RunLog:
         self.started = runtime_settings.turn_started()
         self.stages: list[TraceStage] = []
         self.sources: list[str] = []
+        self.approved_primary = ""
+        self.approved_field = ""
         #: The subset of `sources` that a value-returning query read, so the
         #: answer can say which tables its figures came from and which it only
         #: consulted. Kept here, from the verdicts that already decide it, rather
@@ -4758,29 +4932,30 @@ Statements run, for column names and grain:
         that did answer and can still say what happened to the ones that did not.
         """
 
-        def _describe(table: str) -> tuple[str, list[str], str]:
+        def _describe(table: str) -> tuple[str, list[str], str, str]:
             try:
                 result = tools.describe_table(table)
             except SqlDenied:
                 # The caller's own grants, and the one reason a reader can act
                 # on. Classified by type rather than by matching the message,
                 # which `statement_failure` has already redacted.
-                return table, [], PLAN_TABLE_DENIED
+                return table, [], PLAN_TABLE_DENIED, ""
             except Exception:  # noqa: BLE001 - one table's failure, not the plan's
-                return table, [], PLAN_TABLE_UNREADABLE
+                return table, [], PLAN_TABLE_UNREADABLE, ""
             if result.text.startswith("REJECTED"):
                 # Our own guard, not Unity Catalog: the name is outside the
                 # declared manifest or is not fully qualified. Only a re-log
                 # changes the first and the candidate step should prevent both.
-                return table, [], PLAN_TABLE_OUT_OF_SCOPE
+                return table, [], PLAN_TABLE_OUT_OF_SCOPE, ""
             columns = _described_columns(result.text)
             # A description that parsed to nothing is not a refusal and must not
             # be reported as one; it is also not usable, so it is not silently
             # dropped either.
-            return table, columns, "" if columns else PLAN_TABLE_UNREADABLE
+            return table, columns, "" if columns else PLAN_TABLE_UNREADABLE, result.text
 
         candidates = list(tables)
         described: dict[str, list[str]] = {}
+        details: dict[str, str] = {}
         unreadable: dict[str, str] = {}
         for start in range(0, len(candidates), MAX_PARALLEL_TOOL_CALLS):
             if time.perf_counter() >= deadline:
@@ -4795,12 +4970,13 @@ Statements run, for column names and grain:
                 # complete: `described` becomes the plan's catalogue, and the
                 # model reads that order as priority.
                 for future in waiting:
-                    table, columns, reason = future.result()
+                    table, columns, reason, detail = future.result()
                     if columns:
                         described[table] = columns
+                        details[table] = detail
                     else:
                         unreadable[table] = reason
-        return PlanDiscovery(described=described, unreadable=unreadable)
+        return PlanDiscovery(described=described, details=details, unreadable=unreadable)
 
     def _plan_candidates(
         self, client: Any, question: str, listing: str, declared: Sequence[str]
@@ -4841,11 +5017,13 @@ Statements run, for column names and grain:
         question: str,
         attachment_context: str,
         described: dict[str, list[str]],
+        details: Mapping[str, str] | None = None,
     ) -> dict[str, Any]:
         """The concrete work, written against the tables that were just described."""
 
         catalogue = "\n\n".join(
-            f"{table}\n  columns: {', '.join(columns)}" for table, columns in described.items()
+            (details or {}).get(table) or f"{table}\n  columns: {', '.join(columns)}"
+            for table, columns in described.items()
         )
         user = f"""Question:
 {question}
@@ -4887,6 +5065,7 @@ Tables available to this analysis, with their columns:
         *,
         discovery_intent: str = "",
         uses_conversation_context: bool | None = None,
+        plan_revision_note: str = "",
     ) -> AnalysisPlan:
         """Look first, then say what the analysis will do.
 
@@ -4925,7 +5104,7 @@ Tables available to this analysis, with their columns:
                 discovery = (
                     self._describe_for_plan(tools, candidates, deadline)
                     if candidates
-                    else PlanDiscovery(described={}, unreadable={})
+                    else PlanDiscovery(described={}, details={}, unreadable={})
                 )
                 described = discovery.described
                 # Carried down every path below, including the two fallbacks: a
@@ -4952,9 +5131,11 @@ Tables available to this analysis, with their columns:
                         note=note,
                         uses_conversation_context=has_conversation_context,
                     )
-                facts = self._plan_facts(client, finder_intent, "", described)
-                table_steps, planned = _plan_table_steps(facts, described)
-                if not table_steps:
+                facts = self._plan_facts(client, finder_intent, "", described, discovery.details)
+                steps, structured_candidates = _plan_source_decision(
+                    facts, described, discovery.details
+                )
+                if not steps:
                     span.set_outputs({"discovered": len(described), "fallback": "no usable step"})
                     return _build_plan(
                         question,
@@ -4973,56 +5154,25 @@ Tables available to this analysis, with their columns:
                     uses_conversation_context=has_conversation_context,
                 )
 
-            steps: list[PlanStep] = []
-            if has_conversation_context or attachment_context:
-                steps.append(_context_step(attachment_context))
-            # The regex trigger still fires a definitions step on its own, so a
-            # question this vocabulary catches keeps the step it has always had
-            # even when the model listed no terms. Belt and braces, in the
-            # direction of checking a definition rather than skipping one.
             terms = [
                 re.sub(r"\s+", " ", str(term)).strip()
                 for term in (facts.get("definitions") or [])
                 if str(term).strip()
             ][:6]
-            if terms or _needs_dictionary(f"{question}\n{attachment_context}"):
-                steps.append(
-                    PlanStep(
-                        id="definitions",
-                        title="Confirm metric definitions",
-                        description=(
-                            f"Ask the data dictionary for the governed meaning of "
-                            f"{_and_list(terms)} before any figure is computed."
-                            if terms
-                            else "Check governed definitions and brand-scope rules before analysis."
-                        ),
-                        kind="definitions",
-                    )
-                )
-            steps.extend(table_steps)
-            quality = _plan_quality_step(facts, described, planned)
-            if quality is not None:
-                steps.append(quality)
-            steps.append(
-                PlanStep(
-                    id="synthesis",
-                    title="Synthesize findings",
-                    description=(
-                        "Answer from "
-                        + _and_list([table.split(".")[-1] for table in planned])
-                        + " only, naming the window and the source table beside each figure, "
-                        "with the measured null ratios and any limitation stated."
-                    ),
-                    kind="synthesis",
-                )
-            )
-
             summary = re.sub(r"\s+", " ", str(facts.get("summary") or "")).strip()
             if not summary:
                 summary = (
-                    "I’ll read "
-                    + _and_list([table.split(".")[-1] for table in planned])
-                    + ", check their quality, and answer from them."
+                    "I’ll answer from "
+                    + _and_list(
+                        [candidate.table.split(".")[-1] for candidate in structured_candidates]
+                    )
+                    + " using the ranked governed source decision below."
+                )
+            if terms:
+                summary = (
+                    f"{_and_list(terms)} is not settled by the column descriptions, "
+                    "so the data dictionary "
+                    f"is consulted first. {summary}"
                 )
             # Appended rather than woven in: the model wrote the sentence before
             # it, and it was shown only the tables that answered, so it cannot
@@ -5032,17 +5182,18 @@ Tables available to this analysis, with their columns:
                 summary = f"{summary} {note}"
             span.set_outputs(
                 {
-                    "tables": planned,
+                    "tables": [candidate.table for candidate in structured_candidates],
                     "unreadable": discovery.unreadable,
                     "steps": [step.id for step in steps],
                     "seconds": round(time.perf_counter() - started, 2),
                 }
             )
             return AnalysisPlan(
-                id=_plan_id(question, attachment_context),
+                id=_plan_id(question, attachment_context, plan_revision_note),
                 question=question,
                 summary=summary,
                 steps=steps,
+                candidates=structured_candidates,
                 uses_conversation_context=has_conversation_context,
                 uses_attachment_context=bool(attachment_context),
             )
@@ -5242,6 +5393,7 @@ Tables available to this analysis, with their columns:
             return self._genie_transport_unavailable(error)
         mlflow.update_current_trace(tags=genie_routing.trace_metadata())
         question, history = _request_context(request)
+        question, revision_note = _revision_request(question)
         attachment_context = _attachment_context(custom_inputs)
         discovery_request = DiscoveryRequest(
             intent=question,
@@ -5249,15 +5401,18 @@ Tables available to this analysis, with their columns:
             attachment_context=(
                 _attachment_message(attachment_context) if attachment_context else ""
             ),
+            revision_note=revision_note,
         )
         # The id costs only a hash (see `_plan_id`), so the comparison is made
         # first and the plan is only discovered when the answer will be a plan.
         expected_plan_id = _plan_id(question, attachment_context)
         approved_sources = _approved_plan_sources(
-            custom_inputs, expected_plan_id, self.settings.readable_tables
+            custom_inputs, question, self.settings.readable_tables
         )
-        approved = _is_approved(custom_inputs, expected_plan_id) and (
-            approved_sources is None or bool(approved_sources)
+        approved = (
+            bool(approved_sources)
+            if approved_sources is not None
+            else _is_approved(custom_inputs, expected_plan_id)
         )
         if _is_nontrivial(question) and not approved:
             plan = self.data_source_finder.plan(discovery_request)
@@ -5269,16 +5424,22 @@ Tables available to this analysis, with their columns:
                 output=[text_item],
                 custom_outputs={"type": "plan", "plan": plan.model_dump()},
             )
+        approved_primary, approved_field = _approved_primary_source(custom_inputs)
         if approved_sources:
             discovery_request = DiscoveryRequest(
                 intent=discovery_request.intent,
                 established_context=discovery_request.established_context,
                 attachment_context=discovery_request.attachment_context,
                 approved_tables=approved_sources,
+                approved_fields=_approved_plan_fields(custom_inputs, approved_sources),
+                approved_recommended=approved_primary,
+                revision_note="",
             )
 
         run_id = uuid.uuid4().hex
         log = RunLog()
+        log.approved_primary = approved_primary
+        log.approved_field = approved_field
 
         if attachment_context:
             yield log.stage(
@@ -5613,6 +5774,23 @@ Tables available to this analysis, with their columns:
                 "A governance control refused part of this request, so that part is not "
                 "answered here and was not answered another way.",
             )
+        if log.approved_primary:
+            reading_sources = [
+                source for source in log.sources if _source_role(source, log) == "reading"
+            ]
+            if not reading_sources:
+                reading_sources = list(log.sources)
+            substituted = [source for source in reading_sources if source != log.approved_primary]
+            if substituted:
+                field_note = f" (field `{log.approved_field}`)" if log.approved_field else ""
+                caveats.insert(
+                    0,
+                    f"{DEGRADED_ANSWER_MARKER} This answer was NOT computed from "
+                    "the source you approved. "
+                    f"You approved `{log.approved_primary}`{field_note}, and the "
+                    "figures here came from "
+                    f"{_and_list([f'`{source}`' for source in substituted])} instead.",
+                )
         if log.repeats.abandoned:
             # Its own line, and NOT folded into the "did not respond" caveat
             # above. That one describes an outage a retry might clear; this one

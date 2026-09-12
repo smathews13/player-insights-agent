@@ -16,7 +16,7 @@ import './styles/answer-charts.css';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dataAccessDisclosure } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
-import { answerBadge, answerFallbackNotice, splitCaveats } from './degraded-answer';
+import { answerBadge, answerFallbackNotice, DEGRADED_ANSWER_MARKER, splitCaveats } from './degraded-answer';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
 import { isMlflowTraceId, withoutUntracedTimeline } from '../../shared/mlflow-trace-id';
 import { answerRunVerdict } from '../../shared/run-verdict';
@@ -166,7 +166,7 @@ export function AnswerCard({
   // A degradation is not a caveat about the answer, it is a statement about
   // whether the answer is the answer. Separated so it can be shown above the
   // supporting context instead of below it in a list of five, see degraded-answer.ts.
-  const { ordinary: ordinaryCaveats } = splitCaveats(readerAnswer.caveats);
+  const { degraded: degradedCaveats, ordinary: ordinaryCaveats } = splitCaveats(readerAnswer.caveats);
   // Whether this card may be read as an answer to the question at all, and if
   // not, which of the two ways it failed. See degraded-answer.ts for why this
   // reads `mode` rather than looking for the representative caveat.
@@ -263,6 +263,24 @@ export function AnswerCard({
         {/* First in the card, above the supporting context and evidence, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
+        {degradedCaveats.length > 0 && (
+          <Alert variant="destructive" className="answer-source-degradation">
+            <CircleAlert />
+            <AlertDescription>
+              <strong>Answer source degraded.</strong>
+              <ul>
+                {degradedCaveats.map((caveat) => (
+                  <li key={caveat}>
+                    <EntityText
+                      text={caveat.replace(DEGRADED_ANSWER_MARKER, '').trim()}
+                      sources={readerAnswer.sources}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
         {fallbackNotice && (
           <Alert variant="destructive">
             <CircleAlert />

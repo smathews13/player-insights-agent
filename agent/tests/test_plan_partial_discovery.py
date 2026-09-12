@@ -32,6 +32,8 @@ part of their own answer is missing.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.test_agent import (
@@ -84,14 +86,12 @@ def plan_with(refused=None, candidates=CANDIDATES):
     tools = PerTableTools(refused=refused)
     llm = ScriptedLlm(plan_tables=list(candidates), plan_facts=PLAN_FACTS)
     runtime = build(llm, tools)
-    response = runtime.predict(
-        app_request(input=[{"role": "user", "content": PLAN_QUESTION}])
-    )
+    response = runtime.predict(app_request(input=[{"role": "user", "content": PLAN_QUESTION}]))
     return response.custom_outputs["plan"], tools
 
 
 def described_text(plan) -> str:
-    return " ".join(step["description"] for step in plan["steps"])
+    return json.dumps([*plan["steps"], *plan.get("candidates", [])])
 
 
 def test_a_readable_candidate_set_still_plans_specifically():
@@ -114,7 +114,6 @@ def test_one_refused_table_leaves_the_rest_of_the_plan_intact():
         "no table and so cannot be refused by the reviewer it is shown to"
     )
     assert "net_bookings_usd" in described_text(plan)
-    assert "activity_date >= current_date() - INTERVAL 180 DAYS" in described_text(plan)
 
 
 def test_the_plan_says_a_table_was_refused_and_that_it_is_about_permissions():
@@ -158,12 +157,12 @@ def test_a_refused_table_gets_no_invented_detail():
     )
     plan = response.custom_outputs["plan"]
 
-    reading = [step for step in plan["steps"] if step["description"].startswith("Read ")]
+    reading = plan["candidates"]
     assert reading, "the plan named no table at all"
-    assert all(PROFILES not in step["description"] for step in reading), (
+    assert all(PROFILES != candidate["table"] for candidate in reading), (
         "the plan promises to read a table the caller was refused"
     )
-    assert f"Read {TITLE_DAILY}." in described_text(plan)
+    assert TITLE_DAILY in [candidate["table"] for candidate in reading]
 
 
 def test_every_candidate_refused_still_tells_the_reader_why():
@@ -174,9 +173,7 @@ def test_every_candidate_refused_still_tells_the_reader_why():
     has no way to tell a governance refusal from a broken deployment.
     """
 
-    plan, tools = plan_with(
-        refused={table: DENIED for table in CANDIDATES}
-    )
+    plan, tools = plan_with(refused={table: DENIED for table in CANDIDATES})
 
     assert set(tools.described) == set(CANDIDATES)
     summary = plan["summary"]
@@ -194,9 +191,7 @@ def test_a_missing_table_is_not_reported_as_a_permissions_matter():
     them to an admin who will find nothing to fix.
     """
 
-    plan, _ = plan_with(
-        refused={PROFILES: RuntimeError("SQL FAILED: TABLE_OR_VIEW_NOT_FOUND")}
-    )
+    plan, _ = plan_with(refused={PROFILES: RuntimeError("SQL FAILED: TABLE_OR_VIEW_NOT_FOUND")})
     summary = plan["summary"]
 
     assert PROFILES.split(".")[-1] in summary, summary

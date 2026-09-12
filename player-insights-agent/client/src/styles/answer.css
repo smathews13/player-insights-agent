@@ -436,6 +436,32 @@
   overflow-wrap: anywhere;
   min-width: 0;
 }
+.plan-candidate-details {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ast-text-long);
+  font-size: var(--ast-fs-13);
+  line-height: 1.5;
+}
+.plan-candidate-details li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  margin-left: 12px;
+}
+.plan-candidate-details li::before {
+  content: '•';
+  position: absolute;
+  transform: translateX(-12px);
+}
+.plan-candidate-details li > strong {
+  font-weight: 700;
+}
 .plan-steps {
   display: grid;
   gap: 8px;
@@ -582,6 +608,12 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+.answer-source-degradation ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
 }
 .plan-title {
   font-size: 20px;
