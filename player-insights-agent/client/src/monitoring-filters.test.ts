@@ -23,6 +23,7 @@ import {
   withFilters,
   withUserBrowserFilters,
   userBrowserFromParams,
+  userMonitoringReturnPath,
 } from './monitoring-filters';
 import type { MonitoringQuestion } from '../../shared/monitoring-contract';
 
@@ -206,6 +207,14 @@ describe('the User Monitoring modal lives in the URL', () => {
     expect(closed.get('userOrganization')).toBeNull();
     expect(closed.get('range')).toBe('24h');
     expect(closed.get('outcome')).toBe('partial');
+  });
+
+  it('returns an Ops-opened modal to Ops and rejects external return targets', () => {
+    expect(userMonitoringReturnPath(params('users=1&returnTo=%2Fops'))).toBe('/ops');
+    expect(userMonitoringReturnPath(params('users=1&returnTo=%2Fops%3Fsection%3Dcost'))).toBe('/ops?section=cost');
+    expect(userMonitoringReturnPath(params('users=1&returnTo=https%3A%2F%2Fevil.example%2Fops'))).toBeNull();
+    expect(userMonitoringReturnPath(params('users=1&returnTo=%2Fmonitoring'))).toBeNull();
+    expect(params(closedUserMonitoring('users=1&returnTo=%2Fops')).get('returnTo')).toBeNull();
   });
 });
 

@@ -1,33 +1,33 @@
 import type { RailOwner } from './conversation-rail';
-import type { RailPersona } from './conversation-persona-selection';
+import type { RailOrganization } from './conversation-organization-selection';
 import { ConversationOwnerSelect } from './ConversationOwnerSelect';
-import { ConversationPersonaSelect } from './ConversationPersonaSelect';
+import { ConversationOrganizationSelect } from './ConversationOrganizationSelect';
 
 export function ConversationFilters({
   owners,
-  personas,
+  organizations,
   total,
   selectedOwners,
-  selectedPersonas,
+  selectedOrganizations,
   onOwnersChange,
-  onPersonasChange,
+  onOrganizationsChange,
 }: {
   owners: readonly RailOwner[];
-  personas: readonly RailPersona[];
+  organizations: readonly RailOrganization[];
   total: number;
   selectedOwners: readonly string[];
-  selectedPersonas: readonly string[];
+  selectedOrganizations: readonly string[];
   onOwnersChange: (selected: readonly string[]) => void;
-  onPersonasChange: (selected: readonly string[]) => void;
+  onOrganizationsChange: (selected: readonly string[]) => void;
 }) {
   return (
     <>
       <ConversationOwnerSelect owners={owners} total={total} selected={selectedOwners} onChange={onOwnersChange} />
-      <ConversationPersonaSelect
-        personas={personas}
+      <ConversationOrganizationSelect
+        organizations={organizations}
         total={total}
-        selected={selectedPersonas}
-        onChange={onPersonasChange}
+        selected={selectedOrganizations}
+        onChange={onOrganizationsChange}
       />
     </>
   );

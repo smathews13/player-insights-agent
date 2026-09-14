@@ -26,6 +26,7 @@ export const RELEASE_INTENTION_KEYS = Object.freeze({
   'catalog-allowlist': 'catalog_allowlist',
   'catalog-denylist': 'catalog_denylist',
   'max-output-tokens': 'max_output_tokens',
+  'semantic-index': 'semantic_index',
 });
 
 function required(value, name) {

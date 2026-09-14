@@ -101,8 +101,8 @@ describe('an unset value is not an unchecked one', () => {
     expect(statusOf(id)).toBe('nothing-to-reach');
   });
 
-  it('reads the same rows as not checked once they name something', () => {
-    expect(statusOf('llm-gateway', { configured: 'a-route' })).toBe('not-checked');
+  it('keeps Gateway on its dedicated validation surface and probes ordinary remote resources', () => {
+    expect(statusOf('llm-gateway', { configured: 'a-route' })).toBe('nothing-to-reach');
     expect(statusOf('semantic-index', { configured: 'a.b.c' })).toBe('not-checked');
   });
 });

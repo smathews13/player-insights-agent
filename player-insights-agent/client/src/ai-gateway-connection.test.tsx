@@ -118,11 +118,13 @@ describe('AI Gateway Connections row', () => {
     expect(markup).toContain('ast-pill--neutral');
   });
 
-  it('shows a configured but unreachable Gateway as red', () => {
+  it('does not call a configured Gateway unreachable when its generic metadata probe is intentionally absent', () => {
     const markup = render(true, true, false);
-    expect(text(markup)).toContain('AI Gateway catalog.schema.gateway_model Unreachable');
-    expect(markup).toContain('data-connection-state="unreachable"');
-    expect(markup).toContain('ast-pill--neg');
+    expect(text(markup)).toContain('AI Gateway catalog.schema.gateway_model Enabled');
+    expect(text(markup)).toContain('Connection Configured');
+    expect(markup).toContain('data-connection-state="enabled"');
+    expect(markup).toContain('ast-pill--pos');
+    expect(text(markup)).not.toContain('Unreachable');
   });
 
   it('renders only capabilities proven by a discovered candidate', () => {

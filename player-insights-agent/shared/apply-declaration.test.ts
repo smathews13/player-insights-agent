@@ -55,6 +55,20 @@ describe('apply-declaration', () => {
     ).toEqual({ warehouse_id: 'wh-x' });
   });
 
+  it('carries a staged Vector Search index into the agent release', () => {
+    const intended = intendedFromResources([
+      { resource: { agentKey: 'semantic_index' }, intended: 'catalog.schema.semantic_index' },
+    ]);
+    const plan = resolveApplyPlan({ intended, target: 'customer' });
+    expect(plan.knobs).toContainEqual({
+      key: 'semantic_index',
+      label: 'Vector Search index',
+      value: 'catalog.schema.semantic_index',
+      source: 'intended',
+      envVar: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
+    });
+  });
+
   it('keeps Direct as an explicit empty Gateway route paired with its model', () => {
     const intended = intendedFromResources([
       { resource: { agentKey: 'llm_gateway' }, intended: '' },

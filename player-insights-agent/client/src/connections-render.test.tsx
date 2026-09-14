@@ -33,6 +33,7 @@ import {
   OptionalScopeLine,
   PreflightRemedyBlock,
   PreflightRemedyRow,
+  withManagedTableRemoval,
 } from './ConnectionsPage';
 import { VisitLink } from './DataEntityLinks';
 import { BRAND_THEME_MARKS } from './brand-icons';
@@ -1349,12 +1350,12 @@ describe('a connection row', () => {
     expect(rendered).not.toContain('connection-row-raw-id');
   });
 
-  it('shows Change only for resources this app can apply immediately', () => {
+  it('lets admins stage picker-backed resources while consumers remain read-only', () => {
     const adminLockedKind = renderRow('agent-endpoint', { configured: 'pia-agent-serving' });
-    const adminLockedWarehouse = renderRow('sql-warehouse', { configured: 'wh-0001' });
+    const adminStagedWarehouse = renderRow('sql-warehouse', { configured: 'wh-0001' }, { open: true });
     const adminWritable = renderRow('experiment-id', { configured: '123', editable: true }, { open: true });
     expect(adminLockedKind).not.toMatch(/data-affordance|Change/);
-    expect(adminLockedWarehouse).not.toMatch(/data-affordance|Change/);
+    expect(text(adminStagedWarehouse)).toContain('Change');
     expect(text(adminWritable)).toContain('Change');
 
     const consumer = renderRow('agent-endpoint', { configured: 'pia-agent-serving' }, { allowMutations: false });
@@ -1366,22 +1367,22 @@ describe('a connection row', () => {
     expect(text(rendered)).not.toMatch(/Widens tenancy|Record intention/);
   });
 
-  it('wires a picker only for rows with an immediate save path', () => {
+  it('wires pickers for immediate and release-staged connection changes', () => {
     // The AssetPickerField only mounts once the pencil puts the row into edit
     // mode (client state), so a static open-row render cannot assert the picker
     // markup. What this page must not regress is the unlock + the field mapping.
     for (const id of [
-      'lakebase',
+      'genie-data',
+      'genie-dictionary',
+      'sql-warehouse',
       'assets-volume',
       'semantic-index-endpoint',
       'semantic-index',
       'experiment-id',
     ] as const) {
       expect(pickerForField(id), id).not.toBeNull();
-      const editable = id === 'experiment-id';
-      const rendered = renderRow(id, { configured: 'placeholder', editable }, { open: true });
-      if (editable) expect(text(rendered), id).toMatch(/Change/);
-      else expect(text(rendered), id).not.toMatch(/Change/);
+      const rendered = renderRow(id, { configured: 'placeholder', editable: id === 'experiment-id' }, { open: true });
+      expect(text(rendered), id).toMatch(/Change/);
     }
   });
 
@@ -1674,7 +1675,7 @@ describe('the Unity Catalog tables section', () => {
     );
   });
 
-  it('lists an added table once with pending reachability and deletion in this section', () => {
+  it('lists an added table once with pending reachability and a red Remove action', () => {
     const tableMarkup = render(
       <DeclaredTablesSection tableChecks={tables} tableConnections={[userTable]} requestedEntity="" allowMutations />
     );
@@ -1682,13 +1683,17 @@ describe('the Unity Catalog tables section', () => {
     expect(tableMarkup.match(/id="declared-table-row-table-a-catalog-a-schema-added"/g)).toHaveLength(1);
     expect(text(tableMarkup)).toContain('Checking');
     expect(text(tableMarkup)).toContain('Connection check pending');
-    expect(tableMarkup).toContain('Delete connection: a_catalog.a_schema.added_table');
+    expect(tableMarkup).toContain('Remove: a_catalog.a_schema.added_table');
+    expect(tableMarkup).toContain('bg-destructive');
     expect(genericMarkup).not.toContain('declared-connection-table-a-catalog-a-schema-added');
   });
 
-  it('keeps bundle-managed table rows read-only', () => {
+  it('offers Remove for every bundle-managed table and stages an exact denylist entry', () => {
     const markup = render(<DeclaredTablesSection tableChecks={tables} requestedEntity="" allowMutations />);
-    expect(markup).not.toContain('Delete connection: a_catalog.a_schema.gold_title_daily_summary');
+    expect(markup).toContain('Remove: a_catalog.a_schema.gold_title_daily_summary');
+    expect(markup.match(/bg-destructive/g)?.length).toBeGreaterThanOrEqual(tables.length);
+    expect(withManagedTableRemoval('scratch.*, a.b.c', 'a.b.d')).toBe('scratch.*, a.b.c, a.b.d');
+    expect(withManagedTableRemoval('scratch.*, a.b.c', 'A.B.C')).toBe('scratch.*, a.b.c');
   });
 
   it('keeps added catalogs and schemas in the one Unity Catalog table', () => {

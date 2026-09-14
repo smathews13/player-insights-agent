@@ -35,6 +35,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from config import ENV_VARS
+from semantic_retrieval import SEMANTIC_INDEX_ENV
+
+APPLY_ENV_VARS = {**ENV_VARS, "semantic_index": SEMANTIC_INDEX_ENV}
 
 #: Keys Apply may promote into a re-log. Matches `needs-model-version` in
 #: `player-insights-agent/shared/notebook-declaration.ts`, minus refused ones.
@@ -49,6 +52,7 @@ APPLYABLE_KEYS: frozenset[str] = frozenset(
         "catalog",
         "schema",
         "catalog_denylist",
+        "semantic_index",
         # Admin-staged only; notebook values are dropped below.
         "catalog_allowlist",
     }
@@ -70,6 +74,7 @@ RESOURCE_TO_AGENT_KEY: dict[str, str] = {
     "schema": "schema",
     "catalog-allowlist": "catalog_allowlist",
     "catalog-denylist": "catalog_denylist",
+    "semantic-index": "semantic_index",
 }
 
 
@@ -203,7 +208,7 @@ def resolve_apply_plan(
     notes: list[str] = []
 
     for key in sorted(APPLYABLE_KEYS):
-        env_var = ENV_VARS.get(key)
+        env_var = APPLY_ENV_VARS.get(key)
         if not env_var:
             skipped.append({"key": key, "reason": "no env var mapping"})
             continue

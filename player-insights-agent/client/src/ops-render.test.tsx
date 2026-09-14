@@ -354,16 +354,19 @@ describe('Cost Tracking initial loading', () => {
 
 describe('the Cost Tracking user-spend cross-link', () => {
   it('maps compatible ranges and units into the shared Monitoring URL', () => {
-    expect(perUserSpendHref('range=30d', 'DBU')).toBe('/monitoring?range=30d&users=1&userUnit=DBU');
-    expect(perUserSpendHref('range=custom', 'USD')).toBe('/monitoring?users=1&userUnit=USD');
-    expect(perUserSpendHref('', 'USD')).toBe('/monitoring?users=1&userUnit=USD');
+    expect(perUserSpendHref('range=30d', 'DBU')).toBe('/monitoring?range=30d&users=1&userUnit=DBU&returnTo=%2Fops');
+    expect(perUserSpendHref('range=custom', 'USD')).toBe('/monitoring?users=1&userUnit=USD&returnTo=%2Fops');
+    expect(perUserSpendHref('', 'USD')).toBe('/monitoring?users=1&userUnit=USD&returnTo=%2Fops');
+    expect(perUserSpendHref('', 'USD', '/ops?section=cost#tracking')).toContain(
+      'returnTo=%2Fops%3Fsection%3Dcost%23tracking'
+    );
   });
 
   it('uses the shared primary action and carries Monitoring deep-link state', () => {
     const markup = markupOf(
       <CostBody block={block(cost())} userMonitoringHref="/monitoring?range=30d&users=1&userUnit=DBU" />
     );
-    expect(text(markup)).toContain('See per-user spend');
+    expect(text(markup)).toContain('User Spend');
     expect(markup).toContain('ops-user-spend-link');
     expect(markup).toContain('lucide-users');
     expect(markup).toContain('/monitoring?range=30d');
@@ -373,7 +376,7 @@ describe('the Cost Tracking user-spend cross-link', () => {
   });
 
   it('renders no user enumeration action when no admin-authorized link is supplied', () => {
-    expect(text(markupOf(<CostBody block={block(cost())} />))).not.toContain('See per-user spend');
+    expect(text(markupOf(<CostBody block={block(cost())} />))).not.toContain('User Spend');
   });
 });
 
