@@ -657,7 +657,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
         return;
       }
       const { resourceId } = req.params;
-      if (resourceId === 'llm-gateway') {
+      if (resourceId === 'llm-gateway' || resourceId === 'llm-gateway-mode') {
         res.status(409).json({
           error: 'atomic_gateway_selection_required',
           detail:

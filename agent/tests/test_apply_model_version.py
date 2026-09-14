@@ -141,7 +141,8 @@ def test_gateway_candidate_is_revalidated_before_claim(tmp_path, monkeypatch):
         "source": "connections-apply",
         "settings": {
             "llm_gateway": "mlflow",
-            "llm_endpoint": "main.ai.routed",
+            "llm_gateway_endpoint": "main.ai.routed",
+            "llm_endpoint": "databricks-gpt-5",
         },
     }
     document["revision"] = helper._revision(document)

@@ -194,6 +194,7 @@ describe('AI Gateway validation and staging', () => {
     }
     const settingsRoutes = readFileSync(new URL('../routes/settings-routes.ts', import.meta.url), 'utf8');
     expect(settingsRoutes).toContain("resourceId === 'llm-gateway'");
+    expect(settingsRoutes).toContain("resourceId === 'llm-gateway-mode'");
     expect(settingsRoutes).toContain('atomic_gateway_selection_required');
   });
 
@@ -250,6 +251,7 @@ describe('AI Gateway validation and staging', () => {
       Promise.resolve({
         rows: [
           { resource_id: 'llm-gateway', updated_at: new Date('2026-09-01T12:00:00Z') },
+          { resource_id: 'llm-gateway-mode', updated_at: new Date('2026-09-01T12:00:00Z') },
           { resource_id: 'llm-endpoint', updated_at: new Date('2026-09-01T12:00:00Z') },
           { resource_id: AI_GATEWAY_REVISION_RESOURCE, updated_at: new Date('2026-09-01T12:00:00Z') },
         ],
@@ -260,6 +262,7 @@ describe('AI Gateway validation and staging', () => {
       store: { lakebase: { query } },
       mode: '',
       candidateId: 'databricks-gpt-5',
+      activeDirectModel: 'existing-direct',
       expectedRevision: '0',
       actor: 'admin@example.test',
       validation: {
@@ -274,10 +277,45 @@ describe('AI Gateway validation and staging', () => {
     expect(query).toHaveBeenCalledTimes(1);
     const [sql, params] = query.mock.calls[0];
     expect(sql).toMatch(/pg_advisory_xact_lock/);
-    expect(sql).toMatch(/'llm-gateway'[\s\S]*'llm-endpoint'/);
+    expect(sql).toMatch(/'llm-gateway'[\s\S]*'llm-gateway-mode'[\s\S]*'llm-endpoint'/);
     expect(params?.[3]).toBe('');
-    expect(params?.[4]).toBe('databricks-gpt-5');
+    expect(params?.[4]).toBe('');
+    expect(params?.[5]).toBe('databricks-gpt-5');
     expect(JSON.stringify(params)).toContain('opaque-etag');
+  });
+
+  it('stages a Gateway endpoint and transport without replacing the direct endpoint', async () => {
+    const query = vi.fn((_sql: string, params?: unknown[]) =>
+      Promise.resolve({
+        rows: [
+          { resource_id: 'llm-gateway' },
+          { resource_id: 'llm-gateway-mode' },
+          { resource_id: 'llm-endpoint' },
+          { resource_id: AI_GATEWAY_REVISION_RESOURCE },
+        ],
+        params,
+      })
+    );
+    const result = await stageAiGatewaySelection({
+      store: { lakebase: { query } },
+      mode: 'mlflow',
+      candidateId: 'catalog.schema.gateway_model',
+      activeDirectModel: 'databricks-claude-sonnet-4-6',
+      expectedRevision: '0',
+      actor: 'admin@example.test',
+      validation: {
+        state: 'validated',
+        detail: 'ok',
+        validatedAt: '2026-09-01T12:00:00Z',
+        candidate: null,
+      },
+    });
+    expect(result.ok).toBe(true);
+    const params = query.mock.calls[0]?.[1];
+    expect(params?.[3]).toBe('catalog.schema.gateway_model');
+    expect(params?.[4]).toBe('mlflow');
+    expect(params?.[5]).toBe('databricks-claude-sonnet-4-6');
+    expect(params?.[5]).not.toBe(params?.[3]);
   });
 
   it('refuses a stale concurrent revision without a partial success', async () => {
@@ -286,6 +324,7 @@ describe('AI Gateway validation and staging', () => {
       store: { lakebase: { query } },
       mode: 'mlflow',
       candidateId: 'main.ai.service',
+      activeDirectModel: 'direct-model',
       expectedRevision: 'stale',
       actor: 'admin@example.test',
       validation: {
@@ -300,7 +339,12 @@ describe('AI Gateway validation and staging', () => {
   });
 
   it('keeps an empty route neutral and represents a coherent staged pair', () => {
-    const empty = summarizeAiGateway({ activeMode: '', activeModel: 'direct-model', stored: new Map() });
+    const empty = summarizeAiGateway({
+      activeMode: '',
+      activeDirectModel: 'direct-model',
+      activeGatewayModel: '',
+      stored: new Map(),
+    });
     expect(empty).toMatchObject({
       active: { transport: 'Direct' },
       staged: null,
@@ -311,6 +355,7 @@ describe('AI Gateway validation and staging', () => {
     const note = JSON.stringify({
       mode: 'openai',
       candidateId: 'main.ai.routed',
+      directModel: 'direct-model',
       validatedAt: '2026-09-01T12:00:00Z',
       etag: 'secret-server-only',
       revision,
@@ -324,12 +369,48 @@ describe('AI Gateway validation and staging', () => {
       updatedBy: 'admin@example.test',
     });
     const stored = new Map([
-      ['llm-gateway', setting('llm-gateway', 'openai')],
-      ['llm-endpoint', setting('llm-endpoint', 'main.ai.routed')],
+      ['llm-gateway', setting('llm-gateway', 'main.ai.routed')],
+      ['llm-gateway-mode', setting('llm-gateway-mode', 'openai')],
+      ['llm-endpoint', setting('llm-endpoint', 'direct-model')],
       [AI_GATEWAY_REVISION_RESOURCE, setting(AI_GATEWAY_REVISION_RESOURCE, revision, '')],
     ]);
-    const summary = summarizeAiGateway({ activeMode: '', activeModel: 'direct-model', stored });
+    const summary = summarizeAiGateway({
+      activeMode: '',
+      activeDirectModel: 'direct-model',
+      activeGatewayModel: '',
+      stored,
+    });
     expect(summary.staged).toMatchObject({ mode: 'openai', model: 'main.ai.routed' });
     expect(JSON.stringify(summary)).not.toContain('secret-server-only');
+  });
+
+  it('rejects the legacy collision that stored a Gateway candidate as the direct endpoint', () => {
+    const revision = 'legacy-revision';
+    const note = JSON.stringify({
+      mode: 'mlflow',
+      candidateId: 'main.ai.routed',
+      validatedAt: '2026-09-01T12:00:00Z',
+      revision,
+    });
+    const setting = (resourceId: string, value: string): StoredSetting => ({
+      resourceId,
+      value,
+      intent: 'intended',
+      note,
+      updatedAt: '2026-09-01T12:00:00Z',
+      updatedBy: 'admin@example.test',
+    });
+    const summary = summarizeAiGateway({
+      activeMode: '',
+      activeDirectModel: 'direct-model',
+      activeGatewayModel: '',
+      stored: new Map([
+        ['llm-gateway', setting('llm-gateway', 'mlflow')],
+        ['llm-endpoint', setting('llm-endpoint', 'main.ai.routed')],
+        [AI_GATEWAY_REVISION_RESOURCE, setting(AI_GATEWAY_REVISION_RESOURCE, revision)],
+      ]),
+    });
+    expect(summary.configurationState).toBe('invalid');
+    expect(summary.staged).toBeNull();
   });
 });

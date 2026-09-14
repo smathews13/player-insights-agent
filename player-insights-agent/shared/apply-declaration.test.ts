@@ -72,15 +72,58 @@ describe('apply-declaration', () => {
   it('keeps Direct as an explicit empty Gateway route paired with its model', () => {
     const intended = intendedFromResources([
       { resource: { agentKey: 'llm_gateway' }, intended: '' },
+      { resource: { agentKey: 'llm_gateway_endpoint' }, intended: '' },
       { resource: { agentKey: 'llm_endpoint' }, intended: 'databricks-gpt-5' },
     ]);
-    expect(intended).toEqual({ llm_gateway: '', llm_endpoint: 'databricks-gpt-5' });
+    expect(intended).toEqual({
+      llm_gateway: '',
+      llm_gateway_endpoint: '',
+      llm_endpoint: 'databricks-gpt-5',
+    });
     const plan = resolveApplyPlan({ intended, target: 'customer' });
     expect(plan.knobs.find((knob) => knob.key === 'llm_gateway')).toMatchObject({
       value: '',
       source: 'intended',
     });
     expect(plan.notes.join(' ')).toMatch(/Direct.*databricks-gpt-5.*revalidates/);
+  });
+
+  it('preserves Direct gateway clears in the immutable release declaration', () => {
+    const declaration = {
+      source: 'connections-apply',
+      revision: '',
+      publishedAt: '',
+      publishedBy: '',
+      settings: [
+        { key: 'llm_gateway', value: '' },
+        { key: 'llm_gateway_endpoint', value: '' },
+        { key: 'llm_endpoint', value: 'databricks-gpt-5' },
+      ],
+      connections: [],
+      emptyScopes: false,
+    } satisfies NotebookDeclaration;
+    const plan = resolveApplyPlan({ notebook: settingsFromDeclaration(declaration), target: 'customer' });
+    expect(Object.fromEntries(plan.knobs.map((knob) => [knob.envVar, knob.value]))).toMatchObject({
+      PLAYER_INSIGHTS_LLM_GATEWAY: '',
+      PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT: '',
+      PLAYER_INSIGHTS_LLM_ENDPOINT: 'databricks-gpt-5',
+    });
+  });
+
+  it('keeps a Gateway endpoint separate from the direct foundation endpoint', () => {
+    const intended = intendedFromResources([
+      { resource: { agentKey: 'llm_gateway' }, intended: 'mlflow' },
+      { resource: { agentKey: 'llm_gateway_endpoint' }, intended: 'catalog.schema.gateway_model' },
+      { resource: { agentKey: 'llm_endpoint' }, intended: 'databricks-gpt-5' },
+    ]);
+    const plan = resolveApplyPlan({ intended, target: 'customer' });
+    expect(Object.fromEntries(plan.knobs.map((knob) => [knob.envVar, knob.value]))).toMatchObject({
+      PLAYER_INSIGHTS_LLM_GATEWAY: 'mlflow',
+      PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT: 'catalog.schema.gateway_model',
+      PLAYER_INSIGHTS_LLM_ENDPOINT: 'databricks-gpt-5',
+    });
+    expect(plan.notes.join(' ')).toMatch(/mlflow.*catalog\.schema\.gateway_model/);
+    expect(plan.notes.join(' ')).not.toMatch(/mlflow.*databricks-gpt-5/);
   });
 
   it('lists the same applyable keys the Python resolver exports', () => {

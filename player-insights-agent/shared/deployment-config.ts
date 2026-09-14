@@ -423,11 +423,12 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     kind: 'vector-search',
     changedBy: 'app-redeploy',
     arrivesBy:
-      'Created by the bundle from var.semantic_index_endpoint. Nothing passes its name to the app or ' +
-      'to the served agent, so it is read back from the index, which reports the endpoint serving it.',
+      'Created and owned by the bundle through var.semantic_index_endpoint. The app reads the hosting endpoint ' +
+      'back from the active index and validates both resources before release. Changing this value can create or ' +
+      'rebind live Vector Search resources, so it is intentionally not staged from the app.',
     bundleVariable: 'semantic_index_endpoint',
     agentKey: null,
-    appEnvVar: 'PLAYER_INSIGHTS_SEMANTIC_ENDPOINT',
+    appEnvVar: null,
     // The app's own probe, keyed by this id. Named here rather than left null so
     // an unprobed row reads `Not checked` -- `nothing-to-reach` is for a value
     // the app both resolves and applies, and this one has a real remote end.

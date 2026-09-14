@@ -47,6 +47,7 @@ APPLYABLE_KEYS: frozenset[str] = frozenset(
         "data_genie_space_id",
         "dictionary_genie_space_id",
         "llm_endpoint",
+        "llm_gateway_endpoint",
         "llm_gateway",
         "max_output_tokens",
         "catalog",
@@ -61,6 +62,11 @@ APPLYABLE_KEYS: frozenset[str] = frozenset(
 #: Notebook may publish this, but Apply never takes it from a declaration.
 NOTEBOOK_REFUSED_KEYS: frozenset[str] = frozenset({"catalog_allowlist"})
 
+#: Empty is an explicit release decision for these settings, not an absence.
+INTENTIONAL_EMPTY_KEYS: frozenset[str] = frozenset(
+    {"catalog_denylist", "llm_gateway", "llm_gateway_endpoint"}
+)
+
 #: Connections resource id -> agent/config.py field. Same join as
 #: `shared/deployment-config.ts` `agentKey` on stageable model-version rows.
 RESOURCE_TO_AGENT_KEY: dict[str, str] = {
@@ -68,7 +74,8 @@ RESOURCE_TO_AGENT_KEY: dict[str, str] = {
     "genie-data": "data_genie_space_id",
     "genie-dictionary": "dictionary_genie_space_id",
     "llm-endpoint": "llm_endpoint",
-    "llm-gateway": "llm_gateway",
+    "llm-gateway": "llm_gateway_endpoint",
+    "llm-gateway-mode": "llm_gateway",
     "max-output-tokens": "max_output_tokens",
     "catalog": "catalog",
     "schema": "schema",
@@ -123,7 +130,7 @@ def intended_from_resources(resources: list[Mapping[str, Any]] | None) -> dict[s
         if raw_intended is None:
             continue
         intended = _text(entry.get("intended"))
-        if not key or (not intended and key != "llm_gateway"):
+        if not key or (not intended and key not in INTENTIONAL_EMPTY_KEYS):
             continue
         if key not in APPLYABLE_KEYS:
             continue
@@ -149,7 +156,7 @@ def intended_from_stored(
         if not resource_id:
             continue
         key = RESOURCE_TO_AGENT_KEY.get(resource_id)
-        if not value and key != "llm_gateway":
+        if not value and key not in INTENTIONAL_EMPTY_KEYS:
             continue
         if not key or key not in APPLYABLE_KEYS:
             continue
@@ -161,8 +168,10 @@ def intended_from_stored(
     return out
 
 
-def settings_from_declaration(document: Mapping[str, Any] | None) -> dict[str, str]:
-    """Parse a notebook declaration document's settings map."""
+def settings_from_declaration(
+    document: Mapping[str, Any] | None, *, admin_staged: bool = False
+) -> dict[str, str]:
+    """Parse a notebook or immutable Connections release declaration."""
     out: dict[str, str] = {}
     if not document:
         return out
@@ -180,9 +189,9 @@ def settings_from_declaration(document: Mapping[str, Any] | None) -> dict[str, s
     for key, value in items:
         k = _text(key)
         v = _text(value)
-        if not k or not v:
+        if not k or (not v and k not in INTENTIONAL_EMPTY_KEYS):
             continue
-        if k in NOTEBOOK_REFUSED_KEYS:
+        if k in NOTEBOOK_REFUSED_KEYS and not admin_staged:
             continue
         if k not in APPLYABLE_KEYS:
             continue
@@ -198,9 +207,11 @@ def resolve_apply_plan(
 ) -> ApplyPlan:
     """Merge intended + notebook + baseline into exportable knobs."""
     intended_map = {
-        k: _text(v) for k, v in (intended or {}).items() if _text(v) or k == "llm_gateway"
+        k: _text(v) for k, v in (intended or {}).items() if _text(v) or k in INTENTIONAL_EMPTY_KEYS
     }
-    notebook_map = {k: _text(v) for k, v in (notebook or {}).items() if _text(v)}
+    notebook_map = {
+        k: _text(v) for k, v in (notebook or {}).items() if _text(v) or k in INTENTIONAL_EMPTY_KEYS
+    }
     baseline_map = {k: _text(v) for k, v in (baseline or {}).items() if _text(v)}
 
     knobs: list[ResolvedKnob] = []
@@ -320,16 +331,28 @@ def main(argv: list[str] | None = None) -> int:
     intended_raw = _load_json(args.intended_json)
     baseline_raw = _load_json(args.baseline_json)
 
-    notebook = settings_from_declaration(declaration if isinstance(declaration, Mapping) else None)
-
-    intended: dict[str, str] = {}
+    declaration_document = declaration if isinstance(declaration, Mapping) else None
+    connections_release = bool(
+        declaration_document and _text(declaration_document.get("source")) == "connections-apply"
+    )
+    declared_settings = settings_from_declaration(
+        declaration_document, admin_staged=connections_release
+    )
+    notebook = {} if connections_release else declared_settings
+    intended: dict[str, str] = dict(declared_settings) if connections_release else {}
     if isinstance(intended_raw, Mapping) and "resources" in intended_raw:
-        intended = intended_from_resources(intended_raw.get("resources"))  # type: ignore[arg-type]
+        intended.update(intended_from_resources(intended_raw.get("resources")))  # type: ignore[arg-type]
     elif isinstance(intended_raw, list):
-        intended = intended_from_stored(intended_raw)
+        intended.update(intended_from_stored(intended_raw))
     elif isinstance(intended_raw, Mapping):
         # Bare agentKey -> value map
-        intended = {k: _text(v) for k, v in intended_raw.items() if _text(v) or k == "llm_gateway"}
+        intended.update(
+            {
+                k: _text(v)
+                for k, v in intended_raw.items()
+                if _text(v) or k in INTENTIONAL_EMPTY_KEYS
+            }
+        )
 
     baseline: dict[str, str] = {}
     if isinstance(baseline_raw, Mapping):

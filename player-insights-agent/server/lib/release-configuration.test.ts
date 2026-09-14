@@ -28,18 +28,28 @@ describe('release configuration, without asking the agent', () => {
       PLAYER_INSIGHTS_SCHEMA: 'sch',
       PLAYER_INSIGHTS_SEMANTIC_INDEX: 'true',
     });
-    expect(configuration.find((entry) => entry.key === 'semantic_index')?.value).toBe(
-      'cat.sch.semantic_layer_index'
-    );
+    expect(configuration.find((entry) => entry.key === 'semantic_index')?.value).toBe('cat.sch.semantic_layer_index');
   });
 
   it('copies the foundation model from the app environment when the release wrote one', () => {
     const configuration = configurationFromRelease({
       PLAYER_INSIGHTS_LLM_ENDPOINT: 'databricks-claude-sonnet-4-6',
     });
-    expect(configuration.find((entry) => entry.key === 'llm_endpoint')?.value).toBe(
-      'databricks-claude-sonnet-4-6'
-    );
+    expect(configuration.find((entry) => entry.key === 'llm_endpoint')?.value).toBe('databricks-claude-sonnet-4-6');
+  });
+
+  it('keeps Gateway endpoint and transport separate from the direct endpoint', () => {
+    const configuration = configurationFromRelease({
+      PLAYER_INSIGHTS_LLM_ENDPOINT: 'direct-foundation',
+      PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT: 'catalog.schema.gateway',
+      PLAYER_INSIGHTS_LLM_GATEWAY: 'mlflow',
+    });
+    const byKey = Object.fromEntries(configuration.map((entry) => [entry.key, entry.value]));
+    expect(byKey).toMatchObject({
+      llm_endpoint: 'direct-foundation',
+      llm_gateway_endpoint: 'catalog.schema.gateway',
+      llm_gateway: 'mlflow',
+    });
   });
 
   it('prefers an explicit declared manifest over qualifying the data contract', () => {
@@ -60,10 +70,7 @@ describe('release configuration, without asking the agent', () => {
 });
 
 describe('filling gaps from the served model version', () => {
-  const baked = (
-    key: string,
-    value: unknown
-  ): ReturnType<typeof configurationFromRelease>[number] => ({
+  const baked = (key: string, value: unknown): ReturnType<typeof configurationFromRelease>[number] => ({
     key,
     env_var: '',
     value,
@@ -75,14 +82,11 @@ describe('filling gaps from the served model version', () => {
 
   it('fills the foundation model and a longer declared list the container did not have', () => {
     const twelve = Array.from({ length: 12 }, (_, index) => `cat.sch.t${index + 1}`);
-    const merged = configurationForSettings(
-      { PLAYER_INSIGHTS_CATALOG: 'cat', PLAYER_INSIGHTS_SCHEMA: 'sch' },
-      [
-        baked('llm_endpoint', 'databricks-claude-sonnet-4-6'),
-        baked('declared_manifest', twelve),
-        baked('semantic_index', 'cat.sch.semantic_layer_index'),
-      ]
-    );
+    const merged = configurationForSettings({ PLAYER_INSIGHTS_CATALOG: 'cat', PLAYER_INSIGHTS_SCHEMA: 'sch' }, [
+      baked('llm_endpoint', 'databricks-claude-sonnet-4-6'),
+      baked('declared_manifest', twelve),
+      baked('semantic_index', 'cat.sch.semantic_layer_index'),
+    ]);
     const byKey = Object.fromEntries(merged.map((entry) => [entry.key, entry]));
     expect(byKey.llm_endpoint.value).toBe('databricks-claude-sonnet-4-6');
     expect(byKey.declared_manifest.value).toEqual(twelve);

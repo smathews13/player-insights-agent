@@ -65,25 +65,42 @@ resolve_profile
 # script spawns rather than paid for again by each of them.
 seed_bundle_cache
 
-CATALOG="$(bundle_var app_catalog)"
-SCHEMA="$(bundle_var app_schema)"
-WAREHOUSE_ID="$(bundle_var warehouse_id)"
+release_value() {
+  local env_name="$1"
+  local bundle_name="$2"
+  local reader="${3:-bundle_var}"
+  if [[ "${PLAYER_INSIGHTS_APPLY_OVERRIDES:-}" == 1 ]] && declare -p "$env_name" >/dev/null 2>&1; then
+    printf '%s' "${!env_name-}"
+  else
+    "$reader" "$bundle_name"
+  fi
+}
+
+# Apply exports are intentional release inputs. Presence, not truthiness, decides
+# precedence because clearing a denylist or Gateway route is represented by an
+# explicitly exported empty string. The bundle is a baseline only for variables
+# the Apply resolver did not export.
+CATALOG="$(release_value PLAYER_INSIGHTS_CATALOG app_catalog)"
+SCHEMA="$(release_value PLAYER_INSIGHTS_SCHEMA app_schema)"
+WAREHOUSE_ID="$(release_value PLAYER_INSIGHTS_WAREHOUSE_ID warehouse_id)"
 MODEL_NAME="$(bundle_var model_name)"
 ENDPOINT="$(bundle_var serving_endpoint_name)"
 ROLLBACKS_KEPT="$(bundle_var serving_rollbacks_kept)"
 EXPERIMENT="$(bundle_var experiment_path)"
-LLM_ENDPOINT="$(bundle_var llm_direct_endpoint)"
-ALLOWLIST="$(bundle_var_csv data_catalogs)"
+LLM_ENDPOINT="$(release_value PLAYER_INSIGHTS_LLM_ENDPOINT llm_direct_endpoint)"
+ALLOWLIST="$(release_value PLAYER_INSIGHTS_CATALOG_ALLOWLIST data_catalogs bundle_var_csv)"
 # Optional, and the only one here that is: an empty denylist is the normal case,
 # so `bundle_var` would die on a target that has not set one.
-DENYLIST="$(bundle_var_or_empty catalog_denylist)"
-MAX_TOKENS="$(bundle_var max_output_tokens)"
+DENYLIST="$(release_value PLAYER_INSIGHTS_CATALOG_DENYLIST catalog_denylist bundle_var_or_empty)"
+MAX_TOKENS="$(release_value PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS max_output_tokens)"
 # Also optional, for the same reason and then some: Unity AI Gateway is a
 # binding a customer may or may not have, and empty (reach the serving endpoint
 # directly) is both the default and what every target that predates this
 # variable resolves to.
-LLM_GATEWAY="$(bundle_var_or_empty llm_gateway)"
-LLM_GATEWAY_ENDPOINT="$(bundle_var_or_empty llm_gateway_endpoint)"
+LLM_GATEWAY="$(release_value PLAYER_INSIGHTS_LLM_GATEWAY llm_gateway bundle_var_or_empty)"
+LLM_GATEWAY_ENDPOINT="$(
+  release_value PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT llm_gateway_endpoint bundle_var_or_empty
+)"
 if { [[ -n "$LLM_GATEWAY" ]] && [[ -z "$LLM_GATEWAY_ENDPOINT" ]]; } ||
   { [[ -z "$LLM_GATEWAY" ]] && [[ -n "$LLM_GATEWAY_ENDPOINT" ]]; }; then
   die "llm_gateway and llm_gateway_endpoint must both be set, or both be empty"
@@ -107,9 +124,12 @@ ALLOW_UNATTRIBUTED_FIGURES="$(bundle_var_or_empty allow_unattributed_figures)"
 # Enable semantic retrieval only when this target names an index endpoint. An
 # explicit environment value can adopt an index managed outside this bundle.
 SEMANTIC_INDEX_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
-SEMANTIC_INDEX="${PLAYER_INSIGHTS_SEMANTIC_INDEX:-}"
-SEMANTIC_INDEX_ORIGIN='set in the environment'
-if [[ -z "$SEMANTIC_INDEX" ]]; then
+SEMANTIC_INDEX_ORIGIN='set explicitly by Apply'
+if declare -p PLAYER_INSIGHTS_SEMANTIC_INDEX >/dev/null 2>&1; then
+  SEMANTIC_INDEX="$PLAYER_INSIGHTS_SEMANTIC_INDEX"
+else
+  SEMANTIC_INDEX=""
+  SEMANTIC_INDEX_ORIGIN='not exported by Apply'
   if [[ -n "$SEMANTIC_INDEX_ENDPOINT" ]]; then
     # `true` rather than a name: `resolve_index` derives it from this deployment's
     # catalog and schema, which is the same derivation the bundle's index name uses,
@@ -125,13 +145,13 @@ fi
 # bundle variables for a one-off release.
 DATA_GENIE_ADOPTED=""
 DICT_GENIE_ADOPTED=""
-if [[ -n "${PLAYER_INSIGHTS_DATA_GENIE_ID:-}" ]]; then
+if declare -p PLAYER_INSIGHTS_DATA_GENIE_ID >/dev/null 2>&1; then
   DATA_GENIE_ID="$PLAYER_INSIGHTS_DATA_GENIE_ID"
 else
   DATA_GENIE_ADOPTED="$(bundle_var genie_data_space_id)"
   DATA_GENIE_ID="$DATA_GENIE_ADOPTED"
 fi
-if [[ -n "${PLAYER_INSIGHTS_DICTIONARY_GENIE_ID:-}" ]]; then
+if declare -p PLAYER_INSIGHTS_DICTIONARY_GENIE_ID >/dev/null 2>&1; then
   DICT_GENIE_ID="$PLAYER_INSIGHTS_DICTIONARY_GENIE_ID"
 else
   DICT_GENIE_ADOPTED="$(bundle_var genie_dictionary_space_id)"
