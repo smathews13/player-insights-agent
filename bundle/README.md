@@ -61,6 +61,20 @@ and app code:
    new service principal and cannot own the prior App's schema. The app release
    ownership gate refuses that old schema; keep it for deliberate migration
    rather than deleting it to unblock the release.
+
+   This ignored file is the durable configuration contract for one checkout.
+   Bundle validation/deploy and the release scripts resolve it after tracked
+   defaults, so its target-specific values win. Normal pull, checkout,
+   validation, deploy, agent-release, app-release, and Apply paths do not write
+   or delete it.
+
+   Git never transfers ignored files. A new clone, new machine, or replacement
+   working directory needs a secure copy or a newly created
+   `.databricks/bundle/<target>/variable-overrides.json`. Shell environment
+   variables are one-run overrides, not persistent storage. Databricks Apps
+   **Deploy from Git** cannot see this laptop file either; it uses the committed
+   neutral `build/deploy/app.yaml`. Use local `bundle/app-release.sh --apply`
+   when an app update must regenerate that file from target-specific values.
 1. Run the deployment:
 
    ```bash

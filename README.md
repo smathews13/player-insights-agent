@@ -115,6 +115,17 @@ Create the git-ignored file
 }
 ```
 
+This ignored file is the supported persistent configuration for one local
+checkout. Tracked defaults in `databricks.yml` are only a baseline; Databricks
+Bundle commands for `-t customer` read this target-specific file and its values
+win over those defaults. `git pull`, branch checkout, bundle validation, and the
+release scripts do not rewrite it.
+
+Git cannot carry local state to a different checkout. A fresh `git clone` does
+not contain this file, so copy it securely from the prior checkout or recreate
+it before validating or deploying. Shell environment variables are one-run
+overrides only and do not survive a new terminal, clone, or machine.
+
 `data_catalogs` is the deployment's complete Unity Catalog read boundary. A
 catalog entry permits discovery within its non-system schemas; a
 `catalog.schema` entry narrows that boundary to one schema. Review this list
@@ -187,6 +198,15 @@ source path blank.
 A Git deployment updates app code only. It does not reconcile bundle resources,
 change OAuth scopes or bindings, release a new model version, or change stored
 roles. Use the bundle scripts for resource or model changes.
+
+Databricks Apps **Deploy from Git** runs in Databricks and cannot read
+`.databricks/bundle/customer/variable-overrides.json` from a laptop. That local
+file protects subsequent bundle and CLI release commands; it is not an input to
+the Apps Git importer. The importer uses the customer-neutral `app.yaml` in the
+committed artifact while preserving the existing App resource and its bindings.
+If an update must bake target-specific values into `app.yaml`, pull the public
+repository and run `TARGET=customer PROFILE="<profile>" bash
+bundle/app-release.sh --apply` instead.
 
 ## Governance and security boundaries
 
