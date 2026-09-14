@@ -1654,7 +1654,10 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         assert f"unset {ENV_VARS[key]}" in source, f"{ENV_VARS[key]} is not cleared"
     for key in derived:
         assert ENV_VARS[key] not in source, f"{ENV_VARS[key]} is the repository's to decide"
-    assert "bundle_var_or_empty catalog_denylist" in source
+    assert (
+        "release_value PLAYER_INSIGHTS_CATALOG_DENYLIST catalog_denylist "
+        "bundle_var_or_empty"
+    ) in source
 
 
 def test_the_denylist_is_declared_in_the_bundle_with_an_empty_default():
