@@ -485,16 +485,21 @@ if resources and not any((entry.get("resource") or {}).get("agentKey") for entry
     print("  REFUSED. The machine reader returned intentions without an agentKey contract.")
     raise SystemExit(1)
 
+intentional_empty = {"catalog_denylist", "llm_gateway", "llm_gateway_endpoint"}
 disagreements, agreements, unreadable = [], [], []
 for entry in resources:
     resource = entry.get("resource") or {}
     key = resource.get("agentKey")
     # `intended` is null unless somebody saved a value that is NOT in force, so
-    # the absent case is the ordinary one and means there is nothing outstanding
-    # for this resource. Only a real saved value reaches a comparison.
-    intended = (entry.get("intended") or "").strip()
+    # the absent case is the ordinary one and means there is nothing outstanding.
+    # Empty remains a real release decision for settings whose safe value is a
+    # clear; dropping it would let a non-empty bundle baseline silently win.
+    raw_intended = entry.get("intended")
+    if raw_intended is None:
+        continue
+    intended = str(raw_intended).strip()
     name = resource.get("id") or resource.get("label") or "?"
-    if not key or not intended:
+    if not key or (not intended and key not in intentional_empty):
         continue
     if key not in about:
         unreadable.append((name, key))

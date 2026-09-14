@@ -258,6 +258,13 @@ DISAGREES='{"resources":[{"resource":{"id":"catalog","agentKey":"catalog","label
 # read as a pass that looked rather than a pass that could not look.
 NOTHING_SAVED='{"resources":[{"resource":{"id":"catalog","agentKey":"catalog","label":"Catalog"},
         "intended":null,"intendedBy":"","intendedAt":""}]}'
+EMPTY_DENYLIST='{"resources":[{"resource":{"id":"catalog-denylist","agentKey":"catalog_denylist","label":"Excluded tables"},
+        "intended":"","intendedBy":"someone@example.com","intendedAt":"2026-09-14T10:00:00Z"}]}'
+DIRECT_CLEAR='{"resources":[
+  {"resource":{"id":"llm-gateway","agentKey":"llm_gateway_endpoint","label":"AI Gateway model service"},"intended":""},
+  {"resource":{"id":"llm-gateway-mode","agentKey":"llm_gateway","label":"AI Gateway transport"},"intended":""},
+  {"resource":{"id":"llm-endpoint","agentKey":"llm_endpoint","label":"Direct foundation model"},"intended":"test-llm"}
+]}'
 STAGED_RELEASE='{"resources":[
   {"resource":{"id":"sql-warehouse","agentKey":"warehouse_id","label":"SQL warehouse"},"intended":"wh-staged"},
   {"resource":{"id":"catalog-denylist","agentKey":"catalog_denylist","label":"Excluded tables"},"intended":"catalog.schema.removed"},
@@ -366,6 +373,24 @@ expect_text "release readout reports the intentional empty denylist" "catalog de
 grep -qx 'denylist=' "$OUT_DIR/empty-override.marker" \
   && ok "explicit empty denylist reached model logging instead of baseline.blocked" \
   || bad "explicit empty denylist was replaced by the bundle baseline"
+
+echo
+echo "=== 11. a staged empty value still participates in release correlation ==="
+FAKE_SETTINGS_BODY="$EMPTY_DENYLIST" \
+  run_release staged-empty-disagrees; status=$?
+expect_status nonzero "$status" "the non-empty bundle baseline is refused"
+expect_text "names the staged setting" "catalog-denylist"
+expect_text "shows the bundle value that would defeat the clear" "baseline.blocked"
+expect_absent "the run stopped at the gate" "Dry run"
+
+echo
+echo "=== 12. a coherent Direct clear is compared as a three-field release pair ==="
+FAKE_SETTINGS_BODY="$DIRECT_CLEAR" \
+  run_release direct-clear-agrees; status=$?
+expect_status 0 "$status" "the coherent Direct release proceeds"
+expect_text "compares the empty Gateway endpoint" "llm-gateway:"
+expect_text "compares the empty Gateway transport" "llm-gateway-mode:"
+expect_text "compares the preserved direct model" "llm-endpoint:"
 
 echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
