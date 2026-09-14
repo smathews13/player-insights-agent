@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import type { AiGatewayCandidate } from '../../shared/ai-gateway-contract';
 import { connectedResource } from '../../shared/deployment-config';
-import { AiGatewayCapabilityBadges, AiGatewayConnection } from './AiGatewayConnection';
+import { AiGatewayCapabilityBadges, AiGatewayConnection, gatewayCandidateForMode } from './AiGatewayConnection';
 import { readConnection } from './connection-model';
 
 function reading(configured: boolean, connected = false) {
@@ -137,6 +137,14 @@ describe('AI Gateway Connections row', () => {
     const page = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
     expect(page).toContain('allowMutations={allowMutations}');
     expect(page).not.toContain('allowMutations={false}');
+  });
+
+  it('returns from Gateway to the preserved direct model rather than the Gateway service', () => {
+    const directModel = 'databricks-gpt-5';
+    const gatewayService = 'catalog.schema.gateway_model';
+    expect(gatewayCandidateForMode('', ` ${directModel} `)).toBe(directModel);
+    expect(gatewayCandidateForMode('', directModel)).not.toBe(gatewayService);
+    expect(gatewayCandidateForMode('mlflow', directModel)).toBe('');
   });
 
   it('does not call a configured Gateway unreachable when its generic metadata probe is intentionally absent', () => {

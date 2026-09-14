@@ -24,6 +24,11 @@ const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = 
   ['routingFallback', 'Routing / fallback'],
 ];
 
+// eslint-disable-next-line react-refresh/only-export-components -- pure editor safety helper covered by focused tests
+export function gatewayCandidateForMode(mode: AiGatewayMode, directModel: string): string {
+  return mode ? '' : directModel.trim();
+}
+
 export function AiGatewayCapabilityBadges({ candidate }: { candidate: AiGatewayCandidate | null }) {
   if (!candidate) return null;
   return (
@@ -318,8 +323,9 @@ export function AiGatewayConnection({
                   { value: 'openai', label: 'OpenAI-compatible' },
                 ]}
                 onValueChange={(value) => {
-                  setMode(value === 'direct' ? '' : (value as AiGatewayMode));
-                  setSelected(value === 'direct' ? summary.active.model : '');
+                  const nextMode = value === 'direct' ? '' : (value as AiGatewayMode);
+                  setMode(nextMode);
+                  setSelected(gatewayCandidateForMode(nextMode, foundationModel));
                   setDiscovery(null);
                 }}
               />
