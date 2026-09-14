@@ -62,19 +62,28 @@ and app code:
    ownership gate refuses that old schema; keep it for deliberate migration
    rather than deleting it to unblock the release.
 
-   This ignored file is the durable configuration contract for one checkout.
-   Bundle validation/deploy and the release scripts resolve it after tracked
-   defaults, so its target-specific values win. Normal pull, checkout,
-   validation, deploy, agent-release, app-release, and Apply paths do not write
-   or delete it.
+   This ignored file is the durable bundle configuration contract for one
+   checkout. Bundle commands resolve variables in this order, highest
+   precedence first: `--var`, `BUNDLE_VAR_*`,
+   `.databricks/bundle/<target>/variable-overrides.json`, target variables, then
+   tracked defaults. Normal pull, checkout, validation, deploy, agent-release,
+   app-release, and Apply paths do not write or delete it.
 
    Git never transfers ignored files. A new clone, new machine, or replacement
    working directory needs a secure copy or a newly created
    `.databricks/bundle/<target>/variable-overrides.json`. Shell environment
-   variables are one-run overrides, not persistent storage. Databricks Apps
-   **Deploy from Git** cannot see this laptop file either; it uses the committed
-   neutral `build/deploy/app.yaml`. Use local `bundle/app-release.sh --apply`
-   when an app update must regenerate that file from target-specific values.
+   variables are one-run overrides, not persistent storage.
+
+   An app-code update is still the established one-step **Deploy from Git** flow
+   on the existing Databricks App. It does not read this local file, and does
+   not need to: it does not replace the App, service principal, resource
+   bindings, OAuth scopes, telemetry destinations, or Lakebase state that the
+   bundle already configured. Deployment-level environment variables configured
+   on the App deployment override matching values in the committed
+   `build/deploy/app.yaml`; `valueFrom` entries continue to resolve through the
+   unchanged resource bindings. The committed manifest supplies only the
+   fallback for values without a deployment override. Do not run
+   `bundle/app-release.sh` as part of a Git update.
 1. Run the deployment:
 
    ```bash

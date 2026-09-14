@@ -116,10 +116,11 @@ Create the git-ignored file
 ```
 
 This ignored file is the supported persistent configuration for one local
-checkout. Tracked defaults in `databricks.yml` are only a baseline; Databricks
-Bundle commands for `-t customer` read this target-specific file and its values
-win over those defaults. `git pull`, branch checkout, bundle validation, and the
-release scripts do not rewrite it.
+checkout. Databricks Bundle commands resolve variables in this order, highest
+precedence first: `--var`, `BUNDLE_VAR_*`,
+`.databricks/bundle/customer/variable-overrides.json`, target variables, then
+tracked defaults. `git pull`, branch checkout, bundle validation, and the
+release scripts do not rewrite the ignored file.
 
 Git cannot carry local state to a different checkout. A fresh `git clone` does
 not contain this file, so copy it securely from the prior checkout or recreate
@@ -199,14 +200,26 @@ A Git deployment updates app code only. It does not reconcile bundle resources,
 change OAuth scopes or bindings, release a new model version, or change stored
 roles. Use the bundle scripts for resource or model changes.
 
-Databricks Apps **Deploy from Git** runs in Databricks and cannot read
-`.databricks/bundle/customer/variable-overrides.json` from a laptop. That local
-file protects subsequent bundle and CLI release commands; it is not an input to
-the Apps Git importer. The importer uses the customer-neutral `app.yaml` in the
-committed artifact while preserving the existing App resource and its bindings.
-If an update must bake target-specific values into `app.yaml`, pull the public
-repository and run `TARGET=customer PROFILE="<profile>" bash
-bundle/app-release.sh --apply` instead.
+This is the established one-step update path. Do not run a local app release
+before or after it. The Git importer does not read
+`.databricks/bundle/customer/variable-overrides.json` from a laptop, but it also
+does not replace the existing App, service principal, resource bindings, OAuth
+scopes, telemetry destinations, or Lakebase state that those bundle inputs
+configured.
+
+For runtime values, Databricks Apps applies deployment-level environment
+variables after `app.yaml`, so existing deployment overrides win over matching
+customer-neutral values in the committed artifact. `valueFrom` entries continue
+to resolve through the unchanged `postgres`, `serving-endpoint`,
+`genie-mcp-signing-key`, and `sql-warehouse` bindings. Stored roles, settings,
+and the app-owned schema remain in Lakebase under the unchanged App identity.
+The committed manifest is only the fallback for a value that has no deployment
+override or durable runtime value.
+
+Pulling `main` in an existing local checkout is independent of that App update:
+Git leaves the ignored bundle override file byte-for-byte unchanged for any
+future bundle or model operation. A fresh clone still needs a secure copy of the
+file, because ignored local state is never transferred by Git.
 
 ## Governance and security boundaries
 
