@@ -106,6 +106,7 @@ import {
   openUserFromBrowser,
   scrollMemory,
   userBrowserFromParams,
+  userMonitoringReturnPath,
   withFilters,
   withUserBrowserFilters,
   type MonitoringFilters,
@@ -2880,10 +2881,15 @@ export function MonitoringPage() {
   }, [location.search, navigate]);
 
   const closeUserMonitoring = useCallback(() => {
-    void navigate({ search: closedUserMonitoring(location.search) }, { replace: true });
+    const returnPath = userMonitoringReturnPath(searchParams);
+    if (returnPath) {
+      void navigate(returnPath, { replace: true });
+    } else {
+      void navigate({ search: closedUserMonitoring(location.search) }, { replace: true });
+    }
     const offset = scroll.current.take();
     if (offset !== null && typeof globalThis.scrollTo === 'function') globalThis.scrollTo({ top: offset });
-  }, [location.search, navigate]);
+  }, [location.search, navigate, searchParams]);
 
   const closeFeedbackBrowser = useCallback(() => {
     void navigate({ search: closedFeedbackBrowser(location.search) }, { replace: true });

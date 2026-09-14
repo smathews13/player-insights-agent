@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import apply_from_declaration as apply
-from config import ENV_VARS
 
 AGENT_DIR = Path(__file__).resolve().parents[1]
 
@@ -107,7 +106,16 @@ def test_intended_from_stored_rows():
 
 def test_every_applyable_key_has_env_var():
     for key in apply.APPLYABLE_KEYS:
-        assert key in ENV_VARS, f"{key} missing from config.ENV_VARS"
+        assert key in apply.APPLY_ENV_VARS, f"{key} missing from the release environment map"
+
+
+def test_vector_search_index_is_exported_for_the_model_release():
+    plan = apply.resolve_apply_plan(
+        intended={"semantic_index": "catalog.schema.semantic_index"}
+    )
+    assert plan.env_exports()["PLAYER_INSIGHTS_SEMANTIC_INDEX"] == (
+        "catalog.schema.semantic_index"
+    )
 
 
 def test_cli_refuses_without_intent_flag():

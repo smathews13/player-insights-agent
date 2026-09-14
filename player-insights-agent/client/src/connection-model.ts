@@ -203,6 +203,11 @@ export interface ConnectionEntry {
 export function hasRemoteEnd(row: ResourceRow, check?: PreflightCheck): boolean {
   if (check) return true;
   const { resource } = row;
+  // A Unity Catalog model service cannot be probed with an Apps user token:
+  // its metadata endpoint requires the coarse unity-catalog scope Apps cannot
+  // request. AI Gateway has its own validated configuration/runtime surface, so
+  // treating the deliberately absent generic check as an outage is a false red.
+  if (resource.id === 'llm-gateway') return false;
   if (!resource.namesRemoteObject) return false;
   return Boolean(resource.actualFromCheck || row.configured.trim() || row.actual.trim());
 }

@@ -37,7 +37,7 @@
  * coming back is not a reason to scan billing again. Refresh still is.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useOutletContext, useSearchParams } from 'react-router';
+import { Link, useLocation, useOutletContext, useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './pia-pill';
@@ -610,7 +610,7 @@ export function CostBody({
               <Button variant="default" size="sm" className="ops-user-spend-link" asChild>
                 <Link to={userMonitoringHref}>
                   <Users aria-hidden="true" />
-                  See per-user spend
+                  User Spend
                 </Link>
               </Button>
             ) : null}
@@ -1671,6 +1671,7 @@ export function ScopeAdminControl({ action }: { action: ReactNode }) {
 }
 
 export function OpsPage() {
+  const location = useLocation();
   const role = useRole();
   const features = useOutletContext<AppOutletContext | null>()?.features ?? NO_EXPERIMENTS;
   const forecastingShown = showsForecasting(features);
@@ -1701,7 +1702,7 @@ export function OpsPage() {
     setCostUnit(unit);
     persistCostDisplayUnit(unit);
   };
-  const userMonitoringHref = perUserSpendHref('', costUnit);
+  const userMonitoringHref = perUserSpendHref('', costUnit, `${location.pathname}${location.search}${location.hash}`);
 
   return (
     <div className="page-shell ops-page">

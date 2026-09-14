@@ -30,7 +30,7 @@ describe('app-wide dropdown recipe', () => {
 
     for (const name of appSelectUsers) expect(source(name), name).toContain('<AppSelect');
     expect(source('ConversationOwnerSelect.tsx')).toContain('<AppMultiSelect');
-    expect(source('ConversationPersonaSelect.tsx')).toContain('<AppMultiSelect');
+    expect(source('ConversationOrganizationSelect.tsx')).toContain('<AppMultiSelect');
 
     for (const name of componentFiles) {
       const component = source(name);
@@ -56,7 +56,7 @@ describe('app-wide dropdown recipe', () => {
     expect(appSelect).not.toContain('app-select-separator');
     expect(appSelect).not.toMatch(/Role\s*·|Persona\s*·|User\s*·/);
     expect(source('conversation-owner-selection.ts')).toContain('`${chosen.length} users`');
-    expect(source('conversation-persona-selection.ts')).toContain('`${chosen.length} personas`');
+    expect(source('conversation-organization-selection.ts')).toContain('`${chosen.length} organizations`');
   });
 
   it('shares neutral, hover, open, focus, selected, and high-contrast states', () => {

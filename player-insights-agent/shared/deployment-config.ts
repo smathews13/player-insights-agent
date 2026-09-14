@@ -414,8 +414,8 @@ export const CONNECTED_RESOURCES: ConnectedResource[] = [
     appEnvVar: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
     actualFromCheck: null,
     namesRemoteObject: true,
-    applyWith: 'Set PLAYER_INSIGHTS_SEMANTIC_INDEX and re-log the model. The app cannot change it.',
-    stageable: false,
+    applyWith: AGENT_RELEASE,
+    stageable: true,
   },
   {
     id: 'semantic-index-endpoint',

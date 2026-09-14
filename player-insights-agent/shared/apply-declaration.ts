@@ -20,6 +20,7 @@ export const APPLY_ENV_VARS: Record<string, string> = {
   dictionary_genie_space_id: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
   llm_endpoint: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
   llm_gateway: 'PLAYER_INSIGHTS_LLM_GATEWAY',
+  semantic_index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
   catalog_allowlist: 'PLAYER_INSIGHTS_CATALOG_ALLOWLIST',
   catalog_denylist: 'PLAYER_INSIGHTS_CATALOG_DENYLIST',
   max_output_tokens: 'PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS',

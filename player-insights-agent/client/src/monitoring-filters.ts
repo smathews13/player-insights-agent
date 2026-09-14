@@ -314,12 +314,35 @@ export function backToUserBrowser(search: string): string {
 
 export function closedUserMonitoring(search: string): string {
   const next = new URLSearchParams(search);
-  for (const name of ['users', 'userSearch', 'userRole', 'userPersona', 'userOrganization', 'userUnit', 'userCursor']) {
+  for (const name of [
+    'users',
+    'userSearch',
+    'userRole',
+    'userPersona',
+    'userOrganization',
+    'userUnit',
+    'userCursor',
+    'returnTo',
+  ]) {
     next.delete(name);
   }
   next.delete(PERSON_PANEL_PARAM);
   next.delete(QUESTION_PARAM);
   return next.toString();
+}
+
+/** A modal may return only to the Ops route that opened it, never to an arbitrary URL. */
+export function userMonitoringReturnPath(params: ReadableParams): string | null {
+  const raw = (params.get('returnTo') ?? '').trim();
+  if (!raw) return null;
+  try {
+    const base = new URL('https://player-insights.invalid');
+    const target = new URL(raw, base);
+    if (target.origin !== base.origin || target.pathname !== '/ops') return null;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return null;
+  }
 }
 
 export function feedbackBrowserFromParams(params: ReadableParams): boolean {

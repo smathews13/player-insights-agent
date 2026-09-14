@@ -180,6 +180,7 @@ import {
 import { derivedConnectionKey } from './declared-connection-form';
 import { normalizedConnectionValue, useDeclaredConnectionController } from './declared-connection-controller';
 import { canMutateConnections } from '../../shared/user-roster-contract';
+import { splitConfiguredList } from '../../shared/data-catalog-scope';
 import {
   UnityCatalogScopeExplorer,
   type UnityCatalogExplorerRowState,
@@ -488,6 +489,16 @@ interface DeclaredTableFilters {
   schema: string;
 }
 
+const REMOVE_TABLE_LABEL = 'Remove';
+
+// eslint-disable-next-line react-refresh/only-export-components -- release-staging helper covered by focused tests
+export function withManagedTableRemoval(configured: string, table: string): string {
+  const current = splitConfiguredList(configured);
+  const normalized = normalizedConnectionValue(table);
+  if (!current.some((entry) => normalizedConnectionValue(entry) === normalized)) current.push(table.trim());
+  return current.join(', ');
+}
+
 function DeclaredTableControls({
   filters,
   catalogs,
@@ -664,10 +675,12 @@ export function DeclaredTablesTable({
     busy: boolean;
     confirming: string;
     justAdded: string;
+    stagedRemovals: readonly string[];
     rowError: { id: string; detail: string } | null;
     onConfirm: (id: string) => void;
     onCancel: () => void;
     onRemove: (entry: ConnectionEntry) => void;
+    onRemoveManaged: (table: string) => void;
   };
 }) {
   const [localFilters, setLocalFilters] = useState<DeclaredTableFilters>({ query: '', catalog: '', schema: '' });
@@ -731,6 +744,7 @@ export function DeclaredTablesTable({
         </TableHeader>
         <TableBody>
           {nonTableConnections.map((entry) => {
+            const isTable = entry.connection.resourceType === 'table';
             const type =
               entry.connection.resourceType === 'catalog'
                 ? 'Catalog'
@@ -761,6 +775,7 @@ export function DeclaredTablesTable({
               <Fragment key={entry.connection.id}>
                 <TableRow id={`declared-table-row-${entry.connection.id}`} tabIndex={-1}>
                   <TableCell className="connections-table-name">
+                    {isTable ? <VisitInDatabricks name={entry.connection.value} /> : null}
                     <span className="connections-table-name-stack">
                       <ConnectionEntityName name={entry.connection.value} />
                       <span className="connections-table-scope-state">
@@ -802,14 +817,14 @@ export function DeclaredTablesTable({
                     <TableCell className="connections-table-actions">
                       {entry.connection.origin === 'app' ? (
                         <Button
-                          variant="ghost"
+                          variant={isTable ? 'destructive' : 'ghost'}
                           size="sm"
                           disabled={management.busy}
-                          aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
+                          aria-label={`${isTable ? REMOVE_TABLE_LABEL : DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
                           onClick={() => management.onConfirm(entry.connection.id)}
                         >
                           <Trash2 aria-hidden="true" />
-                          Delete
+                          {isTable ? REMOVE_TABLE_LABEL : 'Delete'}
                         </Button>
                       ) : null}
                     </TableCell>
@@ -821,10 +836,12 @@ export function DeclaredTablesTable({
                       <div
                         className="plane-confirm"
                         role="group"
-                        aria-label={`${DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
+                        aria-label={`${isTable ? REMOVE_TABLE_LABEL : DELETE_CONNECTION_LABEL}: ${entry.connection.value}`}
                       >
                         <span className="plane-confirm-headline">
-                          Delete this Unity Catalog connection permanently?
+                          {isTable
+                            ? 'Remove this table from the app scope?'
+                            : 'Delete this Unity Catalog connection permanently?'}
                         </span>
                         <span className="plane-confirm-detail">{forgetConnectionDetail(entry.connection.origin)}</span>
                         <span className="plane-confirm-actions">
@@ -837,8 +854,8 @@ export function DeclaredTablesTable({
                           >
                             <PiaBusyButtonContent
                               busy={management.busy}
-                              label={DELETE_CONNECTION_LABEL}
-                              busyLabel="Deleting"
+                              label={isTable ? REMOVE_TABLE_LABEL : DELETE_CONNECTION_LABEL}
+                              busyLabel={isTable ? 'Removing' : 'Deleting'}
                               icon={<Trash2 className="size-4" aria-hidden="true" />}
                             />
                           </Button>
@@ -863,7 +880,11 @@ export function DeclaredTablesTable({
             .map((check) => {
               const declared = rowsById.get(check.id);
               const connection = declared?.connection;
-              const confirmOpen = connection && management?.confirming === connection.connection.id;
+              const managedRemovalId = `managed-table:${check.name}`;
+              const confirmOpen = management?.confirming === (connection?.connection.id ?? managedRemovalId);
+              const removalStaged = management?.stagedRemovals.some(
+                (table) => normalizedConnectionValue(table) === normalizedConnectionValue(check.name)
+              );
               // One reading, used for the cell and its hover. Two calls were two
               // chances for a decoy count in the probe text to land on one surface
               // and the workspace's count on the other.
@@ -940,30 +961,47 @@ export function DeclaredTablesTable({
                       <TableCell className="connections-table-actions">
                         {connection?.connection.origin === 'app' ? (
                           <Button
-                            variant="ghost"
+                            variant="destructive"
                             size="sm"
                             disabled={management.busy}
-                            aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
+                            aria-label={`${REMOVE_TABLE_LABEL}: ${check.name}`}
                             onClick={() => management.onConfirm(connection.connection.id)}
                           >
                             <Trash2 aria-hidden="true" />
-                            Delete
+                            {REMOVE_TABLE_LABEL}
                           </Button>
-                        ) : null}
+                        ) : removalStaged ? (
+                          <Badge variant="outline" className="connections-table-removal-staged">
+                            Removal staged
+                          </Badge>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={management.busy}
+                            aria-label={`${REMOVE_TABLE_LABEL}: ${check.name}`}
+                            onClick={() => management.onConfirm(managedRemovalId)}
+                          >
+                            <Trash2 aria-hidden="true" />
+                            {REMOVE_TABLE_LABEL}
+                          </Button>
+                        )}
                       </TableCell>
                     ) : null}
                   </TableRow>
-                  {connection?.connection.origin === 'app' && management && confirmOpen ? (
+                  {management && confirmOpen ? (
                     <TableRow className="connections-table-confirm-row">
                       <TableCell colSpan={4}>
-                        <div
-                          className="plane-confirm"
-                          role="group"
-                          aria-label={`${DELETE_CONNECTION_LABEL}: ${check.name}`}
-                        >
-                          <span className="plane-confirm-headline">Delete this table connection permanently?</span>
+                        <div className="plane-confirm" role="group" aria-label={`${REMOVE_TABLE_LABEL}: ${check.name}`}>
+                          <span className="plane-confirm-headline">
+                            {connection?.connection.origin === 'app'
+                              ? 'Remove this table from the app scope?'
+                              : 'Stage this table for removal from the next agent release?'}
+                          </span>
                           <span className="plane-confirm-detail">
-                            {forgetConnectionDetail(connection.connection.origin)}
+                            {connection?.connection.origin === 'app'
+                              ? forgetConnectionDetail(connection.connection.origin)
+                              : 'The running model keeps its current scope until the normal agent release completes.'}
                           </span>
                           <span className="plane-confirm-actions">
                             <Button
@@ -971,12 +1009,16 @@ export function DeclaredTablesTable({
                               size="sm"
                               disabled={management.busy}
                               aria-busy={management.busy || undefined}
-                              onClick={() => management.onRemove(connection)}
+                              onClick={() =>
+                                connection?.connection.origin === 'app'
+                                  ? management.onRemove(connection)
+                                  : management.onRemoveManaged(check.name)
+                              }
                             >
                               <PiaBusyButtonContent
                                 busy={management.busy}
-                                label={DELETE_CONNECTION_LABEL}
-                                busyLabel="Deleting"
+                                label={REMOVE_TABLE_LABEL}
+                                busyLabel="Removing"
                                 icon={<Trash2 className="size-4" aria-hidden="true" />}
                               />
                             </Button>
@@ -989,7 +1031,7 @@ export function DeclaredTablesTable({
                               Keep
                             </Button>
                           </span>
-                          {management.rowError?.id === connection.connection.id ? (
+                          {management.rowError?.id === (connection?.connection.id ?? managedRemovalId) ? (
                             <span className="plane-error" role="alert">
                               {management.rowError.detail}
                             </span>
@@ -1112,6 +1154,8 @@ export function DeclaredTablesSection({
   readState = 'ready',
   storeAvailable = true,
   allowMutations = false,
+  managedDenylist = '',
+  onStageManagedRemoval,
   onChanged = () => {},
 }: {
   tableChecks: readonly PreflightCheck[];
@@ -1122,15 +1166,19 @@ export function DeclaredTablesSection({
   readState?: 'loading' | 'ready' | 'unavailable' | 'not-connected';
   storeAvailable?: boolean;
   allowMutations?: boolean;
+  managedDenylist?: string;
+  onStageManagedRemoval?: (table: string) => Promise<boolean>;
   onChanged?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const [filters, setFilters] = useState<DeclaredTableFilters>({ query: '', catalog: '', schema: '' });
+  const [managedRemovalBusy, setManagedRemovalBusy] = useState(false);
   const formId = useId();
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const explorerId = `${formId}-explorer`;
   const controller = useDeclaredConnectionController({ entries: tableConnections, onChanged });
+  const stagedRemovals = useMemo(() => splitConfiguredList(managedDenylist), [managedDenylist]);
   const managedRows = useMemo(
     () => declaredTableRows(tableChecks, controller.listed),
     [tableChecks, controller.listed]
@@ -1171,6 +1219,17 @@ export function DeclaredTablesSection({
 
   function scopeState(resourceType: UnityCatalogScopeType, value: string): UnityCatalogExplorerRowState {
     return unityCatalogAssetScopeState(controller.listed, managedTableNames, resourceType, value);
+  }
+
+  async function removeManagedTable(table: string) {
+    if (!onStageManagedRemoval || managedRemovalBusy) return;
+    setManagedRemovalBusy(true);
+    controller.setRowError(null);
+    try {
+      if (await onStageManagedRemoval(table)) controller.setConfirming('');
+    } finally {
+      setManagedRemovalBusy(false);
+    }
   }
   const declaredExplorerAssets: UnityCatalogExplorerSelection[] = controller.listed
     .filter(
@@ -1282,9 +1341,10 @@ export function DeclaredTablesSection({
           management={
             allowMutations && storeAvailable
               ? {
-                  busy: controller.busy,
+                  busy: controller.busy || managedRemovalBusy,
                   confirming: controller.confirming,
                   justAdded: controller.justAdded,
+                  stagedRemovals,
                   rowError: controller.rowError,
                   onConfirm: (id) => {
                     controller.setRowError(null);
@@ -1292,6 +1352,7 @@ export function DeclaredTablesSection({
                   },
                   onCancel: () => controller.setConfirming(''),
                   onRemove: (entry) => void controller.remove(entry),
+                  onRemoveManaged: (table) => void removeManagedTable(table),
                 }
               : undefined
           }
@@ -1642,7 +1703,10 @@ export function ConnectionRow({
   });
   const picker = pickerForField(resource.id);
   const lakebaseManaged = resource.id === 'lakebase';
-  const canWrite = Boolean(allowMutations && picker && (row.editable || lakebaseManaged));
+  // Admins may apply runtime values immediately or stage model/deployment-owned
+  // values for the normal release path. The picker is the capability boundary;
+  // `row.editable` only decides whether the saved value is active or intended.
+  const canWrite = Boolean(allowMutations && picker);
   const canWriteInline = canWrite && !lakebaseManaged;
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
@@ -2145,6 +2209,8 @@ export function ConnectionsPage() {
     if (!index) return '';
     return ((index.row.actualObserved ? index.row.actual : '') || index.check?.name || index.row.configured).trim();
   }, [readings]);
+  const denylistRow = payload?.resources.find((row) => row.resource.id === 'catalog-denylist');
+  const managedDenylist = (denylistRow?.intended ?? denylistRow?.configured ?? '').trim();
 
   /**
    * When these answers were taken.
@@ -2514,6 +2580,10 @@ export function ConnectionsPage() {
         readState={unityCatalogReadState}
         storeAvailable={payload?.storeAvailable ?? true}
         allowMutations={allowMutations}
+        managedDenylist={managedDenylist}
+        onStageManagedRemoval={
+          denylistRow ? (table) => write(denylistRow, withManagedTableRemoval(managedDenylist, table)) : undefined
+        }
         onChanged={async () => {
           await refresh();
         }}

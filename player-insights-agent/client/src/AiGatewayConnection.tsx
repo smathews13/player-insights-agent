@@ -13,7 +13,6 @@ import { BrandIcon } from './BrandIcon';
 import { Badge, Button, Input } from './ui';
 import { PiaBusyButtonContent } from './PiaLoader';
 import { PiaLoadingLabel } from './PiaLoadingLabel';
-import { ConnectionStateBadge } from './ConnectionStateBadge';
 import { piaPill } from './pia-pill';
 
 const CAPABILITIES: Array<[keyof AiGatewayCandidate['capabilities'], string]> = [
@@ -137,9 +136,16 @@ export function AiGatewayConnection({
   );
   const staged = summary.staged;
   const configured = Boolean(summary.active.mode && reading.row.configured.trim());
-  const connected = reading.status === 'reachable';
-  const routeState = !configured ? 'Not configured' : !connected ? 'Unreachable' : enabled ? 'Enabled' : 'Disabled';
-  const routeFamily = !configured || (!enabled && connected) ? 'neutral' : connected ? 'pos' : 'neg';
+  const configurationUnavailable =
+    summary.configurationState === 'invalid' || summary.configurationState === 'unavailable';
+  const routeState = !configured
+    ? 'Not configured'
+    : configurationUnavailable
+      ? 'Needs attention'
+      : enabled
+        ? 'Enabled'
+        : 'Disabled';
+  const routeFamily = configurationUnavailable ? 'neg' : enabled && configured ? 'pos' : 'neutral';
   const collapsedValue = staged
     ? staged.mode
       ? candidate?.displayName || staged.model
@@ -239,10 +245,9 @@ export function AiGatewayConnection({
               <div className="connection-detail">
                 <dt>Connection</dt>
                 <dd>
-                  <ConnectionStateBadge
-                    state={connected ? 'connected' : 'disconnected'}
-                    subject="AI Gateway Connection"
-                  />
+                  <Badge variant="outline" className={piaPill(configurationUnavailable ? 'neg' : 'neutral')}>
+                    {configurationUnavailable ? 'Needs attention' : configured ? 'Configured' : 'Not configured'}
+                  </Badge>
                 </dd>
               </div>
             </dl>
