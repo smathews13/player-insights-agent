@@ -408,4 +408,40 @@ describe('the release declaration', () => {
     expect(first.revision).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(second.revision).toBe(first.revision);
   });
+
+  it('declares Gateway transport, Gateway endpoint, and direct endpoint as separate settings', () => {
+    const declaration = releaseDeclaration({
+      knobs: [
+        {
+          key: 'llm_gateway',
+          label: 'AI Gateway transport',
+          value: 'mlflow',
+          source: 'intended',
+          envVar: 'PLAYER_INSIGHTS_LLM_GATEWAY',
+        },
+        {
+          key: 'llm_gateway_endpoint',
+          label: 'AI Gateway model service',
+          value: 'catalog.schema.gateway',
+          source: 'intended',
+          envVar: 'PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT',
+        },
+        {
+          key: 'llm_endpoint',
+          label: 'Direct foundation model',
+          value: 'databricks-gpt-5',
+          source: 'intended',
+          envVar: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
+        },
+      ],
+      notes: [],
+      command: 'unused',
+      hasOverrides: true,
+    });
+    expect(declaration.settings).toEqual({
+      llm_gateway: 'mlflow',
+      llm_gateway_endpoint: 'catalog.schema.gateway',
+      llm_endpoint: 'databricks-gpt-5',
+    });
+  });
 });

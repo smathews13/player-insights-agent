@@ -477,6 +477,7 @@ export async function validateAiGatewayCandidate(input: {
 interface StoredGatewayMetadata {
   mode: AiGatewayMode;
   candidateId: string;
+  directModel: string;
   validatedAt: string;
   etag: string;
   revision: string;
@@ -488,12 +489,14 @@ function parseMetadata(note: string): StoredGatewayMetadata | null {
     if (
       (value.mode === '' || value.mode === 'mlflow' || value.mode === 'openai') &&
       typeof value.candidateId === 'string' &&
+      typeof value.directModel === 'string' &&
       typeof value.validatedAt === 'string' &&
       typeof value.revision === 'string'
     ) {
       return {
         mode: value.mode,
         candidateId: value.candidateId,
+        directModel: value.directModel,
         validatedAt: value.validatedAt,
         etag: typeof value.etag === 'string' ? value.etag : '',
         revision: value.revision,
@@ -513,14 +516,22 @@ export async function stageAiGatewaySelection(input: {
   store: LakebaseReader;
   mode: AiGatewayMode;
   candidateId: string;
+  activeDirectModel: string;
   expectedRevision: string;
   actor: string;
   validation: AiGatewayValidation & { etag?: string };
 }): Promise<{ ok: true; revision: string; stagedAt: string } | { ok: false; reason: 'stale' }> {
+  const candidateId = input.candidateId.trim();
+  const directModel = input.mode ? input.activeDirectModel.trim() : candidateId;
+  if (!candidateId || !directModel) {
+    throw new Error('AI Gateway staging requires both the selected route and the direct foundation model.');
+  }
+  const gatewayEndpoint = input.mode ? candidateId : '';
   const revision = randomUUID();
   const note = JSON.stringify({
     mode: input.mode,
-    candidateId: input.candidateId,
+    candidateId,
+    directModel,
     validatedAt: input.validation.validatedAt,
     etag: input.validation.etag ?? '',
     revision,
@@ -541,9 +552,10 @@ export async function stageAiGatewaySelection(input: {
          (resource_id, value, intent, note, updated_by, updated_at)
        SELECT row.resource_id, row.value, 'intended', row.note, $3, now()
        FROM (VALUES
-         ('llm-gateway', $4, $6),
-         ('llm-endpoint', $5, $6),
-         ($1, $7, '')
+         ('llm-gateway', $4, $7),
+         ('llm-gateway-mode', $5, $7),
+         ('llm-endpoint', $6, $7),
+         ($1, $8, '')
        ) AS row(resource_id, value, note)
        CROSS JOIN accepted
        ON CONFLICT (resource_id) DO UPDATE
@@ -555,9 +567,18 @@ export async function stageAiGatewaySelection(input: {
        RETURNING resource_id, updated_at
      )
      SELECT resource_id, updated_at FROM written`,
-    [AI_GATEWAY_REVISION_RESOURCE, input.expectedRevision, input.actor, input.mode, input.candidateId, note, revision]
+    [
+      AI_GATEWAY_REVISION_RESOURCE,
+      input.expectedRevision,
+      input.actor,
+      gatewayEndpoint,
+      input.mode,
+      directModel,
+      note,
+      revision,
+    ]
   );
-  if (result.rows.length !== 3) return { ok: false, reason: 'stale' };
+  if (result.rows.length !== 4) return { ok: false, reason: 'stale' };
   forgetStoredSettings();
   const stamp = result.rows.find((row) => row.resource_id === AI_GATEWAY_REVISION_RESOURCE)?.updated_at;
   return {
@@ -569,28 +590,36 @@ export async function stageAiGatewaySelection(input: {
 
 export function summarizeAiGateway(input: {
   activeMode: string;
-  activeModel: string;
+  activeDirectModel: string;
+  activeGatewayModel: string;
   stored: ReadonlyMap<string, StoredSetting>;
   validation?: AiGatewayValidation;
 }): AiGatewaySummary {
   const activeMode: AiGatewayMode =
     input.activeMode === 'mlflow' || input.activeMode === 'openai' ? input.activeMode : '';
   const gateway = input.stored.get('llm-gateway');
-  const model = input.stored.get('llm-endpoint');
+  const mode = input.stored.get('llm-gateway-mode');
+  const direct = input.stored.get('llm-endpoint');
   const metadata = parseMetadata(gateway?.note ?? '');
-  const coherent =
-    gateway?.intent === 'intended' &&
-    model?.intent === 'intended' &&
-    metadata?.candidateId === model.value &&
-    metadata.mode === gateway.value &&
-    metadata.revision === gatewayRevision(input.stored);
+  const coherent = Boolean(
+    metadata &&
+      gateway?.intent === 'intended' &&
+      mode?.intent === 'intended' &&
+      direct?.intent === 'intended' &&
+      metadata.candidateId === (metadata.mode ? gateway.value : direct.value) &&
+      metadata.directModel === direct.value &&
+      metadata.mode === mode.value &&
+      gateway.value === (metadata.mode ? metadata.candidateId : '') &&
+      metadata.revision === gatewayRevision(input.stored)
+  );
   const staged =
     coherent && metadata
       ? { mode: metadata.mode, model: metadata.candidateId, transport: gatewayTransport(metadata.mode) }
       : null;
-  const invalid = Boolean(gateway || model) && !coherent;
+  const invalid = Boolean(gateway || mode || direct) && !coherent;
+  const activeModel = activeMode ? input.activeGatewayModel.trim() : input.activeDirectModel.trim();
   return {
-    active: { mode: activeMode, model: input.activeModel.trim(), transport: gatewayTransport(activeMode) },
+    active: { mode: activeMode, model: activeModel, transport: gatewayTransport(activeMode) },
     staged,
     configurationState: invalid
       ? 'invalid'

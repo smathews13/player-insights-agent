@@ -134,6 +134,16 @@ describe('machine-authenticated release intentions', () => {
     expect(RELEASE_INTENTION_KEYS).toEqual(expected);
   });
 
+  it('keeps Gateway transport, Gateway endpoint, and direct endpoint distinct', () => {
+    expect(RELEASE_INTENTION_KEYS).toMatchObject({
+      'llm-gateway': 'llm_gateway_endpoint',
+      'llm-gateway-mode': 'llm_gateway',
+      'llm-endpoint': 'llm_endpoint',
+    });
+    expect(new Set(Object.values(RELEASE_INTENTION_KEYS))).toContain('llm_gateway_endpoint');
+    expect(RELEASE_INTENTION_KEYS['llm-gateway']).not.toBe(RELEASE_INTENTION_KEYS['llm-endpoint']);
+  });
+
   it('redacts tokens, passwords, and Postgres URL credentials', () => {
     const message = sanitizeReleaseError(
       ['Bearer bearer-secret password=db-secret postgresql:', '//reader:url-secret@host access token-secret'].join(''),

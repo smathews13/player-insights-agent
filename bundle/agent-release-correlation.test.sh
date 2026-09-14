@@ -93,7 +93,7 @@ case "$1 $2" in
     "llm_gateway_endpoint":     { "value": "" },
     "llm_gateway":              { "value": "" },
     "data_catalogs":            { "value": ["test_catalog"] },
-    "catalog_denylist":         { "value": "" },
+    "catalog_denylist":         { "value": "baseline.blocked" },
     "max_output_tokens":        { "value": "4096" },
     "genie_data_space_id":      { "value": "" },
     "genie_dictionary_space_id":{ "value": "" },
@@ -180,6 +180,18 @@ if [[ "${EXPECT_APPLY_AUTH-false}" == true ]]; then
   echo "intentional stop after checking MLflow subprocess auth" >&2
   exit 1
 fi
+if [[ "${EXPECT_RELEASE_OVERRIDES-false}" == true ]]; then
+  {
+    printf 'warehouse=%s\n' "${PLAYER_INSIGHTS_WAREHOUSE_ID-<unset>}"
+    printf 'denylist=%s\n' "${PLAYER_INSIGHTS_CATALOG_DENYLIST-<unset>}"
+    printf 'gateway=%s\n' "${PLAYER_INSIGHTS_LLM_GATEWAY-<unset>}"
+    printf 'gateway_endpoint=%s\n' "${PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT-<unset>}"
+    printf 'direct_endpoint=%s\n' "${PLAYER_INSIGHTS_LLM_ENDPOINT-<unset>}"
+    printf 'semantic_index=%s\n' "${PLAYER_INSIGHTS_SEMANTIC_INDEX-<unset>}"
+  } >"$OVERRIDE_MARKER"
+  echo "intentional stop after checking release overrides" >&2
+  exit 1
+fi
 echo "stub uv should not have been reached: $*" >&2
 exit 1
 STUB
@@ -246,6 +258,14 @@ DISAGREES='{"resources":[{"resource":{"id":"catalog","agentKey":"catalog","label
 # read as a pass that looked rather than a pass that could not look.
 NOTHING_SAVED='{"resources":[{"resource":{"id":"catalog","agentKey":"catalog","label":"Catalog"},
         "intended":null,"intendedBy":"","intendedAt":""}]}'
+STAGED_RELEASE='{"resources":[
+  {"resource":{"id":"sql-warehouse","agentKey":"warehouse_id","label":"SQL warehouse"},"intended":"wh-staged"},
+  {"resource":{"id":"catalog-denylist","agentKey":"catalog_denylist","label":"Excluded tables"},"intended":"catalog.schema.removed"},
+  {"resource":{"id":"llm-gateway","agentKey":"llm_gateway_endpoint","label":"AI Gateway model service"},"intended":"catalog.schema.gateway"},
+  {"resource":{"id":"llm-gateway-mode","agentKey":"llm_gateway","label":"AI Gateway transport"},"intended":"mlflow"},
+  {"resource":{"id":"llm-endpoint","agentKey":"llm_endpoint","label":"Direct foundation model"},"intended":"direct-foundation"},
+  {"resource":{"id":"semantic-index","agentKey":"semantic_index","label":"Vector Search index"},"intended":"catalog.schema.index"}
+]}'
 
 echo
 echo "=== 1. machine OAuth reader failure: must REFUSE and stop the release ==="
@@ -316,6 +336,36 @@ expect_status nonzero "$status" "the harness stops after inspecting the MLflow s
   && ok "MLflow received the resolved host and minted OAuth token" \
   || bad "MLflow did not receive the standard OAuth environment"
 expect_absent "the short-lived token was never logged"       "fake-token"
+
+echo
+echo "=== 9. Apply exports reach model logging instead of bundle baselines ==="
+OVERRIDE_MARKER="$OUT_DIR/release-overrides.marker" EXPECT_RELEASE_OVERRIDES=true \
+  FAKE_SETTINGS_BODY="$STAGED_RELEASE" \
+  PLAYER_INSIGHTS_APPLY_OVERRIDES=1 \
+  PLAYER_INSIGHTS_WAREHOUSE_ID=wh-staged \
+  PLAYER_INSIGHTS_CATALOG_DENYLIST=catalog.schema.removed \
+  PLAYER_INSIGHTS_LLM_GATEWAY=mlflow \
+  PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT=catalog.schema.gateway \
+  PLAYER_INSIGHTS_LLM_ENDPOINT=direct-foundation \
+  PLAYER_INSIGHTS_SEMANTIC_INDEX=catalog.schema.index \
+  run_release release-overrides --apply; status=$?
+expect_status nonzero "$status" "the harness stops after inspecting release overrides"
+[[ "$(cat "$OUT_DIR/release-overrides.marker" 2>/dev/null || true)" == $'warehouse=wh-staged\ndenylist=catalog.schema.removed\ngateway=mlflow\ngateway_endpoint=catalog.schema.gateway\ndirect_endpoint=direct-foundation\nsemantic_index=catalog.schema.index' ]] \
+  && ok "staged warehouse, denylist, Gateway pair, direct endpoint, and semantic index reached model logging" \
+  || bad "staged release values did not reach model logging unchanged"
+
+echo
+echo "=== 10. an explicitly empty Apply value clears a non-empty bundle baseline ==="
+OVERRIDE_MARKER="$OUT_DIR/empty-override.marker" EXPECT_RELEASE_OVERRIDES=true \
+  FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
+  PLAYER_INSIGHTS_APPLY_OVERRIDES=1 \
+  PLAYER_INSIGHTS_CATALOG_DENYLIST="" \
+  run_release empty-override --apply; status=$?
+expect_status nonzero "$status" "the harness stops after inspecting the empty override"
+expect_text "release readout reports the intentional empty denylist" "catalog denylist      (none)"
+grep -qx 'denylist=' "$OUT_DIR/empty-override.marker" \
+  && ok "explicit empty denylist reached model logging instead of baseline.blocked" \
+  || bad "explicit empty denylist was replaced by the bundle baseline"
 
 echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"

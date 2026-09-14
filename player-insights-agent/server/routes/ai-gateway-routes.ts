@@ -66,10 +66,20 @@ async function currentSummary(req: Request, res: Response, appkit: InsightsAppKi
   const { report } = await readOrchestratorReport();
   const active = liveConfiguration(report);
   const gateway = stored.get('llm-gateway');
-  const model = stored.get('llm-endpoint');
-  const stagedMode = gateway?.intent === 'intended' ? AiGatewayModeSchema.safeParse(gateway.value) : null;
+  const gatewayMode = stored.get('llm-gateway-mode');
+  const direct = stored.get('llm-endpoint');
+  const stagedMode = gatewayMode?.intent === 'intended' ? AiGatewayModeSchema.safeParse(gatewayMode.value) : null;
   const mode = stagedMode?.success ? stagedMode.data : undefined;
-  const candidateId = model?.intent === 'intended' ? model.value.trim() : '';
+  const candidateId =
+    mode === undefined
+      ? ''
+      : mode
+        ? gateway?.intent === 'intended'
+          ? gateway.value.trim()
+          : ''
+        : direct?.intent === 'intended'
+          ? direct.value.trim()
+          : '';
   const { options, cleanup } = requestOptions(req, res);
   try {
     // Empty active route is deliberately not probed. Direct is the normal state,
@@ -77,10 +87,10 @@ async function currentSummary(req: Request, res: Response, appkit: InsightsAppKi
     const validation =
       mode !== undefined && candidateId
         ? await validateAiGatewayCandidate({ mode, candidateId, options })
-        : active.llm_gateway && active.llm_endpoint
+        : active.llm_gateway && active.llm_gateway_endpoint
           ? await validateAiGatewayCandidate({
               mode: active.llm_gateway as 'mlflow' | 'openai',
-              candidateId: active.llm_endpoint,
+              candidateId: active.llm_gateway_endpoint,
               options,
             })
           : undefined;
@@ -88,7 +98,8 @@ async function currentSummary(req: Request, res: Response, appkit: InsightsAppKi
       res.json(
         summarizeAiGateway({
           activeMode: active.llm_gateway ?? '',
-          activeModel: active.llm_endpoint ?? '',
+          activeDirectModel: active.llm_endpoint ?? '',
+          activeGatewayModel: active.llm_gateway_endpoint ?? '',
           stored,
           validation,
         })
@@ -158,9 +169,21 @@ export function setupAiGatewayRoutes(appkit: InsightsAppKit): void {
           res.status(statusForValidation(validation.state)).json(validation);
           return;
         }
+        const { report } = await readOrchestratorReport();
+        const active = liveConfiguration(report);
+        const activeDirectModel = active.llm_endpoint?.trim() ?? '';
+        if (parsed.data.mode && !activeDirectModel) {
+          res.status(409).json({
+            error: 'direct_model_unavailable',
+            detail:
+              'The running model version did not report its direct foundation endpoint, so Gateway staging cannot preserve the fail-closed direct route.',
+          });
+          return;
+        }
         const staged = await stageAiGatewaySelection({
           store: appkit,
           ...parsed.data,
+          activeDirectModel,
           actor: userEmail(req),
           validation,
         });
@@ -206,8 +229,10 @@ export function setupAiGatewayRoutes(appkit: InsightsAppKit): void {
         return;
       }
       const mode = AiGatewayModeSchema.safeParse(settings.llm_gateway);
-      const candidateId = (settings.llm_endpoint ?? '').trim();
-      if (!mode.success || !candidateId) {
+      const directEndpoint = (settings.llm_endpoint ?? '').trim();
+      const gatewayEndpoint = (settings.llm_gateway_endpoint ?? '').trim();
+      const candidateId = mode.success && mode.data ? gatewayEndpoint : directEndpoint;
+      if (!mode.success || !directEndpoint || !candidateId || (!mode.data && gatewayEndpoint)) {
         res.status(409).json({
           error: 'invalid_gateway_release_pair',
           detail: 'The approved release does not contain a coherent Gateway mode and foundation model pair.',

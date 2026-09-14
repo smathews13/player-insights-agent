@@ -39,6 +39,16 @@ def test_notebook_refuses_catalog_allowlist():
     assert notebook["warehouse_id"] == "wh-1"
 
 
+def test_connections_release_declaration_keeps_admin_staged_allowlist():
+    declaration = {
+        "source": "connections-apply",
+        "settings": {"catalog_allowlist": "catalog_a,catalog_b"},
+    }
+    intended = apply.settings_from_declaration(declaration, admin_staged=True)
+    plan = apply.resolve_apply_plan(notebook=intended)
+    assert plan.env_exports()["PLAYER_INSIGHTS_CATALOG_ALLOWLIST"] == ("catalog_a,catalog_b")
+
+
 def test_intended_accepts_catalog_allowlist_with_note():
     plan = apply.resolve_apply_plan(intended={"catalog_allowlist": "a,b"})
     assert any(k.key == "catalog_allowlist" and k.source == "intended" for k in plan.knobs)
@@ -78,6 +88,10 @@ def test_direct_gateway_clear_is_an_explicit_empty_override():
         [
             {"resource": {"agentKey": "llm_gateway"}, "intended": ""},
             {
+                "resource": {"agentKey": "llm_gateway_endpoint"},
+                "intended": "",
+            },
+            {
                 "resource": {"agentKey": "llm_endpoint"},
                 "intended": "databricks-gpt-5",
             },
@@ -86,10 +100,68 @@ def test_direct_gateway_clear_is_an_explicit_empty_override():
     plan = apply.resolve_apply_plan(intended=intended)
     assert intended == {
         "llm_gateway": "",
+        "llm_gateway_endpoint": "",
         "llm_endpoint": "databricks-gpt-5",
     }
     assert plan.env_exports()["PLAYER_INSIGHTS_LLM_GATEWAY"] == ""
+    assert plan.env_exports()["PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT"] == ""
     assert plan.env_exports()["PLAYER_INSIGHTS_LLM_ENDPOINT"] == "databricks-gpt-5"
+
+
+def test_direct_release_declaration_preserves_both_explicit_gateway_clears():
+    settings = apply.settings_from_declaration(
+        {
+            "settings": {
+                "llm_gateway": "",
+                "llm_gateway_endpoint": "",
+                "llm_endpoint": "databricks-gpt-5",
+            }
+        }
+    )
+    plan = apply.resolve_apply_plan(notebook=settings)
+    assert plan.env_exports() == {
+        "PLAYER_INSIGHTS_LLM_GATEWAY": "",
+        "PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT": "",
+        "PLAYER_INSIGHTS_LLM_ENDPOINT": "databricks-gpt-5",
+    }
+
+
+def test_gateway_resource_ids_keep_gateway_and_direct_endpoints_separate():
+    intended = apply.intended_from_stored(
+        [
+            {
+                "resource_id": "llm-gateway",
+                "value": "catalog.schema.gateway_model",
+                "intent": "intended",
+            },
+            {
+                "resource_id": "llm-gateway-mode",
+                "value": "mlflow",
+                "intent": "intended",
+            },
+            {
+                "resource_id": "llm-endpoint",
+                "value": "databricks-gpt-5",
+                "intent": "intended",
+            },
+        ]
+    )
+    plan = apply.resolve_apply_plan(intended=intended)
+    assert intended == {
+        "llm_gateway_endpoint": "catalog.schema.gateway_model",
+        "llm_gateway": "mlflow",
+        "llm_endpoint": "databricks-gpt-5",
+    }
+    assert plan.env_exports() == {
+        "PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT": "catalog.schema.gateway_model",
+        "PLAYER_INSIGHTS_LLM_GATEWAY": "mlflow",
+        "PLAYER_INSIGHTS_LLM_ENDPOINT": "databricks-gpt-5",
+    }
+
+
+def test_explicit_empty_catalog_denylist_is_exported():
+    plan = apply.resolve_apply_plan(intended={"catalog_denylist": ""})
+    assert plan.env_exports()["PLAYER_INSIGHTS_CATALOG_DENYLIST"] == ""
 
 
 def test_intended_from_stored_rows():
@@ -110,12 +182,8 @@ def test_every_applyable_key_has_env_var():
 
 
 def test_vector_search_index_is_exported_for_the_model_release():
-    plan = apply.resolve_apply_plan(
-        intended={"semantic_index": "catalog.schema.semantic_index"}
-    )
-    assert plan.env_exports()["PLAYER_INSIGHTS_SEMANTIC_INDEX"] == (
-        "catalog.schema.semantic_index"
-    )
+    plan = apply.resolve_apply_plan(intended={"semantic_index": "catalog.schema.semantic_index"})
+    assert plan.env_exports()["PLAYER_INSIGHTS_SEMANTIC_INDEX"] == ("catalog.schema.semantic_index")
 
 
 def test_cli_refuses_without_intent_flag():
@@ -149,3 +217,31 @@ def test_cli_print_env():
     )
     assert result.returncode == 0
     assert "PLAYER_INSIGHTS_WAREHOUSE_ID='wh-cli'" in result.stdout
+
+
+def test_cli_treats_connections_release_declaration_as_admin_intended():
+    declaration = {
+        "source": "connections-apply",
+        "settings": {
+            "catalog_allowlist": "catalog_a,catalog_b",
+            "catalog_denylist": "",
+        },
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(AGENT_DIR / "apply_from_declaration.py"),
+            "--i-am-deploying",
+            "--declaration-json",
+            "-",
+            "--print-env",
+        ],
+        cwd=AGENT_DIR,
+        input=json.dumps(declaration),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "PLAYER_INSIGHTS_CATALOG_ALLOWLIST='catalog_a,catalog_b'" in result.stdout
+    assert "PLAYER_INSIGHTS_CATALOG_DENYLIST=''" in result.stdout

@@ -1703,10 +1703,11 @@ export function ConnectionRow({
   });
   const picker = pickerForField(resource.id);
   const lakebaseManaged = resource.id === 'lakebase';
-  // Admins may apply runtime values immediately or stage model/deployment-owned
-  // values for the normal release path. The picker is the capability boundary;
-  // `row.editable` only decides whether the saved value is active or intended.
-  const canWrite = Boolean(allowMutations && picker);
+  // A picker makes a value discoverable; it does not prove the app has a release
+  // path for it. Only runtime values and explicitly stageable model settings get
+  // an editor. Bundle-owned resources such as the Vector Search endpoint stay
+  // read-only instead of accepting an intention no automated Apply can consume.
+  const canWrite = Boolean(allowMutations && picker && (row.editable || resource.stageable));
   const canWriteInline = canWrite && !lakebaseManaged;
   // Open on arrival when a link named this row. The collapsed line carries the
   // value and its verdict; the reason for either is inside, and somebody who
@@ -2521,7 +2522,7 @@ export function ConnectionsPage() {
                   enabled={usesAiGateway(features)}
                   requested={requestedResource === reading.resource.id}
                   refreshing={refreshing}
-                  allowMutations={false}
+                  allowMutations={allowMutations}
                   onStaged={rereadSettings}
                 />
               ) : (

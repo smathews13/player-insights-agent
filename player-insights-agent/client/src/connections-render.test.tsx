@@ -1371,19 +1371,20 @@ describe('a connection row', () => {
     // The AssetPickerField only mounts once the pencil puts the row into edit
     // mode (client state), so a static open-row render cannot assert the picker
     // markup. What this page must not regress is the unlock + the field mapping.
-    for (const id of [
-      'genie-data',
-      'genie-dictionary',
-      'sql-warehouse',
-      'assets-volume',
-      'semantic-index-endpoint',
-      'semantic-index',
-      'experiment-id',
-    ] as const) {
+    for (const id of ['genie-data', 'genie-dictionary', 'sql-warehouse', 'semantic-index', 'experiment-id'] as const) {
       expect(pickerForField(id), id).not.toBeNull();
       const rendered = renderRow(id, { configured: 'placeholder', editable: id === 'experiment-id' }, { open: true });
       expect(text(rendered), id).toMatch(/Change/);
     }
+  });
+
+  it('keeps bundle-owned Vector Search endpoint discovery read-only', () => {
+    expect(pickerForField('semantic-index-endpoint')).not.toBeNull();
+    const endpoint = renderRow('semantic-index-endpoint', { configured: 'semantic-vs' }, { open: true });
+    expect(text(endpoint)).not.toMatch(/\bChange\b|Save and apply|Stage/);
+    expect(endpoint).not.toContain('data-affordance="write"');
+    const index = renderRow('semantic-index', { configured: 'catalog.schema.index' }, { open: true });
+    expect(text(index)).toContain('Change');
   });
 
   it('draws Expected and Observed only for a real mismatch', () => {

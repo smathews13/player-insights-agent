@@ -118,6 +118,27 @@ describe('AI Gateway Connections row', () => {
     expect(markup).toContain('ast-pill--neutral');
   });
 
+  it('offers the atomic Gateway editor only when connection mutations are allowed', () => {
+    const markup = renderToStaticMarkup(
+      <MemoryRouter>
+        <AiGatewayConnection
+          reading={reading(true)}
+          foundationModel="databricks-gpt-5"
+          gatewayMode="mlflow"
+          enabled
+          allowMutations
+          requested
+          onStaged={() => Promise.resolve()}
+        />
+      </MemoryRouter>
+    );
+    expect(text(markup)).toContain('Change');
+    expect(markup).toContain('data-affordance="write"');
+    const page = readFileSync(new URL('./ConnectionsPage.tsx', import.meta.url), 'utf8');
+    expect(page).toContain('allowMutations={allowMutations}');
+    expect(page).not.toContain('allowMutations={false}');
+  });
+
   it('does not call a configured Gateway unreachable when its generic metadata probe is intentionally absent', () => {
     const markup = render(true, true, false);
     expect(text(markup)).toContain('AI Gateway catalog.schema.gateway_model Enabled');

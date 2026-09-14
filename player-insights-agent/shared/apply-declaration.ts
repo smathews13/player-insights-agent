@@ -19,6 +19,7 @@ export const APPLY_ENV_VARS: Record<string, string> = {
   data_genie_space_id: 'PLAYER_INSIGHTS_DATA_GENIE_ID',
   dictionary_genie_space_id: 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID',
   llm_endpoint: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
+  llm_gateway_endpoint: 'PLAYER_INSIGHTS_LLM_GATEWAY_ENDPOINT',
   llm_gateway: 'PLAYER_INSIGHTS_LLM_GATEWAY',
   semantic_index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
   catalog_allowlist: 'PLAYER_INSIGHTS_CATALOG_ALLOWLIST',
@@ -30,6 +31,8 @@ export const APPLYABLE_KEYS = new Set(Object.keys(APPLY_ENV_VARS));
 
 /** Notebook may publish this; Apply never takes it from a declaration. */
 export const NOTEBOOK_REFUSED_KEYS = new Set(['catalog_allowlist']);
+/** Empty is an explicit release decision for these settings, not a missing value. */
+export const INTENTIONAL_EMPTY_KEYS = new Set(['catalog_denylist', 'llm_gateway', 'llm_gateway_endpoint']);
 
 export type ApplySource = 'intended' | 'notebook';
 
@@ -72,9 +75,7 @@ export function intendedFromResources(
     const key = entry.resource?.agentKey;
     if (entry.intended === null || entry.intended === undefined) continue;
     const intended = text(entry.intended);
-    // Empty is meaningful only for llm_gateway: it stages Direct and clears the
-    // route while the paired llm_endpoint remains explicit.
-    if (!key || (!intended && key !== 'llm_gateway') || !APPLYABLE_KEYS.has(key)) continue;
+    if (!key || (!intended && !INTENTIONAL_EMPTY_KEYS.has(key)) || !APPLYABLE_KEYS.has(key)) continue;
     out[key] = intended;
   }
   return out;
@@ -87,7 +88,7 @@ export function settingsFromDeclaration(declaration: NotebookDeclaration | null 
   for (const setting of declaration.settings) {
     const key = text(setting.key);
     const value = text(setting.value);
-    if (!key || !value) continue;
+    if (!key || (!value && !INTENTIONAL_EMPTY_KEYS.has(key))) continue;
     if (NOTEBOOK_REFUSED_KEYS.has(key)) continue;
     if (!APPLYABLE_KEYS.has(key)) continue;
     if (declarationFlow(key) === 'refused') continue;
@@ -123,7 +124,10 @@ export function resolveApplyPlan(input: {
       });
       continue;
     }
-    if (notebook[key]) {
+    if (
+      Object.prototype.hasOwnProperty.call(notebook, key) &&
+      (Boolean(notebook[key]) || INTENTIONAL_EMPTY_KEYS.has(key))
+    ) {
       knobs.push({
         key,
         label: LABELS[key] ?? key,
@@ -145,10 +149,12 @@ export function resolveApplyPlan(input: {
     );
   }
   const gateway = knobs.find((knob) => knob.key === 'llm_gateway' && knob.source === 'intended');
-  const gatewayModel = knobs.find((knob) => knob.key === 'llm_endpoint');
+  const gatewayEndpoint = knobs.find((knob) => knob.key === 'llm_gateway_endpoint');
+  const directEndpoint = knobs.find((knob) => knob.key === 'llm_endpoint');
   if (gateway) {
+    const selected = gateway.value ? gatewayEndpoint?.value : directEndpoint?.value;
     notes.push(
-      `AI Gateway release pair: ${gateway.value || 'Direct'} with ${gatewayModel?.value || '(missing model)'}. ` +
+      `AI Gateway release pair: ${gateway.value || 'Direct'} with ${selected || '(missing model)'}. ` +
         'The notebook helper revalidates it before claiming the release. Rollback is Direct plus the existing endpoint through the same confirmed release.'
     );
   }

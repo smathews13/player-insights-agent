@@ -139,6 +139,9 @@ set -a
 # shellcheck disable=SC1091
 source "$EXPORTS"
 set +a
+# Distinguish resolver-owned exports from unrelated values in an operator's
+# shell. agent-release remains bundle-authoritative when called directly.
+export PLAYER_INSIGHTS_APPLY_OVERRIDES=1
 
 RELEASE_ARGS=(--apply)
 [[ "$ALLOW_WIDENING" == true ]] && RELEASE_ARGS+=(--allow-widening)
