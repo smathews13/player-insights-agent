@@ -737,12 +737,22 @@ export function buildUserMonitoringPage(input: {
 }): UserMonitoringPayload {
   const profiles = new Map(input.spend.users.map((profile) => [profile.email.toLowerCase(), profile]));
   const interactions = new Map((input.interactions ?? []).map((row) => [row.email.toLowerCase(), row]));
-  const emails = [...input.roles.keys()];
+  /**
+   * Role assignments are not the membership boundary for Monitoring.
+   *
+   * A person admitted through a Databricks App group can have durable PIA
+   * activity without an explicit Lakebase role row. Keeping only role keys made
+   * those people's questions, runs, and spend disappear from User Monitoring.
+   * The interaction read is deployment-scoped evidence (sessions, questions,
+   * runs, or feedback), so union it with explicitly assigned roles and use the
+   * ordinary consumer role when no override exists.
+   */
+  const emails = [...new Set([...input.roles.keys(), ...interactions.keys()])].sort();
   const selectedOrganizations = new Set(input.organizations ?? []);
   const search = (input.search ?? '').trim().toLowerCase().slice(0, 120);
 
   const unavailable: UserSpendAmount = { amount: null, quality: 'unavailable' };
-  const rosterRows: UserMonitoringRow[] = emails
+  const userRows: UserMonitoringRow[] = emails
     .filter((email) => email.includes('@'))
     .map((email) => {
       const profile = profiles.get(email);
@@ -769,7 +779,7 @@ export function buildUserMonitoringPage(input: {
         coverage: (input.unit === 'USD' ? usd : dbu).quality,
       };
     });
-  const countedRows = rosterRows.filter(
+  const countedRows = userRows.filter(
     (row) =>
       (!search || row.email.includes(search)) &&
       (!input.role || row.role === input.role) &&
@@ -780,7 +790,7 @@ export function buildUserMonitoringPage(input: {
     countedRows.map((row) => row.email),
     input.organizationMappings
   );
-  const authorizedRows = rosterRows.filter(
+  const authorizedRows = userRows.filter(
     (row) =>
       (!search || row.email.includes(search)) &&
       (!input.role || row.role === input.role) &&
