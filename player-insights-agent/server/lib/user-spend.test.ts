@@ -373,7 +373,39 @@ describe('individual user spend attribution', () => {
     expect(page.users.map((row) => row.email)).toEqual(['b@example.test', 'a@example.test']);
   });
 
-  it('returns exactly 3 Identity-settings users when 100 account users have activity', () => {
+  it('includes durable activity from a group-admitted user without an explicit role row', () => {
+    const page = buildUserMonitoringPage({
+      spend: build(),
+      runs,
+      activity: [],
+      interactions: [
+        ...activeInteractions,
+        {
+          email: 'group-member@example.test',
+          questions: 4,
+          runs: 3,
+          firstActive: '2026-08-30T09:00:00Z',
+          lastActive: '2026-08-31T12:00:00Z',
+        },
+      ],
+      roles: new Map([['a@example.test', 'admin']]),
+      unit: 'USD',
+    });
+
+    expect(page.users).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          email: 'group-member@example.test',
+          role: 'consumer',
+          questions: 4,
+          runs: 3,
+          lastActive: '2026-08-31T12:00:00Z',
+        }),
+      ])
+    );
+  });
+
+  it('includes active group members when only 3 of 100 users have explicit role rows', () => {
     const accountUsers = Array.from({ length: 100 }, (_, index) => ({
       email: `account-${index + 1}@example.test`,
       questions: 0,
@@ -392,14 +424,17 @@ describe('individual user spend attribution', () => {
       unit: 'USD',
     });
 
-    expect(page.users.map((row) => row.email).sort()).toEqual(rosterOnly);
-    expect(page.pagination.total).toBe(3);
+    expect(page.users).toHaveLength(25);
+    expect(page.pagination.total).toBe(100);
+    expect(page.pagination.hasMore).toBe(true);
+    expect(page.users.find((row) => row.email === 'account-1@example.test')?.role).toBe('admin');
+    expect(page.users.find((row) => row.email === 'account-10@example.test')?.role).toBe('consumer');
     expect(page.users.every((row) => row.lastActive === null || Number.isFinite(Date.parse(row.lastActive)))).toBe(
       true
     );
   });
 
-  it('rejects null timestamps and activity outside the selected range', () => {
+  it('rejects null activity timestamps without changing valid users', () => {
     const before = userMonitoringEvidenceDiagnostics().rejectedRows;
     const parsed = readUserInteractionEvidence([
       {
@@ -416,16 +451,7 @@ describe('individual user spend attribution', () => {
       spend: build(),
       runs,
       activity: [],
-      interactions: [
-        ...activeInteractions,
-        {
-          email: 'outside@example.test',
-          questions: 2,
-          runs: 2,
-          firstActive: '2026-08-01T10:00:00Z',
-          lastActive: '2026-08-01T11:00:00Z',
-        },
-      ],
+      interactions: activeInteractions,
       roles: new Map([
         ['a@example.test', 'admin'],
         ['b@example.test', 'consumer'],

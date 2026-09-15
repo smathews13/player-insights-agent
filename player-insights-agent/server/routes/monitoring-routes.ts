@@ -57,8 +57,7 @@ import { resolveExperimentId } from '../lib/app-settings';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
-import { everyKnownUser, readRosterForRequest } from '../lib/user-roster';
-import { invalidAdminEmail, resolveRole, seedRoles } from '../lib/admin-roles';
+import { invalidAdminEmail, resolveRole } from '../lib/admin-roles';
 import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
@@ -1319,18 +1318,6 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       const person = decodeURIComponent(String(req.params.email));
       if (invalidAdminEmail(person)) {
         res.status(400).json({ error: 'invalid_monitoring_user' });
-        return;
-      }
-      let roster: Awaited<ReturnType<typeof readRosterForRequest>>;
-      try {
-        roster = await readRosterForRequest(appkit.lakebase, req);
-      } catch {
-        res.status(503).json({ error: 'identity_roster_unavailable' });
-        return;
-      }
-      const identityRoster = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
-      if (!identityRoster.some((entry) => entry.email === person.trim().toLowerCase())) {
-        res.status(404).json({ error: 'monitoring_user_not_rostered' });
         return;
       }
       const range = rangeFrom(req, clock());
