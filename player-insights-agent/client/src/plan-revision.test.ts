@@ -95,7 +95,23 @@ describe('clicking Revise request opens the plan as a source picker', () => {
     expect(canSubmitRevision(PLAN, noted)).toBe(true);
     expect(sourceChanged(PLAN, picked)).toBe(true);
     expect(sourceChoiceNote(PLAN, picked)).toBe(
-      'Use cdp_share_prod.global_production.play_by_title instead of cdp_northwind_prod.gold_di.gtav_daily_summary.'
+      'Use cdp_share_prod.global_production.play_by_title.gtao instead of cdp_northwind_prod.gold_di.gtav_daily_summary.brand_firstpartyid.'
+    );
+  });
+
+  it('names the field when two options come from the same table', () => {
+    const sameTable: AnalysisPlan = {
+      ...PLAN,
+      steps: [
+        PLAN.steps[0],
+        { ...PLAN.steps[0], id: 'source-2', title: 'cdp_northwind_prod.gold_di.gtav_daily_summary' },
+      ],
+      candidates: [PLAN.candidates![0], { ...PLAN.candidates![0], field: 'platformid_accountid', recommended: false }],
+    };
+    const picked = planRevisionReducer(revisionFromPlan(sameTable), { type: 'select', id: 'source-2' }) as PlanRevision;
+
+    expect(sourceChoiceNote(sameTable, picked)).toBe(
+      'Use cdp_northwind_prod.gold_di.gtav_daily_summary.platformid_accountid instead of cdp_northwind_prod.gold_di.gtav_daily_summary.brand_firstpartyid.'
     );
   });
 
@@ -119,7 +135,7 @@ describe('sending a revision asks the revised question', () => {
   it('carries the note and the chosen source, not a pasted step list', () => {
     expect(request).toContain('Don’t query the churn table.');
     expect(request).toContain(
-      'Use cdp_share_prod.global_production.play_by_title instead of cdp_northwind_prod.gold_di.gtav_daily_summary.'
+      'Use cdp_share_prod.global_production.play_by_title.gtao instead of cdp_northwind_prod.gold_di.gtav_daily_summary.brand_firstpartyid.'
     );
     expect(request).not.toContain('Use these steps instead:');
   });

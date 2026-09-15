@@ -58,6 +58,26 @@ def test_discovery_request_is_one_self_contained_message_not_chat_history():
     assert "Return the assessed package" not in rendered
 
 
+def test_approved_duplicate_table_options_keep_the_recommended_field():
+    request = DiscoveryRequest(
+        intent="Count Fairway users.",
+        approved_tables=(TITLE_DAILY,),
+        approved_fields=(
+            (TITLE_DAILY, "brand_firstpartyid"),
+            (TITLE_DAILY, "platformid_accountid"),
+            (TITLE_DAILY, "player_id"),
+        ),
+        approved_recommended=TITLE_DAILY,
+    )
+
+    rendered = request.render()
+
+    assert (
+        f"{TITLE_DAILY} (approved field: brand_firstpartyid) [recommended and binding]" in rendered
+    )
+    assert "approved field: player_id" not in rendered
+
+
 def test_finder_invocation_gets_no_role_bearing_conversation_history():
     llm = ScriptedLlm(
         [Call("data_genie", {"question": "retained players for the complete intent"})],

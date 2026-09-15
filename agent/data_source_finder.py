@@ -198,7 +198,12 @@ class DiscoveryRequest:
     def render(self) -> str:
         sections = ["Question:\n" + self.intent.strip()]
         if self.approved_tables:
-            fields = dict(self.approved_fields)
+            # A plan can offer several counting fields from the same table. The
+            # first option is the recommended one, so keep its field rather than
+            # letting a later alternative overwrite it in a plain dict().
+            fields: dict[str, str] = {}
+            for table, field in self.approved_fields:
+                fields.setdefault(table, field)
             sections.append(
                 "Approved source boundary (use only these tables for this analysis):\n"
                 + "\n".join(

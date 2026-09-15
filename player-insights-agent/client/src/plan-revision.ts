@@ -105,9 +105,15 @@ export function sourceChoiceNote(plan: AnalysisPlan, revision: PlanRevision): st
   if (!selected || !recommended) return '';
   const selectedIndex = plan.steps.indexOf(selected);
   const recommendedIndex = plan.steps.indexOf(recommended);
-  const selectedTable = plan.candidates?.[selectedIndex]?.table ?? displaySourceTitle(selected.title);
-  const recommendedTable = plan.candidates?.[recommendedIndex]?.table ?? displaySourceTitle(recommended.title);
-  return `Use ${selectedTable} instead of ${recommendedTable}.`;
+  const selectedCandidate = plan.candidates?.[selectedIndex];
+  const recommendedCandidate = plan.candidates?.[recommendedIndex];
+  const selectedTable = selectedCandidate?.table ?? displaySourceTitle(selected.title);
+  const recommendedTable = recommendedCandidate?.table ?? displaySourceTitle(recommended.title);
+  const selectedChoice = selectedCandidate ? `${selectedTable}.${selectedCandidate.field}` : selectedTable;
+  const recommendedChoice = recommendedCandidate
+    ? `${recommendedTable}.${recommendedCandidate.field}`
+    : recommendedTable;
+  return `Use ${selectedChoice} instead of ${recommendedChoice}.`;
 }
 
 /**

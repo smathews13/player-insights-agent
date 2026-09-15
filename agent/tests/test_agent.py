@@ -2444,6 +2444,73 @@ def test_planner_requests_three_ranked_sources_without_inventing_padding():
     assert "Never pad with an unrelated table" in instructions
 
 
+def test_planner_requests_three_ranked_fields_when_one_table_has_several_counting_units():
+    assert "exactly 3 ranked table-and-field options" in agent.PLAN_FACTS_INSTRUCTIONS
+    assert "A table may appear more than once" in agent.PLAN_FACTS_INSTRUCTIONS
+    assert "Never pad with an unrelated field" in agent.PLAN_FACTS_INSTRUCTIONS
+
+
+def test_one_table_can_offer_three_distinct_user_count_options():
+    fields = ["brand_firstpartyid", "platformid_accountid", "player_id"]
+    facts = {
+        "summary": "Count users from the franchise table using the selected identity grain.",
+        "definitions": [],
+        "tables": [
+            {
+                "name": TITLE_DAILY,
+                "field": field,
+                "purpose": f"count users at the {field} grain",
+                "columns": [field],
+                "filters": ["title_name = 'Fairway'"],
+            }
+            for field in fields
+        ],
+        "quality_checks": [],
+    }
+    plan, _, _ = plan_for(
+        facts=facts,
+        describe_table=describe_result(TITLE_DAILY, "title_name", *fields),
+    )
+
+    assert [candidate["field"] for candidate in plan["candidates"]] == fields
+    assert [candidate["table"] for candidate in plan["candidates"]] == [TITLE_DAILY] * 3
+    assert [candidate["recommended"] for candidate in plan["candidates"]] == [True, False, False]
+
+
+def test_approval_accepts_several_field_options_from_one_declared_table():
+    question = "How many users played Fairway?"
+    plan_id = _plan_id(question, "")
+    fields = ["brand_firstpartyid", "platformid_accountid", "player_id"]
+    approved = {
+        "id": plan_id,
+        "question": question,
+        "requires_approval": True,
+        "steps": [
+            {
+                "id": f"source-{index + 1}",
+                "title": f"{TITLE_DAILY}{' (recommended)' if index == 0 else ''}",
+                "description": field,
+                "kind": "data",
+            }
+            for index, field in enumerate(fields)
+        ],
+        "candidates": [
+            {
+                "table": TITLE_DAILY,
+                "field": field,
+                "definition": f"Governed definition for {field}.",
+                "why": f"Counts at the {field} grain.",
+                "recommended": index == 0,
+            }
+            for index, field in enumerate(fields)
+        ],
+    }
+
+    assert agent._approved_plan_sources(
+        {"approved_plan_id": plan_id, "approved_plan": approved}, question, [TITLE_DAILY]
+    ) == (TITLE_DAILY,)
+
+
 def test_the_plan_names_the_tables_columns_and_filters_the_run_will_use():
     plan, tools, _ = plan_for()
 
