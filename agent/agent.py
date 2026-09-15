@@ -1012,13 +1012,19 @@ def _approved_plan_sources(
                 return ()
             if title.lower().endswith(" (recommended)") != (candidate.get("recommended") is True):
                 return ()
-        resolved = tuple(_declared_only(names, declared))
+        resolved_names = [_declared_only([name], declared) for name in names]
         recommended = sum(
             1
             for candidate in candidates
             if isinstance(candidate, dict) and candidate.get("recommended") is True
         )
-        return resolved if len(resolved) == len(candidates) and recommended == 1 else ()
+        if any(not name for name in resolved_names) or recommended != 1:
+            return ()
+        # Options are table-and-field decisions, so several legitimate choices
+        # can come from one governed table. The execution boundary is still a
+        # table set: preserve ranking while collapsing duplicate table names only
+        # after every option has been validated.
+        return tuple(dict.fromkeys(name[0] for name in resolved_names))
     steps = raw.get("steps")
     if not isinstance(steps, list):
         return ()
@@ -1327,8 +1333,12 @@ useless. Return ONE JSON object and nothing else:
 }
 
 Rules:
-- Include every table described below in the "tables" array, in the order shown. They are
-  the ranked alternatives the user must be able to compare; do not collapse them to one.
+- Return exactly 3 ranked table-and-field options whenever the described metadata contains
+  at least 3 plausible ways to answer the question. Return every plausible option when fewer
+  exist. A table may appear more than once when different fields represent genuinely different
+  counting units or grains. Never pad with an unrelated field.
+- Include every described table that plausibly answers the question. The options are what the
+  user must be able to compare; do not collapse several legitimate fields from one table into one.
 - Every table name must be one of the tables described below, spelled the same way.
 - "field" must be one column from that table's description and must be the field whose
   meaning or grain determines the answer, not merely a date or filter column.
@@ -1518,22 +1528,29 @@ def _plan_source_decision(
 ) -> tuple[list[PlanStep], list[PlanCandidate]]:
     """Build one index-aligned step and structured record per ranked source."""
 
-    entries = facts.get("tables")
-    by_table: dict[str, dict[str, Any]] = {}
-    if isinstance(entries, list):
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            resolved = _declared_only([entry.get("name")], list(described))
-            if resolved:
-                by_table[resolved[0]] = entry
-
     steps: list[PlanStep] = []
     candidates: list[PlanCandidate] = []
-    for index, (table, available) in enumerate(described.items()):
-        if index >= PLAN_MAX_TABLES:
-            break
-        entry = by_table.get(table, {})
+    entries = facts.get("tables")
+    ranked = (
+        [entry for entry in entries if isinstance(entry, dict)] if isinstance(entries, list) else []
+    )
+    # A model response from an older prompt may still name only one field per
+    # table. Keep every described table represented without letting that
+    # compatibility path duplicate a table-and-field option already supplied.
+    represented = {
+        resolved[0]
+        for entry in ranked
+        if (resolved := _declared_only([entry.get("name")], list(described)))
+    }
+    ranked.extend({"name": table} for table in described if table not in represented)
+
+    seen: set[tuple[str, str]] = set()
+    for entry in ranked:
+        resolved = _declared_only([entry.get("name")], list(described))
+        if not resolved:
+            continue
+        table = resolved[0]
+        available = described[table]
         requested = [
             value
             for value in (entry.get("columns") or [])
@@ -1545,11 +1562,15 @@ def _plan_source_decision(
             if chosen_field in available
             else (requested[0] if requested else available[0])
         )
+        option = (table, field)
+        if option in seen:
+            continue
+        seen.add(option)
         definition = _field_definition(details.get(table, ""), field)
         why = re.sub(r"\s+", " ", str(entry.get("purpose") or "")).strip()
         if not why:
             why = "ranked by governed metadata for this question"
-        recommended = index == 0
+        recommended = len(candidates) == 0
         candidate = PlanCandidate(
             table=table,
             field=field,
@@ -1560,12 +1581,14 @@ def _plan_source_decision(
         candidates.append(candidate)
         steps.append(
             PlanStep(
-                id=f"source-{index + 1}",
+                id=f"source-{len(candidates)}",
                 title=f"{table}{' (recommended)' if recommended else ''}",
                 description=f"{field} · {definition} — why: {why}",
                 kind="data",
             )
         )
+        if len(candidates) >= PLAN_MAX_TABLES:
+            break
     return steps, candidates
 
 
