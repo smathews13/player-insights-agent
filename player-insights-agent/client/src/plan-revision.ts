@@ -87,6 +87,68 @@ export function planRevisionReducer(revision: PlanRevision | null, action: PlanR
   return { ...revision, selectedStepId: action.id };
 }
 
+/**
+ * A copy of the plan with the reader's chosen source marked as the recommended
+ * one, so "Approve and run" can run option 2 or 3 directly rather than only the
+ * agent's first pick.
+ *
+ * The agent runs the recommended candidate as the primary source and rejects an
+ * approved plan whose step titles and candidate flags disagree, so the
+ * `(recommended)` title suffix and the `recommended` flag are moved together and
+ * exactly one option -- the chosen one -- ends up recommended. Every other field
+ * is left as the agent wrote it: this changes which source runs, not what any
+ * source is. Rebuilt titles come from `candidate.table`, which is the identifier
+ * the agent validates each step title against.
+ *
+ * A plan with no candidates, or a selection that names no candidate, is returned
+ * unchanged -- there is nothing to run but what the agent proposed.
+ */
+export function planWithSelectedSource(plan: AnalysisPlan, selectedStepId: string): AnalysisPlan {
+  const candidates = plan.candidates;
+  if (!candidates || candidates.length === 0) return plan;
+  const selectedIndex = plan.steps.findIndex((step) => step.id === selectedStepId);
+  if (selectedIndex < 0 || !candidates[selectedIndex]) return plan;
+  const steps = plan.steps.map((step, index) => {
+    const candidate = candidates[index];
+    if (!candidate) return step;
+    const table = candidate.table || displaySourceTitle(step.title);
+    return { ...step, title: index === selectedIndex ? `${table} (recommended)` : table };
+  });
+  const nextCandidates = candidates.map((candidate, index) => ({
+    ...candidate,
+    recommended: index === selectedIndex,
+  }));
+  return { ...plan, steps, candidates: nextCandidates };
+}
+
+/**
+ * The step whose source the run actually read, for a settled plan, or '' when
+ * that cannot be said without guessing.
+ *
+ * After a plan is approved the reader may have run option 2 or 3, but the stored
+ * plan message is still the agent's original proposal with option 1 marked. The
+ * only reload-safe record of what ran is the answer's own `reading` sources, so
+ * the badge on a settled card is placed from those rather than from the stale
+ * `recommended` flag.
+ *
+ * A source name is a table, so the match is unambiguous only when exactly one
+ * candidate table was read: two options from one table that was read cannot be
+ * told apart by table alone, and a join that read two candidate tables names no
+ * single source. Either case returns '' and the caller keeps the agent's
+ * original mark rather than printing a guess as a fact.
+ */
+export function ranSourceStepId(plan: AnalysisPlan, readingSourceNames: readonly string[]): string {
+  const candidates = plan.candidates;
+  if (!candidates || candidates.length === 0) return '';
+  const reading = new Set(readingSourceNames.map((name) => name.trim()).filter((name) => name.length > 0));
+  if (reading.size === 0) return '';
+  const matches = candidates
+    .map((candidate, index) => ({ candidate, index }))
+    .filter(({ candidate }) => reading.has(candidate.table.trim()));
+  if (matches.length !== 1) return '';
+  return plan.steps[matches[0].index]?.id ?? '';
+}
+
 /** Whether the picker is pointing at a source other than the recommended one. */
 export function sourceChanged(plan: AnalysisPlan, revision: PlanRevision): boolean {
   const selected = revision.selectedStepId;

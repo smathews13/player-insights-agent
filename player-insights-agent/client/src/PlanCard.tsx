@@ -22,7 +22,7 @@ import {
   CardTitle,
   Textarea,
 } from './ui';
-import { useMemo, useReducer } from 'react';
+import { useMemo, useReducer, useState } from 'react';
 import { Play, Send, Shield, ShieldCheck } from 'lucide-react';
 import { PlanText } from './InlineEntityText';
 import { BrandIcon } from './BrandIcon';
@@ -34,6 +34,9 @@ import {
   displaySourceTitle,
   isRecommendedSourceTitle,
   planRevisionReducer,
+  planWithSelectedSource,
+  ranSourceStepId,
+  recommendedSourceId,
   revisedRequest,
 } from './plan-revision';
 import type { AnalysisPlan, PlanCandidate } from './app-types';
@@ -55,15 +58,21 @@ function PlanSourceStep({
   columns,
   candidate,
   pick,
+  recommended: recommendedOverride,
+  recommendedLabel = 'Recommended',
 }: {
   step: AnalysisPlan['steps'][number];
   index: number;
   columns: string[];
   candidate?: PlanCandidate;
   pick?: { name: string; checked: boolean; onSelect: () => void };
+  /** Overrides the agent's `recommended` flag, for a settled card marking what ran. */
+  recommended?: boolean;
+  /** The word on the badge: the agent's suggestion before a run, what ran after one. */
+  recommendedLabel?: string;
 }) {
   const product = productForPlanKind(step.kind);
-  const recommended = candidate?.recommended ?? isRecommendedSourceTitle(step.title);
+  const recommended = recommendedOverride ?? candidate?.recommended ?? isRecommendedSourceTitle(step.title);
   const title = candidate?.table ?? displaySourceTitle(step.title);
   return (
     <div className={`plan-step${pick ? ' plan-step-pick' : ''}`}>
@@ -85,7 +94,7 @@ function PlanSourceStep({
           </strong>
           {recommended ? (
             <Badge variant="outline" className="ast-pill ast-pill--pos">
-              Recommended
+              {recommendedLabel}
             </Badge>
           ) : null}
         </div>
@@ -124,6 +133,7 @@ export function PlanCard({
   canRevise,
   onApprove,
   onRevise,
+  ranSourceNames = [],
 }: {
   plan: AnalysisPlan;
   loading: boolean;
@@ -141,9 +151,16 @@ export function PlanCard({
   approvalPending: boolean;
   /** A plan may be revised once. The revised plan must be approved or left behind. */
   canRevise: boolean;
-  onApprove: () => void;
+  /** Approve the given plan and run it. The plan carries the reader's chosen source. */
+  onApprove: (plan: AnalysisPlan) => void;
   /** The revised question to ask, composed from the picker below. */
   onRevise: (request: string) => void;
+  /**
+   * The tables the answer that ran this plan read, so a settled card can mark
+   * the source that ran rather than the one the agent first suggested. Empty
+   * until an answer exists, or when the run states no reading source.
+   */
+  ranSourceNames?: string[];
 }) {
   /**
    * The picker, when it is open. `null` is the card as it arrives: the plan as
@@ -154,6 +171,15 @@ export function PlanCard({
    * where they can be read and tested.
    */
   const [revision, dispatch] = useReducer(planRevisionReducer, null);
+  /**
+   * Which source approving will run, when the reader is choosing among ranked
+   * options rather than revising. Starts on the agent's recommended source, so
+   * approving without touching the radios runs exactly what it did before. Held
+   * here because it is a decision about THIS card and dies with it.
+   */
+  const [selectedStepId, setSelectedStepId] = useState(() => recommendedSourceId(plan));
+  /** More than one ranked source, so the reader has a choice worth showing. */
+  const canChooseSource = (plan.candidates?.length ?? 0) > 1;
   /**
    * The three things this card can be: waiting on the reader, approved by them,
    * or settled some other way -- revised, or left behind by the next question.
@@ -168,6 +194,13 @@ export function PlanCard({
    * summary and again in a step is marked the same way on both lines.
    */
   const columns = useMemo(() => planColumnNames(plan), [plan]);
+  /**
+   * Once a plan has been approved and run, the badge marks the source that ran,
+   * read from the answer's own reading tables rather than the agent's original
+   * pick -- the reader may have chosen option 2 or 3. Empty when the run named no
+   * single source, in which case the agent's `recommended` flag is left to stand.
+   */
+  const ranStepId = state === 'approved' && approvalExecuted ? ranSourceStepId(plan, ranSourceNames) : '';
   return (
     <Card className={`plan-card ${resolved ? 'resolved' : ''}`}>
       <CardHeader>
@@ -264,6 +297,10 @@ export function PlanCard({
           </div>
         ) : (
           <div className="plan-steps">
+            {/* Ranked sources as a picker in the ordinary view too, so the reader
+                can approve option 2 or 3 directly. The radios only appear while
+                the plan is still waiting on a decision and there is a choice to
+                make; a settled plan, or one with a single source, renders plain. */}
             {plan.steps.map((step, index) => (
               <PlanSourceStep
                 key={step.id}
@@ -271,6 +308,17 @@ export function PlanCard({
                 index={index}
                 columns={columns}
                 candidate={plan.candidates?.[index]}
+                recommended={ranStepId ? step.id === ranStepId : undefined}
+                recommendedLabel={ranStepId ? 'Ran' : 'Recommended'}
+                pick={
+                  !resolved && canChooseSource && plan.candidates?.[index]
+                    ? {
+                        name: `plan-run-${plan.id}`,
+                        checked: selectedStepId === step.id,
+                        onSelect: () => setSelectedStepId(step.id),
+                      }
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -336,7 +384,11 @@ export function PlanCard({
                   Revise request
                 </Button>
               ) : null}
-              <Button type="button" onClick={onApprove} disabled={loading}>
+              <Button
+                type="button"
+                onClick={() => onApprove(planWithSelectedSource(plan, selectedStepId))}
+                disabled={loading}
+              >
                 <Play /> {canRevise ? 'Approve and run' : 'Run revised plan'}
               </Button>
             </div>

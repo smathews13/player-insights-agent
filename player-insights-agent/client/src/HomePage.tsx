@@ -2558,6 +2558,14 @@ export function HomePage() {
               const planApproved = messages[index + 1]?.content === PLAN_APPROVAL_LABEL;
               const approvalResponse =
                 messages[index + 2]?.role === 'assistant' ? parsedResponses.get(messages[index + 2].id) : undefined;
+              // The tables the run that answered the approval read for a value,
+              // so a settled plan card can mark the source that ran rather than
+              // the one first suggested. Only 'reading' sources: a reference
+              // table is a definition lookup, not the source the plan chose.
+              const approvalReadingSources =
+                approvalResponse && approvalResponse.type !== 'plan' && approvalResponse.type !== 'clarification'
+                  ? approvalResponse.sources.filter((source) => source.role === 'reading').map((source) => source.name)
+                  : [];
               return (
                 <div
                   key={message.id}
@@ -2587,6 +2595,7 @@ export function HomePage() {
                     approvalExecuted={planApproved && Boolean(approvalResponse && approvalResponse.type !== 'plan')}
                     approvalPending={planApproved && loading && index === lastAssistantIndex}
                     canRevisePlan={canRevisePlanAt(messages, index)}
+                    planRanSourceNames={approvalReadingSources}
                     // The turn this answered, for the timeline's envelope row. Read
                     // from the transcript rather than the trace, which does not
                     // carry the prompt.
@@ -3047,6 +3056,7 @@ const MessageItem = memo(function MessageItem({
   approvalExecuted,
   approvalPending,
   canRevisePlan,
+  planRanSourceNames,
   question,
   feedback,
   showFeedback,
@@ -3071,6 +3081,8 @@ const MessageItem = memo(function MessageItem({
   approvalPending: boolean;
   /** Whether this proposal still has its one allowed revision available. */
   canRevisePlan: boolean;
+  /** The tables the approved run read, so a settled plan can mark the source that ran. */
+  planRanSourceNames: string[];
   /** The question this answered, or '' where the row above is not one. */
   question: string;
   feedback: FeedbackEntry;
@@ -3125,10 +3137,11 @@ const MessageItem = memo(function MessageItem({
         approvalExecuted={approvalExecuted}
         approvalPending={approvalPending}
         canRevise={canRevisePlan}
-        onApprove={() =>
-          onAsk(response.plan.question, {
-            planId: response.plan.id,
-            plan: response.plan,
+        ranSourceNames={planRanSourceNames}
+        onApprove={(planToRun) =>
+          onAsk(planToRun.question, {
+            planId: planToRun.id,
+            plan: planToRun,
             label: PLAN_APPROVAL_LABEL,
           })
         }
