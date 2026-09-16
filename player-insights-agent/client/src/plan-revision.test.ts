@@ -18,6 +18,8 @@ import {
   displaySourceTitle,
   isPlanRevisionRequest,
   planRevisionReducer,
+  planWithSelectedSource,
+  ranSourceStepId,
   recommendedSourceId,
   revisedRequest,
   revisionFromPlan,
@@ -228,5 +230,126 @@ describe('legacy plan revision safety', () => {
   it('only offers source radios for structured candidates', () => {
     expect(CARD).toContain('plan.candidates?.[index]');
     expect(CARD).toContain('? {');
+  });
+});
+
+/**
+ * "Approve and run" now runs the source the reader chose, not always the first
+ * one. The choice is expressed by re-marking the plan before it is sent, and the
+ * agent rejects a plan whose step titles and candidate flags disagree, so these
+ * assert the same invariant the server checks: exactly one recommended, and each
+ * step title agreeing with its candidate.
+ */
+describe('approving runs the selected source', () => {
+  const invariantHolds = (plan: AnalysisPlan) => {
+    const candidates = plan.candidates ?? [];
+    const recommendedCount = candidates.filter((candidate) => candidate.recommended).length;
+    const titlesAgree = plan.steps.every((step, index) => {
+      const candidate = candidates[index];
+      if (!candidate) return true;
+      const hasSuffix = /\s\(recommended\)$/i.test(step.title);
+      return displaySourceTitle(step.title) === candidate.table && hasSuffix === candidate.recommended;
+    });
+    return recommendedCount === 1 && titlesAgree;
+  };
+
+  it('leaves the plan runnable and unchanged when the recommended source is kept', () => {
+    const run = planWithSelectedSource(PLAN, 'source-1');
+    expect(invariantHolds(run)).toBe(true);
+    expect(run.candidates?.[0].recommended).toBe(true);
+    expect(run.candidates?.[1].recommended).toBe(false);
+    expect(run.steps[0].title).toBe('cdp_northwind_prod.gold_di.gtav_daily_summary (recommended)');
+    expect(run.steps[1].title).toBe('cdp_share_prod.global_production.play_by_title');
+  });
+
+  it('moves the recommendation to the chosen source, flag and title together', () => {
+    const run = planWithSelectedSource(PLAN, 'source-2');
+    expect(invariantHolds(run)).toBe(true);
+    expect(run.candidates?.[0].recommended).toBe(false);
+    expect(run.candidates?.[1].recommended).toBe(true);
+    expect(run.steps[0].title).toBe('cdp_northwind_prod.gold_di.gtav_daily_summary');
+    expect(run.steps[1].title).toBe('cdp_share_prod.global_production.play_by_title (recommended)');
+    expect(run.id).toBe(PLAN.id);
+    expect(run.question).toBe(PLAN.question);
+  });
+
+  it('keeps the field, so two options from one table run the one the reader chose', () => {
+    const sameTable: AnalysisPlan = {
+      ...PLAN,
+      steps: [
+        PLAN.steps[0],
+        { ...PLAN.steps[0], id: 'source-2', title: 'cdp_northwind_prod.gold_di.gtav_daily_summary' },
+      ],
+      candidates: [PLAN.candidates![0], { ...PLAN.candidates![0], field: 'platformid_accountid', recommended: false }],
+    };
+    const run = planWithSelectedSource(sameTable, 'source-2');
+    expect(invariantHolds(run)).toBe(true);
+    expect(run.candidates?.[1].recommended).toBe(true);
+    expect(run.candidates?.[1].field).toBe('platformid_accountid');
+  });
+
+  it('returns a plan with no candidates unchanged', () => {
+    const noCandidates: AnalysisPlan = { ...PLAN, candidates: undefined };
+    expect(planWithSelectedSource(noCandidates, 'source-2')).toBe(noCandidates);
+  });
+
+  it('is what the card hands the page on approve, and the page runs that plan', () => {
+    expect(CARD).toContain('onApprove(planWithSelectedSource(plan, selectedStepId))');
+    expect(CARD).toContain('name: `plan-run-${plan.id}`');
+    const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+    expect(home).toContain('onApprove={(planToRun) =>');
+    expect(home).toContain('plan: planToRun,');
+  });
+});
+
+/**
+ * A settled card marks the source that RAN, not the one first suggested. The
+ * stored plan is the original proposal, so the only reload-safe record is the
+ * answer's reading tables -- and the mark moves only when they name one source.
+ */
+describe('a settled plan marks the source that ran', () => {
+  it('marks the read table even when it was not the recommended one', () => {
+    expect(ranSourceStepId(PLAN, ['cdp_share_prod.global_production.play_by_title'])).toBe('source-2');
+  });
+
+  it('marks the recommended table when that is the one that ran', () => {
+    expect(ranSourceStepId(PLAN, ['cdp_northwind_prod.gold_di.gtav_daily_summary'])).toBe('source-1');
+  });
+
+  it('will not guess when the run named no reading source', () => {
+    expect(ranSourceStepId(PLAN, [])).toBe('');
+  });
+
+  it('will not guess when a read table is not one of the plan sources', () => {
+    expect(ranSourceStepId(PLAN, ['cdp_other_prod.gold_di.some_other_table'])).toBe('');
+  });
+
+  it('will not guess when a join read two of the plan sources', () => {
+    expect(
+      ranSourceStepId(PLAN, [
+        'cdp_northwind_prod.gold_di.gtav_daily_summary',
+        'cdp_share_prod.global_production.play_by_title',
+      ])
+    ).toBe('');
+  });
+
+  it('will not guess between two options that share the read table', () => {
+    const sameTable: AnalysisPlan = {
+      ...PLAN,
+      steps: [
+        PLAN.steps[0],
+        { ...PLAN.steps[0], id: 'source-2', title: 'cdp_northwind_prod.gold_di.gtav_daily_summary' },
+      ],
+      candidates: [PLAN.candidates![0], { ...PLAN.candidates![0], field: 'platformid_accountid', recommended: false }],
+    };
+    expect(ranSourceStepId(sameTable, ['cdp_northwind_prod.gold_di.gtav_daily_summary'])).toBe('');
+  });
+
+  it('is placed from the answer only once the run has produced one', () => {
+    expect(CARD).toContain("state === 'approved' && approvalExecuted ? ranSourceStepId(plan, ranSourceNames)");
+    expect(CARD).toContain("recommendedLabel={ranStepId ? 'Ran' : 'Recommended'}");
+    const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+    expect(home).toContain("source.role === 'reading'");
+    expect(home).toContain('ranSourceNames={planRanSourceNames}');
   });
 });

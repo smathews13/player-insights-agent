@@ -700,7 +700,9 @@ describe('the inspector while a run is still going', () => {
     // revised away. See plan-revision.test.ts.
     expect(HOME_PAGE).toContain("const PLAN_APPROVAL_LABEL = 'Approved the proposed analysis plan.';");
     expect(HOME_PAGE).toContain('label: PLAN_APPROVAL_LABEL,');
-    expect(HOME_PAGE).toContain('plan: response.plan,');
+    // Approve sends the plan the reader chose (the recommended source re-marked
+    // when they picked option 2 or 3), not always the agent's first proposal.
+    expect(HOME_PAGE).toContain('plan: planToRun,');
     expect(HOME_PAGE).toContain('approvedPlan: approval?.plan,');
   });
 
