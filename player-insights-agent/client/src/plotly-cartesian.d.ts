@@ -57,7 +57,8 @@ declare module 'plotly.js-cartesian-dist-min' {
     showSendToCloud?: boolean;
   }
 
-  export function react(element: HTMLElement,
+  export function react(
+    element: HTMLElement,
     data: PlotData[],
     layout?: PlotLayout,
     config?: PlotConfig
@@ -65,9 +66,35 @@ declare module 'plotly.js-cartesian-dist-min' {
   export function purge(element: HTMLElement): void;
   export function Plots(): void;
 
+  /**
+   * What `toImage` is asked to draw. A figure object rather than a live graph div:
+   * the export path renders a chart to a picture without mounting it, so nothing
+   * has to be on screen for a download to carry it.
+   */
+  export interface ToImageFigure {
+    data: PlotData[];
+    layout?: PlotLayout;
+  }
+
+  /**
+   * The static render options this app uses. `format` and the pixel box only --
+   * `scale` sharpens the raster for a document, and the rest of Plotly's option
+   * surface is not called here.
+   */
+  export interface ToImageOptions {
+    format: 'png' | 'jpeg' | 'webp' | 'svg';
+    width?: number;
+    height?: number;
+    scale?: number;
+  }
+
+  /** Resolves to a data URL string, e.g. `data:image/png;base64,...`. */
+  export function toImage(figure: ToImageFigure | HTMLElement, options: ToImageOptions): Promise<string>;
+
   const Plotly: {
     react: typeof react;
     purge: typeof purge;
+    toImage: typeof toImage;
   };
   export default Plotly;
 }

@@ -65,14 +65,22 @@ export const PAPER_ENTITY_STYLES: RuntimeEntityStyles = {
 };
 
 /**
- * Night-sky chips. Hex composites of the ice/navy washes already on the dark
- * tokens, so the Settings colour fields, the CSS fallbacks, and an empty store
- * all paint the same quiet pills.
+ * The app's default chips. Catalog, schema and table now carry the violet/indigo
+ * palette the customer standardised on: catalog a periwinkle on deep indigo,
+ * schema a brighter lavender on violet, table bold near-white on a quiet slate. The
+ * three identifier kinds read as one family that a reader can tell apart by weight
+ * of hue rather than by unrelated colours.
+ *
+ * Column, quote and tag stay on the older ice/slate wash on purpose: they are inline
+ * code and provenance marks, not the catalog.schema.table identifier, so they should
+ * not compete with it for the eye. Every value here is also the CSS fallback in
+ * astrolabe-tokens.css and dark-mode.css and the swatch the Appearance picker ships,
+ * so an empty store, a pre-hydration paint and the Settings fields all agree.
  */
 export const DEFAULT_ENTITY_STYLES: RuntimeEntityStyles = {
-  catalog: { foreground: '#8fc1e8', background: '#1b3049' },
-  schema: { foreground: '#f2f6fa', background: '#25323c' },
-  table: { foreground: '#f2f6fa', background: '#2e3337' },
+  catalog: { foreground: '#a9b4ff', background: '#242a4e' },
+  schema: { foreground: '#d7d2ff', background: '#372f66' },
+  table: { foreground: '#f4f6fb', background: '#262a38' },
   column: { foreground: '#e8f2fa', background: '#1e2830' },
   quote: { foreground: '#b7d6ee', background: '#181e23' },
   tag: { foreground: '#f2f6fa', background: '#243746' },

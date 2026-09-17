@@ -3,6 +3,7 @@ import { Download, MoreHorizontal } from 'lucide-react';
 import { Button, Popover, PopoverContent, PopoverTrigger } from './ui';
 import type { NormalizedAnswer } from './answer-shape';
 import type { ExportTable } from './export-serializers';
+import type { Chart } from './AnswerCharts';
 import type { ConversationMessage } from './app-types';
 import { PiaBusyButtonContent } from './PiaLoader';
 
@@ -85,6 +86,18 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
           run: async () => (await loadExportActions()).downloadAnswerMarkdown(answer, question),
         },
         {
+          label: 'Download HTML',
+          run: async () => (await loadExportActions()).downloadAnswerHtml(answer, question, 'page'),
+        },
+        {
+          label: 'Download HTML for slides',
+          run: async () => (await loadExportActions()).downloadAnswerHtml(answer, question, 'presentation'),
+        },
+        {
+          label: 'Download JSON',
+          run: async () => (await loadExportActions()).downloadAnswerJson(answer, question),
+        },
+        {
           label: 'Download PDF',
           run: async () => (await loadExportActions()).downloadAnswerPdf(answer, question),
         },
@@ -109,6 +122,25 @@ export function TableExportMenu({ table, name = 'answer-table' }: { table: Expor
         {
           label: 'Download PDF',
           run: async () => (await loadExportActions()).downloadTablePdf(table, name),
+        },
+      ]}
+    />
+  );
+}
+
+export function ChartExportMenu({ chart, name }: { chart: Chart; name?: string }) {
+  const label = name ?? chart.title;
+  return (
+    <ActionsMenu
+      label="Export this chart"
+      actions={[
+        {
+          label: 'Download PNG',
+          run: async () => (await loadExportActions()).downloadChartPng(chart, label),
+        },
+        {
+          label: 'Download JSON',
+          run: async () => (await loadExportActions()).downloadChartJson(chart, label),
         },
       ]}
     />

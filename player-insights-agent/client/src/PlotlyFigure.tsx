@@ -10,7 +10,14 @@ import {
 } from './plotly-config';
 
 /**
- * The only module that imports Plotly, and the reason it is a module of its own.
+ * The interactive Plotly panel, and the reason it is a module of its own: Plotly is
+ * 1.4 MB, so it must sit behind a `lazy` boundary that only an answer with a chart
+ * ever crosses.
+ *
+ * One other module imports Plotly by value -- `chart-image.ts`, the export path's
+ * still-picture renderer. It is loaded the same way (a dynamic import reached only
+ * when a download runs) so it never lands in the eager graph either. Both go through
+ * the shared, reviewed presentation pass in plotly-config.ts; neither invents paint.
  */
 
 /**
