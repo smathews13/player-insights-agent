@@ -602,12 +602,17 @@ function GroupRoleRow({
   );
 }
 
-export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanRoles?: boolean }) {
+export function UserRoleEditor({
+  showHumanRoster = true,
+  canManageHumanRoles = true,
+}: {
+  showHumanRoster?: boolean;
+  canManageHumanRoles?: boolean;
+}) {
   const [payload, setPayload] = useState<RosterPayload | null>(null);
   const [spPayload, setSpPayload] = useState<SpIdentityAdminPayload>(EMPTY_SP_IDENTITY);
   const [spLoaded, setSpLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [spError, setSpError] = useState<string | null>(null);
   const [spMutationError, setSpMutationError] = useState<SpIdentityMutationError | null>(null);
   const [busyAction, setBusyAction] = useState<'add' | 'other' | null>(null);
@@ -622,34 +627,34 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
     async (showLoading = true) => {
       const generation = ++loadGeneration.current;
       if (showLoading) setLoading(true);
-      setError('');
       setSpError(null);
-      const humanRequest = canManageHumanRoles ? loadHumanRoster() : Promise.resolve<RosterPayload | null>(null);
+      const humanRequest = showHumanRoster ? loadHumanRoster() : Promise.resolve<RosterPayload | null>(null);
       const [spResult, humanResult] = await Promise.allSettled([loadSpIdentityAdmin(), humanRequest]);
       if (generation !== loadGeneration.current) return;
 
       if (spResult.status === 'fulfilled') {
         setSpPayload(spResult.value);
         setSpLoaded(true);
-        if (!canManageHumanRoles) setPayload(rosterFromSpIdentity(spResult.value));
+        if (!showHumanRoster) setPayload(rosterFromSpIdentity(spResult.value));
       } else {
         setSpError(spResult.reason instanceof Error ? spResult.reason.message : 'SP personas could not be read.');
-        if (!canManageHumanRoles) setPayload(null);
+        if (!showHumanRoster) setPayload(null);
       }
 
-      if (canManageHumanRoles) {
+      if (showHumanRoster) {
         if (humanResult.status === 'fulfilled' && humanResult.value) setPayload(humanResult.value);
         else {
-          setError(
+          console.warn(
+            '[identity] The roster could not be read:',
             humanResult.status === 'rejected' && humanResult.reason instanceof Error
               ? humanResult.reason.message
-              : 'The human roster could not be read.'
+              : humanResult
           );
         }
       }
       setLoading(false);
     },
-    [canManageHumanRoles]
+    [showHumanRoster]
   );
 
   useEffect(() => {
@@ -709,11 +714,6 @@ export function UserRoleEditor({ canManageHumanRoles = true }: { canManageHumanR
           Databricks App members and Player Insights Agent roles
         </h4>
         {loading ? <PiaLoader variant="inline" label="Reading identity settings" className="admin-list-note" /> : null}
-        {error ? (
-          <p className="admin-list-note admin-list-error">
-            The roster could not be read. Nobody has lost a role. Reload the page.
-          </p>
-        ) : null}
         {payload ? (
           <>
             {payload.appAccessAvailable === false ? null : (

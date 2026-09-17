@@ -110,7 +110,11 @@ describe('the Ops catalog scope modal', () => {
     const idle = renderToStaticMarkup(<CheckScopesButton busy={false} onClick={() => {}} />);
     const busy = renderToStaticMarkup(<CheckScopesButton busy onClick={() => {}} />);
     expect(idle).toContain('Check all scopes');
-    expect(idle).toContain('data-variant="default"');
+    // Both admin actions are destructive-red with a red border: the scopes check
+    // must declare the destructive variant so the dark-mode default-variant rule
+    // (higher specificity than the scoped .ops-scope-check-button red) cannot
+    // repaint it blue, the way it did before.
+    expect(idle).toContain('data-variant="destructive"');
     expect(busy).toContain('Checking');
     expect(busy).toContain('pia-loader-mark--button');
     expect(busy).not.toContain('pia-loader__phase--dpad');

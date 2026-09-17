@@ -4,7 +4,14 @@ import { Link } from 'react-router';
 import { entityHref, linkifyEntities } from './data-entities';
 import { useTrackedTables } from './data-entity-state';
 
-const INLINE_NUMBER = /\d{4}-\d{1,2}-\d{1,2}|[-+\u2212]?(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?%?/g;
+// A standalone figure only: a date, or a signed/currency number. The boundary
+// guards keep it from reaching into a digit that is fused into an identifier --
+// `rdr2`, `bio1`, `hoops26`, `gta5` -- which every title in this estate carries
+// and which a plan candidate's `why`/`definition` now names several of at once.
+// Wrapping such a digit in the `ast-num` badge broke the surrounding word onto
+// its own line. A real count or percent ("180 days", "12%") still matches.
+const INLINE_NUMBER =
+  /(?<![A-Za-z0-9_])(?:\d{4}-\d{1,2}-\d{1,2}|[-+\u2212]?(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?%?)(?![A-Za-z0-9_])/g;
 const KNOWN_TOOLS = [
   'data_genie',
   'dictionary_genie',

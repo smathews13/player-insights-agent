@@ -460,16 +460,16 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
 ];
 
 /**
- * The API paths only a SUPER administrator may reach.
+ * The API path family whose mutations only a SUPER administrator may reach.
  *
  * A PREFIX LIST FOR THE SAME REASON AS THE ONE ABOVE. A route added later under
- * `/api/users` is refused for a plain admin without anybody remembering to wrap it,
+ * a non-GET `/api/users` request is refused for a plain admin without anybody remembering to wrap it,
  * which is the opposite of the failure mode a per-handler guard has: the handler
  * somebody forgot is the one that serves everybody.
  *
- * ONLY THE ROSTER IS HERE. Appointing people is the single thing a super admin can
- * do that an admin cannot, and every other admin surface stays open to both, so
- * there is nothing else to add. A super admin reading Monitoring sees exactly what
+ * ONLY ROSTER MUTATIONS ARE HERE. Both administrator ranks may read Identity;
+ * appointing people is the single thing a super admin can do that an admin cannot.
+ * A super admin reading Monitoring sees exactly what
  * an admin sees, conditioned on their own Unity Catalog grants: the rank is not a
  * grant and does not widen one.
  */
@@ -488,6 +488,11 @@ export function isAdminRoute(path: string): boolean {
 /** Whether a request path needs the super administrator role. */
 export function isSuperAdminRoute(path: string): boolean {
   return matchesPrefix(path, SUPER_ADMIN_ROUTE_PREFIXES);
+}
+
+/** Identity reads are admin-visible; every write under the roster path remains Super-Admin-only. */
+export function requiresSuperAdmin(method: string, path: string): boolean {
+  return method.toUpperCase() !== 'GET' && isSuperAdminRoute(path);
 }
 
 /**
@@ -591,7 +596,7 @@ export function requireAdmin(store: AdminStore, readEmail: (req: Request) => str
  */
 export function requireSuperAdmin(store: AdminStore, readEmail: (req: Request) => string) {
   return function refuseNonSuperAdmins(req: Request, res: Response, next: NextFunction) {
-    if (!isSuperAdminRoute(req.path)) {
+    if (!requiresSuperAdmin(req.method, req.path)) {
       next();
       return;
     }
@@ -610,8 +615,7 @@ export function requireSuperAdmin(store: AdminStore, readEmail: (req: Request) =
         }
         console.warn(
           `[admin] REFUSED ${req.method} ${req.path}: the caller does not hold the super ` +
-            'administrator role of this deployment. Expected whenever an administrator reaches the roster; ' +
-            'the panel is not drawn for them.'
+            'administrator role required to change this deployment’s roster.'
         );
         res.status(403).json(SUPER_ADMIN_REQUIRED_BODY);
       })

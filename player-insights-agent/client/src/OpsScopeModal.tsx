@@ -32,8 +32,8 @@ function ScopeStatus({ status }: { status: OpsScopeStatus }) {
 export function CheckScopesButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
   return (
     <Button
-      variant="default"
-      data-variant="default"
+      variant="destructive"
+      data-variant="destructive"
       size="sm"
       type="button"
       className="ops-scope-check-button"

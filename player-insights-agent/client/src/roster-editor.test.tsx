@@ -35,7 +35,15 @@ import {
   stepsDownFrom,
   submittedDraftIsCurrent,
 } from './user-roster';
-import { badgeAnnouncement, badgeLabel, badgeTitle, roleFrom, showsAdminSurfaces, showsUserRoster } from './role';
+import {
+  badgeAnnouncement,
+  badgeLabel,
+  badgeTitle,
+  managesUserRoster,
+  roleFrom,
+  showsAdminSurfaces,
+  showsUserRoster,
+} from './role';
 import type { Role, RosterEntry, RosterPayload } from '../../shared/user-roster-contract';
 import { partial } from './styles/stylesheet';
 
@@ -444,10 +452,18 @@ describe('the badge and the layout', () => {
     expect(showsAdminSurfaces('consumer')).toBe(false);
   });
 
-  it('draws the roster for the super admin only', () => {
+  it('shows Identity to both admin ranks but limits controls to Super Admin', () => {
     expect(showsUserRoster('super_admin')).toBe(true);
-    expect(showsUserRoster('admin')).toBe(false);
+    expect(showsUserRoster('admin')).toBe(true);
     expect(showsUserRoster('failed')).toBe(false);
+    expect(managesUserRoster('super_admin')).toBe(true);
+    expect(managesUserRoster('admin')).toBe(false);
+  });
+
+  it('renders no roster failure narrative', () => {
+    const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
+    expect(editor).not.toContain('Nobody has lost a role');
+    expect(editor).not.toContain('Reload the page');
   });
 
   it('reads the rank off the identity payload', () => {

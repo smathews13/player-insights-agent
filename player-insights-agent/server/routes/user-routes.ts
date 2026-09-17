@@ -1,11 +1,10 @@
 /**
- * The roster, read and edited by this deployment's super administrator.
+ * The roster, read by administrators and edited by this deployment's super administrator.
  *
- * One endpoint family, `/api/users`, and it is super-admin-only through the prefix
- * list in admin-roles.ts rather than through a guard written here. Nothing in this
- * file checks a role: the middleware has already refused a consumer AND a plain
- * administrator with 403 by the time a handler runs, and a second check here would
- * be a second place for the answer to be wrong.
+ * One endpoint family, `/api/users`: the admin guard protects every method and
+ * the super-admin guard protects non-GET mutations. Nothing in this file checks
+ * a role; duplicating either decision in handlers would create another place for
+ * the answer to drift.
  *
  * EVERY CHANGE TAKES EFFECT WITHOUT A REDEPLOY, which is the entire point of the
  * file. The role is a row in Lakebase, read on the next request by resolveRole, so

@@ -238,12 +238,11 @@ afterEach(async () => {
   server = undefined;
 });
 
-describe('an administrator who is not the super admin is refused', () => {
-  it('is refused the roster, having been allowed every other admin surface', async () => {
+describe('an administrator who is not the super admin', () => {
+  it('can read the Identity roster', async () => {
     const app = await startApp(fakeLakebase());
     const response = await app.list(DEPUTY);
-    expect(response.status).toBe(403);
-    expect(await errorOf(response)).toBe('super_admin_role_required');
+    expect(response.status).toBe(200);
   });
 
   it('is refused every method that changes a role', async () => {
