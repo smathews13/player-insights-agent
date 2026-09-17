@@ -3564,12 +3564,9 @@ export function setupInsightsRoutes(
     // prefix list lives in admin-roles.ts, and the identity reader is passed in
     // rather than imported so there is exactly one notion of who is calling.
     app.use(requireAdmin(appkit.lakebase, userEmail));
-    // Immediately after the admin gate, so the roster is behind BOTH. `/api/users`
-    // is on both prefix lists: a consumer is refused by the guard above and an
-    // administrator by this one. Two refusals in front of one surface rather than
-    // one, because this is the surface that decides who can do what in a customer's
-    // deployment, and because a defect in the narrower list would otherwise leave
-    // the roster open to every administrator rather than to nobody.
+    // Immediately after the admin gate. Both administrator ranks may GET the
+    // Identity roster; this second guard refuses only non-GET role mutations
+    // from plain administrators. Consumers are already refused by the first gate.
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
     // One recorder for every API route registered below or by later modules.
     // It runs after identity/role gates, so rejected requests are not presented

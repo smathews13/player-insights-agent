@@ -89,12 +89,15 @@ export function showsAdminSurfaces(state: RoleState): boolean {
 /**
  * Whether the roster panel is drawn.
  *
- * SUPER ADMIN ONLY, AND THIS IS NOT THE PERMISSION. `/api/users` refuses a plain
- * administrator with 403 whatever this returns, and that refusal is the permission
- * model. What is here is whether an administrator is shown a panel every control on
- * which the server would refuse.
+ * Both administrator ranks may read Identity. The server still refuses
+ * consumers, and separately limits every role mutation to Super Admin.
  */
 export function showsUserRoster(state: RoleState): boolean {
+  return state === 'admin' || state === 'super_admin';
+}
+
+/** Only Super Admin receives controls that change human or group roles. */
+export function managesUserRoster(state: RoleState): boolean {
   return state === 'super_admin';
 }
 

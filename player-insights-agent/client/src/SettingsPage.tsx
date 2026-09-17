@@ -18,7 +18,7 @@ import {
 } from './experimental-features';
 import { BenchmarkSettingsPanel, BENCHMARK_SETTINGS_FORM_ID } from './BenchmarkSettingsPanel';
 import { RuntimeSettingsPanel, RUNTIME_SETTINGS_FORM_ID } from './RuntimeSettingsPanel';
-import { showsAdminSurfaces, showsUserRoster, type RoleResolution } from './role';
+import { managesUserRoster, showsAdminSurfaces, showsUserRoster, type RoleResolution } from './role';
 import {
   SAVE_PRESS_MS,
   SETTINGS_SAVE_IDLE,
@@ -308,7 +308,10 @@ export function SettingsPage({
                 <div className="settings-pane-heading">
                   <h3>Identity</h3>
                 </div>
-                <UserRoleEditor canManageHumanRoles={showsUserRoster(role.state)} />
+                <UserRoleEditor
+                  showHumanRoster={showsUserRoster(role.state)}
+                  canManageHumanRoles={managesUserRoster(role.state)}
+                />
               </div>
             ) : null}
             {active === 'runtime' || active === 'appearance' ? (
