@@ -5,6 +5,7 @@ import { recordReleaseEnvironment, restoreReleaseEnvironment } from './lib/relea
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
 import { readMlflowTokenEvidence } from './lib/mlflow-token-evidence';
+import { guardCancelledStreamCrashes } from './lib/stream-crash-guard';
 
 // Static ESM imports have completed before this guard runs, so the production
 // artifact has already evaluated AppKit, Lakebase, and pg. Stop here during the
@@ -13,6 +14,12 @@ if (process.argv.includes('--module-smoke')) {
   console.log('module-smoke ok');
   process.exit(0);
 }
+
+// Before any stream can be opened: a reader cancelling a run mid-answer left the
+// Databricks SDK's stream adapter enqueuing a late chunk onto an already-closed
+// controller, which threw outside every request handler and crashed the whole
+// process. This keeps that one race from taking the app down; see the guard.
+guardCancelledStreamCrashes();
 
 // The serving() plugin is deliberately NOT registered. Its invoke path runs the
 // request body through two allowlists that drop unknown keys (the plugin's own
