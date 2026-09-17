@@ -111,8 +111,12 @@ describe('the admin cancellation control', () => {
     expect(admin).toContain('Compare user and app catalog access.');
     expect(admin.match(/class="sr-only">Check all scopes/g)).toHaveLength(1);
     expect(admin).toContain('ops-admin-action-scope');
-    expect(admin).toContain('data-variant="default"');
-    expect(admin).not.toContain('data-variant="destructive"');
+    // Both admin actions are destructive-red with a red border: the scopes check
+    // declares the destructive variant so the dark-mode default-variant rule cannot
+    // repaint it blue. The admin box is still the neutral container; only the button
+    // inside it is red. Kept in lockstep with ops-scope-modal.test.tsx.
+    expect(admin).toContain('data-variant="destructive"');
+    expect(admin).not.toContain('data-variant="default"');
     const toolbar = render(<HealthBody block={block(health())} />);
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
