@@ -81,6 +81,26 @@
  * `.ast-eyebrow` is deliberately not composed: it carries the 11px rung, so using it
  * would mean setting a size and then overriding it in the same breath.
  */
+/*
+ * The panel's head row: the eyebrow on the left, this chart's export menu on the
+ * right. A flex row rather than the panel grid so the menu button sits beside the
+ * title on one line and the eyebrow ellipsises into whatever width the menu leaves.
+ */
+.answer-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.answer-chart-head .answer-chart-eyebrow {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.answer-chart-head .export-menu {
+  flex: 0 0 auto;
+}
+
 .answer-chart-eyebrow {
   margin: 0;
   font-family: var(--font-sans);

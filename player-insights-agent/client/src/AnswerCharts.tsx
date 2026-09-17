@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
 import { Skeleton } from './ui';
 import { AnswerOriginLinks } from './DataEntityLinks';
+import { ChartExportMenu } from './ExportMenu';
 import { figureSources } from './answer-table-origins';
 import type { SourceRef } from './answer-shape';
 
@@ -110,10 +111,13 @@ function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void
   return (
     <figure className="answer-chart-panel">
       {/* An eyebrow, not a heading: the answer's takeaway is the heading on this card
-          and a chart panel sits several blocks under it. The chart-kind badge that
-          used to sit opposite is gone -- it named the shape a reader can see, and it
-          was the widest thing in a head that now has to fit in a half-width panel. */}
-      <figcaption className="answer-chart-eyebrow">{name}</figcaption>
+          and a chart panel sits several blocks under it. Opposite it sits this chart's
+          own export menu -- a reader can take one panel as a PNG for a slide or as its
+          Plotly JSON to redraw, without exporting the whole answer. */}
+      <div className="answer-chart-head">
+        <figcaption className="answer-chart-eyebrow">{name}</figcaption>
+        <ChartExportMenu chart={chart} name={name} />
+      </div>
       <ChartBoundary onFailure={onFailure}>
         {/* The fallback is the plot's own height so the transcript does not jump when
             the chunk lands. */}

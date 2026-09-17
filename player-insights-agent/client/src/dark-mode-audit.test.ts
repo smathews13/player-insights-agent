@@ -471,7 +471,11 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(DARK).toMatch(
       new RegExp(`--ast-entity-table-bg:\\s*var\\(--entity-table-bg,\\s*${DEFAULT_ENTITY_STYLES.table.background}\\)`)
     );
-    expect(DARK).toMatch(/--ast-entity-catalog-bg:\s*var\(--entity-catalog-bg,\s*var\(--ast-primary-control-fill\)\)/);
+    expect(DARK).toMatch(
+      new RegExp(
+        `--ast-entity-catalog-bg:\\s*var\\(--entity-catalog-bg,\\s*${DEFAULT_ENTITY_STYLES.catalog.background}\\)`
+      )
+    );
     expect(DARK).toMatch(
       new RegExp(
         `--ast-entity-schema-bg:\\s*var\\(--entity-schema-bg,\\s*${DEFAULT_ENTITY_STYLES.schema.background}\\)`

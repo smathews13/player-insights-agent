@@ -218,15 +218,38 @@ MAX_POINTS_PER_TRACE = 2_000
 MAX_CHARTS = 1
 
 _CHART_REQUESTED = re.compile(
-    r"\b(?:chart|graph|plot|visuali\w*|diagram|histogram|scatter)\w*\b",
+    # The words that name a chart outright, plus axis language: nothing but a chart has
+    # an x-axis, so "put months on the x-axis" is a chart request even without the word.
+    r"\b(?:chart|graph|plot|visuali\w*|diagram|histogram|scatter)\w*\b"
+    r"|\b(?:x[-\s]?axis|y[-\s]?axis|axes)\b",
+    re.IGNORECASE,
+)
+
+# The shape-words that are ordinary English on their own -- a bottom line, a line item, a
+# product line, a bar of one -- so they count as a chart request only after a phrasing
+# that turns the rendered answer into the ask ("make it a bar", "show it as a line",
+# "switch it to a pie"), never standing alone. `line` drops out when it is a line item,
+# the phrase this app sees most in spend questions that have nothing to do with charts.
+_CHART_SHAPE_REQUESTED = re.compile(
+    r"\b(?:as|into|make\s+it|show\s+it|render\s+it|redraw|redo|turn\s+it|"
+    r"switch\s+it\s+to|change\s+it\s+to)\b[^.?!]{0,40}?"
+    r"\b(?:bar|line(?![-\s]*items?\b)|pie|donut|doughnut|column|area|bubble|trend|box\s*plot)\b",
     re.IGNORECASE,
 )
 
 
 def chart_requested(question: str) -> bool:
-    """True only when the person asked for a chart, not when one is possible."""
+    """True only when the person asked for a chart, not when one is possible.
 
-    return bool(_CHART_REQUESTED.search(question or ""))
+    Two ways to ask: name a chart (`chart`, `graph`, `plot`, an axis) or ask for a
+    rendered answer in a named shape (`make it a bar`, `show it as a line`). The shape
+    words alone are not enough -- they are common English -- so they read as a request
+    only behind a phrasing that is asking to *see it that way*.
+    """
+
+    text = question or ""
+    return bool(_CHART_REQUESTED.search(text) or _CHART_SHAPE_REQUESTED.search(text))
+
 
 # `line` is not a Plotly trace type, but it is the single most common thing a model emits
 # for a line chart, so it is translated instead of rejected.
@@ -1315,6 +1338,12 @@ Rules:
 - Plot only values present in the package. Never invent, extrapolate, or round a number.
 - Choose the shape from the result set: a ranked breakdown is a bar chart, a date or \
 period series is a line chart, a distribution is a histogram or box.
+- When the question asks for a particular chart type or names the axes, honour that \
+request: use the named shape and put the named field on the named axis whenever the \
+package supports it honestly. Fall back to the shape the data suggests only when the \
+requested one would misrepresent it -- a pie asked for on more than {MAX_PIE_SLICES} \
+categories, or a line asked for on rows with no natural order. A runtime chart contract \
+stated below, when present, overrides the requested type.
 {TWO_PANEL_RULE}
 - A part-of-whole split is a pie only when it has at most {MAX_PIE_SLICES} categories and \
 every category is at least {MIN_PIE_LABEL_SHARE:.0%} of the total. Otherwise plot the \

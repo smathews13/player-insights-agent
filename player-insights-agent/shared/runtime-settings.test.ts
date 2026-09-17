@@ -27,12 +27,12 @@ describe('runtime settings contract', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
   });
 
-  it('ships night-sky entity chips, not paper fills', () => {
+  it('ships the violet/indigo identifier chips, not paper fills', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.entityStyles).toEqual(DEFAULT_ENTITY_STYLES);
     expect(DEFAULT_ENTITY_STYLES).toEqual({
-      catalog: { foreground: '#8fc1e8', background: '#1b3049' },
-      schema: { foreground: '#f2f6fa', background: '#25323c' },
-      table: { foreground: '#f2f6fa', background: '#2e3337' },
+      catalog: { foreground: '#a9b4ff', background: '#242a4e' },
+      schema: { foreground: '#d7d2ff', background: '#372f66' },
+      table: { foreground: '#f4f6fb', background: '#262a38' },
       column: { foreground: '#e8f2fa', background: '#1e2830' },
       quote: { foreground: '#b7d6ee', background: '#181e23' },
       tag: { foreground: '#f2f6fa', background: '#243746' },
@@ -47,10 +47,10 @@ describe('runtime settings contract', () => {
     expect(foregrounds.every((hex) => !['#16324f', '#3a3838', '#46596b'].includes(hex))).toBe(true);
 
     expect(runtimeEntityCssVariables(DEFAULT_RUNTIME_SETTINGS)).toMatchObject({
-      '--entity-catalog-fg': '#8fc1e8',
-      '--entity-catalog-bg': '#1b3049',
-      '--entity-schema-bg': '#25323c',
-      '--entity-table-bg': '#2e3337',
+      '--entity-catalog-fg': '#a9b4ff',
+      '--entity-catalog-bg': '#242a4e',
+      '--entity-schema-bg': '#372f66',
+      '--entity-table-bg': '#262a38',
       '--entity-column-bg': '#1e2830',
       '--entity-quote-bg': '#181e23',
       '--entity-tag-bg': '#243746',

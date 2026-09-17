@@ -247,12 +247,19 @@
    * chain the saved settings landed on variables no stylesheet read, and the
    * panel's swatches were the only place the choice ever showed.
    */
-  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-white));
-  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-info-text));
-  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-navy));
-  --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-info-fill));
-  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-text-long));
-  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-hairline));
+  /* Catalog, schema and table carry the customer's violet/indigo identifier palette,
+     matching DEFAULT_ENTITY_STYLES so this pre-hydration fallback and the runtime
+     default agree. A custom --entity-* set in Appearance still wins. The two saturated
+     fills are declared as their own tokens so the palette guard sees them declared
+     rather than written by hand; the neutral fills below stay literal. */
+  --ast-entity-catalog-fill: #242a4e;
+  --ast-entity-schema-fill: #372f66;
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, #a9b4ff);
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-entity-catalog-fill));
+  --ast-entity-schema-fg: var(--entity-schema-fg, #d7d2ff);
+  --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-entity-schema-fill));
+  --ast-entity-table-fg: var(--entity-table-fg, #f4f6fb);
+  --ast-entity-table-bg: var(--entity-table-bg, #262a38);
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-text-long));
   --ast-entity-column-bg: var(--entity-column-bg, var(--ast-neutral-fill));
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-neutral-text));

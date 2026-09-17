@@ -55,6 +55,22 @@ def test_chart_gate_matches_word_boundaries_not_geography():
     assert not chart_requested("write a short paragraph")
 
 
+def test_chart_gate_hears_a_shape_request_without_the_word_chart():
+    """'make it a bar' asks to see it that way; a naked shape word does not."""
+
+    assert chart_requested("make it a bar")
+    assert chart_requested("show it as a line")
+    assert chart_requested("turn it into a pie")
+    assert chart_requested("switch it to a bar")
+    # Axis language is a chart request outright.
+    assert chart_requested("put the months on the x-axis")
+    assert chart_requested("swap the axes")
+    # Shape words standing alone, or as ordinary spend English, are not a request.
+    assert not chart_requested("which titles are top of the bar")
+    assert not chart_requested("break the spend out as a line item")
+    assert not chart_requested("show it as a line-item table")
+
+
 # The palette the app retired. Named here rather than in the module so that deleting a
 # constant from `charts.py` cannot quietly delete the test that says it is gone.
 RETIRED = ("#e4002b", "#b20022", "#fcaf17", "#111111", "#6c707b", "#e5e5e5")

@@ -669,12 +669,15 @@ html[data-theme='dark'] .asset-picker-row:hover {
  * slate that already sat. Custom `--entity-*` values still win.
  */
 html[data-theme='dark'] {
-  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-ice-accent));
-  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-primary-control-fill));
-  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-ink-on-dark));
-  --ast-entity-schema-bg: var(--entity-schema-bg, #25323c);
-  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-ink-on-dark));
-  --ast-entity-table-bg: var(--entity-table-bg, #2e3337);
+  /* Catalog, schema and table carry the customer's violet/indigo identifier palette;
+     the values mirror DEFAULT_ENTITY_STYLES so this fallback and the runtime default
+     paint the same chips. A custom --entity-* set in Appearance still wins. */
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, #a9b4ff);
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, #242a4e);
+  --ast-entity-schema-fg: var(--entity-schema-fg, #d7d2ff);
+  --ast-entity-schema-bg: var(--entity-schema-bg, #372f66);
+  --ast-entity-table-fg: var(--entity-table-fg, #f4f6fb);
+  --ast-entity-table-bg: var(--entity-table-bg, #262a38);
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-ghost-text));
   --ast-entity-column-bg: var(--entity-column-bg, #1e2830);
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));

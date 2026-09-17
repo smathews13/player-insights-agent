@@ -13,7 +13,13 @@ describe('export controls contract', () => {
     expect(source.match(/label: 'Download Markdown'/g)).toHaveLength(2);
     expect(source.match(/label: 'Download PDF'/g)).toHaveLength(3);
     expect(source.match(/label: 'Copy TSV'/g)).toHaveLength(1);
-    expect(source.match(/label: 'Download PNG'/g)).toHaveLength(1);
+    // Two PNG downloads: the table image and the standalone chart image.
+    expect(source.match(/label: 'Download PNG'/g)).toHaveLength(2);
+    // Answer gains self-contained HTML (page and slide) exports.
+    expect(source.match(/label: 'Download HTML'/g)).toHaveLength(1);
+    expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(1);
+    // Canonical JSON for the whole answer and for a single chart.
+    expect(source.match(/label: 'Download JSON'/g)).toHaveLength(2);
   });
 
   it('uses accessible menus and live success/error feedback', () => {
