@@ -159,7 +159,9 @@ function normalizeChart(raw: unknown): ReportChart | null {
   if (data.length === 0) return null;
   const layout = asRecord(plotly.layout);
   return {
-    id: asString(record.id).trim() || 'chart',
+    // May be empty here; normalizeReport assigns a unique id across the whole report
+    // once every section is in hand, so two id-less charts cannot share one key.
+    id: asString(record.id).trim(),
     title: asString(record.title),
     kind: asString(record.kind),
     plotly: { data, layout },
@@ -218,6 +220,29 @@ export function normalizeReport(raw: unknown): Report | null {
     ? record.sections.map(normalizeSection).filter((section): section is ReportSection => section !== null)
     : [];
   if (!title || sections.length === 0) return null;
+  // Charts key their rendered image by id (chartPngDataUrls -> report-serializers.ts).
+  // Two charts sharing an id -- or several with none, which normalizeChart leaves empty
+  // -- would collide in that map and export the same picture for every panel. Walk the
+  // report in document order and give each chart a unique id: keep a distinct
+  // author-supplied one, synthesise chart-N for the blanks and the clashes.
+  const usedChartIds = new Set<string>();
+  let chartOrdinal = 0;
+  for (const section of sections) {
+    if (!section.charts) continue;
+    for (const chart of section.charts) {
+      chartOrdinal += 1;
+      let id = chart.id.trim();
+      if (!id || usedChartIds.has(id)) {
+        id = `chart-${chartOrdinal}`;
+        while (usedChartIds.has(id)) {
+          chartOrdinal += 1;
+          id = `chart-${chartOrdinal}`;
+        }
+      }
+      chart.id = id;
+      usedChartIds.add(id);
+    }
+  }
   const report: Report = { schema_version: asString(record.schema_version) || REPORT_SCHEMA_VERSION, title, sections };
   const subtitle = asOptionalString(record.subtitle);
   if (subtitle) report.subtitle = subtitle;
