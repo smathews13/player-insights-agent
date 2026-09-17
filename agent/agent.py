@@ -5549,19 +5549,14 @@ Tables available to this analysis, with their columns:
                     "total_tokens": log.total_tokens,
                 }
             )
-            if log.total_tokens:
-                # Trace-level Tokens column aggregates from child LLM spans when
-                # they each carry `mlflow.chat.tokenUsage`; also stamp the parent
-                # with the turn total so a reader who only opens the loop span
-                # sees the same meter the app stores on `answer.trace`.
-                span.set_attribute(
-                    "mlflow.chat.tokenUsage",
-                    {
-                        "input_tokens": log.prompt_tokens,
-                        "output_tokens": log.completion_tokens,
-                        "total_tokens": log.total_tokens,
-                    },
-                )
+            # Deliberately do NOT stamp this parent AGENT span with the turn's
+            # cumulative `mlflow.chat.tokenUsage`. Each child llm span already
+            # carries its own real usage, so a trace viewer that sums every span
+            # bearing that attribute (the Databricks-hosted trace UI does) would
+            # count the turn total twice -- once here, once as the sum of the
+            # children -- and report ~2x. The turn total is still visible to a
+            # reader in this span's outputs above; the app's own meter comes from
+            # `log.total_tokens`, summed once per call, not from this attribute.
 
         if outcome.clarification is not None:
             yield log.close_stage(
