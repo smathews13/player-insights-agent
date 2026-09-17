@@ -136,4 +136,29 @@ describe('report Markdown and JSON export', () => {
   it('collects every section chart for rasterisation', () => {
     expect(reportCharts(report).map((chart) => chart.id)).toEqual(['overlap']);
   });
+
+  it('gives every chart a unique id so id-less panels do not share an image', () => {
+    const normalized = normalizeReport({
+      title: 'Two blank-id charts',
+      sections: [
+        { heading: 'A', charts: [{ kind: 'bar', plotly: { data: [{ type: 'bar', x: ['a'], y: [1] }] } }] },
+        { heading: 'B', charts: [{ kind: 'bar', plotly: { data: [{ type: 'bar', x: ['b'], y: [2] }] } }] },
+      ],
+    }) as Report;
+    const ids = reportCharts(normalized).map((chart) => chart.id);
+    expect(ids).toEqual(['chart-1', 'chart-2']);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // A distinct author id survives; a duplicate is renumbered rather than colliding.
+    const withDupes = normalizeReport({
+      title: 'Colliding ids',
+      sections: [
+        { heading: 'A', charts: [{ id: 'dup', kind: 'bar', plotly: { data: [{ type: 'bar', x: ['a'], y: [1] }] } }] },
+        { heading: 'B', charts: [{ id: 'dup', kind: 'bar', plotly: { data: [{ type: 'bar', x: ['b'], y: [2] }] } }] },
+      ],
+    }) as Report;
+    const dupIds = reportCharts(withDupes).map((chart) => chart.id);
+    expect(dupIds[0]).toBe('dup');
+    expect(new Set(dupIds).size).toBe(dupIds.length);
+  });
 });

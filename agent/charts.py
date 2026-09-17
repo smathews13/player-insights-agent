@@ -226,14 +226,18 @@ _CHART_REQUESTED = re.compile(
 )
 
 # The shape-words that are ordinary English on their own -- a bottom line, a line item, a
-# product line, a bar of one -- so they count as a chart request only after a phrasing
-# that turns the rendered answer into the ask ("make it a bar", "show it as a line",
-# "switch it to a pie"), never standing alone. `line` drops out when it is a line item,
-# the phrase this app sees most in spend questions that have nothing to do with charts.
+# product line -- so they count as a chart request only behind a phrasing that turns the
+# rendered answer into the ask ("make it a bar", "show it as a line", "switch it to a
+# pie"). Two guards keep the false positives out:
+#   - the shape must sit right after an article ("a"/"an"), so "the bottom line" and
+#     "area of concern" do not read as "a line"/"an area";
+#   - `column` and `area` are left out entirely: in an analytics tool a "column" is a
+#     table column far more often than a column chart, and "area" is usually "area of".
+# `line` also drops out when it is a "line item", the phrase spend questions use most.
 _CHART_SHAPE_REQUESTED = re.compile(
     r"\b(?:as|into|make\s+it|show\s+it|render\s+it|redraw|redo|turn\s+it|"
-    r"switch\s+it\s+to|change\s+it\s+to)\b[^.?!]{0,40}?"
-    r"\b(?:bar|line(?![-\s]*items?\b)|pie|donut|doughnut|column|area|bubble|trend|box\s*plot)\b",
+    r"switch\s+it\s+to|change\s+it\s+to)\b[^.?!]{0,30}?"
+    r"\ban?\s+(?:bar|line(?![-\s]*items?\b)|pie|donut|doughnut|bubble|trend|scatter|histogram|box\s*plot)\b",
     re.IGNORECASE,
 )
 

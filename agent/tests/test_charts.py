@@ -69,6 +69,11 @@ def test_chart_gate_hears_a_shape_request_without_the_word_chart():
     assert not chart_requested("which titles are top of the bar")
     assert not chart_requested("break the spend out as a line item")
     assert not chart_requested("show it as a line-item table")
+    # Overloaded shape words behind a request verb are still not a chart: a table
+    # column, an area of concern, the bottom line.
+    assert not chart_requested("change it to a column")
+    assert not chart_requested("show it as an area of concern")
+    assert not chart_requested("as the bottom line, spend is up")
 
 
 # The palette the app retired. Named here rather than in the module so that deleting a
