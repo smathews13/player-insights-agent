@@ -18,6 +18,7 @@ import {
   identityPayload,
   invokeServing,
   mlflowReference,
+  priorEvidenceFromHistory,
   PLAN_APPROVAL_MESSAGE,
   rejectionStatus,
   REPRESENTATIVE_ANSWER_CAVEAT,
@@ -1337,6 +1338,104 @@ describe('serving request body', () => {
     expect(body.custom_inputs).toMatchObject({
       conversation_id: 'conv-1',
       eval_guidance: 'Stay inside governed tables.',
+    });
+  });
+
+  it('resends the previous answer rows as prior_evidence, verbatim', () => {
+    const rows = ['{"platform":"iOS","players":453992579}', '{"platform":"Android","players":14494798}'];
+    const body = buildAskServingBody({
+      history: [{ role: 'user', content: 'plot the results' }],
+      prompt: 'plot the results',
+      conversationId: 'conv-1',
+      attachmentText: '',
+      priorEvidence: rows,
+    });
+
+    expect(body.custom_inputs).toEqual({
+      conversation_id: 'conv-1',
+      prior_evidence: rows,
+    });
+    // Same shape it arrived in: an array of strings, unmodified.
+    expect((body.custom_inputs as Record<string, unknown>).prior_evidence).toBe(rows);
+  });
+
+  it('omits prior_evidence when the last answer carried no rows', () => {
+    const empty = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      attachmentText: '',
+      priorEvidence: [],
+    });
+    const absent = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      attachmentText: '',
+    });
+
+    // An empty array is the same as none to the backend, so the wire bytes stay
+    // identical to a turn that never had evidence to carry.
+    expect(empty.custom_inputs).toEqual({ conversation_id: 'conv-1' });
+    expect(empty.custom_inputs).toEqual(absent.custom_inputs);
+    expect(JSON.stringify(empty)).not.toContain('prior_evidence');
+  });
+
+  describe('priorEvidenceFromHistory', () => {
+    const answerRow = (chartEvidence: unknown) => ({
+      role: 'assistant',
+      content: 'An answer.',
+      response_json: { takeaway: 'An answer.', chart_evidence: chartEvidence },
+    });
+
+    it('carries forward the most recent answer chart_evidence', () => {
+      const rows = [
+        { role: 'user', content: 'how many players by platform?' },
+        answerRow(['{"platform":"iOS"}', '{"platform":"Android"}']),
+        { role: 'user', content: 'plot the results' },
+      ];
+      expect(priorEvidenceFromHistory(rows)).toEqual(['{"platform":"iOS"}', '{"platform":"Android"}']);
+    });
+
+    it('parses response_json stored as a JSON string', () => {
+      const rows = [
+        {
+          role: 'assistant',
+          content: 'An answer.',
+          response_json: JSON.stringify({ takeaway: 'x', chart_evidence: ['row-1'] }),
+        },
+      ];
+      expect(priorEvidenceFromHistory(rows)).toEqual(['row-1']);
+    });
+
+    it('skips a plan proposed between the data answer and the follow-up', () => {
+      const rows = [
+        answerRow(['row-a', 'row-b']),
+        { role: 'user', content: 'now break it down by title' },
+        { role: 'assistant', content: 'A plan.', response_json: { type: 'plan', plan: { id: 'plan-9' } } },
+        { role: 'user', content: 'plot the first answer' },
+      ];
+      expect(priorEvidenceFromHistory(rows)).toEqual(['row-a', 'row-b']);
+    });
+
+    it('returns none when the most recent answer carried none, without reaching back for stale rows', () => {
+      const rows = [
+        answerRow(['stale-row']),
+        { role: 'user', content: 'what does churn mean?' },
+        answerRow([]),
+        { role: 'user', content: 'plot it' },
+      ];
+      expect(priorEvidenceFromHistory(rows)).toEqual([]);
+    });
+
+    it('treats an answer that predates the field as carrying none', () => {
+      const rows = [{ role: 'assistant', content: 'Old answer.', response_json: { takeaway: 'old' } }];
+      expect(priorEvidenceFromHistory(rows)).toEqual([]);
+    });
+
+    it('drops non-string members so only opaque rows travel', () => {
+      const rows = [answerRow(['ok', 42, null, 'also-ok'])];
+      expect(priorEvidenceFromHistory(rows)).toEqual(['ok', 'also-ok']);
     });
   });
 

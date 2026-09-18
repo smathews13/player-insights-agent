@@ -626,6 +626,14 @@ const LiveAnswerSchema = z.looseObject({
   // an endpoint still running the previous agent returns no `charts` key at all,
   // and requiring it would drop every live answer back to a representative one.
   charts: z.array(ChartSchema).default([]),
+  // Opaque rows the agent hands its charting model, present whenever THIS turn's
+  // own query returned data -- independent of whether a chart was drawn. Never
+  // displayed: it is carried forward verbatim as `custom_inputs.prior_evidence`
+  // so a later "plot the results" follow-up, whose own turn queries nothing, can
+  // still render a real chart. Defaulted so an older endpoint that omits the key
+  // is not dropped to a representative answer. See buildAskServingBody and
+  // priorEvidenceFromHistory; contract owned by the serving backend (MIT-14658).
+  chart_evidence: z.array(z.string()).default([]),
   sources: z.array(SourceSchema),
   document_snippets: z.array(DocumentSnippetSchema).default([]),
   caveats: z.array(z.string()),
@@ -2525,6 +2533,43 @@ export function buildServingHistory(rows: HistoryRow[]) {
     });
 }
 
+/**
+ * The most recent answer's `chart_evidence`, for carrying forward as
+ * `custom_inputs.prior_evidence`.
+ *
+ * Scans stored history newest-first and returns the first real answer's evidence
+ * rows, verbatim. Plan and clarification turns are assistant messages but not
+ * answers and carry none, so they are skipped -- a plan proposed between the data
+ * answer and a "plot the results" follow-up must not erase the rows that
+ * follow-up needs. The single most recent answer's evidence, not an accumulation,
+ * the same lifecycle `prior_chart` has: an answer that queried nothing this turn
+ * stored an empty array, and that empty result is returned empty rather than
+ * reaching further back for stale rows.
+ */
+export function priorEvidenceFromHistory(rows: HistoryRow[]): string[] {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row.role !== 'assistant') continue;
+    let response = row.response_json;
+    if (typeof response === 'string') {
+      try {
+        response = JSON.parse(response) as unknown;
+      } catch {
+        continue;
+      }
+    }
+    if (!response || typeof response !== 'object') continue;
+    const record = response as Record<string, unknown>;
+    if (record.type === 'plan' || record.type === 'clarification') continue;
+    const evidence = record.chart_evidence;
+    // A real answer is the stopping point whether or not it carried evidence: an
+    // answer that predates this field, or one whose own query returned nothing,
+    // is still the most recent answer and forwards none.
+    return Array.isArray(evidence) ? evidence.filter((item): item is string => typeof item === 'string') : [];
+  }
+  return [];
+}
+
 function attachmentExtension(filename: string) {
   return filename.toLowerCase().split('.').pop() ?? '';
 }
@@ -2948,6 +2993,15 @@ interface AskServingInputs {
   llmRoute?: 'direct' | 'ai_gateway';
   /** Short-lived app-signed authority for the privileged managed Genie route. */
   genieMcpCapability?: string;
+  /**
+   * The previous answer's `chart_evidence`, carried forward verbatim so a
+   * "plot the results" follow-up that queries nothing this turn still has rows
+   * to chart. Omitted when the last answer carried none. The backend reads it
+   * only when this turn's own query came back empty and a chart was asked for,
+   * and silently ignores a malformed or oversized value, so there is nothing to
+   * validate here. See priorEvidenceFromHistory (MIT-14658).
+   */
+  priorEvidence?: string[];
 }
 
 /**
@@ -2974,6 +3028,7 @@ export function buildAskServingBody({
   identityMode,
   llmRoute,
   genieMcpCapability,
+  priorEvidence,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
@@ -2990,6 +3045,14 @@ export function buildAskServingBody({
     custom_inputs.genie_mcp_capability = genieMcpCapability;
   }
   if (evalGuidance?.trim()) custom_inputs.eval_guidance = evalGuidance.trim();
+  // Sent verbatim, and only when the last answer actually carried rows. An empty
+  // array is the same as none to the backend, so it is omitted rather than put on
+  // the wire as `[]`, keeping this turn's bytes identical to before when there is
+  // nothing to carry. The backend ignores it unless this turn queried nothing and
+  // asked for a chart, so it is harmless on every other turn.
+  if (Array.isArray(priorEvidence) && priorEvidence.length > 0) {
+    custom_inputs.prior_evidence = priorEvidence;
+  }
   // The mode travels with the user it names, and neither travels alone. A mode
   // with nobody named is a request the endpoint's gate refuses for having
   // nothing to hold its invoker against, so sending one without the other
@@ -4970,6 +5033,9 @@ export function setupInsightsRoutes(
           if (approvedPlanId && servingHistory.length > 0) {
             servingHistory[servingHistory.length - 1] = { role: 'user', content: prompt };
           }
+          // Carried forward so a "plot the results" follow-up that queries
+          // nothing this turn still has the previous answer's rows to chart.
+          const priorEvidence = priorEvidenceFromHistory(historyResult.rows);
           await options.rolesReady?.();
           const [runtime, aiGatewayEnabled, genieMcpEnabled, role] = await Promise.all([
             readRuntimeSettings(appkit),
@@ -4994,6 +5060,7 @@ export function setupInsightsRoutes(
             deadlineAt: runDeadlineAt.toISOString(),
             runtimeSettings: askRuntime,
             llmRoute: aiGatewayEnabled ? 'ai_gateway' : 'direct',
+            priorEvidence,
             genieMcpCapability: managedGenieMcpCapability({
               enabled: genieMcpEnabled,
               role: role.role,

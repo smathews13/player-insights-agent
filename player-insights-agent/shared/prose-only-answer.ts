@@ -289,6 +289,10 @@ export interface ProseOnlyAnswer {
   content: string;
   figures: never[];
   charts: never[];
+  // Empty for the same reason `charts` is: no query ran on this path, so there
+  // are no rows to carry forward as `prior_evidence`. Typed `never[]` so it
+  // cannot be filled from anywhere but a real query.
+  chart_evidence: never[];
   sources: never[];
   document_snippets: never[];
   caveats: string[];
@@ -369,6 +373,7 @@ export function proseOnlyAnswer(id: string, prose: string, recordedStages: reado
     content: '',
     figures: [],
     charts: [],
+    chart_evidence: [],
     sources: [],
     document_snippets: [],
     caveats: [proseOnlyCaveat(folded.stages.length), ...reader.caveats],
