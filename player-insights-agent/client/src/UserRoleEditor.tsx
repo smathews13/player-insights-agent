@@ -646,7 +646,20 @@ function ServicePrincipalRow({
   showPersona: boolean;
   manageHumanRoles: boolean;
 }) {
-  const permissionLabel = principal.permission === 'CAN_MANAGE' ? 'Can manage app' : 'Can use app';
+  // Match how a person's row surfaces the same ACL shape: an inherited grant
+  // (via a group, not a direct entry on the app) reads as "Inherited", not as a
+  // direct Can use / Can manage. Reporting a direct grant on an inherited SP
+  // would send an operator to change it in the wrong place.
+  const accessState: RosterEntry['appAccess'] = principal.inherited
+    ? 'inherited'
+    : principal.permission === 'CAN_MANAGE'
+      ? 'can_manage'
+      : 'can_use';
+  const permissionLabel = principal.inherited
+    ? 'Inherited app access'
+    : principal.permission === 'CAN_MANAGE'
+      ? 'Can manage app'
+      : 'Can use app';
   const permissionTitle = principal.inherited
     ? 'Inherited Databricks App permission'
     : 'Direct Databricks App permission';
@@ -658,10 +671,7 @@ function ServicePrincipalRow({
             <Bot aria-hidden="true" />
             <span className="roster-sp-name">{principal.displayName}</span>
           </span>
-          <AppAccessBadge
-            state={principal.permission === 'CAN_MANAGE' ? 'can_manage' : 'can_use'}
-            detail={permissionTitle}
-          />
+          <AppAccessBadge state={accessState} detail={permissionTitle} />
           <Button
             type="button"
             variant="ghost"
