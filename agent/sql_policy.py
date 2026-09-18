@@ -24,6 +24,7 @@ from failures import (
     ASSET_NOT_IN_MANIFEST,
     ASSET_UNRESOLVED,
     COLUMN_POLICY_VIOLATION,
+    SQL_CARTESIAN_JOIN,
     SQL_NOT_READ_ONLY,
     SQL_UNPARSEABLE,
 )
@@ -593,6 +594,78 @@ def inspect_generated_sql(sql: str) -> list[str]:
         return []
 
 
+def refuse_degenerate_joins(tree: exp.Expression) -> None:
+    """Refuse a join whose ON clause constrains nothing.
+
+    THE ONLY COST CONTROL IN THIS MODULE, and it is here rather than left to the
+    warehouse because of how the warehouse says no. The finder, asked for the
+    pairwise and three-way overlaps between several titles, could not work out
+    how to reference its other CTEs from inside one aggregate, so it reached the
+    aliases by joining each CTE to ITSELF and wrote the predicate against the one
+    alias it had:
+
+        FULL OUTER JOIN players p2 ON p2.platformid_accountid = p2.platformid_accountid
+
+    -- each commented `-- placeholder`. A predicate that names one side is a
+    constant, so there is no key to hash on and Spark plans a broadcast nested
+    loop join over sets of ids in the hundreds of millions. What comes back is a
+    broadcast-size / driver-memory error, after the statement has spent the
+    turn's whole wait budget being planned, and reading as a memory limit rather
+    than as the cartesian product it is.
+
+    STATICALLY DETECTABLE, which is why this one is worth guarding and the general
+    "is this query too expensive" question is not. A predicate that mentions a
+    single alias cannot relate two sources, whatever the data looks like, so
+    nothing here is an estimate.
+
+    REFUSES ONLY WHAT IT CAN PROVE. An unqualified column in the ON clause
+    (`ON x.k = k`) is left alone: the warehouse resolves the bare name against the
+    other side and the join is fine, and the parse cannot tell that from here
+    without a schema. So the rule is every column in the clause naming the SAME
+    ONE alias, or the clause naming no column at all (`ON TRUE`, `ON 1 = 1`), both
+    of which are the same plan.
+
+    NOT APPLIED TO JOINS WITHOUT AN `ON`. `USING (id)` names its key and is a real
+    equi-join. An explicit `CROSS JOIN` is deliberately out of scope: it is the
+    same hazard, but it is also how a scalar is legitimately attached to a result
+    set, and refusing it would cost queries that work to catch a mistake nobody
+    has made here.
+
+    Applied across the whole tree, CTEs included, because that is where the
+    placeholder joins were.
+    """
+
+    for join in tree.find_all(exp.Join):
+        condition = join.args.get("on")
+        if condition is None:
+            continue
+        columns = list(condition.find_all(exp.Column))
+        if any(not column.table for column in columns):
+            continue
+        aliases = {column.table.lower() for column in columns}
+        if len(aliases) > 1:
+            continue
+        why = (
+            f"every column in it names {sorted(aliases)[0]}"
+            if aliases
+            else "it names no column at all"
+        )
+        raise SqlRefused(
+            f"Refused before running: the join ON {condition.sql(dialect=SQL_DIALECT)} "
+            f"relates no two sources -- {why} -- so it is a cartesian product. The "
+            "warehouse would plan a broadcast nested loop join and reject the statement "
+            "after spending this turn's whole wait budget on it. Give every join a key "
+            "that names BOTH sides, and do not join a table to itself to bring an alias "
+            "into scope.",
+            SQL_CARTESIAN_JOIN,
+            remedy=(
+                "give every join an ON clause comparing a column of one source to a column "
+                "of the OTHER source; for overlap counts, build one CTE of DISTINCT ids per "
+                "set and INNER JOIN those CTEs on the id"
+            ),
+        )
+
+
 def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
     """Check one statement against the declared table set, and say what it reads.
 
@@ -627,6 +700,11 @@ def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
         )
 
     refuse_restricted_columns(tree)
+    # AFTER the column policy, so a statement that is both a governance problem and
+    # an unrunnable one reports the governance problem. That refusal is about the
+    # answer and closes every route to it; this one is about the statement and
+    # invites a rewrite, and the weaker finding must not be the one the model reads.
+    refuse_degenerate_joins(tree)
     # Attributed with the declaration's own spelling, so one table cited two ways
     # in two answers is not read as two tables. Empty when the statement named
     # no table: that is a read of nothing, not an unresolved source.

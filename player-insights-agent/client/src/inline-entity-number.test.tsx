@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
-import { EntityText } from './InlineEntityText';
+import { EntityText, PlanText } from './InlineEntityText';
 
 /**
  * A digit fused into a title must not be pulled out into a number badge.
@@ -42,5 +42,35 @@ describe('inline number highlighting leaves identifiers whole', () => {
 
     const percent = markup('coverage reached 12% of runs');
     expect(percent).toMatch(/answer-inline-number[^>]*>12%</);
+  });
+});
+
+/**
+ * A plan candidate's prose is ABOUT a source, not the answer's figures, so it
+ * turns number highlighting off entirely. A title with a space before its
+ * version -- "Outfit 3", "Dyn 6", "Hoops" -- carries a standalone digit that the
+ * word-boundary guard cannot catch (it is genuinely a standalone figure), and
+ * badging it dropped the "3" onto its own line so the definition read as a
+ * fourth labelled row of the candidate. `PlanText` passes `numbers={false}`.
+ */
+describe('plan prose does not badge the version digit in a title', () => {
+  function planMarkup(text: string) {
+    return renderToStaticMarkup(
+      <MemoryRouter>
+        <PlanText text={text} columns={[]} />
+      </MemoryRouter>
+    );
+  }
+
+  it('leaves "Outfit 3" whole with no number badge', () => {
+    const html = planMarkup("Play activity indicator for Outfit 3; value = 'True' if player has played");
+    expect(html).not.toContain('answer-inline-number');
+    expect(html).toContain('Outfit 3');
+  });
+
+  it('does not badge a real figure inside plan prose either', () => {
+    // The trade the field makes: a genuine "180 days" in a plan summary also
+    // goes unbadged, which is fine -- a plan is not the figure surface.
+    expect(planMarkup('aggregated over the trailing 180 days')).not.toContain('answer-inline-number');
   });
 });

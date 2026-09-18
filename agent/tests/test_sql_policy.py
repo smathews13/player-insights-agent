@@ -39,6 +39,7 @@ def test_tools_re_exports_the_same_objects_rather_than_copies():
         "is_read_only_sql",
         "restricted_output_columns",
         "refuse_restricted_columns",
+        "refuse_degenerate_joins",
         "inspect_generated_sql",
         "validate_sql",
         "BLOCKED_COLUMNS",
@@ -85,14 +86,59 @@ def test_a_table_outside_the_declaration_is_a_manifest_rejection():
 
 
 def test_the_column_policy_names_itself_however_the_column_was_reached():
-    assert (
-        _code("SELECT crm_customer_ref FROM cat.sch.players") == failures.COLUMN_POLICY_VIOLATION
-    )
+    assert _code("SELECT crm_customer_ref FROM cat.sch.players") == failures.COLUMN_POLICY_VIOLATION
     assert _code("SELECT email FROM cat.sch.players") == failures.COLUMN_POLICY_VIOLATION
     assert (
         _code("SELECT count(*) FROM cat.sch.orders NATURAL JOIN cat.sch.players")
         == failures.COLUMN_POLICY_VIOLATION
     )
+
+
+def test_a_join_that_relates_no_two_sources_is_refused_before_running():
+    # A predicate that names one alias is a constant: there is no key to hash on,
+    # so the warehouse plans a broadcast nested loop over the cartesian product
+    # and dies after spending the turn's wait budget on it. Statically provable,
+    # so it is refused here rather than left to a memory error that reads as
+    # anything but the cartesian product it is.
+    self_alias = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.orders o2 ON o2.pid = o2.pid"
+    on_true = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.players p ON TRUE"
+    on_const = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.players p ON 1 = 1"
+    assert _code(self_alias) == failures.SQL_CARTESIAN_JOIN
+    assert _code(on_true) == failures.SQL_CARTESIAN_JOIN
+    assert _code(on_const) == failures.SQL_CARTESIAN_JOIN
+
+
+def test_the_cartesian_refusal_invites_a_rewrite_rather_than_closing_the_answer():
+    # Unlike a governance refusal, this one is about the SHAPE of the statement,
+    # so it carries a remedy: the loop tells the model to rewrite the same query
+    # once, not to give up and not to ask another surface.
+    with pytest.raises(sql_policy.SqlRefused) as refused:
+        sql_policy.validate_sql(
+            "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.orders o2 ON o2.pid = o2.pid",
+            READABLE,
+        )
+    assert refused.value.remedy
+    assert "INNER JOIN" in refused.value.remedy
+
+
+def test_a_real_two_sided_join_and_an_ambiguous_one_are_left_alone():
+    # A join whose ON names BOTH aliases is a real equi-join and passes.
+    real = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.players p ON o.pid = p.pid"
+    assert sql_policy.validate_sql(real, READABLE) == ["cat.sch.orders", "cat.sch.players"]
+
+    # An unqualified column (`= pid`) could resolve against the other side, and
+    # the parse cannot tell that from here without a schema, so it is NOT refused:
+    # the guard refuses only what it can prove is degenerate.
+    bare = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.players p ON o.pid = pid"
+    assert sql_policy.validate_sql(bare, READABLE) == ["cat.sch.orders", "cat.sch.players"]
+
+    # A join with no ON at all is not this control's business: USING names its key
+    # and is a real equi-join, and an explicit CROSS JOIN is how a scalar is
+    # legitimately attached to a result set.
+    using = "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.players p USING (pid)"
+    cross = "SELECT count(*) FROM cat.sch.orders o CROSS JOIN cat.sch.players p"
+    assert sql_policy.validate_sql(using, READABLE) == ["cat.sch.orders", "cat.sch.players"]
+    assert sql_policy.validate_sql(cross, READABLE) == ["cat.sch.orders", "cat.sch.players"]
 
 
 def test_a_refusal_raised_without_a_code_still_constructs():
@@ -111,6 +157,7 @@ def test_every_code_the_guard_raises_is_one_the_taxonomy_knows():
         "SELECT * FROM orders",
         "SELECT * FROM other.sch.secrets",
         "SELECT email FROM cat.sch.players",
+        "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.orders o2 ON o2.pid = o2.pid",
     ):
         assert _code(sql) in failures.AGENT_CODES
 
@@ -124,5 +171,6 @@ def test_no_code_the_guard_raises_permits_a_later_route_attempt():
         "SELECT * FROM orders",
         "SELECT * FROM other.sch.secrets",
         "SELECT email FROM cat.sch.players",
+        "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.orders o2 ON o2.pid = o2.pid",
     ):
         assert not failures.may_request_another_route(_code(sql))
