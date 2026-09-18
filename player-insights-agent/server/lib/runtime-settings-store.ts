@@ -1,4 +1,5 @@
 import { appTable } from '../../shared/app-schema';
+import { ownsPreferenceDefaults } from '../../shared/preference-default-owner';
 import {
   DEFAULT_RUNTIME_SETTINGS,
   parseStoredRuntimeSettings,
@@ -13,6 +14,15 @@ import {
 } from './versioned-settings-store';
 
 const KEY = 'effective';
+export type RuntimeSettingsSource = 'default' | 'override';
+export type ResolvedRuntimeSettings = VersionedSettings<RuntimeSettings> & {
+  source: RuntimeSettingsSource;
+  canReset: boolean;
+};
+
+function userKey(email: string): string {
+  return `user:${email.trim().toLowerCase()}`;
+}
 // Must follow APP_SCHEMA (var.lakebase_app_schema / PLAYER_INSIGHTS_APP_SCHEMA).
 // Hardcoding player_insights.runtime_settings diverges from migrations.ts and
 // silently misses the real table when a target uses a non-default schema.
@@ -31,6 +41,10 @@ const STORE: VersionedSettingsStore<RuntimeSettings> = {
   defaults: DEFAULT_RUNTIME_SETTINGS,
   parse: parseStoredRuntimeSettings,
 };
+
+function storeFor(key: string, defaults: RuntimeSettings): VersionedSettingsStore<RuntimeSettings> {
+  return { ...STORE, key, defaults };
+}
 
 let cache = new WeakMap<object, { document: VersionedSettings<RuntimeSettings>; at: number }>();
 export const RUNTIME_SETTINGS_TTL_MS = 15_000;
@@ -73,4 +87,46 @@ export async function writeRuntimeSettingsPatch(
   const document = await writeVersionedSettingsPatch(client, STORE, patch, revision, updatedBy);
   forgetRuntimeSettings();
   return document;
+}
+
+export async function readResolvedRuntimeSettings(
+  client: LakebaseReader,
+  email: string
+): Promise<ResolvedRuntimeSettings> {
+  const defaults = await readRuntimeSettingsDocument(client, { maxAgeMs: 0 });
+  if (ownsPreferenceDefaults(email)) {
+    return { ...defaults, source: 'default', canReset: false };
+  }
+  const override = await readVersionedSettings(client, storeFor(userKey(email), defaults.settings));
+  return override.revision > 0
+    ? { ...override, source: 'override', canReset: true }
+    : { settings: defaults.settings, revision: 0, source: 'default', canReset: false };
+}
+
+export async function writeUserRuntimeSettingsPatch(
+  client: LakebaseReader,
+  email: string,
+  patch: unknown,
+  revision: number
+): Promise<ResolvedRuntimeSettings> {
+  const defaults = await readRuntimeSettingsDocument(client, { maxAgeMs: 0 });
+  const document = await writeVersionedSettingsPatch(
+    client,
+    storeFor(userKey(email), defaults.settings),
+    patch,
+    revision,
+    email
+  );
+  forgetRuntimeSettings();
+  return { ...document, source: 'override', canReset: true };
+}
+
+export async function deleteUserRuntimeSettings(
+  client: LakebaseReader,
+  email: string
+): Promise<ResolvedRuntimeSettings> {
+  await client.lakebase.query(`DELETE FROM ${RUNTIME_SETTINGS_TABLE} WHERE id = $1`, [userKey(email)]);
+  forgetRuntimeSettings();
+  const defaults = await readRuntimeSettingsDocument(client, { maxAgeMs: 0 });
+  return { settings: defaults.settings, revision: 0, source: 'default', canReset: false };
 }

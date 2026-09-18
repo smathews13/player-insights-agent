@@ -20,7 +20,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RosterAddRow, RosterRows } from './UserRoleEditor';
+import { GroupMappingAddRow, RosterAddRow, RosterRows } from './UserRoleEditor';
 import { roleOptions } from './user-role-options';
 import {
   addDisabledReason,
@@ -194,6 +194,29 @@ describe('the #24a roster row', () => {
   });
 });
 
+describe('workspace access group picker', () => {
+  it('keeps the collapsed action distinct from app Teams', () => {
+    const markup = renderToStaticMarkup(
+      <table>
+        <tfoot>
+          <GroupMappingAddRow
+            draft=""
+            role="consumer"
+            busy={false}
+            error=""
+            excludedGroups={[]}
+            onDraftChange={() => undefined}
+            onRoleChange={() => undefined}
+            onAdd={() => undefined}
+          />
+        </tfoot>
+      </table>
+    );
+    expect(text(markup)).toContain('Add Workspace Access Group');
+    expect(text(markup)).not.toContain('Unity Catalog');
+  });
+});
+
 describe('the #24a Roles geometry', () => {
   const css = partial('settings.css');
 
@@ -238,7 +261,7 @@ describe('the #24a Roles geometry', () => {
     expect(editor).toContain('roster-frame');
   });
 
-  it('puts Databricks App groups and users in one table with no in-app group picker', () => {
+  it('puts Databricks App groups and users in one table and offers the workspace picker', () => {
     const payload: RosterPayload = {
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
       storedRosterReadable: true,
@@ -275,7 +298,8 @@ describe('the #24a Roles geometry', () => {
     expect(markup).toContain('aria-label="Persona for group Example analysts: No persona"');
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
     expect(editor).not.toContain('Add group');
-    expect(editor).not.toContain('Select a Databricks workspace group');
+    expect(editor).toContain('Select a Databricks workspace group');
+    expect(editor).toContain('Add Workspace Access Group');
     expect(editor).not.toContain('Databricks workspace groups and Player Insights Agent roles');
   });
 

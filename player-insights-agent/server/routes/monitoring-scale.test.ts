@@ -368,10 +368,11 @@ describe('the Monitoring list over a 100,000-message store', () => {
     expect((body.people as string[]).length).toBe(PEOPLE);
     expect((body.summary as { userThreads: number }).userThreads).toBe(CONVERSATIONS);
 
-    // Two round trips for the whole page: the page-and-totals statement, and the
-    // ledger. It was four before -- page, totals, people, ledger.
-    expect(engine.statements).toHaveLength(2);
-    expect(engine.statements[0]).toBe(MONITORING_QUESTIONS_QUERY);
+    // Three round trips for the whole page: Team settings, the page-and-totals
+    // statement, and the ledger. The large-store query itself remains one
+    // statement rather than splitting page, totals, and people.
+    expect(engine.statements).toHaveLength(3);
+    expect(engine.statements).toContain(MONITORING_QUESTIONS_QUERY);
 
     // The claim that generalises past this harness: the rows the statement is
     // made to look at are the range's index entries plus the page's own

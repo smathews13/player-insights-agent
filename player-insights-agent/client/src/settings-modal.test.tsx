@@ -129,6 +129,7 @@ describe('Settings modal', () => {
     const experimental = render('experimental');
     expect(identity).toContain('<h3>Identity</h3>');
     expect(identity).toContain('Databricks App members and Player Insights Agent roles');
+    expect(identity).toContain('>Teams<');
     expect(identity).toContain('SP Personas');
     expect(identity).not.toContain('SP user roles');
     expect(runtime).toContain('<h3>Runtime</h3>');
@@ -268,6 +269,20 @@ describe('Settings modal', () => {
     expect(consumer).not.toContain('/api/admin/access-guide');
   });
 
+  it('enables only Environment and Appearance for consumers', () => {
+    const consumer = render('environment', { state: 'consumer', addedAdminsReadable: true });
+    const button = (label: string) =>
+      (consumer.match(/<button[\s\S]*?<\/button>/g) ?? []).find((entry) => entry.includes(`>${label}</span>`)) ?? '';
+
+    expect(button('Environment')).not.toContain('disabled=""');
+    expect(button('Appearance')).not.toContain('disabled=""');
+    expect(button('Identity')).toContain('disabled=""');
+    expect(button('Experimental')).toContain('disabled=""');
+    expect(consumer).not.toContain('>Runtime</span>');
+    expect(consumer).not.toContain('>Egress controls</span>');
+    expect(consumer).not.toContain('>General</span>');
+  });
+
   it('keeps SP Persona mappings on Identity and removes their Experimental pivot', () => {
     const identity = render('identity');
     const experimental = render('experimental');
@@ -345,7 +360,7 @@ describe('Settings modal', () => {
     }
   });
 
-  it('renders Identity for null, undefined, refused, failed, missing-role and service-principal identities', () => {
+  it('falls back to consumer-safe Environment when the role is unavailable', () => {
     const hostileIdentities: unknown[] = [
       null,
       undefined,
@@ -361,8 +376,8 @@ describe('Settings modal', () => {
     ];
     for (const identity of hostileIdentities) {
       const markup = render('identity', roleFrom(identityFromResponse(identity)));
-      expect(markup).toContain('<h3>Identity</h3>');
-      expect(markup).toContain('Databricks App members and Player Insights Agent roles');
+      expect(markup).toContain('<h3>Environment</h3>');
+      expect(markup).not.toContain('<h3>Identity</h3>');
       expect(markup).not.toContain('This view could not be displayed');
     }
   });
@@ -464,13 +479,13 @@ describe('Settings modal', () => {
     expect(layout).not.toContain("entry.to === '/settings'");
     expect(layout).toContain('aria-label="App settings"');
     expect(layout).toContain('setSettingsOpen(true)');
-    expect(layout).toContain('void refreshExperimental()');
+    expect(layout).toContain('if (showsAdminSurfaces(role.state)) void refreshExperimental()');
     expect(layout).toContain("const settingsDeepLink = location.pathname === '/settings'");
     const settingsRoute = app.slice(app.indexOf("path: '/settings'"), app.indexOf("path: '/connections'"));
-    expect(settingsRoute).toContain('<AdminOnly>');
+    expect(settingsRoute).not.toContain('<AdminOnly>');
     expect(settingsRoute).toContain('<HomePage />');
     expect(settingsRoute).not.toContain('<SettingsPage');
-    // The gate outside the outlet must be handed a role rather than reading one.
-    expect(layout).toContain('<AdminOnly role={role}>');
+    expect(layout).not.toContain('<AdminOnly role={role}>');
+    expect(layout).toContain('!showsAdminSurfaces(role.state) || experimentalLoaded || experimentalFailure');
   });
 });

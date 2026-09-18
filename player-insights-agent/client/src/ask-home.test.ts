@@ -311,15 +311,23 @@ describe('the ask home is the geometry the mockup gives it', () => {
      * behind it, which is exactly what "still solid blue" describes.
      */
     const dark = partial('dark-mode.css');
-    for (const [selector, token] of [
-      ["html[data-theme='dark'] .app-header", '--ast-surface-chrome'],
-      ["html[data-theme='dark'] .composer", '--ast-surface-primary'],
-    ] as const) {
-      const rule = body(selector, dark);
-      expect(rule, `${selector} uses its semantic layer`).toContain(`background: var(${token})`);
-      expect(rule, `${selector} avoids backdrop work`).toMatch(/backdrop-filter:\s*none/);
-      expect(rule).not.toMatch(/blur\(|saturate|contrast|brightness|hue-rotate/);
-    }
+    const header = body("html[data-theme='dark'] .app-header", dark);
+    expect(header, 'the header uses its semantic layer').toContain('background: var(--ast-surface-chrome)');
+    expect(header, 'the header avoids backdrop work').toMatch(/backdrop-filter:\s*none/);
+    expect(header).not.toMatch(/blur\(|saturate|contrast|brightness|hue-rotate/);
+
+    // The composer is deliberately NOT the rail's surface any more: it is lifted a
+    // step toward white so a reader finds the box they type into against the night
+    // sky, with a brighter trim on the 2px border. It still does no backdrop work.
+    const composer = body("html[data-theme='dark'] .composer", dark);
+    expect(composer, 'the composer lifts off the sky toward white').toMatch(
+      /background:\s*color-mix\(in srgb, var\(--ast-surface-solid\) \d+%, var\(--ast-white\)\)/
+    );
+    expect(composer, 'the composer avoids backdrop work').toMatch(/backdrop-filter:\s*none/);
+    expect(composer).not.toMatch(/blur\(|saturate|contrast|brightness|hue-rotate/);
+    expect(composer, 'the composer trim is brighter than the hairline input edge').toMatch(
+      /border-color:\s*rgba\(255, 255, 255, 0\.42\)/
+    );
     expect(body("html[data-theme='dark'] .conversation-rail", dark)).toMatch(
       /background:\s*var\(--ast-surface-primary\)[\s\S]*backdrop-filter:\s*none/
     );

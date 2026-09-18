@@ -131,7 +131,7 @@ export function badgeTitle(state: RoleState): string {
   // extra control is, and the Admin line already covers the rest.
   if (state === 'super_admin') return 'You can open Monitoring, Ops and Settings, and set who else can.';
   if (state === 'admin') return 'You can open Monitoring, Ops and Settings.';
-  if (state === 'consumer') return 'You can ask questions and see your own runs.';
+  if (state === 'consumer') return 'You can ask questions, see your own runs, and customize your settings.';
   if (state === 'failed') return 'Could not read your role. Reload the page.';
   return '';
 }
@@ -246,18 +246,12 @@ export function navEntries(state: RoleState, features: ExperimentalFeatures): Na
 }
 
 /**
- * Whether the gear is drawn. Admin only, and the endpoints behind it refuse a
- * consumer -- except while `SHOW_EVERY_TAB_TO_EVERYONE` is on, which draws it
- * for everybody so that App settings can be reviewed alongside the rest.
- *
- * The gear is included deliberately. App settings is one of `ADMIN_PAGE_NAMES`,
- * so leaving it hidden while Monitoring and Ops are visible would make the flag
- * mean "every tab except one" and leave the Benchmark Lab toggle unreachable for
- * the reader most likely to be asked about it. `AdminOnly` still guards the
- * route either way.
+ * Whether the gear is drawn. Every resolved signed-in role can customize
+ * Appearance. Failed and unresolved roles still withhold it rather than
+ * guessing that the caller has a usable identity.
  */
 export function showsSettingsGear(state: RoleState): boolean {
-  return showsAdminSurfaces(state) || SHOW_EVERY_TAB_TO_EVERYONE;
+  return state === 'consumer' || showsAdminSurfaces(state) || SHOW_EVERY_TAB_TO_EVERYONE;
 }
 
 /**
@@ -337,7 +331,6 @@ export const HEADER_CLUSTER_ORDER: readonly ['role-badge', 'identity-chip', 'set
 export const ADMIN_PAGE_NAMES: Readonly<Record<string, string>> = {
   '/monitoring': 'Monitoring',
   '/ops': 'Ops',
-  '/settings': 'App settings',
 };
 
 /** Whether standing on this path needs the admin role. */

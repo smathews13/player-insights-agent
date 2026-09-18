@@ -47,7 +47,9 @@ describe('staged Settings saves', () => {
 
   it('restores canonical server state after a failed durable save', () => {
     for (const panel of [RUNTIME, BENCHMARK]) {
-      const failure = panel.slice(panel.lastIndexOf('} catch (caught)'));
+      const resetStart = panel.indexOf('const resetAppearance');
+      const saveSource = resetStart >= 0 ? panel.slice(0, resetStart) : panel;
+      const failure = saveSource.slice(saveSource.lastIndexOf('} catch (caught)'));
       expect(failure).toContain("onSaveState({ kind: 'failed'");
       expect(failure).toContain('onDirtyChange(0)');
     }
@@ -88,7 +90,8 @@ describe('staged Settings saves', () => {
     expect(dirtyCount).toBe(2);
     expect(saveStatus).toBe('failed');
     expect(unsavedChangesLabel(dirtyCount)).toBe('Unsaved changes');
-    expect(PAGE).toContain('disabled={section.id !== active && dirtyCount > 0}');
+    expect(PAGE).toContain('const navigationDisabled = section.id !== active && dirtyCount > 0');
+    expect(PAGE).toContain('disabled={accessDisabled || navigationDisabled}');
     expect(PAGE).toContain('Save or Cancel the current changes first');
     expect(PAGE).toContain('{dirtyLabel} <span className="ast-num">{dirtyCount}</span>');
     expect(PAGE).toContain('setDraftFeatures({ ...savedFeatures })');

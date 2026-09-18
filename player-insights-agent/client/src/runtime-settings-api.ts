@@ -3,6 +3,8 @@ import { RuntimeSettingsSchema, type RuntimeSettings } from '../../shared/runtim
 export interface RuntimeSettingsDocument {
   settings: RuntimeSettings;
   revision: number;
+  source: 'default' | 'override';
+  canReset: boolean;
 }
 
 type FailureBody = {
@@ -54,9 +56,16 @@ export async function runtimeSettingsDocumentFromResponse(
 
   const settings = body && typeof body === 'object' ? (body as { settings?: unknown }).settings : undefined;
   const revision = body && typeof body === 'object' ? (body as { revision?: unknown }).revision : undefined;
+  const source = body && typeof body === 'object' ? (body as { source?: unknown }).source : undefined;
+  const canReset = body && typeof body === 'object' ? (body as { canReset?: unknown }).canReset : undefined;
   const parsed = RuntimeSettingsSchema.safeParse(settings);
   if (!parsed.success || !Number.isInteger(revision) || Number(revision) < 0) {
     throw new Error(`Runtime settings were not ${operation}: the server returned an incomplete settings payload.`);
   }
-  return { settings: parsed.data, revision: Number(revision) };
+  return {
+    settings: parsed.data,
+    revision: Number(revision),
+    source: source === 'override' ? 'override' : 'default',
+    canReset: canReset === true,
+  };
 }

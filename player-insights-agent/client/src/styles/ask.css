@@ -80,17 +80,35 @@
   max-height: none;
 }
 /*
- * A completed answer alone gets the full usable-viewport reading surface.
- * Caveats, Run process and the card's closing border stay in normal flow, with
- * no ceiling, followed by the composer.
+ * A completed answer fits its own content -- no viewport-tall floor. It used to
+ * take `min-height: calc(100dvh - var(--app-header-h))` so a single answer filled
+ * the reading surface, but that reserved a screen of empty space under a short
+ * answer and pushed the composer a scroll away from it: a reader had to scroll up
+ * to see the answer while typing the next question. The min-height is dropped here,
+ * so the card falls back to the answer card's own 280px floor (answer.css) and
+ * grows past it with its content. The composer, sitting in the next grid row, then
+ * sits directly beneath the last line -- and because the card carries no ceiling
+ * either, opening Advanced trace details grows it in place and carries the composer
+ * down with it. `.conversation-main`'s own final-state floor is dropped for the same
+ * reason just below.
  */
 .ask-layout[data-center-state='final']
   .conversation-message:has(.answer-card):not(:has(~ .conversation-message))
   .answer-card {
-  min-height: calc(100dvh - var(--app-header-h));
   max-height: none;
   margin-bottom: 0;
   overflow: visible;
+}
+/*
+ * The transcript column drops its viewport-tall floor once the answer is final.
+ * The base rule keeps `min-height: calc(100dvh - var(--app-header-h))` for the
+ * loading and idle passes, but a finished turn shrink-wraps to its cards so the
+ * composer pins to the bottom of the last answer instead of the bottom of the
+ * window. `.ask-layout` is `align-items: start`, so the freed space falls below
+ * the composer as sky rather than stretching the rows apart.
+ */
+.ask-layout[data-center-state='final'] .conversation-main {
+  min-height: 0;
 }
 .message-pagination {
   display: flex;

@@ -40,6 +40,7 @@ import {
   FEEDBACK_PARAM,
   SEARCH_PARAM,
   TABLE_PARAM,
+  APP_GROUP_PARAM,
   type MonitoringFilters,
 } from './monitoring-filters';
 import { RANGE_PARAM, rangeFromParams, type ReadableParams } from './time-range';
@@ -158,6 +159,7 @@ export function monitoringRequestId(request: MonitoringListRequest): string {
     outcome: request.filters.outcome,
     feedback: request.filters.feedback,
     table: request.filters.table.trim().toLowerCase(),
+    appGroup: request.filters.appGroup,
     search: request.filters.search.trim().toLowerCase(),
     cursor: request.cursor,
   };
@@ -175,6 +177,7 @@ const RESTORED_SEARCH_PARAMS = [
   OUTCOME_PARAM,
   FEEDBACK_PARAM,
   TABLE_PARAM,
+  APP_GROUP_PARAM,
   SEARCH_PARAM,
 ] as const;
 
@@ -204,6 +207,7 @@ export function monitoringQuestionsUrl(request: MonitoringListRequest): string {
   if (request.filters.outcome) params.set('outcome', request.filters.outcome);
   if (request.filters.feedback) params.set('feedback', request.filters.feedback);
   if (request.filters.table) params.set('table', request.filters.table);
+  if (request.filters.appGroup) params.set('group', request.filters.appGroup);
   if (request.filters.search) params.set('q', request.filters.search);
   return `/api/monitoring/questions?${params.toString()}`;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
-import { runtimeSettingsFromResponse } from './runtime-settings-api';
+import { runtimeSettingsDocumentFromResponse, runtimeSettingsFromResponse } from './runtime-settings-api';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -19,6 +19,15 @@ describe('runtime settings API responses', () => {
   it('does not default a saved light scheme back to dark on the response path', async () => {
     const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
     await expect(runtimeSettingsFromResponse(json({ settings: light, revision: 2 }), 'saved')).resolves.toEqual(light);
+  });
+
+  it('preserves caller preference source and reset capability', async () => {
+    await expect(
+      runtimeSettingsDocumentFromResponse(
+        json({ settings: DEFAULT_RUNTIME_SETTINGS, revision: 2, source: 'override', canReset: true }),
+        'loaded'
+      )
+    ).resolves.toMatchObject({ revision: 2, source: 'override', canReset: true });
   });
 
   it('surfaces the server detail on a failed save', async () => {

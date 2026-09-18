@@ -27,6 +27,7 @@ import {
 } from './app-deployment-lifetime';
 import { LAKEBASE_BINDING_PLAN_DDL, LAKEBASE_BINDING_PLAN_TABLE } from './lakebase-binding-plan';
 import { GROUP_ROLE_MAPPINGS_DDL, GROUP_ROLE_MAPPINGS_TABLE } from './group-role-mappings';
+import { APP_GROUPS_DDL, APP_GROUPS_TABLE } from './app-groups-store';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -1011,6 +1012,12 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     name: 'stored group role mappings',
     statements: [GROUP_ROLE_MAPPINGS_DDL],
     down: [`DROP TABLE IF EXISTS ${GROUP_ROLE_MAPPINGS_TABLE}`],
+  },
+  {
+    version: 42,
+    name: 'monitoring teams',
+    statements: [APP_GROUPS_DDL],
+    down: [`DROP TABLE IF EXISTS ${APP_GROUPS_TABLE}`],
   },
 ];
 

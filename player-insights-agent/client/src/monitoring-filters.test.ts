@@ -79,6 +79,7 @@ describe('the filters live in the URL', () => {
       outcome: 'refused',
       feedback: 'down',
       table: 'a.b.c',
+      appGroup: '',
       search: 'spending',
     });
     expect(filtersActive(filters)).toBe(true);
@@ -112,11 +113,13 @@ describe('the filters live in the URL', () => {
       outcome: 'failed',
       feedback: 'up',
       table: 'a.b.c',
+      appGroup: 'team-a',
       search: 'net bookings',
     } as const;
     const search = withFilters('', filters);
 
     expect(search).toContain('q=net+bookings');
+    expect(search).toContain('group=team-a');
     expect(filtersFromParams(params(search))).toEqual(filters);
   });
 

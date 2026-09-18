@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import {
+  deleteUserRuntimeSettings,
   forgetRuntimeSettings,
   readRuntimeSettingsDocument,
+  readResolvedRuntimeSettings,
   writeRuntimeSettingsPatch,
+  writeUserRuntimeSettingsPatch,
 } from './runtime-settings-store';
 import { SettingsRevisionConflict } from './versioned-settings-store';
 
@@ -34,6 +37,75 @@ class MemorySettingsDb {
 }
 
 describe('versioned runtime and Appearance settings persistence', () => {
+  it('resolves a normalized user override ahead of Rida’s deployment default', async () => {
+    const deploymentDefault = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'dark' as const };
+    const userOverride = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
+    const query = vi.fn((_sql: string, values: unknown[] = []) =>
+      Promise.resolve({
+        rows:
+          values[0] === 'effective'
+            ? [{ settings: deploymentDefault, revision: 3 }]
+            : values[0] === 'user:reader@example.com'
+              ? [{ settings: userOverride, revision: 2 }]
+              : [],
+      })
+    );
+    await expect(
+      readResolvedRuntimeSettings({ lakebase: { query } } as never, ' Reader@Example.com ')
+    ).resolves.toMatchObject({ settings: userOverride, revision: 2, source: 'override', canReset: true });
+  });
+
+  it('gives Rida the deployment default and never reads a user override', async () => {
+    const query = vi.fn((_sql: string, values: unknown[] = []) =>
+      Promise.resolve({
+        rows: values[0] === 'effective' ? [{ settings: DEFAULT_RUNTIME_SETTINGS, revision: 4 }] : [],
+      })
+    );
+    await expect(
+      readResolvedRuntimeSettings({ lakebase: { query } } as never, 'RIDA.QURESHI@TAKE2GAMES.COM')
+    ).resolves.toMatchObject({ revision: 4, source: 'default', canReset: false });
+    expect(query).not.toHaveBeenCalledWith(expect.anything(), ['user:rida.qureshi@take2games.com']);
+  });
+
+  it('stores non-Rida saves under only the normalized caller key', async () => {
+    const query = vi.fn((sql: string, values: unknown[] = []) => {
+      if (sql.trim().startsWith('SELECT')) {
+        return Promise.resolve({
+          rows: values[0] === 'effective' ? [{ settings: DEFAULT_RUNTIME_SETTINGS, revision: 4 }] : [],
+        });
+      }
+      if (sql.trim().startsWith('INSERT')) {
+        return Promise.resolve({ rows: [{ settings: JSON.parse(String(values[1])) as unknown, revision: 1 }] });
+      }
+      return Promise.reject(new Error(`Unexpected SQL: ${sql}`));
+    });
+    await expect(
+      writeUserRuntimeSettingsPatch(
+        { lakebase: { query } } as never,
+        ' Reader@Example.com ',
+        { colorScheme: 'light' },
+        0
+      )
+    ).resolves.toMatchObject({ revision: 1, source: 'override', canReset: true });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO'),
+      expect.arrayContaining(['user:reader@example.com'])
+    );
+  });
+
+  it('deletes only the caller override and reveals the deployment default', async () => {
+    const query = vi.fn((sql: string, values: unknown[] = []) => {
+      if (sql.includes('DELETE FROM')) return Promise.resolve({ rows: [] });
+      return Promise.resolve({
+        rows: values[0] === 'effective' ? [{ settings: DEFAULT_RUNTIME_SETTINGS, revision: 4 }] : [],
+      });
+    });
+    await expect(
+      deleteUserRuntimeSettings({ lakebase: { query } } as never, 'Reader@Example.com')
+    ).resolves.toMatchObject({ revision: 0, source: 'default', canReset: false });
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM'), ['user:reader@example.com']);
+  });
+
   it('survives a process restart and a different build SHA', async () => {
     const db = new MemorySettingsDb();
     const saved = await writeRuntimeSettingsPatch(db as never, { answer: { takeaway: false } }, 0, 'admin');

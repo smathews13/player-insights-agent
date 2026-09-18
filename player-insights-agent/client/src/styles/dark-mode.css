@@ -250,12 +250,19 @@ html[data-theme='dark'] .live-steps {
   border-color: var(--ast-border-input);
 }
 
-/* The in-flow composer uses the same opaque reading surface as the rail. */
+/*
+ * The composer is lifted OFF the rail's reading surface, not matched to it.
+ * `--ast-surface-primary` is the page's own dark, so a composer painted in it
+ * vanished into the transcript behind it and a reader had to hunt for the box they
+ * type into. A grey mixed a step toward white sits it above the sky as a findable
+ * control, and the trim comes up to match: brighter than the hairline input edge so
+ * the 2px border reads as bold rather than as a seam.
+ */
 html[data-theme='dark'] .composer {
-  background: var(--ast-surface-primary);
+  background: color-mix(in srgb, var(--ast-surface-solid) 86%, var(--ast-white));
   background-image: none;
   backdrop-filter: none;
-  border-color: var(--ast-border-input);
+  border-color: rgba(255, 255, 255, 0.42);
 }
 
 html[data-theme='dark'] .ast-sky {
