@@ -27,8 +27,8 @@ import {
   type SettingsSaveState,
 } from './settings-save-state';
 import { StateSwitch } from './StateSwitch';
-import { Input } from './ui';
-import { PiaLoader } from './PiaLoader';
+import { Button, Input } from './ui';
+import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
   { value: 'system', label: 'System' },
@@ -225,15 +225,17 @@ export function RuntimeSettingsPanel({
   const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
   const savedSettings = useRef<RuntimeSettings | null>(null);
   const revision = useRef(0);
+  const [canReset, setCanReset] = useState(false);
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
     setFailure(null);
     try {
-      const response = await fetch('/api/runtime-settings');
+      const response = await fetch(section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings');
       const loaded = await runtimeSettingsDocumentFromResponse(response, 'loaded');
       savedSettings.current = loaded.settings;
       revision.current = loaded.revision;
+      setCanReset(section === 'appearance' && loaded.canReset);
       setSettings(loaded.settings);
       applyColorScheme(loaded.settings.colorScheme);
       setState('ready');
@@ -244,7 +246,7 @@ export function RuntimeSettingsPanel({
       setFailure({ operation: 'load', message });
       return { ok: false, message };
     }
-  }, []);
+  }, [section]);
 
   useEffect(() => {
     // Mount fetch: the first paint has to come from the server.
@@ -288,7 +290,7 @@ export function RuntimeSettingsPanel({
       const changed = savedSettings.current ? changedSettingKeys(savedSettings.current, settings).length : 0;
       const before = savedSettings.current;
       if (!before) throw new Error('Runtime settings have not loaded from Lakebase.');
-      const response = await fetch('/api/admin/runtime-settings', {
+      const response = await fetch(section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -299,6 +301,7 @@ export function RuntimeSettingsPanel({
       const saved = await runtimeSettingsDocumentFromResponse(response, 'saved');
       savedSettings.current = saved.settings;
       revision.current = saved.revision;
+      setCanReset(section === 'appearance' && saved.canReset);
       setSettings(saved.settings);
       adoptRuntimeEntityStyles(saved.settings);
       setState('saved');
@@ -311,6 +314,28 @@ export function RuntimeSettingsPanel({
         adoptRuntimeEntityStyles(prior);
         onDirtyChange(0);
       }
+      setState('failed');
+      setFailure({ operation: 'save', message: (caught as Error).message });
+      onSaveState({ kind: 'failed', message: (caught as Error).message });
+    }
+  };
+
+  const resetAppearance = async () => {
+    setState('saving');
+    setFailure(null);
+    onSaveState({ kind: 'saving' });
+    try {
+      const response = await fetch('/api/runtime-settings', { method: 'DELETE' });
+      const restored = await runtimeSettingsDocumentFromResponse(response, 'loaded');
+      savedSettings.current = restored.settings;
+      revision.current = restored.revision;
+      setCanReset(restored.canReset);
+      setSettings(restored.settings);
+      adoptRuntimeEntityStyles(restored.settings);
+      setState('saved');
+      onDirtyChange(0);
+      onSaveState({ kind: 'saved', count: 1 });
+    } catch (caught) {
       setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
       onSaveState({ kind: 'failed', message: (caught as Error).message });
@@ -513,8 +538,21 @@ export function RuntimeSettingsPanel({
         </>
       ) : (
         <>
-          <div className="settings-pane-heading">
+          <div className="settings-pane-heading settings-pane-heading--with-action">
             <h3>Appearance</h3>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!canReset || state === 'loading' || state === 'saving'}
+              title={canReset ? undefined : 'These are already the default settings'}
+              onClick={() => void resetAppearance()}
+            >
+              <PiaBusyButtonContent
+                busy={state === 'saving'}
+                label="Reset to default settings"
+                busyLabel="Resetting settings"
+              />
+            </Button>
           </div>
           <section className="runtime-section appearance-display-section">
             <div className="appearance-section-heading">

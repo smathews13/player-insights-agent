@@ -13,7 +13,11 @@
    * translucent sheet can only reveal the page sky, never moving answer prose.
    */
   background: var(--ast-pane);
-  border: 1px solid var(--db-line-strong);
+  /* A 2px trim rather than the 1px hairline the other surfaces take. The composer
+     is the one control a reader goes looking for on a page of answer prose, and a
+     heavier edge is what lets them find it without reading. Dark mode lifts both the
+     fill and this border's colour on top of the 2px so the box stands off the sky. */
+  border: 2px solid var(--db-line-strong);
   border-radius: var(--radius-md);
   /*
    * No padding, and the reason is the footer strip below: the field and the strip

@@ -21,6 +21,7 @@ import { FAILURE_TAXONOMY, isFailureCode, type FailureCode, type FailureLayer } 
 import type { OrganizationMapping } from './organization-mapping';
 import type { Role } from './user-roster-contract';
 import type { RunRuntimeUsed } from './run-runtime-used';
+import type { AppGroupOption } from './app-groups';
 
 /**
  * What came of one question, using the same run vocabulary as Run Explorer.
@@ -205,6 +206,8 @@ export interface MonitoringQuestion {
   rating?: 'up' | 'down' | null;
   /** Fully-qualified tables this run read, as the answer recorded them. */
   tables: string[];
+  /** Current app-team memberships for the asker, resolved by email at read time. */
+  askerAppGroups?: string[];
 }
 
 /**
@@ -282,6 +285,8 @@ export interface MonitoringQuestionsPayload {
   people: string[];
   /** Distinct tables read in range, for the table-touched chip. */
   tables: string[];
+  /** Deployment-wide app Teams offered by the Monitoring filter. */
+  appGroups?: AppGroupOption[];
   /**
    * Whether the admin's own table grants could be resolved for this range.
    *

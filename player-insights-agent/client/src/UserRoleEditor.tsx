@@ -59,6 +59,7 @@ import {
   EMPTY_SP_IDENTITY,
   loadGroupMembers,
   loadHumanRoster,
+  loadWorkspaceGroups,
   loadSpIdentityAdmin,
   renameSpPersona,
   resetGroupRoleMapping,
@@ -476,6 +477,99 @@ export function RosterRows({
 
 type GroupRoleEntry = NonNullable<RosterPayload['groupRoleMappings']>[number];
 
+export function GroupMappingAddRow({
+  draft,
+  role,
+  busy,
+  error,
+  excludedGroups,
+  onDraftChange,
+  onRoleChange,
+  onAdd,
+}: {
+  draft: string;
+  role: Extract<Role, 'admin' | 'consumer'>;
+  busy: boolean;
+  error: string;
+  excludedGroups: readonly string[];
+  onDraftChange: (value: string) => void;
+  onRoleChange: (role: Extract<Role, 'admin' | 'consumer'>) => void;
+  onAdd: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<Array<{ id: string; displayName: string }>>([]);
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  const openPicker = async () => {
+    setOpen(true);
+    if (state === 'loading' || state === 'ready') return;
+    setState('loading');
+    try {
+      const excluded = new Set(excludedGroups.map((name) => name.toLowerCase()));
+      setGroups((await loadWorkspaceGroups()).filter((group) => !excluded.has(group.displayName.toLowerCase())));
+      setState('ready');
+    } catch {
+      setState('failed');
+    }
+  };
+  if (!open) {
+    return (
+      <tr className="roster-add-row group-mapping-add-row">
+        <td colSpan={5}>
+          <Button type="button" variant="outline" onClick={() => void openPicker()}>
+            <UserPlus className="roster-action-icon" aria-hidden="true" />
+            Add Workspace Access Group
+          </Button>
+        </td>
+      </tr>
+    );
+  }
+  return (
+    <tr className="roster-add-row group-mapping-add-row">
+      <td colSpan={2}>
+        <AppSelect
+          label="Workspace group"
+          ariaLabel="Select a Databricks workspace group"
+          value={draft}
+          disabled={busy || state === 'loading' || groups.length === 0}
+          onValueChange={onDraftChange}
+          options={[
+            { value: '', label: state === 'loading' ? 'Loading groups…' : 'Select a group' },
+            ...groups.map((group) => ({ value: group.displayName, label: group.displayName, code: group.id })),
+          ]}
+        />
+        {error || state === 'failed' ? (
+          <span className={error ? 'admin-list-error' : 'admin-list-note'} role={error ? 'alert' : undefined}>
+            {error || 'Workspace groups could not be listed with this deployment’s permissions.'}
+          </span>
+        ) : null}
+      </td>
+      <td>
+        <AppSelect
+          label="Player Insights Agent role"
+          ariaLabel="Player Insights Agent role for the workspace group"
+          value={role}
+          disabled={busy}
+          onValueChange={onRoleChange}
+          options={(['admin', 'consumer'] as const).map((value) => ({
+            value,
+            label: roleWord(value),
+            content: <RoleBadgePill state={value} />,
+          }))}
+        />
+      </td>
+      <td />
+      <td className="roster-action">
+        <Button type="button" variant="outline" disabled={busy || !draft.trim()} onClick={onAdd}>
+          <UsersRound className="roster-action-icon" aria-hidden="true" /> Add
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
 function GroupRoleRow({
   entry,
   busy,
@@ -730,6 +824,9 @@ export function UserRoleEditor({
   const [spMutationError, setSpMutationError] = useState<SpIdentityMutationError | null>(null);
   const [busyAction, setBusyAction] = useState<'add' | 'other' | null>(null);
   const [writeError, setWriteError] = useState('');
+  const [groupDraft, setGroupDraft] = useState('');
+  const [groupDraftRole, setGroupDraftRole] = useState<Extract<Role, 'admin' | 'consumer'>>('consumer');
+  const [groupAddError, setGroupAddError] = useState('');
   const [notice, setNotice] = useState('');
   const loadGeneration = useRef(0);
   const mutationInFlight = useRef(false);
@@ -820,6 +917,18 @@ export function UserRoleEditor({
 
   const personaByEmail = new Map(spPayload.roster.map((row) => [row.email, row.personaId]));
 
+  async function addGroupMapping() {
+    const groupName = groupDraft.trim();
+    if (!groupName || busy) return;
+    setGroupAddError('');
+    const added = await run(
+      () => writeGroupRoleMapping(groupName, groupDraftRole),
+      `${groupName} now maps to ${roleWord(groupDraftRole).toLowerCase()}.`,
+      { apply: setPayload, onError: setGroupAddError }
+    );
+    if (added) setGroupDraft('');
+  }
+
   return (
     <div className="identity-table-content">
       <section className="settings-identity-section" aria-labelledby="human-roles-title">
@@ -854,6 +963,23 @@ export function UserRoleEditor({
                 void run(() => resetGroupRoleMapping(mapping.groupName), `${mapping.groupName} is now a Consumer.`, {
                   apply: setPayload,
                 })
+              }
+              footer={
+                canManageHumanRoles ? (
+                  <GroupMappingAddRow
+                    draft={groupDraft}
+                    role={groupDraftRole}
+                    busy={busy}
+                    error={groupAddError}
+                    excludedGroups={payload.groupRoleMappings?.map((mapping) => mapping.groupName) ?? []}
+                    onDraftChange={(value) => {
+                      setGroupDraft(value);
+                      setGroupAddError('');
+                    }}
+                    onRoleChange={setGroupDraftRole}
+                    onAdd={() => void addGroupMapping()}
+                  />
+                ) : undefined
               }
               onPersonaChange={(email, personaId) =>
                 (() => {

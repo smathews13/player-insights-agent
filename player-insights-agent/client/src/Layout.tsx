@@ -35,7 +35,7 @@ import { PiaLoader } from './PiaLoader';
 import { BuiltOnDatabricks } from './BuiltOnDatabricks';
 import { DeploymentTimeChip } from './DeploymentTimeChip';
 import { RoleBadge } from './RoleBadge';
-import { AdminOnly, RoleLostNotice } from './GatePanel';
+import { RoleLostNotice } from './GatePanel';
 import { OrganizationUserBadge } from './OrganizationUserBadge';
 import { AppSky } from './AppSky';
 import { mobileNavLinkClass } from './layout-view';
@@ -44,6 +44,7 @@ import { settingsDeepLink as readSettingsDeepLink } from './settings-deep-link';
 import {
   navEntries,
   roleFrom,
+  showsAdminSurfaces,
   showsHeaderRoleBadge,
   showsSettingsGear,
   type AppOutletContext,
@@ -608,7 +609,7 @@ export function Layout() {
             So there are two surfaces, split by what they configure. `/settings`
             holds app behavior and appearance in the deployment's Lakebase store.
             Connections holds external resources, deployment reporting, identity
-            and permission evidence. Both are shared admin state; only Connections
+            and permission evidence. Appearance is caller-scoped; Connections
             describes what the deployment can reach.
 
             Neutral by construction. `ghost` and `text-muted-foreground` are
@@ -622,12 +623,9 @@ export function Layout() {
             page it opens is titled "App settings" for the same reason, and
             settings is deliberately still not a nav entry.
 
-            ADMIN ONLY, AND ABSENT RATHER THAN DISABLED. The page behind it is
-            the admin-list editor, whose endpoints refuse a consumer with 403, so
-            a drawn-but-dead gear would be an invitation to press something that
-            cannot work. A consumer's own preferences are not lost with it: the
-            only one this app has is the Benchmark Lab toggle, which is an
-            experiment rather than a preference.
+            AVAILABLE TO EVERY RESOLVED SIGNED-IN USER. Consumers can edit their
+            own Appearance preferences; privileged panes stay hidden or disabled
+            inside Settings.
 
             IT IS HANDED TO THE CLUSTER RATHER THAN PLACED AFTER IT. It used to be
             the header's last child, which drew it past the attribution at the far
@@ -653,7 +651,7 @@ export function Layout() {
                   title="App settings"
                   onClick={() => {
                     setSettingsOpen(true);
-                    void refreshExperimental();
+                    if (showsAdminSurfaces(role.state)) void refreshExperimental();
                   }}
                 >
                   <Settings className="size-5" />
@@ -719,34 +717,29 @@ export function Layout() {
             context={{ features, setFeature, role, subject: identity.signedInAs } satisfies AppOutletContext}
           />
         </main>
-        {/* THE ROLE IS HANDED DOWN RATHER THAN READ FROM THE OUTLET HERE. This is
-          a sibling of `<Outlet />`, not a descendant of it, so the outlet
-          context does not reach it and `AdminOnly`'s hook answers null. It used
-          to read the hook regardless, which made every click of the gear a
-          TypeError in the layout itself -- above the per-pane boundary inside
-          Settings, so the route boundary replaced the whole app with "This view
-          could not be displayed" instead of a Settings pane. */}
+        {/* The role is handed down because this modal is a sibling of Outlet,
+          not a descendant of its context. Settings owns pane-level visibility:
+          consumers get Environment and Appearance while privileged panes remain
+          hidden or disabled. */}
         {settingsVisible ? (
-          <AdminOnly role={role}>
-            <Suspense fallback={<SettingsFallback />}>
-              {experimentalLoaded || experimentalFailure ? (
-                <SettingsPage
-                  onClose={closeSettings}
-                  initialSection={settingsDestination.section}
-                  accessGuideFocusTarget={settingsDestination.focusTarget}
-                  features={features}
-                  setFeature={setFeature}
-                  role={role}
-                  experimentalRevision={experimentalRevision}
-                  experimentalLoaded={experimentalLoaded}
-                  experimentalFailure={experimentalFailure}
-                  onExperimentalSaved={adoptExperimental}
-                />
-              ) : (
-                <SettingsFallback />
-              )}
-            </Suspense>
-          </AdminOnly>
+          <Suspense fallback={<SettingsFallback />}>
+            {!showsAdminSurfaces(role.state) || experimentalLoaded || experimentalFailure ? (
+              <SettingsPage
+                onClose={closeSettings}
+                initialSection={settingsDestination.section}
+                accessGuideFocusTarget={settingsDestination.focusTarget}
+                features={features}
+                setFeature={setFeature}
+                role={role}
+                experimentalRevision={experimentalRevision}
+                experimentalLoaded={experimentalLoaded}
+                experimentalFailure={experimentalFailure}
+                onExperimentalSaved={adoptExperimental}
+              />
+            ) : (
+              <SettingsFallback />
+            )}
+          </Suspense>
         ) : null}
       </div>
     </div>

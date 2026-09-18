@@ -1438,6 +1438,12 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   gap: 2px;
 }
 
+.settings-pane-heading--with-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
 .settings-pane-heading h3 {
   font-size: 14px;
   font-weight: 700;
@@ -2281,6 +2287,58 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   .environment-tabs button.active::after {
     background: Highlight;
   }
+}
+
+/* App-specific review Teams; these controls never grant workspace access. */
+.app-groups {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.app-group-list,
+.app-group-card {
+  display: grid;
+  gap: 12px;
+}
+
+.app-group-card {
+  padding: 12px;
+}
+
+.app-group-head,
+.app-group-add-member,
+.app-group-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-group-name,
+.app-group-add-member [data-slot='input'],
+.app-group-create [data-slot='input'] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-group-count {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.app-group-members {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-group-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .environment-tools {

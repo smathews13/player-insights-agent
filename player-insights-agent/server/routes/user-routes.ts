@@ -72,7 +72,12 @@ import { forwardedUserToken } from './access-verification';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
 import { deleteGroupRoleMapping, readGroupRoleMappings, writeGroupRoleMapping } from '../lib/group-role-mappings';
-import { readWorkspaceGroup, readWorkspaceGroupMembers, type WorkspaceGroupRead } from '../lib/workspace-group-members';
+import {
+  listWorkspaceGroups,
+  readWorkspaceGroup,
+  readWorkspaceGroupMembers,
+  type WorkspaceGroupRead,
+} from '../lib/workspace-group-members';
 import type { GroupMembersResponse } from '../../shared/user-roster-contract';
 import { workspaceControlPlaneReader } from '../lib/control-plane-identity';
 
@@ -227,6 +232,10 @@ export function setupUserRoutes(
   }
 
   appkit.server.extend((app) => {
+    app.get('/api/users/groups', async (_req, res) => {
+      res.json(await listWorkspaceGroups());
+    });
+
     app.get('/api/users/groups/:groupName/members', async (req, res) => {
       const requested = req.params.groupName.trim();
       const appAccess = await appAccessService.read(req);

@@ -6,7 +6,7 @@ describe('service-principal status migration', () => {
   it('keeps idempotent v36 stable-link evidence before later additive migrations', () => {
     const migration = LATER_MIGRATIONS.find((entry) => entry.version === 36);
     expect(migration?.name).toBe('service principal connection evidence');
-    expect(LATER_MIGRATIONS.slice(-5).map((entry) => entry.version)).toEqual([37, 38, 39, 40, 41]);
+    expect(LATER_MIGRATIONS.slice(-5).map((entry) => entry.version)).toEqual([38, 39, 40, 41, 42]);
     const sql = migration?.statements.join('\n') ?? '';
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS definition_id TEXT');
     expect(sql).toContain('sp_personas_definition_idx');

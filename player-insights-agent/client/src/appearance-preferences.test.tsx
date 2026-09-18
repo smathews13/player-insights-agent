@@ -96,6 +96,12 @@ describe('Appearance preferences', () => {
     expect(markup).not.toContain(['appearance', 'typography', 'section'].join('-'));
     expect(markup).not.toContain('>Interface</h4>');
     expect(markup).not.toContain('appearance-interface-section');
+    const heading = markup.slice(
+      markup.indexOf('settings-pane-heading--with-action'),
+      markup.indexOf('</div>', markup.indexOf('settings-pane-heading--with-action'))
+    );
+    expect(heading).toContain('<h3>Appearance</h3>');
+    expect(heading).toContain('Reset to default settings');
   });
 
   it('uses roving keyboard radio semantics for density and font size', () => {

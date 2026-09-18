@@ -38,6 +38,7 @@ import {
   type SettingsSection,
 } from './settings-sections';
 import { UserRoleEditor } from './UserRoleEditor';
+import { AppGroupEditor } from './AppGroupEditor';
 import { Button, Switch } from './ui';
 import { Dialog } from './Dialog';
 import { PiaBusyButtonContent } from './PiaLoader';
@@ -47,6 +48,16 @@ import { saveExperimentalSettings, type ExperimentalSettingsDocument } from './e
 const noopClose = () => {};
 
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
+const CONSUMER_SETTINGS_SECTIONS = new Set<SettingsSection>(['identity', 'environment', 'appearance', 'experimental']);
+const CONSUMER_DISABLED_SECTIONS = new Set<SettingsSection>(['identity', 'experimental']);
+
+function settingsSectionDisabled(section: SettingsSection, role: RoleResolution['state']): boolean {
+  return !showsAdminSurfaces(role) && CONSUMER_DISABLED_SECTIONS.has(section);
+}
+
+function settingsSectionVisible(section: SettingsSection, role: RoleResolution['state']): boolean {
+  return showsAdminSurfaces(role) || CONSUMER_SETTINGS_SECTIONS.has(section);
+}
 
 interface SettingsPaneBoundaryProps {
   section: SettingsSection;
@@ -123,7 +134,7 @@ export function SettingsDiscardDialog({
 
 export function SettingsPage({
   onClose,
-  initialSection = 'runtime',
+  initialSection = 'environment',
   features: featuresProp,
   role: roleProp,
   experimentalRevision: experimentalRevisionProp = 0,
@@ -146,7 +157,17 @@ export function SettingsPage({
   initialAccessGuideAvailable?: boolean;
 }) {
   const features = featuresProp ?? NO_EXPERIMENTS;
-  const [active, setActive] = useState<SettingsSection>(() => normalizeSettingsSection(initialSection, features));
+  const role = roleProp ?? DEFAULT_ROLE;
+  const [selectedSection, setActive] = useState<SettingsSection>(() => {
+    const requested = normalizeSettingsSection(initialSection, features);
+    return settingsSectionVisible(requested, role.state) && !settingsSectionDisabled(requested, role.state)
+      ? requested
+      : 'environment';
+  });
+  const active =
+    settingsSectionVisible(selectedSection, role.state) && !settingsSectionDisabled(selectedSection, role.state)
+      ? selectedSection
+      : 'environment';
   // Held here rather than in the panel because the footer is what stays on
   // screen: `.settings-modal-content` scrolls, so an outcome drawn at the end of
   // the Runtime form was a thousand pixels below the button that caused it.
@@ -166,8 +187,9 @@ export function SettingsPage({
   const [draftFeatures, setDraftFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const [savedFeatures, setSavedFeatures] = useState<ExperimentalFeatures>(() => ({ ...features }));
   const [experimentalRevision, setExperimentalRevision] = useState(experimentalRevisionProp);
-  const role = roleProp ?? DEFAULT_ROLE;
-  const sections = availableSettingsSections(savedFeatures);
+  const sections = availableSettingsSections(savedFeatures).filter((section) =>
+    settingsSectionVisible(section.id, role.state)
+  );
 
   /** Let go of the press paint whether or not the save ever comes back. */
   useEffect(() => {
@@ -271,14 +293,22 @@ export function SettingsPage({
         <nav className="settings-rail" aria-label="Settings sections">
           {sections.map((section) => {
             const SectionIcon = SETTINGS_SECTION_ICONS[section.id];
+            const accessDisabled = settingsSectionDisabled(section.id, role.state);
+            const navigationDisabled = section.id !== active && dirtyCount > 0;
             return (
               <button
                 key={section.id}
                 type="button"
                 className={active === section.id ? 'active' : ''}
                 aria-current={active === section.id ? 'page' : undefined}
-                disabled={section.id !== active && dirtyCount > 0}
-                title={section.id !== active && dirtyCount > 0 ? 'Save or Cancel the current changes first' : undefined}
+                disabled={accessDisabled || navigationDisabled}
+                title={
+                  accessDisabled
+                    ? 'Available to administrators'
+                    : navigationDisabled
+                      ? 'Save or Cancel the current changes first'
+                      : undefined
+                }
                 onClick={() => {
                   navigateSettingsSection(active, section.id, dirtyCount, {
                     select: setActive,
@@ -312,6 +342,7 @@ export function SettingsPage({
                   showHumanRoster={showsUserRoster(role.state)}
                   canManageHumanRoles={managesUserRoster(role.state)}
                 />
+                <AppGroupEditor canManage={showsAdminSurfaces(role.state)} />
               </div>
             ) : null}
             {active === 'runtime' || active === 'appearance' ? (

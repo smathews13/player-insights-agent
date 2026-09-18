@@ -205,6 +205,28 @@ export async function loadHumanRoster(): Promise<RosterPayload> {
   return rosterRequest('/api/users');
 }
 
+export interface WorkspaceGroupOption {
+  id: string;
+  displayName: string;
+}
+
+export async function loadWorkspaceGroups(): Promise<WorkspaceGroupOption[]> {
+  const response = await fetch('/api/users/groups', { credentials: 'same-origin' });
+  const body = (await response.json().catch(() => null)) as {
+    groups?: WorkspaceGroupOption[];
+    readable?: boolean;
+    detail?: string;
+  } | null;
+  if (!response.ok || !body?.readable) {
+    throw new HumanRosterError(
+      body?.detail || 'Workspace groups could not be listed.',
+      response.status === 403 ? 'authorization' : 'response',
+      response.status
+    );
+  }
+  return Array.isArray(body.groups) ? body.groups : [];
+}
+
 export async function changeHumanRole(email: string, role: Role): Promise<RosterPayload> {
   return rosterRequest(`/api/users/${encodeURIComponent(email)}`, {
     method: 'PATCH',

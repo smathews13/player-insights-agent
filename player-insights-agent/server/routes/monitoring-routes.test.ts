@@ -204,6 +204,12 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY.match(/\(\$5 = '' OR lower\(c\.user_email\) = lower\(\$5\)\)/g)).toHaveLength(2);
   });
 
+  it('applies current Team email membership to historical rows and totals', () => {
+    expect(
+      MONITORING_QUESTIONS_QUERY.match(/\(\$9 = '' OR lower\(c\.user_email\) = ANY\(\$10::text\[\]\)\)/g)
+    ).toHaveLength(2);
+  });
+
   /**
    * The feedback route accepts any message id, so without the email predicate this
    * would show whatever score anybody else submitted against the same answer.
@@ -603,6 +609,7 @@ describe('server-side list filters', () => {
         outcome: 'completed',
         feedback: 'down',
         table: 'MAIN.FINANCE.REVENUE',
+        appGroup: '',
         search: 'revenue',
       }).map((question) => question.id)
     ).toEqual(['q2']);
@@ -615,9 +622,27 @@ describe('server-side list filters', () => {
         outcome: '',
         feedback: 'none',
         table: '',
+        appGroup: '',
         search: '',
       })
     ).toEqual([]);
+  });
+
+  it('keeps only questions annotated with the selected Team', () => {
+    const grouped = questions.map((question, index) => ({
+      ...question,
+      askerAppGroups: index === 1 ? ['team-risk'] : [],
+    }));
+    expect(
+      matchingQuestions(grouped, {
+        person: '',
+        outcome: '',
+        feedback: '',
+        table: '',
+        appGroup: 'team-risk',
+        search: '',
+      }).map((question) => question.id)
+    ).toEqual(['q2']);
   });
 });
 

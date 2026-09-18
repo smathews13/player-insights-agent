@@ -59,6 +59,14 @@ import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
 import { invalidAdminEmail, resolveRole } from '../lib/admin-roles';
 import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
+import {
+  appGroupOptions,
+  appGroupsForEmail,
+  memberEmailsForGroup,
+  DEFAULT_APP_GROUPS_SETTINGS,
+  type AppGroupsSettings,
+} from '../../shared/app-groups';
+import { readAppGroupsSettings } from '../lib/app-groups-store';
 import { listSpAssignments, listSpPersonas } from '../lib/sp-identity-store';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
@@ -277,6 +285,7 @@ export const MONITORING_QUESTIONS_QUERY = `
         OR lower(u.content) LIKE ('%' || lower($8) || '%')
         OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
+      AND ($9 = '' OR lower(c.user_email) = ANY($10::text[]))
     ORDER BY u.created_at DESC, u.id DESC
     LIMIT $4
   ),
@@ -294,6 +303,7 @@ export const MONITORING_QUESTIONS_QUERY = `
         OR lower(u.content) LIKE ('%' || lower($8) || '%')
         OR lower(c.user_email) LIKE ('%' || lower($8) || '%')
       )
+      AND ($9 = '' OR lower(c.user_email) = ANY($10::text[]))
   )
   SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
@@ -922,6 +932,7 @@ export interface MonitoringFilterQuery {
   rating?: string;
   table: string;
   search: string;
+  appGroup: string;
 }
 
 function filtersFrom(req: Request, person = queryString(req.query.person).trim()): MonitoringFilterQuery {
@@ -935,7 +946,17 @@ function filtersFrom(req: Request, person = queryString(req.query.person).trim()
     feedback: ['up', 'down', 'none', 'unrated'].includes(feedback) ? (feedback === 'unrated' ? 'none' : feedback) : '',
     table: queryString(req.query.table).trim(),
     search: queryString(req.query.q).trim(),
+    appGroup: queryString(req.query.group).trim(),
   };
+}
+
+async function readAppGroups(appkit: InsightsAppKit): Promise<AppGroupsSettings> {
+  try {
+    return (await readAppGroupsSettings(appkit)).settings;
+  } catch (error) {
+    console.warn(`[monitoring] Teams could not be read: ${(error as Error).message}`);
+    return DEFAULT_APP_GROUPS_SETTINGS;
+  }
 }
 
 export function matchingQuestions(
@@ -954,6 +975,7 @@ export function matchingQuestions(
       return false;
     }
     if (table && !question.tables.some((name) => name.toLowerCase() === table)) return false;
+    if (filters.appGroup && !(question.askerAppGroups ?? []).includes(filters.appGroup)) return false;
     if (
       search &&
       !`${question.question} ${question.askedBy} ${question.askedBy.split('@')[0]}`.toLowerCase().includes(search)
@@ -1108,6 +1130,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         res.status(400).json({ error: page.refusal });
         return;
       }
+      const appGroups = await readAppGroups(appkit);
+      const groupMemberEmails = filters.appGroup ? memberEmailsForGroup(appGroups, filters.appGroup) : [];
       const stored = await readStored(appkit, 'GET /api/monitoring/questions', MONITORING_QUESTIONS_QUERY, [
         PLAN_APPROVAL_SENTINEL,
         range.from,
@@ -1117,6 +1141,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         page.cursor?.askedAt ?? '',
         page.cursor?.id ?? '',
         filters.search,
+        filters.appGroup,
+        groupMemberEmails,
       ]);
       // Sifted BEFORE `chooseRows`, not after. The statement joins a one-row
       // totals aggregate to the page, so it answers with a row whatever the
@@ -1149,7 +1175,10 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
 
       const answerIds = rows.map((row) => text(row.answer_id)).filter((id) => id !== '');
       const ledger = await readLedger(appkit, answerIds);
-      const rawPage = rows.map((row) => questionFromRow(row, ledger));
+      const rawPage = rows.map((row) => {
+        const question = questionFromRow(row, ledger);
+        return { ...question, askerAppGroups: appGroupsForEmail(appGroups, question.askedBy) };
+      });
       const pageRows = rawPage.slice(0, page.limit);
       const all = matchingQuestions(pageRows, filters);
 
@@ -1197,6 +1226,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         questions: all,
         people: peopleOptions,
         tables: tableOptions,
+        appGroups: appGroupOptions(appGroups),
         grantsResolution: grants.resolved ? 'ok' : 'failed',
         pagination,
       } satisfies MonitoringQuestionsPayload);
@@ -1322,7 +1352,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
       }
       const range = rangeFrom(req, clock());
       const page = pageFrom(req);
-      const filters = filtersFrom(req, person);
+      const filters = { ...filtersFrom(req, person), appGroup: '' };
       if (page.refusal) {
         res.status(400).json({ error: page.refusal });
         return;
@@ -1337,6 +1367,8 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         page.cursor?.askedAt ?? '',
         page.cursor?.id ?? '',
         filters.search,
+        '',
+        [],
       ]);
       if (!stored.available) {
         res.status(503).json({ error: 'storage_unavailable' });

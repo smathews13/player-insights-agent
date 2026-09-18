@@ -660,6 +660,7 @@ export type AdminAction =
   | 'conversation-read'
   | 'access-revoked'
   | 'runtime-settings-updated'
+  | 'app-groups-updated'
   /** An admin changed which unfinished surfaces this deployment offers. */
   | 'experimental-settings-updated'
   /** An admin saved nominal Cost budgets for the app total and resource tiles. */

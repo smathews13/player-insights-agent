@@ -66,7 +66,7 @@ describe('Runtime timezone control', () => {
 
   it('preserves staged Save and Cancel instead of writing from the dropdown', () => {
     expect(panel).toContain('behavior: { ...current.behavior, timezone }');
-    expect(panel).toContain("fetch('/api/admin/runtime-settings'");
+    expect(panel).toContain("section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings'");
     expect(field).not.toContain("fetch('/api/admin/runtime-settings'");
     expect(field).not.toMatch(/\bfetch\(/);
   });

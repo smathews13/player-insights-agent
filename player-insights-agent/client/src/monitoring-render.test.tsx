@@ -537,6 +537,7 @@ describe('removing a filter', () => {
           outcome: 'refused',
           feedback: 'down',
           table: 'a_catalog.a_schema.gold_title_daily_summary',
+          appGroup: '',
           search: 'refund',
           ...over,
         }}
@@ -633,6 +634,36 @@ describe('removing a filter', () => {
       expect(markup).not.toContain('aria-label="Clear the period filter"');
       expect(markup).not.toContain('aria-label="Clear the time range"');
     }
+  });
+});
+
+describe('Team filter labels', () => {
+  it('shows Team, All teams, and a removed selection without access language', () => {
+    const markup = render(
+      <FilterRow
+        filters={{ ...NO_FILTERS, appGroup: 'removed-id' }}
+        people={[]}
+        tables={[]}
+        appGroups={[{ id: 'risk', name: 'Risk review' }]}
+        onChange={() => undefined}
+        onClearFilters={() => undefined}
+      />
+    );
+    const allMarkup = render(
+      <FilterRow
+        filters={NO_FILTERS}
+        people={[]}
+        tables={[]}
+        appGroups={[{ id: 'risk', name: 'Risk review' }]}
+        onChange={() => undefined}
+        onClearFilters={() => undefined}
+      />
+    );
+    const rendered = text(markup);
+    expect(markup).toContain('aria-label="Team: Removed team"');
+    expect(allMarkup).toContain('aria-label="Team: All teams"');
+    expect(markup).toContain('Removed team');
+    expect(rendered).not.toContain('Unity Catalog');
   });
 });
 

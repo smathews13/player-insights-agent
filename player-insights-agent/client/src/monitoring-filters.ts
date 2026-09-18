@@ -28,10 +28,18 @@ export const PERSON_PARAM = 'person';
 export const OUTCOME_PARAM = 'outcome';
 export const FEEDBACK_PARAM = 'feedback';
 export const TABLE_PARAM = 'table';
+export const APP_GROUP_PARAM = 'group';
 export const SEARCH_PARAM = 'q';
 
 /** Every parameter this page's filter row owns. Nothing else is touched. */
-const FILTER_PARAMS = [PERSON_PARAM, OUTCOME_PARAM, FEEDBACK_PARAM, TABLE_PARAM, SEARCH_PARAM] as const;
+const FILTER_PARAMS = [
+  PERSON_PARAM,
+  OUTCOME_PARAM,
+  FEEDBACK_PARAM,
+  TABLE_PARAM,
+  APP_GROUP_PARAM,
+  SEARCH_PARAM,
+] as const;
 
 export interface MonitoringFilters {
   /** Full email address, or '' for everyone. */
@@ -43,6 +51,8 @@ export interface MonitoringFilters {
   rating?: '' | 'up' | 'down' | 'unrated';
   /** Fully-qualified table, or '' for any. */
   table: string;
+  /** App Team id, or '' for all teams. */
+  appGroup: string;
   /**
    * Free text, matched against the question and the person who asked.
    *
@@ -60,6 +70,7 @@ export const NO_FILTERS: MonitoringFilters = {
   outcome: '',
   feedback: '',
   table: '',
+  appGroup: '',
   search: '',
 };
 
@@ -86,6 +97,7 @@ export function filtersFromParams(params: ReadableParams): MonitoringFilters {
     outcome: oneOf(params.get(OUTCOME_PARAM), ['completed', 'partial', 'refused', 'failed'] as const),
     feedback: oneOf(params.get(FEEDBACK_PARAM) ?? params.get('rating'), ['up', 'down', 'none'] as const),
     table: (params.get(TABLE_PARAM) ?? '').trim(),
+    appGroup: (params.get(APP_GROUP_PARAM) ?? '').trim(),
     search: (params.get(SEARCH_PARAM) ?? '').trim(),
   };
 }
@@ -133,6 +145,7 @@ export function applyFilters(
       return false;
     }
     if (filters.table && !question.tables.includes(filters.table)) return false;
+    if (filters.appGroup && !(question.askerAppGroups ?? []).includes(filters.appGroup)) return false;
     if (filters.search && !matchesSearch(question, filters.search)) return false;
     return true;
   });
@@ -168,6 +181,8 @@ function filterValue(filters: MonitoringFilters, param: (typeof FILTER_PARAMS)[n
       return filters.feedback ?? (filters.rating === 'unrated' ? 'none' : (filters.rating ?? ''));
     case TABLE_PARAM:
       return filters.table;
+    case APP_GROUP_PARAM:
+      return filters.appGroup;
     case SEARCH_PARAM:
       return filters.search;
   }

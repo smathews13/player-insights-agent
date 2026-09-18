@@ -73,16 +73,29 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(RAIL).toMatch(/\n\.trace-inspector\s*\{[^}]*grid-column:\s*3/);
   });
 
-  it('lets only final answers grow through normal page flow', () => {
+  it('shrink-wraps a final answer to its content so the composer pins beneath it', () => {
+    // The base column keeps a viewport-tall floor for the loading and idle passes,
+    // but the finished turn drops it: a completed answer is exactly as tall as what
+    // it holds, with no ceiling, so opening Advanced trace details grows it in place
+    // and the composer sitting in the next grid row follows the last line down
+    // instead of waiting a screen away at the bottom of the window.
     const center = rule(ASK, '.conversation-main');
     expect(center).toContain('height: auto');
     expect(center).toContain('min-height: calc(100dvh - var(--app-header-h))');
     expect(center).toContain('max-height: none');
     expect(center).toContain('overflow-y: visible');
     expect(center).not.toContain('var(--ask-active-card');
-    expect(ASK).toMatch(
-      /\.ask-layout\[data-center-state='final'\][\s\S]*?\.answer-card\s*\{[^}]*min-height:\s*calc\(100dvh - var\(--app-header-h\)\)[^}]*max-height:\s*none[^}]*overflow:\s*visible/
-    );
+    // The finished turn drops the column's viewport floor so it shrink-wraps.
+    expect(rule(ASK, ".ask-layout[data-center-state='final'] .conversation-main")).toContain('min-height: 0');
+    // The final answer card no longer forces a viewport-tall min-height; it keeps
+    // the answer card's own 280px floor (answer.css) and grows past it, uncapped.
+    const finalCard =
+      ASK.match(
+        /\.ask-layout\[data-center-state='final'\]\s+\.conversation-message[\s\S]*?\.answer-card\s*\{([^}]*)\}/
+      )?.[1] ?? '';
+    expect(finalCard).toContain('max-height: none');
+    expect(finalCard).toContain('overflow: visible');
+    expect(finalCard).not.toMatch(/min-height:\s*calc\(100dvh/);
     expect(rule(ANSWER_BODY, '.answer-card-content')).toMatch(/grid-auto-rows:\s*auto[\s\S]*overflow:\s*visible/);
   });
 
