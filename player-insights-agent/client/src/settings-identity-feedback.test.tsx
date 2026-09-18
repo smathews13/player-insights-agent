@@ -194,6 +194,44 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).not.toContain('roster-app-principal-list');
   });
 
+  it('labels an inherited service principal as inherited, not a direct grant', () => {
+    // Empty human rows so the only App-access badge in the markup is the SP's:
+    // the humanRoles owner carries can_manage, which would otherwise satisfy the
+    // negative assertions on its own.
+    const inheritedServicePrincipal: RosterPayload = {
+      ...humanRoles,
+      entries: [],
+      appAccessPrincipals: [
+        {
+          kind: 'service_principal',
+          name: '071769f1-5623-45b6-a172-c8b8060adff1',
+          displayName: 'app-2s4y82 player-insights-agent',
+          permission: 'CAN_MANAGE',
+          inherited: true,
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={inheritedServicePrincipal}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        showPersona={true}
+        personaByEmail={new Map()}
+        personaDisabled={false}
+        onPersonaChange={() => {}}
+      />
+    );
+    // Same treatment a person's row gives an inherited grant: it must not read as
+    // a direct Can manage / Can use, or an operator would try to change it in the
+    // wrong place.
+    expect(markup).toContain('service-principal-row');
+    expect(markup).toContain('Inherited app access');
+    expect(markup).not.toContain('Can manage app');
+    expect(markup).not.toContain('Can use app');
+  });
+
   it('shows role names and assignments without credential fields or values', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor payload={spRoles} busy={false} readError={null} onRename={() => {}} />
