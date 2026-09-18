@@ -466,6 +466,16 @@
   display: grid;
   gap: 8px;
 }
+/* The caption that tells the reader the rows below are one plan's tables, not a
+   menu of them. Muted and small so it frames the list without competing with the
+   step rows it sits above; it is the sentence, not the sources. */
+.plan-sources-note {
+  margin: 0 0 4px;
+  font-size: var(--ast-fs-13);
+  line-height: 1.45;
+  color: var(--ast-text-long);
+  opacity: 0.78;
+}
 .plan-step {
   display: grid;
   grid-template-columns: 22px 1fr;

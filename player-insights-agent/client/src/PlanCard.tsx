@@ -301,6 +301,20 @@ export function PlanCard({
                 can approve option 2 or 3 directly. The radios only appear while
                 the plan is still waiting on a decision and there is a choice to
                 make; a settled plan, or one with a single source, renders plain. */}
+            {/* Says what the list IS before the reader reads it as a menu. Every
+                table below is inside the approved boundary the run is handed --
+                the analysis leads with the recommended one and may join the rest
+                as the question needs (see DiscoveryRequest.render). Without this
+                line the radios read as "pick one table and discard the others",
+                which is not what approving does: it sends the whole set and marks
+                one primary. Shown only while there is a choice to frame. */}
+            {!resolved && canChooseSource ? (
+              <p className="plan-sources-note">
+                All of these governed tables are in scope for this plan. It leads with the recommended source and may
+                join the others as the question needs — choosing a different one only changes which table is primary, it
+                does not drop the rest.
+              </p>
+            ) : null}
             {plan.steps.map((step, index) => (
               <PlanSourceStep
                 key={step.id}

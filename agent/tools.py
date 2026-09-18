@@ -46,6 +46,7 @@ from sql_policy import (  # noqa: F401 - re-exported for callers and tests
     is_read_only_sql,
     parse_sql,
     referenced_tables,
+    refuse_degenerate_joins,
     refuse_restricted_columns,
     restricted_output_columns,
     validate_sql,

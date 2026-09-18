@@ -317,6 +317,13 @@ something, who skims it before reading it:
   Bold the words, not the whole line. A line in all bold has no emphasis in it.
 - Nothing else is emphasis. A single asterisk and an underscore are the characters you
   typed, which matters here because the names you are quoting have underscores in them.
+- Never hand-author a chart. Do not write HTML, SVG, an `<!DOCTYPE html>` document, a
+  ```html fenced block, or an ASCII/character-drawn chart into any field, even when the
+  reader asks for "an HTML output" or "a plot". A chart is produced by a separate charting
+  step and rendered as its own interactive panel; your job is the words, the table, and the
+  figures, not the drawing. When a visualization was requested, say in one line what it
+  would show and let the panel carry it -- the whole page is downloadable as HTML from the
+  reader's own Export control, so there is never a reason to paste an HTML document here.
 - When listing tables by tier, Gold, Silver, Raw, and Reference / Metadata are each a
   bold line of their own, never a bullet. Only the tables under a tier are a list.
 - The narrative is one JSON string, so every line break in it is written \\n. A real
@@ -429,6 +436,91 @@ MAX_STAGE_CHARS = 20_000
 MAX_TRACE_CHARS = 200_000
 
 
+def _undo_double_escaping(text: str) -> str:
+    """A field the model escaped twice, put back once.
+
+    Asked what plots it can make, the model has returned markdown escaped a second
+    time on the way into the JSON -- `"**Trend**\\\\n- **Line chart** ..."` -- so
+    after `json.loads` the field held the two characters `\\n`, not a real
+    newline, and the app rendered a wall of literal `\\n` where the markdown
+    should have been, with tables printed as `| --- | \\n`. The document was valid
+    JSON and parsed first time, so no amount of hardening the parser can see it:
+    the damage is inside a string the parser was right to accept.
+
+    THE TEST IS THE REPAIR. A correctly written field with markdown in it holds
+    REAL newlines, and a real newline is illegal inside a JSON string -- so
+    re-parsing it as one fails and the text is returned untouched. A field the
+    model escaped twice is, by construction, a valid JSON string body, so it
+    re-parses and the second level comes off. That asymmetry is what makes this
+    safe to apply to every text field rather than only the one that broke: it
+    cannot fire on text that was written correctly.
+
+    Deliberately ONE level. Nothing loops until the text stops changing -- an
+    answer that legitimately discusses `\\n` would be eaten by a loop, and one
+    level is the whole of what was observed.
+    """
+
+    if "\\" not in text:
+        return text
+    try:
+        unescaped = json.loads(f'"{text}"')
+    except (json.JSONDecodeError, ValueError):
+        return text
+    return unescaped if isinstance(unescaped, str) else text
+
+
+#: A fenced block the model labelled as a web document, or labelled as nothing and
+#: filled with one. `new_plot` is how a chart reaches the reader, so an answer field
+#: is prose and a table and never a document -- the only way one of these appears is
+#: the model drawing a chart it was asked for by hand, and pasting the source.
+_AUTHORED_MARKUP_FENCE = re.compile(
+    r"```[ \t]*(?:html|xhtml|svg|xml)\b[^\n]*\n.*?(?:```|\Z)"
+    r"|```[ \t]*\n[ \t]*(?:<!doctype\s+html|<html\b|<svg\b).*?(?:```|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
+#: The same document with no fence around it. Bounded to a real element pair so a
+#: sentence that merely mentions `<html>` in backticks is left alone.
+_AUTHORED_MARKUP_RAW = re.compile(
+    r"<!doctype\s+html[^>]*>.*?</html\s*>|<html\b[^>]*>.*?</html\s*>|<svg\b[^>]*>.*?</svg\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_AUTHORED_MARKUP_NOTE = (
+    "_(An inline HTML/SVG document was omitted here. Charts render as interactive "
+    "panels, and the full page is downloadable from Export.)_"
+)
+
+
+def _strip_authored_markup(text: str) -> str:
+    """Take a hand-drawn HTML/SVG chart back out of an answer field.
+
+    THE MODEL WAS TOLD NOT TO, and this is the net under that instruction rather
+    than the whole of it. Asked for "an HTML output that is a plot", the model
+    has pasted a self-contained `<!DOCTYPE html>` bar chart into `narrative`, and
+    the app -- which renders a field as Markdown and a chart from `charts`, never
+    as a live document -- showed it correctly as a wall of source in a code
+    block. A chart reaches the reader through `new_plot`; a document in a text
+    field is only ever the model drawing one by hand, so removing it loses no
+    answer.
+
+    NARROW ON PURPOSE. Only a fenced block tagged as a web document, an untagged
+    fence whose first line opens one, and a raw `<html>`/`<svg>` element PAIR are
+    taken. A backticked mention of `<html>` in a sentence names no closing tag
+    and is left, and an answer that legitimately shows a one-line snippet is not
+    a whole document and does not match. Empty when nothing matched, so the
+    common answer pays a regex and nothing else.
+    """
+
+    if "<" not in text:
+        return text
+    stripped = _AUTHORED_MARKUP_FENCE.sub(_AUTHORED_MARKUP_NOTE, text)
+    stripped = _AUTHORED_MARKUP_RAW.sub(_AUTHORED_MARKUP_NOTE, stripped)
+    if stripped == text:
+        return text
+    # Collapse the blank-line runs the removal can leave behind, so the note does
+    # not float in the middle of a paragraph it interrupted.
+    return re.sub(r"\n{3,}", "\n\n", stripped).strip()
+
+
 class Synthesis(BaseModel):
     takeaway: str
     narrative: str
@@ -450,6 +542,97 @@ class Synthesis(BaseModel):
         """Same for a null section: the key was sent, and it means none."""
 
         return [] if value is None else value
+
+    @field_validator("takeaway", "narrative", "content", mode="before")
+    @classmethod
+    def _put_back_double_escaping(cls, value: Any) -> Any:
+        """Markdown the model escaped twice, so `\\n` reaches the reader as text."""
+
+        return _undo_double_escaping(value) if isinstance(value, str) else value
+
+    @field_validator("caveats", mode="before")
+    @classmethod
+    def _put_back_double_escaping_in_caveats(cls, value: Any) -> Any:
+        """Same fault, same fix. A caveat is where the first quote bug was found."""
+
+        if not isinstance(value, list):
+            return value
+        return [_undo_double_escaping(item) if isinstance(item, str) else item for item in value]
+
+    @field_validator("narrative", "content", mode="after")
+    @classmethod
+    def _drop_authored_markup(cls, value: str) -> str:
+        """Runs after the double-escape fix, so it sees real newlines and real tags.
+
+        `mode="after"` on purpose: an HTML document the model escaped twice is a
+        wall of literal `\\n` until `_undo_double_escaping` has run, and the tag
+        matcher has to see the real `<html>`/`</html>` boundary to bound the
+        removal. Only these two fields, because `takeaway` is one sentence and a
+        `caveat` is a limitation -- neither is where a pasted document lands.
+        """
+
+        return _strip_authored_markup(value)
+
+
+def _strict_schema(schema: dict[str, Any], defs: Mapping[str, Any]) -> dict[str, Any]:
+    """Rewrite a pydantic JSON schema into the strict subset the endpoint wants.
+
+    Three edits, each of which the provider REQUIRES rather than prefers: `$ref`
+    is inlined because the strict validator does not follow them, every property
+    is listed in `required` because strict has no notion of an optional key, and
+    every object is closed with `additionalProperties: false`.
+
+    `required` here is not the same claim pydantic's is. Pydantic omits a field
+    with a default; strict mode wants the key always PRESENT, which is a rule
+    about the wire and not about whether the value carries information. So
+    `content` is required and may be `""`, which is exactly what a one-figure
+    answer sends today. Nothing about the model's own defaults changes, and
+    `_null_string_is_empty` still stands behind it.
+    """
+
+    if "$ref" in schema:
+        return _strict_schema(dict(defs[schema["$ref"].rsplit("/", 1)[-1]]), defs)
+    node = {k: v for k, v in schema.items() if k not in {"$defs", "title", "default"}}
+    if node.get("type") == "object":
+        properties = {
+            key: _strict_schema(dict(value), defs)
+            for key, value in node.get("properties", {}).items()
+        }
+        node["properties"] = properties
+        node["required"] = list(properties)
+        node["additionalProperties"] = False
+    if node.get("type") == "array" and isinstance(node.get("items"), dict):
+        node["items"] = _strict_schema(dict(node["items"]), defs)
+    return node
+
+
+def _synthesis_response_format() -> dict[str, Any]:
+    """The answer's shape, stated to the endpoint rather than asked for in prose.
+
+    MEASURED, NOT ASSUMED (against `databricks-claude-sonnet-4-6`):
+    `{"type": "json_object"}` is REFUSED outright -- `400 INVALID_PARAMETER_VALUE:
+    Response format type json_object is not supported for this model` -- so the
+    code that sent it fell through to an unconstrained retry on EVERY answer.
+    That cost two model calls a turn and bought no guarantee, which is how a
+    caveat containing an unescaped `"` invalidated a whole payload and put the
+    raw JSON in front of a user. `{"type": "json_schema"}` with this schema was
+    accepted and returned a document that parsed and validated, quotes inside
+    strings escaped correctly.
+
+    Derived from `Synthesis` rather than written out, so a key added to the model
+    cannot be missing here -- a hand-copied schema is the second copy that goes
+    stale, and the one it would go stale against is the parser.
+    """
+
+    schema = Synthesis.model_json_schema()
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "synthesis",
+            "schema": _strict_schema(schema, schema.get("$defs", {})),
+            "strict": True,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -858,6 +1041,71 @@ def _preceding_turns(history: list[dict[str, str]], question: str) -> list[dict[
             del preceding[index]
             break
     return preceding
+
+
+#: How many prior-answer tables to carry into a follow-up plot. A cap on the
+#: prompt, not on the charts -- `answer.max_charts` still governs the output. A
+#: few tables is every real "plot the breakdown you just showed me"; more than
+#: that is a whole report being re-plotted and is bounded here rather than sent.
+PLOT_RECOVERY_MAX_TABLES = 4
+
+_MARKDOWN_TABLE_DELIMITER = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
+
+
+def _markdown_tables(text: str) -> list[str]:
+    """Every GFM pipe table in a block of Markdown, returned verbatim.
+
+    A prior answer's rows live in its `content` once the turn that produced them
+    is over: the transcript carries the TEXT of the answer, not the tool results
+    behind it. So a follow-up that says "plot the results" holds the numbers only
+    as the table the last answer drew, and recovering them is reading that table
+    back out. A table is a header row with a pipe, a dashes delimiter under it,
+    and one or more body rows; anything else is prose and is skipped.
+    """
+
+    lines = text.splitlines()
+    tables: list[str] = []
+    index = 0
+    total = len(lines)
+    while index < total:
+        if (
+            "|" in lines[index]
+            and index + 1 < total
+            and _MARKDOWN_TABLE_DELIMITER.match(lines[index + 1])
+        ):
+            end = index + 2
+            while end < total and "|" in lines[end] and lines[end].strip():
+                end += 1
+            block = "\n".join(lines[index:end]).strip()
+            if block:
+                tables.append(block)
+            index = end
+        else:
+            index += 1
+    return tables
+
+
+def _recover_plottable_context(history: list[dict[str, str]], question: str) -> list[str]:
+    """Rows to plot when THIS turn read none but a prior answer returned some.
+
+    Only the most recent assistant answer that actually drew a table is used --
+    "the results" is the last set the reader saw, not an older one -- and only its
+    tables, never its prose. Empty when no prior answer holds a table, which is
+    the honest outcome: there is nothing to plot and the caller must not invent
+    it. Bounded by `PLOT_RECOVERY_MAX_TABLES` so a re-plotted report cannot blow
+    the plot prompt.
+    """
+
+    for message in reversed(_preceding_turns(history, question)):
+        if message.get("role") != "assistant":
+            continue
+        tables = _markdown_tables(message.get("content", ""))
+        if tables:
+            return [
+                "Rows carried from the previous answer in this conversation:\n" + table
+                for table in tables[:PLOT_RECOVERY_MAX_TABLES]
+            ]
+    return []
 
 
 def _custom_inputs(request: ResponsesAgentRequest) -> dict[str, Any]:
@@ -2047,13 +2295,68 @@ def _and_list(items: Sequence[str]) -> str:
     return f"{', '.join(items[:-1])} and {items[-1]}"
 
 
+def _escape_stray_quotes(document: str) -> str:
+    """Escape a `"` that is inside a string rather than ending one.
+
+    THE OBSERVED FAILURE, not a hypothetical one. A model wrote a caveat reading
+    `A narrower "ever-played" count`, and those two quotes ended the string three
+    characters into a sentence, so the rest of the document was garbage to the
+    parser and a whole correct answer was thrown away.
+
+    A quote legitimately ends a string only where the next thing that matters is
+    structure: `,` `:` `}` `]` or the end. Anywhere else inside a string it is a
+    character the model meant to type, so it is escaped and the string continues.
+    That test is the whole repair, and it is deliberately narrow -- this walks
+    text a JSON parser has already refused, so the only safe ambition is putting
+    back a document the writer plainly intended.
+
+    Not a general JSON repairer. It does not close brackets, strip trailing
+    commas, or guess at a truncated document; a caller that gets nothing useful
+    back is expected to fall through to its own handling rather than trust this.
+    """
+
+    out: list[str] = []
+    in_string = False
+    index = 0
+    while index < len(document):
+        char = document[index]
+        if in_string and char == "\\" and index + 1 < len(document):
+            out.append(document[index : index + 2])
+            index += 2
+            continue
+        if char == '"':
+            if not in_string:
+                in_string = True
+            else:
+                rest = document[index + 1 :].lstrip()
+                if rest[:1] in {",", ":", "}", "]", ""}:
+                    in_string = False
+                else:
+                    out.append("\\")
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
 def _json_payload(text: str) -> dict[str, Any]:
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, flags=re.DOTALL)
     candidate = fenced.group(1) if fenced else text
     start, end = candidate.find("{"), candidate.rfind("}")
     if start < 0 or end <= start:
         raise ValueError("The synthesis model did not return JSON.")
-    return json.loads(candidate[start : end + 1])
+    body = candidate[start : end + 1]
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as original:
+        # Repaired rather than refused: the alternative is discarding an answer
+        # whose data work has already succeeded over one character of syntax.
+        try:
+            return json.loads(_escape_stray_quotes(body))
+        except json.JSONDecodeError:
+            # The ORIGINAL error, not the repair's. The repair rewrites the text,
+            # so its offsets point into a document the model never wrote, and the
+            # fault worth reporting is the one the model actually made.
+            raise original from None
 
 
 SALVAGED_TAKEAWAY = "The analysis completed, but the structured presentation was incomplete."
@@ -4630,49 +4933,64 @@ Tables actually read this run:
                 "max_tokens": self.settings.max_output_tokens,
                 "timeout": max(1.0, log.remaining),
             }
-            structured = "accepted"
+            # The answer's shape stated as a strict json_schema. Measured against the
+            # default endpoint, `json_object` is REFUSED with a 400 and `json_schema`
+            # is accepted, so this is the shape that returns a valid, correctly
+            # escaped document in ONE call rather than a refusal plus an unconstrained
+            # retry. `json_object` is kept as a fallback for an endpoint that supports
+            # it but not schema, and an unconstrained call is the last resort; both
+            # are skipped for free whenever the schema attempt works, which on the
+            # current endpoint it does.
+            structured = "schema"
             try:
                 response = client.chat.completions.create(
-                    **kwargs, response_format={"type": "json_object"}
+                    **kwargs, response_format=_synthesis_response_format()
                 )
             except Exception:
-                # Whether this fallback fires is worth recording rather than guessing:
-                # if the endpoint refuses structured output then EVERY answer pays two
-                # model calls, and no recorded run could tell us which path it took.
-                structured = "fallback"
-                if log.remaining < 5.0:
-                    return _incomplete_synthesis(findings, has_readings=bool(log.readings))
+                structured = "json_object"
                 try:
-                    response = client.chat.completions.create(**kwargs)
-                except Exception as error:
-                    # The model that writes the prose is the one that just
-                    # stopped, so a loop that ended on a refusal arrives here and
-                    # fails again. Returned as a synthesis rather than raised, so
-                    # `_answer` can attach the caveats that say what happened
-                    # instead of the caller getting an exception.
-                    span.set_outputs(
-                        {"error": _failure_reason(error), "structured_output": structured}
+                    response = client.chat.completions.create(
+                        **kwargs, response_format={"type": "json_object"}
                     )
-                    reason = gateway_refusal(
-                        error, self._llm_gateway_mode()
-                    ) or reasoning_endpoint_failure(error)
-                    # The writer stopped. Findings already measured stay on the
-                    # card, headed as a time-limit, stage partial. Overwriting
-                    # that takeaway with unanswered painted real tables as no
-                    # answer, Monitoring Failed, and Run Explorer Complete --
-                    # three words for one run.
-                    return _incomplete_synthesis(
-                        findings,
-                        has_readings=bool(log.readings),
-                        reason=(
-                            # The partial results above come only from successful queries.
-                            "The final write-up could not finish after live data was retrieved: "
-                            f"{reason.rstrip('.')}. The partial results above come only "
-                            "from successful queries."
-                            if log.readings
-                            else f"The final write-up could not finish: {reason.rstrip('.')}."
-                        ),
-                    )
+                except Exception:
+                    # Recorded rather than guessed: an endpoint that refuses both
+                    # structured shapes makes every answer pay the two attempts above
+                    # before it reaches this unconstrained retry, and no run could
+                    # otherwise tell us which path it took.
+                    structured = "unconstrained"
+                    if log.remaining < 5.0:
+                        return _incomplete_synthesis(findings, has_readings=bool(log.readings))
+                    try:
+                        response = client.chat.completions.create(**kwargs)
+                    except Exception as error:
+                        # The model that writes the prose is the one that just
+                        # stopped, so a loop that ended on a refusal arrives here
+                        # and fails again. Returned as a synthesis rather than
+                        # raised, so `_answer` can attach the caveats that say what
+                        # happened instead of the caller getting an exception.
+                        span.set_outputs(
+                            {"error": _failure_reason(error), "structured_output": structured}
+                        )
+                        reason = gateway_refusal(
+                            error, self._llm_gateway_mode()
+                        ) or reasoning_endpoint_failure(error)
+                        # The writer stopped. Findings already measured stay on the
+                        # card, headed as a time-limit, stage partial. Overwriting
+                        # that takeaway with unanswered painted real tables as no
+                        # answer, Monitoring Failed, and Run Explorer Complete --
+                        # three words for one run.
+                        return _incomplete_synthesis(
+                            findings,
+                            has_readings=bool(log.readings),
+                            reason=(
+                                # The partial results above come only from successful queries.
+                                "The final write-up could not finish after live data was retrieved"
+                                f": {reason.rstrip('.')}. The partial results above come only "
+                                "from successful queries."
+                                if log.readings
+                                else f"The final write-up could not finish: {reason.rstrip('.')}."
+                            ),
+                        )
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})
             log.add_usage(record_llm_usage(span, response))
@@ -4691,7 +5009,14 @@ Tables actually read this run:
         except (ValueError, json.JSONDecodeError, ValidationError):
             return _salvaged_synthesis(text, findings)
 
-    def _plot(self, question: str, takeaway: str, log: RunLog) -> tuple[list[Chart], str, str]:
+    def _plot(
+        self,
+        question: str,
+        takeaway: str,
+        log: RunLog,
+        *,
+        package: list[str] | None = None,
+    ) -> tuple[list[Chart], str, str]:
         """Ask the model to plot the assessed package, then validate what it sends back.
 
         A separate model call from `_synthesize`, for two reasons. The obvious one is
@@ -4723,7 +5048,9 @@ Tables actually read this run:
         """
 
         _, client = self._runtime()
-        package = log.plot_evidence()
+        # A caller with rows from a prior turn passes them; the ordinary path reads
+        # this run's own. Either way the model is told to plot ONLY what is here.
+        package = list(package) if package is not None else log.plot_evidence()
         user = f"""Question:
 {question}
 
@@ -5611,13 +5938,22 @@ Tables available to this analysis, with their columns:
         # decides the package the step is handed when it does run.
         charts: list[Chart] = []
         plottable_evidence = log.plot_evidence()
-        if (
-            plottable_evidence
-            and log.remaining >= 5.0
-            and runtime_settings.current().answer.charts
-            and runtime_settings.current().answer.max_charts > 0
-            and chart_requested(question)
-        ):
+        # A follow-up like "now plot that" reads no fresh rows -- the finder
+        # answered from the visible conversation without re-querying -- so this
+        # run's own evidence is empty even though the reader is looking at a table
+        # a prior turn drew. Recover those rows from the transcript rather than
+        # let synthesis draw the chart by hand (which is where the pasted-HTML bug
+        # came from). Only when there is nothing fresher, so a re-query still wins.
+        plot_package = plottable_evidence
+        plotted_from_prior = False
+        settings_now = runtime_settings.current().answer
+        charting_on = settings_now.charts and settings_now.max_charts > 0
+        if not plot_package and charting_on and log.remaining >= 5.0 and chart_requested(question):
+            recovered = _recover_plottable_context(history, question)
+            if recovered:
+                plot_package = recovered
+                plotted_from_prior = True
+        if plot_package and charting_on and log.remaining >= 5.0 and chart_requested(question):
             plot_started = time.perf_counter()
             yield log.starting(
                 "plot",
@@ -5627,7 +5963,9 @@ Tables available to this analysis, with their columns:
                 depth=1,
                 parent_id=orchestrator.id,
             )
-            charts, plot_note, plot_status = self._plot(question, synthesis.takeaway, log)
+            charts, plot_note, plot_status = self._plot(
+                question, synthesis.takeaway, log, package=plot_package
+            )
             yield log.stage(
                 "plot",
                 "Built the charts",
@@ -5638,8 +5976,13 @@ Tables available to this analysis, with their columns:
                 # whether the step had been given anything to plot. The count is of the
                 # DATA blocks, so it agrees with the package the step was actually
                 # given: it read "4 tool result(s) to plot" for a run whose package
-                # held one, the other three being definitions.
-                f"{len(plottable_evidence)} tool result(s) to plot",
+                # held one, the other three being definitions. A recovered package
+                # says so, since those rows came from a prior turn, not this one.
+                (
+                    f"{len(plot_package)} table(s) carried from the previous answer"
+                    if plotted_from_prior
+                    else f"{len(plot_package)} tool result(s) to plot"
+                ),
                 plot_note,
                 plot_status,
                 depth=1,

@@ -140,12 +140,16 @@ APP_ONLY_CODES = (
 # ---------------------------------------------------------------------------
 # Candidate-level codes
 #
-# The three below say a statement could not be CHECKED, which is a different
+# The first three say a statement could not be CHECKED, which is a different
 # finding from a statement that was checked and refused, and the difference is
 # what an operator triages on: a rule that fired means the product is working, a
-# statement nobody could parse means the guard is guessing about coverage.
+# statement nobody could parse means the guard is guessing about coverage. The
+# last one, SQL_CARTESIAN_JOIN, is a checked refusal rather than an un-checkable:
+# it is candidate-level not because the guard was unsure, but because the shared
+# file has no user-facing sentence for it, so it reaches a reader through the
+# terminal code it maps to rather than as itself.
 #
-# They are not in the shared file because no user-facing surface renders them:
+# None of them are in the shared file because no user-facing surface renders them:
 # a run that produced nothing else ends on NO_VALID_EVIDENCE, which is.
 # ---------------------------------------------------------------------------
 
@@ -161,7 +165,22 @@ SQL_NOT_READ_ONLY = "SQL_NOT_READ_ONLY"
 #: product here, so an unattributable read is not evidence.
 ASSET_UNRESOLVED = "ASSET_UNRESOLVED"
 
-EVIDENCE_REFUSAL_CODES = (SQL_UNPARSEABLE, SQL_NOT_READ_ONLY, ASSET_UNRESOLVED)
+#: A join whose ON clause relates no two sources -- every column names the same
+#: one alias, or it names no column at all (`ON TRUE`, `ON 1 = 1`). Refused
+#: BEFORE running: the warehouse would plan a broadcast nested loop over the
+#: cartesian product, spend the turn's whole wait budget being planned, and die
+#: with a memory error that reads as anything but the cartesian product it is.
+#: Statically provable, so this is a refusal and not an estimate. It carries a
+#: `remedy`, so the loop invites one rewrite of the same statement rather than a
+#: switch to another surface.
+SQL_CARTESIAN_JOIN = "SQL_CARTESIAN_JOIN"
+
+EVIDENCE_REFUSAL_CODES = (
+    SQL_UNPARSEABLE,
+    SQL_NOT_READ_ONLY,
+    ASSET_UNRESOLVED,
+    SQL_CARTESIAN_JOIN,
+)
 
 #: Every code the agent may put on one piece of evidence or one run.
 #:
@@ -175,6 +194,7 @@ _TERMINAL_FOR = {
     SQL_UNPARSEABLE: NO_VALID_EVIDENCE,
     SQL_NOT_READ_ONLY: NO_VALID_EVIDENCE,
     ASSET_UNRESOLVED: NO_VALID_EVIDENCE,
+    SQL_CARTESIAN_JOIN: NO_VALID_EVIDENCE,
 }
 
 # ---------------------------------------------------------------------------
@@ -245,6 +265,11 @@ NO_LATER_ROUTE_ATTEMPT = frozenset(
         SQL_UNPARSEABLE,
         SQL_NOT_READ_ONLY,
         ASSET_UNRESOLVED,
+        # A cartesian join is a problem with the STATEMENT, not the surface: the
+        # same question asked of another tool is not a rewrite, and the rewrite
+        # is what its `remedy` already asks for. Asking elsewhere would only run
+        # the same degenerate shape somewhere it is not checked.
+        SQL_CARTESIAN_JOIN,
     }
 )
 

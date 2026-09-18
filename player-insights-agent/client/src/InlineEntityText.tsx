@@ -170,7 +170,16 @@ export function EntityText({
 
 export function PlanText({ text, columns }: { text: string; columns: readonly string[] }) {
   const tracked = useTrackedTables();
-  return <EntityText text={text} sources={tracked.map((name) => ({ name }))} columns={columns} />;
+  // `numbers={false}` on purpose. A plan's summary, field, definition and why
+  // are prose ABOUT a source, not the answer's figures, and the only digits
+  // they carry are the ones fused into a title -- "Outfit 3", "Dyn 6", "Hoops".
+  // A version fused into the word (`rdr2`) is guarded by INLINE_NUMBER's
+  // boundaries, but a version SPACED off it ("Outfit 3") is a standalone figure
+  // by every rule the badge has, so it was wrapped in the `ast-num` pill, left
+  // on its own line, and read as a fourth labelled row of the candidate. There
+  // is no real count to highlight here, so the badge is turned off rather than
+  // taught the difference between a version number and a measurement.
+  return <EntityText text={text} sources={tracked.map((name) => ({ name }))} columns={columns} numbers={false} />;
 }
 
 export function TableEntityList({

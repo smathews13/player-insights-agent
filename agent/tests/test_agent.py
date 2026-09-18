@@ -3838,6 +3838,190 @@ def test_an_explicit_null_section_is_empty_not_a_failed_object():
     assert answer.derivation == []
 
 
+def test_the_synthesis_response_format_is_a_strict_schema_derived_from_the_model():
+    """The endpoint refuses `json_object`; a strict `json_schema` is what it takes.
+
+    Derived from `Synthesis` rather than hand-written, so a key added to the model
+    cannot go missing here. Strict mode requires every property present, every
+    object closed, and refs inlined -- the three edits `_strict_schema` makes.
+    """
+
+    rf = agent._synthesis_response_format()
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["name"] == "synthesis"
+    assert rf["json_schema"]["strict"] is True
+
+    schema = rf["json_schema"]["schema"]
+    # Every field of the model is required and the object is closed: strict has no
+    # notion of an optional key, so `content` is required and may be "".
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == {
+        "takeaway",
+        "narrative",
+        "content",
+        "figures",
+        "document_snippets",
+        "caveats",
+    }
+    # Refs are inlined, not left dangling: no $defs survive and the array items are
+    # concrete objects the strict validator can follow without chasing a $ref.
+    assert "$defs" not in schema
+    assert "$ref" not in json.dumps(schema)
+    assert schema["properties"]["figures"]["items"]["type"] == "object"
+
+
+def test_markdown_the_model_escaped_twice_reaches_the_reader_as_markdown():
+    """A field escaped a second time is put back one level, others left alone.
+
+    The model has returned valid JSON whose string body held the two characters
+    `\\n` instead of a real newline, and the app rendered a wall of literal `\\n`
+    where the markdown should have been. The repair re-parses one escaping level;
+    a correctly written field holds real newlines (illegal inside a JSON string),
+    so it fails that re-parse and is returned untouched.
+    """
+
+    synthesis = agent.Synthesis.model_validate(
+        {
+            "takeaway": "Line charts and bars are available.",
+            "narrative": "**Trend**\\n- **Line chart** over time\\n- **Bar** by title",
+            "caveats": ["First a\\nSecond b"],
+        }
+    )
+    # The double-escaped field now carries REAL newlines a renderer will honour.
+    assert "\n" in synthesis.narrative
+    assert "\\n" not in synthesis.narrative
+    assert synthesis.caveats == ["First a\nSecond b"]
+
+    # A field written correctly holds REAL newlines, which are illegal inside a
+    # JSON string, so re-parsing fails and the text is returned untouched -- this
+    # is the asymmetry that makes the repair safe on ordinary markdown. A stray
+    # backslash that is not a valid escape (a Windows path) also fails to
+    # re-parse and is left alone.
+    correct = agent.Synthesis.model_validate(
+        {
+            "takeaway": "Real\nnewline stays",
+            "narrative": r"See C:\Users\report for the export",
+        }
+    )
+    assert correct.takeaway == "Real\nnewline stays"
+    assert correct.narrative == r"See C:\Users\report for the export"
+
+
+def test_a_stray_quote_inside_a_string_is_repaired_rather_than_discarding_the_answer():
+    """A `"` three characters into a sentence used to junk a whole valid answer.
+
+    The parser sees the quote as the end of the string and the rest of the
+    document as garbage. The repair escapes a `"` that is not followed by JSON
+    structure and re-parses; a genuinely malformed document still raises the
+    ORIGINAL error, not the repair's offsets into text the model never wrote.
+    """
+
+    payload = '{"takeaway": "A narrower "ever-played" count", "narrative": "ok"}'
+    assert agent._json_payload(payload) == {
+        "takeaway": 'A narrower "ever-played" count',
+        "narrative": "ok",
+    }
+
+    # A well-formed document is returned by the first parse, untouched.
+    assert agent._json_payload('{"takeaway": "clean", "narrative": "ok"}') == {
+        "takeaway": "clean",
+        "narrative": "ok",
+    }
+
+    # Something the narrow repair cannot rescue reports that no JSON was returned
+    # or raises a decode error -- it does not silently invent a payload.
+    with pytest.raises((ValueError, json.JSONDecodeError)):
+        agent._json_payload("the model wrote prose instead of json")
+
+
+def test_a_hand_authored_html_chart_is_taken_back_out_of_the_answer():
+    """Asked for "an HTML plot", the model pasted a document; it is removed.
+
+    A chart reaches the reader through `new_plot` and renders as a panel; the app
+    shows a text field as Markdown, never as a live document. So an `<!DOCTYPE
+    html>` bar chart in `narrative` is only ever the model drawing by hand, and
+    it was showing to the reader as a wall of source. The field validator strips
+    the document and leaves a short note; the surrounding prose survives.
+    """
+
+    synthesis = agent.Synthesis.model_validate(
+        {
+            "takeaway": "Five segments compared.",
+            "narrative": (
+                "Here is the breakdown you asked for.\n\n"
+                "```html\n<!DOCTYPE html>\n<html><body>"
+                "<div class='bar'>VLHO</div></body></html>\n```\n\n"
+                "The largest segment is VLHO."
+            ),
+            "content": (
+                "<!DOCTYPE html><html><head><style>body{color:#fff}</style></head>"
+                "<body><svg><rect/></svg></body></html>"
+            ),
+        }
+    )
+    # The document is gone from both fields, replaced by the note.
+    assert "<!DOCTYPE" not in synthesis.narrative
+    assert "<html" not in synthesis.narrative
+    assert "```html" not in synthesis.narrative
+    assert "Charts render as interactive panels" in synthesis.narrative
+    # The prose on either side of the block is kept.
+    assert "breakdown you asked for" in synthesis.narrative
+    assert "largest segment is VLHO" in synthesis.narrative
+    assert "<html" not in synthesis.content
+
+    # An answer that merely NAMES a tag in a sentence keeps every character: there
+    # is no element pair to bound, so nothing is a document to remove.
+    ordinary = agent.Synthesis.model_validate(
+        {
+            "takeaway": "ok",
+            "narrative": "The export wraps the answer in an `<html>` shell for download.",
+        }
+    )
+    assert ordinary.narrative == "The export wraps the answer in an `<html>` shell for download."
+
+
+def test_a_prior_answer_table_is_recovered_so_a_follow_up_can_be_plotted():
+    """ "Now plot that" reads no fresh rows, so the last answer's table is reused.
+
+    The transcript carries the text of an answer, not the tool results behind it,
+    so a follow-up that re-uses the visible conversation has nothing of its own to
+    plot. The most recent assistant answer that drew a table is read back out;
+    only its tables, never its prose, and only the most recent one.
+    """
+
+    history = [
+        {"role": "user", "content": "how many players per franchise?"},
+        {
+            "role": "assistant",
+            "content": (
+                "Here are the counts.\n\n"
+                "| franchise | players |\n| --- | --- |\n| VLHO | 120 |\n| IFR2 | 80 |\n\n"
+                "VLHO leads."
+            ),
+        },
+        {"role": "user", "content": "now plot that"},
+    ]
+    recovered = agent._recover_plottable_context(history, "now plot that")
+    assert len(recovered) == 1
+    assert "| VLHO | 120 |" in recovered[0]
+    assert "VLHO leads" not in recovered[0]
+
+    # No prior table anywhere means nothing to plot -- the empty list is the honest
+    # answer, and the caller must not invent rows.
+    prose_only = [
+        {"role": "assistant", "content": "VLHO leads with the most players."},
+        {"role": "user", "content": "plot it"},
+    ]
+    assert agent._recover_plottable_context(prose_only, "plot it") == []
+
+
+def test_the_synthesis_prompt_forbids_hand_authored_charts():
+    """The instruction the strip guard backs up: no HTML/SVG/ASCII chart in prose."""
+
+    assert "Never hand-author a chart" in agent.SYNTHESIS_INSTRUCTIONS
+    assert "<!DOCTYPE html>" in agent.SYNTHESIS_INSTRUCTIONS
+
+
 def test_headline_figures_are_bounded_without_fabricating_them():
     # "at most {MAX_FIGURES}" and not the literal "3-4", because the cap is an
     # operator setting and the phrase is what `_synthesise` retunes. See MAX_FIGURES.
