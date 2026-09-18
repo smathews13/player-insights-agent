@@ -58,11 +58,28 @@ SRC_PATH="$(bundle_var app_source_code_path)"
 APP_DIR="$BUNDLE_ROOT/player-insights-agent"
 DEPLOY_TREE="$APP_DIR/build/deploy"
 APP_DB_GRANT="$BUNDLE_ROOT/bundle/app-db-grant.sh"
+APP_ACL_SELF_GRANT="$BUNDLE_ROOT/bundle/app-acl-self-grant.sh"
 
 run_app_db_grant() {
   [[ -f "$APP_DB_GRANT" ]] || die "bundle/app-db-grant.sh is missing. Refusing to deploy
 without the Postgres grants and AppKit cache ownership remediation this release promises."
   TARGET="$TARGET" PROFILE="$PROFILE" bash "$APP_DB_GRANT"
+}
+
+# The members list reads the live App ACL through the app's own service
+# principal; without CAN_MANAGE on itself that read fails and the list silently
+# falls back to the stored roster. Absence is tolerated so a public customer
+# clone that omits this script still deploys, the way scope-contract.py and the
+# release gate are treated above -- but where it is present it runs on every
+# apply, and it is a no-op once the grant is held.
+run_app_acl_self_grant() {
+  if [[ -f "$APP_ACL_SELF_GRANT" ]]; then
+    TARGET="$TARGET" PROFILE="$PROFILE" bash "$APP_ACL_SELF_GRANT"
+  else
+    note "bundle/app-acl-self-grant.sh is absent, so the app SP was NOT granted"
+    note "CAN_MANAGE on itself. If the Identity members list shows a stale roster,"
+    note "grant it by hand: databricks permissions update apps $APP_NAME --json ..."
+  fi
 }
 
 step "App release configuration (target: $TARGET)"
@@ -94,6 +111,7 @@ EOF
     exit 0
   fi
   run_app_db_grant
+  run_app_acl_self_grant
   step "Re-pointing $APP_NAME at $ROLLBACK_TO"
   databricks apps deploy "$APP_NAME" --source-code-path "$ROLLBACK_TO" --mode SNAPSHOT --profile "$PROFILE"
   step "Status"
@@ -126,6 +144,9 @@ Dry run. Nothing was built or deployed. Re-run with --apply to:
   6. resolve the app role, direct Lakebase branch host, Postgres database and
      operator role from the live bundle resources, then run
      scripts/grant-app-db-access.mjs. This STOPS the release on failure.
+     Then grant the app's own service principal CAN_MANAGE on the app (a merge,
+     never a replace) so the Identity members list can read the live App ACL
+     instead of falling back to the stored roster. No-op once the grant is held.
   7. verify the active deployment runs from Databricks' separate SNAPSHOT path,
      then safety-check that $SRC_PATH is this app's staging directory directly
      below /Workspace/Users/<current actor>/
@@ -569,6 +590,7 @@ elif [[ "$OWNERSHIP_STATUS" -ne 0 ]]; then
 fi
 
 run_app_db_grant
+run_app_acl_self_grant
 
 step "Replacing validated staging source at $SRC_PATH"
 clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"
