@@ -159,6 +159,41 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('Direct CAN MANAGE on the Databricks App.');
   });
 
+  it('renders a service principal as a member row with a robot mark, not a pill or an org logo', () => {
+    const withServicePrincipal: RosterPayload = {
+      ...humanRoles,
+      appAccessPrincipals: [
+        {
+          kind: 'service_principal',
+          name: '071769f1-5623-45b6-a172-c8b8060adff1',
+          displayName: 'app-2s4y82 player-insights-agent',
+          permission: 'CAN_MANAGE',
+          inherited: false,
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <RosterRows
+        payload={withServicePrincipal}
+        busy={false}
+        onChange={() => {}}
+        onRemove={() => {}}
+        showPersona={true}
+        personaByEmail={new Map()}
+        personaDisabled={false}
+        onPersonaChange={() => {}}
+      />
+    );
+    // It is a row in the members table, identified by the SP-row class and its
+    // robot-marked organization cell -- not the old "Service principals" pill.
+    expect(markup).toContain('service-principal-row');
+    expect(markup).toContain('roster-organization-mark--service-principal');
+    expect(markup).toContain('app-2s4y82 player-insights-agent');
+    expect(markup).toContain('Can manage app');
+    expect(markup).not.toContain('roster-app-principals-title');
+    expect(markup).not.toContain('roster-app-principal-list');
+  });
+
   it('shows role names and assignments without credential fields or values', () => {
     const markup = renderToStaticMarkup(
       <SpIdentityEditor payload={spRoles} busy={false} readError={null} onRename={() => {}} />

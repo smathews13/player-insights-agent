@@ -863,6 +863,40 @@
   transition: transform 120ms ease;
 }
 
+/* A service principal rendered as a member row. The identity mark is a robot
+   glyph left of the name, matching how a group row leads with its people icon,
+   so the reader scans one list of "who can reach this app" rather than a table
+   plus a footnote. */
+.roster-sp-identity {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.roster-sp-identity > svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--ast-text-secondary);
+}
+
+.roster-sp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The role cell for a service principal states its App permission instead of a
+   Player Insights Agent role select, because a service principal is admitted by
+   the App ACL and is never assigned a role here. Muted, so it reads as a fact
+   about the row rather than an editable control. */
+.roster-sp-role {
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+}
+
 .group-role-members-row > td {
   padding: 0 12px 12px;
 }

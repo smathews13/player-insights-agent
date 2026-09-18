@@ -44,6 +44,18 @@
   height: 14px;
 }
 
+/* A service principal's mark: a robot glyph where a person's row shows an
+   organization logo. It is not a company, so it takes the neutral secondary
+   colour rather than a brand tint. */
+.roster-organization-mark--service-principal {
+  color: var(--ast-text-secondary);
+}
+
+.roster-organization-mark--service-principal > svg {
+  width: 16px;
+  height: 16px;
+}
+
 .identity-chip > .roster-organization-mark {
   flex-basis: 16px;
   width: 16px;

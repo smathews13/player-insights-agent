@@ -21,7 +21,7 @@
  * of the role, so it is no longer on this screen.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronRight, Copy, ExternalLink, Trash2, UserPlus, UsersRound } from 'lucide-react';
+import { Bot, ChevronRight, Copy, ExternalLink, Trash2, UserPlus, UsersRound } from 'lucide-react';
 import { Button, Input } from './ui';
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 import { CopyableCommand } from './AdminListEditor';
@@ -35,7 +35,12 @@ import {
   stepsDownFrom,
   type RosterEntry,
 } from './user-roster';
-import { isRole, type Role, type RosterPayload } from '../../shared/user-roster-contract';
+import {
+  isRole,
+  type Role,
+  type RosterAppAccessPrincipal,
+  type RosterPayload,
+} from '../../shared/user-roster-contract';
 import type { SpIdentityAdminPayload, SpPersona, SpPersonaConnectionWrite } from '../../shared/sp-identity';
 import { AppSelect } from './AppSelect';
 import { roleOptions } from './user-role-options';
@@ -443,6 +448,24 @@ export function RosterRows({
                 </tr>
               );
             })}
+            {/* Service principals that hold Databricks App access render as their
+                own rows, the way group grants do, rather than in a pill list
+                below the table. A service principal is a real member of the app
+                -- the app's own runtime identity is one -- so it belongs in the
+                same list a reader scans for "who can reach this". Its identity
+                mark is a robot glyph instead of an organization logo, because it
+                is not a person in an org: it is admitted by the App ACL, not by a
+                Player Insights Agent role, which is what the role cell says. */}
+            {(payload.appAccessPrincipals ?? [])
+              .filter((principal) => principal.kind === 'service_principal')
+              .map((principal) => (
+                <ServicePrincipalRow
+                  key={`sp:${principal.name}`}
+                  principal={principal}
+                  showPersona={showPersona}
+                  manageHumanRoles={manageHumanRoles}
+                />
+              ))}
           </tbody>
           {footer ? <tfoot>{footer}</tfoot> : null}
         </table>
@@ -599,6 +622,86 @@ function GroupRoleRow({
         </tr>
       ) : null}
     </>
+  );
+}
+
+/**
+ * A service principal that holds Databricks App access, rendered as a member row.
+ *
+ * Same columns as a person's row so it reads as "another member of the app", but
+ * with a robot glyph in place of the organization logo -- both as the identity
+ * mark left of the name and in the Organization column -- because a service
+ * principal is not a person in an organization. It carries no Player Insights
+ * Agent role and no persona: it is admitted by the App ACL, so the role cell says
+ * its App permission rather than offering a control the app cannot honour, and
+ * there is no Reset action because a grant to a service principal is changed in
+ * Databricks App permissions, not here.
+ */
+function ServicePrincipalRow({
+  principal,
+  showPersona,
+  manageHumanRoles,
+}: {
+  principal: RosterAppAccessPrincipal;
+  showPersona: boolean;
+  manageHumanRoles: boolean;
+}) {
+  const permissionLabel = principal.permission === 'CAN_MANAGE' ? 'Can manage app' : 'Can use app';
+  const permissionTitle = principal.inherited
+    ? 'Inherited Databricks App permission'
+    : 'Direct Databricks App permission';
+  return (
+    <tr className="admin-row service-principal-row">
+      <td className="roster-email" title={principal.name}>
+        <span className="admin-row-email">
+          <span className="roster-sp-identity" title={principal.name}>
+            <Bot aria-hidden="true" />
+            <span className="roster-sp-name">{principal.displayName}</span>
+          </span>
+          <AppAccessBadge
+            state={principal.permission === 'CAN_MANAGE' ? 'can_manage' : 'can_use'}
+            detail={permissionTitle}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            className="roster-email-copy"
+            aria-label={`Copy service principal ${principal.name}`}
+            title={`Copy ${principal.name}`}
+            onClick={() => void navigator.clipboard?.writeText(principal.name)}
+          >
+            <Copy className="size-3.5" aria-hidden="true" />
+          </Button>
+        </span>
+      </td>
+      <td className="roster-organization">
+        <span className="roster-organization-value">
+          <span
+            className="roster-organization-mark roster-organization-mark--service-principal"
+            role="img"
+            aria-label="Service principal"
+            title="Service principal"
+          >
+            <Bot aria-hidden="true" />
+          </span>
+          <span>Service principal</span>
+        </span>
+      </td>
+      <td className="roster-role">
+        <span
+          className="roster-sp-role"
+          title="Admitted by the Databricks App ACL. Service principals are not assigned a Player Insights Agent role."
+        >
+          {permissionLabel}
+        </span>
+      </td>
+      {showPersona ? (
+        <td className="roster-persona">
+          <span className="roster-sp-role">—</span>
+        </td>
+      ) : null}
+      {manageHumanRoles ? <td className="roster-action" /> : null}
+    </tr>
   );
 }
 
@@ -798,28 +901,6 @@ export function UserRoleEditor({
                 )
               }
             />
-            {payload.appAccessPrincipals?.some((principal) => principal.kind === 'service_principal') ? (
-              <div className="roster-app-principals" aria-label="Other Databricks App access">
-                <span className="roster-app-principals-title">Service principals</span>
-                <div className="roster-app-principal-list">
-                  {payload.appAccessPrincipals
-                    .filter((principal) => principal.kind === 'service_principal')
-                    .map((principal) => (
-                      <span
-                        key={`${principal.kind}:${principal.name}`}
-                        className="ast-pill roster-app-principal"
-                        title={
-                          principal.inherited
-                            ? 'Inherited Databricks App permission'
-                            : 'Direct Databricks App permission'
-                        }
-                      >
-                        {principal.displayName} · {principal.permission === 'CAN_MANAGE' ? 'Can manage' : 'Can use'}
-                      </span>
-                    ))}
-                </div>
-              </div>
-            ) : null}
           </>
         ) : null}
       </section>
