@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { appCostSummary } from '../../shared/app-cost-summary';
+import { appCostBreakdown, appCostSummary } from '../../shared/app-cost-summary';
 import {
   buildQuestionAttribution,
   buildTiles,
@@ -186,6 +186,77 @@ describe('Aug 26–Sep 1 component-total and marginal Ask audit fixture', () => 
     expect(average.requestCoveredRuns).toBe(26);
     expect(average.traceCoveredRuns).toBe(26);
     expect(average.timingCoveredRuns).toBe(26);
+  });
+
+  it('splits app compute and Vector Search into an active share and a standing remainder', () => {
+    const interactive = runs();
+    const vectorIds: CostIdentifiers = {
+      ...IDS,
+      vectorIndex: 'cat.schema.index',
+      vectorEndpoint: 'vs-endpoint',
+      vectorEndpointIndexCount: 1,
+    };
+    // billedMs = 2_031_570; Σ request-ms = 203_157 → factor 0.1 for both meters.
+    const tiles = buildTiles(
+      vectorIds,
+      [
+        pricedRow('serving-endpoint', FULL_SERVING, 917.356171, FULL_SERVING * 1_000),
+        pricedRow('sql-warehouse', FULL_SQL, 631.589514),
+        pricedRow('app-compute', 10, 40, 2_031.57),
+        pricedRow('vector-search', 5, 20, 2_031.57),
+      ],
+      {
+        complete: true,
+        astrolabeQueries: 26,
+        totalQueries: 1_024,
+        astrolabeExecutionMs: ASK_EXECUTION_MS,
+        totalExecutionMs: ALL_EXECUTION_MS,
+        askRuns: interactive.map((run, index) => ({ runId: run.runId, executionMs: index === 25 ? 1_046 : 1_150 })),
+        genieSpaces: [],
+      },
+      [],
+      null,
+      '',
+      { interactive: { runs: interactive, complete: true }, foundation: foundation() }
+    );
+
+    const app = tiles.find((tile) => tile.id === 'app-compute');
+    expect(app?.amount).toBe(10);
+    expect(app?.marginalAmount).toBeCloseTo(1, 6);
+    expect(app?.standingAmount).toBeCloseTo(9, 6);
+    const vector = tiles.find((tile) => tile.id === 'vector-search');
+    expect(vector?.amount).toBe(5);
+    expect(vector?.marginalAmount).toBeCloseTo(0.5, 6);
+    expect(vector?.standingAmount).toBeCloseTo(4.5, 6);
+
+    // Per-question attribution now allocates the active share of both meters.
+    const attribution = buildQuestionAttribution(interactive, tiles, 100, {
+      complete: true,
+      astrolabeQueries: 26,
+      totalQueries: 1_024,
+      astrolabeExecutionMs: ASK_EXECUTION_MS,
+      totalExecutionMs: ALL_EXECUTION_MS,
+      askRuns: interactive.map((run, index) => ({ runId: run.runId, executionMs: index === 25 ? 1_046 : 1_150 })),
+      genieSpaces: [],
+    });
+    const sumPart = (id: string) =>
+      attribution.runs.reduce((total, run) => {
+        const part = run.parts.find((entry) => entry.id === id);
+        return total + (part && part.amount !== null ? part.amount : 0);
+      }, 0);
+    expect(attribution.runs[0].parts.find((part) => part.id === 'app-compute')?.quality).toBe('estimate');
+    expect(attribution.runs[0].parts.find((part) => part.id === 'vector-search')?.quality).toBe('estimate');
+    expect(sumPart('app-compute')).toBeCloseTo(1, 6);
+    expect(sumPart('vector-search')).toBeCloseTo(0.5, 6);
+
+    // attributed + standing reconciles to the full billed total.
+    const currency = 'USD';
+    const total = appCostSummary({ range: RANGE, tiles, currency }).amount ?? 0;
+    const breakdown = appCostBreakdown({ range: RANGE, tiles, currency, throughDay: RANGE.to, honesty: null });
+    expect(total).toBeCloseTo(FULL_SERVING + 4.088699 + ASK_SQL + 10 + 5, 6);
+    expect((breakdown.attributed.amount ?? 0) + (breakdown.standing.amount ?? 0)).toBeCloseTo(total, 6);
+    expect(breakdown.attributed.amount).toBeCloseTo(MARGINAL_SERVING + 4.088699 + ASK_SQL + 1 + 0.5, 6);
+    expect(breakdown.standing.amount).toBeCloseTo(FULL_SERVING - MARGINAL_SERVING + 9 + 4.5, 6);
   });
 
   it('keeps partial foundation prices unavailable and proves a priced zero', () => {

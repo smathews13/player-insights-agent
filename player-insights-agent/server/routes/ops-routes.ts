@@ -116,7 +116,7 @@ import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-co
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
-import { appSpendFigure } from '../../shared/app-cost-summary';
+import { appSpendFigure, appCostBreakdown } from '../../shared/app-cost-summary';
 import {
   createWorkspaceQueryHistoryTransport,
   EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
@@ -2425,6 +2425,13 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           throughDay: currentThrough,
           honesty: currentHonesty,
         });
+        const spendBreakdown = appCostBreakdown({
+          range,
+          tiles,
+          currency: currentCurrency,
+          throughDay: currentThrough,
+          honesty: currentHonesty,
+        });
         const lifetimeRange = lifetimeSpendRange(range.to);
         const lifetimeKey = [
           userEmail(req).toLowerCase(),
@@ -2468,6 +2475,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           billingLagDays: lagDays(range.to, currentThrough),
           tiles,
           appSpend: { lifetime: lifetimeSpend, currentMonth: currentMonthSpend },
+          spendBreakdown,
           genieAccounting: genieMonth,
           genieInstances: geniePeriod?.instances ?? [],
           perQuestion,

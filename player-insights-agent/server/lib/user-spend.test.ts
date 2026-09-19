@@ -28,6 +28,7 @@ function tile(
   dbus: number | null,
   basis: CostTile['basis'] = 'total-in-range'
 ): CostTile {
+  const uptime = id === 'serving-endpoint' || id === 'app-compute' || id === 'vector-search';
   return {
     id,
     label: id,
@@ -36,6 +37,10 @@ function tile(
     quality: amount === null ? 'unknown' : 'real',
     amount,
     dbus,
+    // Always-on tiles carry an active/standing split; per-user spend distributes
+    // only the active share. These fixtures are fully active (standing 0) so the
+    // allocation expectations match the whole meter.
+    ...(uptime ? { marginalAmount: amount, marginalDbus: dbus, standingAmount: 0, standingDbus: 0 } : {}),
     basis,
     population: 'This app',
     attribution: amount === null && dbus === null ? 'unavailable' : 'deployment',

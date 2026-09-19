@@ -1761,6 +1761,43 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Spent this calendar month');
   });
 
+  it('breaks the month total into question-driven and standing infrastructure lines', () => {
+    const payload = cost({
+      throughDay: '2026-09-02',
+      range: { from: '2026-09-01', to: '2026-09-02' },
+      spendBreakdown: {
+        attributed: {
+          amount: 12.5,
+          dbus: 20,
+          currency: 'USD',
+          sourceFrom: '2026-09-01',
+          sourceThrough: '2026-09-02',
+          completeness: 'complete',
+          estimated: true,
+        },
+        standing: {
+          amount: 88,
+          dbus: 140,
+          currency: 'USD',
+          sourceFrom: '2026-09-01',
+          sourceThrough: '2026-09-02',
+          completeness: 'complete',
+          estimated: true,
+        },
+      },
+      budgets: { total: { USD: 900, DBU: null }, resources: {} },
+    });
+    const markup = markupOf(<CostBody block={block(payload)} />);
+    const breakdown = markup.slice(markup.indexOf('ops-cost-breakdown'));
+
+    expect(breakdown).toContain('From questions');
+    expect(breakdown).toContain('12.50 USD');
+    expect(breakdown).toContain('Per-question and per-user active use');
+    expect(breakdown).toContain('Standing infrastructure');
+    expect(breakdown).toContain('88.00 USD');
+    expect(breakdown).toContain('Fixed cost to keep PIA online');
+  });
+
   it('uses each configured space id in the canonical Databricks Genie link without printing raw URLs', () => {
     const data = markupOf(
       <GenieDatabricksLink href="https://workspace.example/genie/rooms/space-data" title="Data Genie" />

@@ -462,6 +462,20 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
           />
         </div>
       </div>
+      {payload.spendBreakdown ? (
+        <div className="ops-cost-breakdown" aria-label="How this month's spend splits">
+          <div className="ops-cost-breakdown-peer">
+            <span className="ops-cost-summary-heading">From questions</span>
+            <strong className="ops-cost-summary-value ast-num">{amount(payload.spendBreakdown.attributed)}</strong>
+            <span className="ops-cost-breakdown-caption">Per-question and per-user active use</span>
+          </div>
+          <div className="ops-cost-breakdown-peer">
+            <span className="ops-cost-summary-heading">Standing infrastructure</span>
+            <strong className="ops-cost-summary-value ast-num">{amount(payload.spendBreakdown.standing)}</strong>
+            <span className="ops-cost-breakdown-caption">Fixed cost to keep PIA online</span>
+          </div>
+        </div>
+      ) : null}
       <SavedAppBudgetSummary savedBudget={savedBudget} unit={unit} status={budgetStatus} />
     </div>
   );

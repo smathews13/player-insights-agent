@@ -1189,11 +1189,15 @@ export function buildTiles(
       continue;
     }
     const tile = componentTile(component, ids, byComponent, warehouseAttribution, resourceActivity);
-    tiles.push(
-      component === 'serving-endpoint' && marginal
-        ? withMarginalServingEvidence(tile, byComponent.get(component), marginal.interactive)
-        : tile
-    );
+    let decorated = tile;
+    if (marginal) {
+      if (component === 'serving-endpoint') {
+        decorated = withMarginalServingEvidence(tile, byComponent.get(component), marginal.interactive);
+      } else if (component === 'app-compute' || component === 'vector-search') {
+        decorated = withMarginalUptimeEvidence(tile, byComponent.get(component), marginal.interactive);
+      }
+    }
+    tiles.push(decorated);
     if (component === 'serving-endpoint') {
       tiles.push(
         marginal?.foundation ?? {
@@ -1234,45 +1238,127 @@ function validRunDurationMs(run: QuestionRunInput): number | null {
 }
 
 /**
- * Convert the dedicated endpoint uptime meter into the selected marginal model.
+ * Split an always-on meter into the active share and the idle remainder.
  *
- * Billing exposes endpoint intervals but no parent request id. The run ledger is
- * therefore a closed interactive population and billed interval duration is the
- * denominator. This is explicitly an estimate; an incomplete run/timing read is
- * withheld rather than widened back to the full endpoint meter.
+ * The three dedicated resources (serving, app compute, Vector Search) bill by
+ * wall-clock time and expose billed intervals but no parent request id. The run
+ * ledger is therefore a closed interactive population and billed interval
+ * duration is the denominator: `active = full × min(1, Σ request-ms / billed-ms)`
+ * and `standing = full − active`. Both are explicitly estimates; an incomplete
+ * run/timing read is withheld rather than widened back to the full uptime meter,
+ * and the whole meter then reads as standing infrastructure the page shows
+ * separately.
  */
-function withMarginalServingEvidence(
+interface ActiveStandingSplit {
+  marginalAmount: number | null;
+  marginalDbus: number | null;
+  standingAmount: number | null;
+  standingDbus: number | null;
+  marginalUnavailable: string;
+  interactiveRequests: number;
+  coveredRequests: number;
+}
+
+function activeStandingSplit(
   full: CostTile,
   row: ComponentRow | undefined,
-  interactive: { runs: readonly QuestionRunInput[]; complete: boolean }
-): CostTile {
+  interactive: { runs: readonly QuestionRunInput[]; complete: boolean },
+  messages: { noRow: string; unpriced: string; incomplete: string }
+): ActiveStandingSplit {
   const durations = interactive.runs.map(validRunDurationMs);
   const covered = durations.filter((value): value is number => value !== null);
   const complete = interactive.complete && covered.length === interactive.runs.length;
   const billedMs = (row?.billedSeconds ?? 0) * 1_000;
   const requestMs = covered.reduce((sum, value) => sum + value, 0);
   const factor = complete && billedMs > 0 ? Math.min(1, requestMs / billedMs) : null;
-  const scale = (value: number | null | undefined) =>
+  const active = (value: number | null | undefined) =>
     factor !== null && typeof value === 'number' && Number.isFinite(value) ? value * factor : null;
+  const standing = (value: number | null | undefined, marginal: number | null) =>
+    marginal !== null && typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value - marginal) : null;
+  const marginalAmount = row ? active(full.amount) : null;
+  const marginalDbus = row ? active(full.dbus) : null;
+  return {
+    marginalAmount,
+    marginalDbus,
+    standingAmount: row ? standing(full.amount, marginalAmount) : null,
+    standingDbus: row ? standing(full.dbus, marginalDbus) : null,
+    marginalUnavailable: !row
+      ? messages.noRow
+      : factor === null
+        ? complete
+          ? messages.unpriced
+          : messages.incomplete
+        : '',
+    interactiveRequests: interactive.runs.length,
+    coveredRequests: covered.length,
+  };
+}
+
+function withMarginalServingEvidence(
+  full: CostTile,
+  row: ComponentRow | undefined,
+  interactive: { runs: readonly QuestionRunInput[]; complete: boolean }
+): CostTile {
+  const split = activeStandingSplit(full, row, interactive, {
+    noRow: 'No endpoint billing row.',
+    unpriced: 'Marginal serving cost needs priced endpoint billing intervals.',
+    incomplete: 'Interactive Ask timing coverage is incomplete; full endpoint uptime is excluded.',
+  });
   if (!row)
-    return { ...full, marginalAmount: null, marginalDbus: null, marginalUnavailable: 'No endpoint billing row.' };
+    return {
+      ...full,
+      marginalAmount: null,
+      marginalDbus: null,
+      standingAmount: null,
+      standingDbus: null,
+      marginalUnavailable: 'No endpoint billing row.',
+    };
   return {
     ...full,
     label: 'Agent serving',
     population: 'Configured endpoint',
-    marginalAmount: scale(full.amount),
-    marginalDbus: scale(full.dbus),
-    marginalUnavailable:
-      factor === null
-        ? complete
-          ? 'Marginal serving cost needs priced endpoint billing intervals.'
-          : 'Interactive Ask timing coverage is incomplete; full endpoint uptime is excluded.'
-        : '',
+    marginalAmount: split.marginalAmount,
+    marginalDbus: split.marginalDbus,
+    standingAmount: split.standingAmount,
+    standingDbus: split.standingDbus,
+    marginalUnavailable: split.marginalUnavailable,
     evidence: {
       ...(full.evidence ?? { billingRows: null, astrolabeQueries: null }),
-      interactiveRequests: interactive.runs.length,
-      coveredRequests: covered.length,
+      interactiveRequests: split.interactiveRequests,
+      coveredRequests: split.coveredRequests,
     },
+  };
+}
+
+/**
+ * The same active/standing split for the other two always-on meters.
+ *
+ * App compute and Vector Search keep their own label and population; only the
+ * marginal (active) and standing (idle) shares are added, so the page can show
+ * what questions caused apart from what merely keeps the resource online. When
+ * the tile has no priced row the shares stay null and the full meter is treated
+ * as standing infrastructure by the summary.
+ */
+function withMarginalUptimeEvidence(
+  full: CostTile,
+  row: ComponentRow | undefined,
+  interactive: { runs: readonly QuestionRunInput[]; complete: boolean }
+): CostTile {
+  const split = activeStandingSplit(full, row, interactive, {
+    noRow: 'No billing row matched this resource.',
+    unpriced: 'Marginal cost needs priced billing intervals.',
+    incomplete: 'Interactive Ask timing coverage is incomplete; full uptime is excluded.',
+  });
+  return {
+    ...full,
+    marginalAmount: split.marginalAmount,
+    marginalDbus: split.marginalDbus,
+    standingAmount: split.standingAmount,
+    standingDbus: split.standingDbus,
+    marginalUnavailable: split.marginalUnavailable,
+    evidence: full.evidence
+      ? { ...full.evidence, interactiveRequests: split.interactiveRequests, coveredRequests: split.coveredRequests }
+      : full.evidence,
   };
 }
 
@@ -1613,16 +1699,6 @@ const UNKNOWN_QUESTION_PARTS: readonly Omit<Extract<QuestionCostPart, { quality:
         'Space tags are organizational only. Genie LLM spend is not attributable in this model; Genie SQL is billed through the associated warehouse and is not the complete Genie cost.',
     },
     {
-      id: 'vector-search',
-      label: 'Vector search',
-      unavailable: 'Endpoint time is billed as a rate and cannot be joined to one query.',
-    },
-    {
-      id: 'app-compute',
-      label: 'App compute',
-      unavailable: 'Compute time cannot be joined to one run.',
-    },
-    {
       id: 'lakebase',
       label: 'Lakebase Postgres',
       unavailable: 'No documented billing row in this app can be joined to a Lakebase query or run.',
@@ -1667,6 +1743,12 @@ export function buildQuestionAttribution(
   const timingReported = runs.every((run) => Boolean(run.startedAt));
   const sqlByRun = new Map((warehouseAttribution.askRuns ?? []).map((run) => [run.runId, run.executionMs]));
   const totalAskSqlMs = [...sqlByRun.values()].reduce((sum, duration) => sum + duration, 0);
+  const uptimeMarginal = (id: string): number | null => {
+    const value = tiles.find((tile) => tile.id === id)?.marginalAmount;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
+  const vectorMarginal = uptimeMarginal('vector-search');
+  const appComputeMarginal = uptimeMarginal('app-compute');
 
   const attributed: QuestionCostRun[] = newest.map((run) => {
     const parts: QuestionCostPart[] = [];
@@ -1743,6 +1825,47 @@ export function buildQuestionAttribution(
       });
     } else {
       parts.push(unknownPart('sql-warehouse', 'Ask SQL', 'No Ask-tagged SQL spend was available for this run.'));
+    }
+
+    /*
+     * The two other always-on meters, allocated by the SAME request-duration
+     * share as serving and only over their ACTIVE (marginal) portion. The idle
+     * remainder is standing infrastructure and is never divided across runs, so
+     * a quiet range cannot inflate a per-question figure with uptime nobody
+     * caused. Both are 'estimate': a duration share of an active total, not a
+     * measured per-call charge.
+     */
+    for (const uptime of [
+      {
+        id: 'vector-search',
+        label: 'Vector search',
+        marginal: vectorMarginal,
+        missing: 'No marginal Vector Search spend was measured.',
+      },
+      {
+        id: 'app-compute',
+        label: 'App compute',
+        marginal: appComputeMarginal,
+        missing: 'No marginal app-compute spend was measured.',
+      },
+    ] as const) {
+      if (uptime.marginal !== null && durationByRun.has(run.runId) && totalDurationMs > 0) {
+        parts.push({
+          id: uptime.id,
+          label: uptime.label,
+          quality: 'estimate',
+          amount: (uptime.marginal * (durationByRun.get(run.runId) ?? 0)) / totalDurationMs,
+          unavailable: '',
+        });
+      } else {
+        parts.push(
+          unknownPart(
+            uptime.id,
+            uptime.label,
+            uptime.marginal === null ? uptime.missing : 'This run has no complete request interval.'
+          )
+        );
+      }
     }
 
     parts.push(
