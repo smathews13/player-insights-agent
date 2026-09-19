@@ -384,9 +384,22 @@ function amount(value: number | null, quality: UserSpendQuality): UserSpendAmoun
   return { amount: value !== null && Number.isFinite(value) ? value : null, quality };
 }
 
+/**
+ * The three always-on meters carry an active/standing split; per-user spend
+ * distributes only the ACTIVE (marginal) share. The idle remainder is standing
+ * infrastructure nobody caused, so it is never allocated to a person.
+ */
+const UPTIME_TILE_IDS = new Set<string>(['serving-endpoint', 'app-compute', 'vector-search']);
+
 function tileTotal(tile: CostTile | undefined, unit: CostBudgetUnit, days: number): number | null {
   if (!tile || tile.attribution !== 'deployment') return null;
-  const value = unit === 'USD' ? tile.amount : (tile.dbus ?? null);
+  const value = UPTIME_TILE_IDS.has(tile.id)
+    ? unit === 'USD'
+      ? (tile.marginalAmount ?? null)
+      : (tile.marginalDbus ?? null)
+    : unit === 'USD'
+      ? tile.amount
+      : (tile.dbus ?? null);
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return value * (tile.basis === 'per-day' ? days : 1);
 }

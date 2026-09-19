@@ -192,17 +192,37 @@ export interface CostTile {
   quality: CostQuality;
   /** Spend, or null where it could not be sourced. */
   amount: number | null;
-  /** Request-active share used only for marginal efficiency metrics, never as the component total. */
+  /**
+   * Request-active share of an always-on resource's billed uptime.
+   *
+   * For the three dedicated meters that bill by wall-clock time (serving, app
+   * compute, Vector Search) this is the portion of `amount` attributable to the
+   * interactive Ask work that ran during the range. It is what a question or a
+   * user actually caused, as opposed to the endpoint merely existing. Null when
+   * the active share cannot be established (see `marginalUnavailable`).
+   */
   marginalAmount?: number | null;
+  /**
+   * The idle remainder of an always-on resource: `amount − marginalAmount`.
+   *
+   * This is what the deployment pays to KEEP the resource online whether or not
+   * anyone asks a question. It is deliberately NOT attributed to any question or
+   * user; the page shows it as fixed standing infrastructure so a reader never
+   * mistakes uptime nobody caused for per-question cost. Null when the active
+   * share is unavailable, because a remainder of an unknown share is unknown.
+   */
+  standingAmount?: number | null;
   /**
    * Attributable usage when every contributing billing row is measured in DBUs.
    * Null means the component cannot be compared with a DBU budget; dollars are
    * never converted into DBUs.
    */
   dbus?: number | null;
-  /** Request-active DBU share used only for marginal efficiency metrics. */
+  /** Request-active DBU share of an always-on resource's billed uptime. */
   marginalDbus?: number | null;
-  /** Why the marginal share is unavailable while the component total may still be measured. */
+  /** The idle-uptime DBU remainder: `dbus − marginalDbus`. Fixed standing infrastructure. */
+  standingDbus?: number | null;
+  /** Why the marginal/standing split is unavailable while the component total may still be measured. */
   marginalUnavailable?: string;
   /** Whether `amount` is the total over the range or a per-day rate. */
   basis: 'total-in-range' | 'per-day';
@@ -530,6 +550,16 @@ export interface OpsCostPayload {
   tiles: CostTile[];
   /** Paid app-attributable summary; free Genie notional value is excluded from both figures. */
   appSpend?: AppSpendSummary;
+  /**
+   * The current-range bill split into what questions caused and the fixed
+   * standing infrastructure that keeps the deployment online.
+   *
+   * `attributed + standing` reconciles to the full billed total. The page leads
+   * with `attributed` (per-question / per-user cost) and shows `standing`
+   * separately so always-on uptime is never folded into a per-question figure.
+   * Absent on legacy cached payloads.
+   */
+  spendBreakdown?: { attributed: AppSpendFigure; standing: AppSpendFigure };
   /** The three most recent completed UTC calendar months, newest first. */
   recentMonthlySpend?: AppMonthlySpend[];
   /** Why completed-month history is withheld when app lifetime cannot be proven. */

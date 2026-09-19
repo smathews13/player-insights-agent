@@ -907,6 +907,32 @@ a.ops-dependency-name:hover {
   font-weight: 700;
 }
 
+.ops-cost-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--ast-border-input);
+}
+
+.ops-cost-breakdown-peer {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ops-cost-breakdown-peer + .ops-cost-breakdown-peer {
+  padding-left: 12px;
+  border-left: 1px solid var(--ast-border-input);
+}
+
+.ops-cost-breakdown-caption {
+  font-size: var(--text-xs);
+  color: var(--ast-text-secondary);
+}
+
 .ops-cost-summary-budget {
   display: block;
   min-width: 0;
