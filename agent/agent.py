@@ -5756,6 +5756,28 @@ Tables available to this analysis, with their columns:
         # The id costs only a hash (see `_plan_id`), so the comparison is made
         # first and the plan is only discovered when the answer will be a plan.
         expected_plan_id = _plan_id(question, attachment_context)
+        # One question, one MLflow session. A question is not one trace: the plan
+        # proposal, the approval that runs it, and a re-ask of the same words are
+        # separate serving invokes, so MLflow lists them as separate traces and a
+        # reviewer benchmarking questions has to reassemble them by hand.
+        # `expected_plan_id` is the question's fingerprint (see `_plan_id`) -- the
+        # same across the propose/approve round trip and independent of the run id
+        # -- so recording it as the trace SESSION collapses those traces into one
+        # group in the "Group by session" view. Set HERE, before the plan
+        # early-return below, so a proposed-plan trace joins the same session as
+        # the run that answers it. Session lives in trace metadata (immutable once
+        # the trace exists), which is why it is set once, early, rather than
+        # beside the tags on the orchestrator span.
+        mlflow.update_current_trace(session_id=expected_plan_id)
+        # The proposed-plan path returns before the orchestrator span, where the
+        # correlation and run ids are turned into the tags `search_traces` filters
+        # on -- so until now a plan trace could not be found by the id the app
+        # logged for it, and the two halves of one session could not be joined by
+        # anything but the session tag just set. Tag them here too; the execute
+        # path repeats the same values harmlessly on the loop span below.
+        plan_turn_facts = correlation.facts(required, self.settings)
+        if plan_turn_facts:
+            mlflow.update_current_trace(tags=plan_turn_facts)
         approved_sources = _approved_plan_sources(
             custom_inputs, question, self.settings.readable_tables
         )
