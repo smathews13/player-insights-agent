@@ -86,6 +86,12 @@ WAREHOUSE_ID="$(release_value PLAYER_INSIGHTS_WAREHOUSE_ID warehouse_id)"
 MODEL_NAME="$(bundle_var model_name)"
 ENDPOINT="$(bundle_var serving_endpoint_name)"
 ROLLBACKS_KEPT="$(bundle_var serving_rollbacks_kept)"
+# Whether the endpoint may scale to zero when idle. "true" for demo/eval
+# targets (billed only while serving), "false" for a production target that
+# keeps always-on to avoid a cold start. deploy_agent.py reads this and passes
+# scale_to_zero to agents.deploy(); a served entity inherits nothing from this
+# shell otherwise.
+SCALE_TO_ZERO="$(bundle_var serving_scale_to_zero)"
 EXPERIMENT="$(bundle_var experiment_path)"
 LLM_ENDPOINT="$(release_value PLAYER_INSIGHTS_LLM_ENDPOINT llm_direct_endpoint)"
 ALLOWLIST="$(release_value PLAYER_INSIGHTS_CATALOG_ALLOWLIST data_catalogs bundle_var_csv)"
@@ -222,6 +228,7 @@ step "Agent release configuration (target: $TARGET)"
 note "app catalog.schema    $CATALOG.$SCHEMA"
 note "model                 $MODEL_NAME"
 note "endpoint              $ENDPOINT"
+note "scale to zero         $SCALE_TO_ZERO"
 note "rollbacks kept        $ROLLBACKS_KEPT$([[ "$PRUNE" == true ]] || echo '  (prune skipped: --no-prune)')"
 note "experiment            $EXPERIMENT"
 note "direct LLM endpoint   $LLM_ENDPOINT"
@@ -321,6 +328,7 @@ export PLAYER_INSIGHTS_DATA_GENIE_ID="$DATA_GENIE_ID"
 export PLAYER_INSIGHTS_DICTIONARY_GENIE_ID="$DICT_GENIE_ID"
 export PLAYER_INSIGHTS_MODEL_NAME="$MODEL_NAME"
 export PLAYER_INSIGHTS_ENDPOINT="$ENDPOINT"
+export PLAYER_INSIGHTS_SCALE_TO_ZERO="$SCALE_TO_ZERO"
 export PLAYER_INSIGHTS_EXPERIMENT="$EXPERIMENT"
 export PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT"
 export PLAYER_INSIGHTS_LLM_GATEWAY="$LLM_GATEWAY"

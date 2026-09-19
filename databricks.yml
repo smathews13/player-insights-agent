@@ -87,6 +87,21 @@ variables:
       0. Each retained served entity adds standing capacity cost; pruned
       versions remain available in the model registry.
     default: 0
+  serving_scale_to_zero:
+    description: >-
+      Whether databricks.agents.deploy() lets the agent serving endpoint scale
+      to zero when idle. Defaults to "true": the endpoint is billed only while
+      it is actually serving (plus a brief keep-warm), which is the right
+      default for a demo or evaluation deployment that sits idle most of the
+      day and is the single largest reducible standing cost. The price is a
+      cold start on the first request after the endpoint has scaled down --
+      seconds to about a minute for this Small CPU workload. A production
+      target that must answer the first request instantly overrides this to
+      "false" to keep the endpoint always-on (see the customer target). A
+      string rather than a YAML boolean so bundle_var reads it as "true" /
+      "false" and deploy_agent.py parses it; only an explicit true-ish value
+      enables scale-to-zero, so a blank or mistyped value stays always-on.
+    default: "true"
   genie_mcp_signing_key_version:
     description: >-
       Version suffix for the Player Insights Agent Ed25519 app-to-model signing key. Defaults to
@@ -319,6 +334,12 @@ targets:
       # Run governed data calls as the signed-in user. Release matching app and
       # model versions together.
       execution_identity: user-authorization
+      # Keep the serving endpoint always-on for production. Scale-to-zero saves
+      # standing cost on an idle demo, but a production endpoint that scaled
+      # down would make the first real question of a quiet period wait for a
+      # cold start. The base default is "true"; this target opts back to
+      # always-on deliberately.
+      serving_scale_to_zero: "false"
     resources:
       jobs:
         player_insights_semantic_rebuild:
