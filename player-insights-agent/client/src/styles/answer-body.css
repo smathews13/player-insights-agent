@@ -617,6 +617,45 @@
   letter-spacing: var(--ast-tracking-eyebrow);
   color: var(--ast-text-secondary);
 }
+/* The heading is a <summary> now: Sources is collapsed by default and this is
+   the control that opens it. It keeps the eyebrow type above and gains a
+   chevron and a pointer. The default disclosure triangle is removed so the
+   only marker is the chevron, which rotates when the section opens. */
+.source-list-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  width: max-content;
+}
+.source-list-summary::-webkit-details-marker {
+  display: none;
+}
+.source-list-summary::marker {
+  content: '';
+}
+.source-list-summary:focus-visible {
+  outline: 2px solid var(--ast-focus-ring, currentColor);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.source-list-chevron {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  transition: transform 0.15s ease;
+}
+.sources-module[open] .source-list-chevron {
+  transform: rotate(90deg);
+}
+/* Closed, the summary carries the section's whole height, so its own bottom
+   margin is dead space above Caveats. The 8px belongs between the heading and
+   the list, so move it onto the open state. */
+.sources-module:not([open]) .source-list-heading {
+  margin-bottom: 0;
+}
 .source-list {
   margin: 0;
   color: var(--ast-text-long);

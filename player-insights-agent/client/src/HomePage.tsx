@@ -71,6 +71,10 @@ import {
   FileText,
   MessagesSquare,
   Paperclip,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   ShieldCheck,
   Trash2,
@@ -120,6 +124,7 @@ import {
 } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
 import { runStatusFor } from './run-status';
+import { paneStartsCollapsed, rememberPaneCollapsed } from './ask-pane-preferences';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
 import { RunStatusPill } from './RunStatusPill';
 import {
@@ -514,6 +519,29 @@ export function HomePage() {
    * is hidden and its trigger is the rail.
    */
   const [railSheetOpen, setRailSheetOpen] = useState(false);
+  /**
+   * Whether the two side rails are collapsed. Both start COLLAPSED so the answer
+   * column is the widest thing on the page on open; the reader's choice to open
+   * one persists per browser. See `ask-pane-preferences.ts`. These only govern
+   * the widths where each pane is drawn -- the rail above 800px, the inspector
+   * above 1180px -- and the responsive blocks below those bounds are untouched.
+   */
+  const [railCollapsed, setRailCollapsed] = useState(() => paneStartsCollapsed('rail'));
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(() => paneStartsCollapsed('inspector'));
+  const toggleRailCollapsed = useCallback(() => {
+    setRailCollapsed((collapsed) => {
+      const next = !collapsed;
+      rememberPaneCollapsed('rail', next);
+      return next;
+    });
+  }, []);
+  const toggleInspectorCollapsed = useCallback(() => {
+    setInspectorCollapsed((collapsed) => {
+      const next = !collapsed;
+      rememberPaneCollapsed('inspector', next);
+      return next;
+    });
+  }, []);
   const ownerPreferenceLoadedFor = useRef('');
   const organizationPreferenceLoadedFor = useRef('');
   /**
@@ -2465,8 +2493,47 @@ export function HomePage() {
       data-transcript={transcriptEmpty ? 'empty' : 'active'}
       data-stage-mode={currentStage.mode}
       data-center-state={loading ? 'working' : conversationLoading ? 'restoring' : answer ? 'final' : 'idle'}
+      data-rail-collapsed={railCollapsed ? 'true' : 'false'}
+      data-inspector-collapsed={inspectorCollapsed ? 'true' : 'false'}
     >
-      <aside className="conversation-rail ast-surface-primary">{renderRail('rail')}</aside>
+      {/* The conversation history. Collapsed by default (see `railCollapsed`):
+          when collapsed the aside is a slim strip whose one control reopens it,
+          so the answer column has the width; when open it is the full rail with
+          a control to close it again. Below 800px responsive.css hides this and
+          the sheet trigger below takes over, so neither state is reachable
+          there. */}
+      <aside className="conversation-rail ast-surface-primary" data-collapsed={railCollapsed ? 'true' : undefined}>
+        {railCollapsed ? (
+          <button
+            type="button"
+            className="rail-collapse-strip"
+            onClick={toggleRailCollapsed}
+            aria-expanded={false}
+            aria-label="Show conversation history"
+            title="Show conversation history"
+          >
+            <PanelLeftOpen aria-hidden="true" />
+            <span className="rail-collapse-strip-label">Conversations</span>
+            {rail.entries.length > 0 && <span className="rail-collapse-count">{rail.entries.length}</span>}
+          </button>
+        ) : (
+          <>
+            <div className="rail-collapse-head">
+              <button
+                type="button"
+                className="rail-collapse-toggle"
+                onClick={toggleRailCollapsed}
+                aria-expanded
+                aria-label="Hide conversation history"
+                title="Hide conversation history"
+              >
+                <PanelLeftClose aria-hidden="true" />
+              </button>
+            </div>
+            {renderRail('rail')}
+          </>
+        )}
+      </aside>
 
       {/* The sheet's trigger, drawn only below 800px, where the aside is not.
           responsive.css decides both, so the page cannot end up with two rails or
@@ -2916,43 +2983,82 @@ export function HomePage() {
         </form>
       </div>
 
-      <aside className="trace-inspector" ref={inspectorRef}>
-        {/* §4 names this column before it names what is in it: "LIVE AGENT
-            HARNESS", then the run's pill, then the steps. The eyebrow is what
-            the column IS and the heading is what the column HOLDS, which is why
-            they are two lines rather than one -- the pill reports on the
-            harness rather than on the list, so it belongs beside the eyebrow. */}
-        <div className="trace-head">
-          <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
-          <RunStatusPill status={runStatus} onDark />
-        </div>
-        <h3 className="trace-title">Agent path</h3>
-        {/* A clarification has a trace too, and it is the one that explains why the
+      <aside className="trace-inspector" ref={inspectorRef} data-collapsed={inspectorCollapsed ? 'true' : undefined}>
+        {/* The agent-path inspector. Collapsed by default (see
+            `inspectorCollapsed`): when collapsed it is a slim strip that still
+            carries a running indicator, so the reader can see the app is working
+            without the column open; when open it is the full harness with a
+            control to close it. Below 1180px responsive.css hides the column and
+            the strip above the composer takes over, so neither state is reachable
+            there. */}
+        {inspectorCollapsed ? (
+          <button
+            type="button"
+            className="inspector-collapse-strip"
+            onClick={toggleInspectorCollapsed}
+            aria-expanded={false}
+            aria-label="Show agent path"
+            title="Show agent path"
+          >
+            <PanelRightOpen aria-hidden="true" />
+            <span className="inspector-collapse-strip-label">Agent path</span>
+            {/* The one thing kept from the open column while collapsed: proof the
+                agent is still working. Without it, a reader who collapsed the
+                harness has no signal a run is in flight. */}
+            {loading ? (
+              <span className="inspector-collapse-run" role="status" aria-label="Agent is running">
+                <PiaLoaderMark variant="compact" tone="light" />
+              </span>
+            ) : null}
+          </button>
+        ) : (
+          <>
+            {/* §4 names this column before it names what is in it: "LIVE AGENT
+                HARNESS", then the run's pill, then the steps. The eyebrow is what
+                the column IS and the heading is what the column HOLDS, which is why
+                they are two lines rather than one -- the pill reports on the
+                harness rather than on the list, so it belongs beside the eyebrow. */}
+            <div className="trace-head">
+              <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
+              <RunStatusPill status={runStatus} onDark />
+              <button
+                type="button"
+                className="inspector-collapse-toggle"
+                onClick={toggleInspectorCollapsed}
+                aria-expanded
+                aria-label="Hide agent path"
+                title="Hide agent path"
+              >
+                <PanelRightClose aria-hidden="true" />
+              </button>
+            </div>
+            <h3 className="trace-title">Agent path</h3>
+            {/* A clarification has a trace too, and it is the one that explains why the
             agent is asking. There is deliberately no reference-stage fallback: this
             rail used to show a completed four-stage run, including a red "partial"
             failure, before anyone had asked anything, and then animate a highlight
             through those invented stages while the real agent worked. */}
-        {railStages.length > 0 /* The band, or the settled list, and nothing under either of them. The
+            {railStages.length > 0 /* The band, or the settled list, and nothing under either of them. The
              line that used to follow -- "Steps appear here as each one
              completes." -- explained the surface to the reader rather than
              reporting on the run, and it sat under a constellation that shows
              the chain arriving. There is deliberately no counter of the pause
              since the newest step either; see live-progress.ts. */ ? (
-          <AgentPathConstellation
-            stages={railStages}
-            activeIndex={railActiveIndex}
-            elapsedMs={railElapsedMs}
-            currentStage={currentStage}
-            totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
-            thread={conversationId}
-            turn={railTurn}
-          />
-        ) : /* A run is going and has not reported a step yet. Idle Ask is the
+              <AgentPathConstellation
+                stages={railStages}
+                activeIndex={railActiveIndex}
+                elapsedMs={railElapsedMs}
+                currentStage={currentStage}
+                totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
+                thread={conversationId}
+                turn={railTurn}
+              />
+            ) : /* A run is going and has not reported a step yet. Idle Ask is the
                  sky above, not a second empty-state heading. They used to share
                  one panel and a `loading ?` inside every line of it, so a reader
                  waiting on their first step got an empty-state heading. */
-        loading ? (
-          /* A run is in flight and no step has landed yet, which is `#17a`'s
+            loading ? (
+              /* A run is in flight and no step has landed yet, which is `#17a`'s
                inline seating: 20px mark, "Planning out your answer", the real
                count pinned right. It was a lucide spinner in a washed tile over
                "No steps yet" and a sentence explaining that each step would
@@ -2962,75 +3068,79 @@ export function HomePage() {
                There is no empty-state heading with it. The row says a run is
                going and the pill above says the same; a third line naming the
                absence of steps is the list apologising for being empty. */
-          <div className="trace-working">
-            <WorkingInlineRow elapsed={elapsed} label={currentStage.label} />
-          </div>
-        ) : null}
-        {answer && (
-          <>
-            <Separator className="trace-divider" />
-            <div className="metric-row">
-              {/* A trace the answer did not carry reports nothing, rather than 0.0s
+              <div className="trace-working">
+                <WorkingInlineRow elapsed={elapsed} label={currentStage.label} />
+              </div>
+            ) : null}
+            {answer && (
+              <>
+                <Separator className="trace-divider" />
+                <div className="metric-row">
+                  {/* A trace the answer did not carry reports nothing, rather than 0.0s
                   and 0 calls, which read as a run that was measured and took no
                   time, instead of a run whose trace never arrived. */}
-              <span>
-                Total time
-                <strong
-                  title={
-                    answer.trace.stages.length > 0
-                      ? `${answer.trace.totalMs.toLocaleString()} milliseconds`
-                      : 'Not recorded'
-                  }
-                >
-                  {answer.trace.stages.length > 0 ? formatDuration(answer.trace.totalMs) : 'Not recorded'}
-                </strong>
-              </span>
-              <span>
-                <ToolCallsLabel>Tool calls</ToolCallsLabel>
-                <strong>{answer.trace.stages.length > 0 ? answer.trace.toolCalls : 'Not recorded'}</strong>
-              </span>
-              <span>
-                Tokens
-                <strong
-                  title={
-                    typeof answer.trace.prompt_tokens === 'number' && typeof answer.trace.completion_tokens === 'number'
-                      ? `${answer.trace.prompt_tokens.toLocaleString()} input tokens / ${answer.trace.completion_tokens.toLocaleString()} output tokens`
-                      : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
-                        ? `${answer.trace.total_tokens.toLocaleString()} total tokens`
-                        : 'Not recorded'
-                  }
-                >
-                  {/* The split only when both halves were metred. A gateway that
+                  <span>
+                    Total time
+                    <strong
+                      title={
+                        answer.trace.stages.length > 0
+                          ? `${answer.trace.totalMs.toLocaleString()} milliseconds`
+                          : 'Not recorded'
+                      }
+                    >
+                      {answer.trace.stages.length > 0 ? formatDuration(answer.trace.totalMs) : 'Not recorded'}
+                    </strong>
+                  </span>
+                  <span>
+                    <ToolCallsLabel>Tool calls</ToolCallsLabel>
+                    <strong>{answer.trace.stages.length > 0 ? answer.trace.toolCalls : 'Not recorded'}</strong>
+                  </span>
+                  <span>
+                    Tokens
+                    <strong
+                      title={
+                        typeof answer.trace.prompt_tokens === 'number' &&
+                        typeof answer.trace.completion_tokens === 'number'
+                          ? `${answer.trace.prompt_tokens.toLocaleString()} input tokens / ${answer.trace.completion_tokens.toLocaleString()} output tokens`
+                          : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                            ? `${answer.trace.total_tokens.toLocaleString()} total tokens`
+                            : 'Not recorded'
+                      }
+                    >
+                      {/* The split only when both halves were metred. A gateway that
                       reports only a total prints that total rather than inventing
                       a zero input/output split. */}
-                  {typeof answer.trace.prompt_tokens === 'number' && typeof answer.trace.completion_tokens === 'number'
-                    ? `${answer.trace.prompt_tokens.toLocaleString()} / ${answer.trace.completion_tokens.toLocaleString()}`
-                    : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
-                      ? answer.trace.total_tokens.toLocaleString()
-                      : 'Not recorded'}
-                </strong>
-              </span>
-              <span>
-                Slowest<strong>{slowestStageName(answer.trace.stages) ?? 'Not recorded'}</strong>
-              </span>
-            </div>
-            {/* The answer id is the run id: /api/runs derives conversation runs
+                      {typeof answer.trace.prompt_tokens === 'number' &&
+                      typeof answer.trace.completion_tokens === 'number'
+                        ? `${answer.trace.prompt_tokens.toLocaleString()} / ${answer.trace.completion_tokens.toLocaleString()}`
+                        : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                          ? answer.trace.total_tokens.toLocaleString()
+                          : 'Not recorded'}
+                    </strong>
+                  </span>
+                  <span>
+                    Slowest<strong>{slowestStageName(answer.trace.stages) ?? 'Not recorded'}</strong>
+                  </span>
+                </div>
+                {/* The answer id is the run id: /api/runs derives conversation runs
                 from the assistant message this answer was stored as, so the Run
                 Explorer can open on the run the user just watched. Which is only
                 true if it was stored. When the write was lost the id names
                 nothing, and offering the link sent people to a Run Explorer that
                 could not find it, so say what happened instead. */}
-            {answer.runStored === false ? (
-              <Alert variant="destructive">
-                <CircleAlert />
-                <AlertDescription>{RUN_NOT_STORED}</AlertDescription>
-              </Alert>
-            ) : (
-              <Button variant="default" className="trace-explore w-full" asChild>
-                <Link to={`/runs?run=${encodeURIComponent(answer.id)}`}>
-                  Explore full run <ExternalLink aria-hidden="true" />
-                </Link>
-              </Button>
+                {answer.runStored === false ? (
+                  <Alert variant="destructive">
+                    <CircleAlert />
+                    <AlertDescription>{RUN_NOT_STORED}</AlertDescription>
+                  </Alert>
+                ) : (
+                  <Button variant="default" className="trace-explore w-full" asChild>
+                    <Link to={`/runs?run=${encodeURIComponent(answer.id)}`}>
+                      Explore full run <ExternalLink aria-hidden="true" />
+                    </Link>
+                  </Button>
+                )}
+              </>
             )}
           </>
         )}
