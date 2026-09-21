@@ -174,9 +174,11 @@ import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
   prependConversationMessages,
+  readCompleteConversationMessages,
   readConversationMessagePage,
   restorePrependAnchor,
 } from './conversation-messages';
+import { ConversationExportMenu } from './ExportMenu';
 import type {
   AgentResponse,
   AnalysisPlan,
@@ -2507,6 +2509,20 @@ export function HomePage() {
               <h2>What would you like to understand about your players?</h2>
             </div>
           )}
+
+          {/* Whole-conversation export. Drawn only once the thread has turns to
+              export -- an empty transcript has nothing to download -- and it reads
+              the complete, paginated thread from the store rather than the newest
+              page mounted here, so a long conversation exports whole. The single
+              answer's own export menu still lives on each answer card. */}
+          {!transcriptEmpty && messages.length > 0 ? (
+            <div className="conversation-export-toolbar">
+              <ConversationExportMenu
+                title={conversations.find((item) => item.id === conversationId)?.title ?? 'Conversation'}
+                loadMessages={() => readCompleteConversationMessages(conversationId)}
+              />
+            </div>
+          ) : null}
 
           {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
             <div className="message-pagination" aria-live="polite">

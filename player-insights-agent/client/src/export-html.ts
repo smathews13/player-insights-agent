@@ -239,6 +239,10 @@ export function documentCss(theme: ExportHtmlTheme): string {
     `.figures .kpi .value{font-size:24px;font-weight:600;color:${ink};}`,
     `.figures .kpi .comparison{font-size:12px;color:${muted};}`,
     `section.report-section{margin-bottom:10px;}`,
+    `section.turn{margin:0 0 4px;}`,
+    `section.turn-user h2{color:${accent};}`,
+    `section.turn-user p{font-size:16px;color:${ink};margin:0 0 4px;}`,
+    `hr.turn-separator{border:0;border-top:1px solid ${border};margin:22px 0;}`,
     `.sources ul,.caveats ul{margin:0;padding-left:18px;color:${muted};font-size:13px;}`,
     `.doc-footer{margin-top:28px;border-top:1px solid ${border};padding-top:10px;color:${muted};font-size:12px;}`,
   ].join('');
