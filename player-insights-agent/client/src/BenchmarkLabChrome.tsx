@@ -71,6 +71,7 @@ export type LabChromeSlots = {
   stageApply?: ReactNode;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- pure strip-cell mapping is covered without mounting the chrome
 export function labContractCells(input: {
   datasetValue?: string;
   datasetDetail?: string;
@@ -120,6 +121,7 @@ export function labContractCells(input: {
 }
 
 /** Map the types sibling's contract view onto the six strip cells. */
+// eslint-disable-next-line react-refresh/only-export-components -- pure contract-view mapping is covered without mounting the chrome
 export function cellsFromPocContract(view: PocContractView): LabContractCell[] {
   return [
     { eyebrow: 'Goal', value: view.goal },

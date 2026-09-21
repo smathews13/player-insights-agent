@@ -19,6 +19,7 @@ import {
   type ExportTable,
 } from './export-serializers';
 import { copyExportText, downloadExportBlob, downloadExportText } from './export-files';
+import type { CostBriefPayload } from '../../shared/ops-contract';
 
 /**
  * The answer's charts as PNG data URLs, keyed by id, or an empty map.
@@ -139,6 +140,26 @@ export async function downloadReportJson(report: Report): Promise<void> {
     safeExportFilename(report.title, 'json'),
     'application/json;charset=utf-8'
   );
+}
+
+/* ── Cost brief export ───────────────────────────────────────────────────────── */
+
+/**
+ * Fetch the trailing-31-day cost breakdown and save it as a PDF.
+ *
+ * The brief is its own on-demand read (`GET /api/ops/cost/brief`), separate from
+ * the month-locked Cost block, so the button pays for the 31-day query only when
+ * clicked. The Markdown serialiser and the dependency-free PDF writer are the same
+ * ones every other PDF export uses; the writer loads lazily like the other PDF
+ * paths so the chunk is not in the initial bundle.
+ */
+export async function downloadCostBriefPdf(): Promise<void> {
+  const response = await fetch('/api/ops/cost/brief', { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error('The cost brief could not be read.');
+  const brief = (await response.json()) as CostBriefPayload;
+  const { serializeCostBriefMarkdown } = await import('./cost-brief-serializer');
+  const { markdownPdf } = await import('./export-binary');
+  downloadExportBlob(markdownPdf(serializeCostBriefMarkdown(brief)), safeExportFilename('cost-breakdown-31d', 'pdf'));
 }
 
 export async function copyTableTsv(table: ExportTable): Promise<void> {

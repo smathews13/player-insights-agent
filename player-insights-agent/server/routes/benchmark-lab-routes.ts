@@ -29,7 +29,7 @@ import { readEvalDataset, readEvalDatasetEnvelope, writeEvalDataset } from '../l
 import { patchFlywheelState, readFlywheelState } from '../lib/eval-flywheel-store';
 import { alignGuidelinesToHumans, loadCasesForAlignment } from '../lib/judge-alignment';
 import { promotePromptAlias, promptTemplateFromPromote } from '../lib/prompt-registry';
-import { userEmail, type InsightsAppKit } from './insights-routes';
+import { requestString, userEmail, type InsightsAppKit } from './insights-routes';
 
 const SplitBody = z.object({
   caseIds: z.array(z.string().trim().min(1).max(80)).max(200),
@@ -487,7 +487,7 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
       const actor = userEmail(req);
       try {
         const state = await readLabState(appkit, { maxAgeMs: 0 });
-        const preview = (typeof req.body?.preview === 'string' ? req.body.preview.trim() : '') || state.alignPreview?.preview || '';
+        const preview = requestString(req.body, 'preview') || state.alignPreview?.preview || '';
         if (!preview) {
           res.status(400).json({
             error: 'no_preview',

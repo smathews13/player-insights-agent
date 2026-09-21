@@ -57,10 +57,10 @@ describe('sampled Ask scoring', () => {
           },
         ],
       },
-      async (payload) => {
+      (payload) => {
         const content = (payload.messages as { content: string }[])[0]?.content ?? '';
         seen.push(content);
-        return { choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] };
+        return Promise.resolve({ choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] });
       }
     );
     expect(seen[0]).toContain('Is Twelve. a complete answer to How many players?');
@@ -84,10 +84,10 @@ describe('sampled Ask scoring', () => {
         enabledJudges: [],
         enabledMultiTurnJudges: ['conversation_completeness'],
       },
-      async (payload) => {
+      (payload) => {
         const content = (payload.messages as { content: string }[])[0]?.content ?? '';
         seen.push(content);
-        return { choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] };
+        return Promise.resolve({ choices: [{ message: { content: '{"result":"yes","rationale":"ok"}' } }] });
       }
     );
     expect(seen[0]).toContain('And last month?');

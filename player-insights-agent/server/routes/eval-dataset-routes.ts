@@ -29,7 +29,7 @@ import { createGenieAsker, MissingSqlGateError, runGenieAccuracy } from '../lib/
 import { createSqlExecutor } from '../lib/genie-result-execute';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { executionToken } from '../lib/execution-credential';
-import { servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
+import { requestString, servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
 import {
   auditHeldOutEdits,
   labCaseFromRow,
@@ -252,7 +252,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
           alignClient,
           invokeJudge,
         });
-        if (req.body?.preview === true) {
+        if ((req.body as { preview?: unknown } | null | undefined)?.preview === true) {
           res.json({
             preview: aligned.guidelinesText,
             labeled,
@@ -381,7 +381,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     app.post('/api/admin/benchmarks/review-app', async (req, res) => {
       const actor = userEmail(req);
       const settings = await readBenchmarkSettings(appkit, { maxAgeMs: 0 });
-      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const name = requestString(req.body, 'name');
       let session;
       try {
         const { WorkspaceClient } = await import('@databricks/sdk-experimental');
@@ -422,7 +422,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
 
     app.post('/api/admin/benchmarks/score-thread', async (req, res) => {
       const actor = userEmail(req);
-      const requested = typeof req.body?.conversationId === 'string' ? req.body.conversationId.trim() : '';
+      const requested = requestString(req.body, 'conversationId');
       try {
         const conversationId = requested || (await findLatestAnsweredConversation(appkit));
         if (!conversationId) {
@@ -495,7 +495,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     });
 
     app.put('/api/admin/benchmarks/prompt-registry', async (req, res) => {
-      const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+      const name = requestString(req.body, 'name');
       if (name && !/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+){2}$/.test(name)) {
         res.status(400).json({
           error: 'invalid_prompt_name',
@@ -547,7 +547,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     });
 
     app.post('/api/admin/benchmarks/cancel', async (req, res) => {
-      const runId = typeof req.body?.runId === 'string' ? req.body.runId.trim() : '';
+      const runId = requestString(req.body, 'runId');
       if (!runId) {
         res.status(400).json({ error: 'invalid_cancel', message: 'Name the run to cancel.' });
         return;
@@ -627,7 +627,7 @@ export function setupEvalDatasetRoutes(appkit: InsightsAppKit): void {
     });
 
     app.post('/api/admin/benchmarks/known-failure', async (req, res) => {
-      const caseId = typeof req.body?.caseId === 'string' ? req.body.caseId.trim() : '';
+      const caseId = requestString(req.body, 'caseId');
       if (!caseId) {
         res.status(400).json({ error: 'invalid_known_failure', message: 'Name the case to mark as a known failure.' });
         return;

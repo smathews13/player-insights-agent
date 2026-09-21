@@ -116,7 +116,7 @@ import { USER_MONITORING_SCHEMA_REVISION } from '../../shared/user-monitoring-co
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { MAX_PERSONA_FILTER_LENGTH } from '../../shared/conversation-filters';
 import { attributableCostBudgets } from '../../shared/cost-budgets';
-import { appSpendFigure, appCostBreakdown } from '../../shared/app-cost-summary';
+import { appSpendFigure, appCostBreakdown, deploymentAttribution } from '../../shared/app-cost-summary';
 import {
   createWorkspaceQueryHistoryTransport,
   EMPTY_WAREHOUSE_QUERY_ATTRIBUTION,
@@ -146,16 +146,20 @@ import {
 import type {
   AppSpendFigure,
   AppMeasurement,
+  CostBriefPayload,
+  CostBriefResource,
+  CostTile,
   DependencyResult,
   GrantRemedy,
   HealthDependency,
   OpsCostPayload,
+  OpsDayRange,
   OpsHealthPayload,
   OpsLatencyPayload,
   OpsTrafficPayload,
   PlatformReading,
 } from '../../shared/ops-contract';
-import { opsCurrentMonthRange } from '../../shared/ops-contract';
+import { opsCurrentMonthRange, opsDayRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
 import { cachedLifetimeSpend, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
 import {
@@ -170,6 +174,8 @@ import { resolveFirstAppDeployment } from '../lib/app-deployment-lifetime';
 
 /** How long any one Ops statement is given before it is reported as unanswered. */
 const STATEMENT_TIMEOUT_MS = 45_000;
+/** One UTC day, used to walk the trailing-31-complete-day cost-brief window. */
+const COST_BRIEF_DAY_MS = 86_400_000;
 const USER_MONITORING_CACHE_MS = 30_000;
 const userMonitoringCache = new Map<string, { expiresAt: number; payload: OpsCostPayload }>();
 export const HEALTH_CHECK_CONCURRENCY = 4;
@@ -1395,7 +1401,20 @@ export async function warehouseQueryAttribution(input: {
   }
 }
 
-async function readLifetimeSpendSnapshot(input: {
+/** The full cost picture for one range: the figure Cost already used, plus the
+ *  tiles and attributed/standing split the trailing-31-day brief needs. */
+interface RangeCostBreakdown {
+  figure: AppSpendFigure;
+  tiles: CostTile[];
+  spendBreakdown: { attributed: AppSpendFigure; standing: AppSpendFigure };
+  currency: string;
+  throughDay: string;
+  billingLagDays: number | null;
+  /** The range actually queried, after billing rows moved the lower bound. */
+  range: OpsDayRange;
+}
+
+interface RangeCostBreakdownInput {
   appkit: InsightsAppKit;
   ids: CostIdentifiers;
   range: CostRange;
@@ -1404,7 +1423,9 @@ async function readLifetimeSpendSnapshot(input: {
   token: string;
   fetchImpl?: typeof fetch;
   queryHistoryTransport?: WarehouseQueryHistoryTransport;
-}): Promise<AppSpendFigure> {
+}
+
+async function readRangeCostBreakdown(input: RangeCostBreakdownInput): Promise<RangeCostBreakdown> {
   const costStatement = buildCostStatement(input.ids, input.range);
   if (!costStatement) throw new Error('No billable app resources were resolved.');
   const costOutcome = await runStatement({
@@ -1494,16 +1515,28 @@ async function readLifetimeSpendSnapshot(input: {
   );
   const currency = split.meta?.currency ?? tiles.find((tile) => tile.pricing?.currency)?.pricing?.currency ?? '';
   const throughDay = split.meta?.lastDay || '';
-  return appSpendFigure(
-    {
-      range: effectiveRange,
-      tiles,
-      currency,
-      throughDay,
-      honesty: buildHonesty(effectiveRange, split.meta, tiles),
-    },
-    effectiveRange.from
-  );
+  const payload = {
+    range: effectiveRange,
+    tiles,
+    currency,
+    throughDay,
+    honesty: buildHonesty(effectiveRange, split.meta, tiles),
+  };
+  return {
+    figure: appSpendFigure(payload, effectiveRange.from),
+    tiles,
+    spendBreakdown: appCostBreakdown(payload, effectiveRange.from),
+    currency,
+    throughDay,
+    billingLagDays: lagDays(effectiveRange.to, throughDay),
+    range: effectiveRange,
+  };
+}
+
+/** The paid app-attributable figure for one range. A thin projection of
+ *  {@link readRangeCostBreakdown} for callers that need only the total. */
+async function readLifetimeSpendSnapshot(input: RangeCostBreakdownInput): Promise<AppSpendFigure> {
+  return (await readRangeCostBreakdown(input)).figure;
 }
 
 /* ── Routes ──────────────────────────────────────────────────────────────── */
@@ -1523,6 +1556,7 @@ export const OPS_ROUTES = [
   '/api/ops/health/check',
   '/api/ops/scopes',
   '/api/ops/cost',
+  '/api/ops/cost/brief',
   '/api/ops/traffic',
   '/api/ops/latency',
 ] as const;
@@ -2493,6 +2527,161 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           userMonitoring: userMonitoringFor(unavailableUserSpend(tiles, 'Billing could not be read.')),
           reason: `Billing could not be read, so nothing about spend was established: ${(error as Error).message}`,
         } satisfies OpsCostPayload);
+      }
+    });
+
+    /* ── Cost brief (trailing 31 complete days) ──────────────────────────────
+     *
+     * A separate, on-demand read for the PDF export. Deliberately a DIFFERENT
+     * window than the month-locked `/api/ops/cost` block: it reuses the same
+     * billing pipeline (`readRangeCostBreakdown`) over the 31 most recent
+     * complete days. The incomplete-day rule still holds — `opsDayRange` clamps
+     * the end to yesterday, never today, because billing rows arrive late.
+     */
+    app.get('/api/ops/cost/brief', async (req: Request, res: Response) => {
+      const generatedAt = new Date(clock()).toISOString();
+      const day = (at: number) => new Date(at).toISOString().slice(0, 10);
+      const lastComplete = clock() - COST_BRIEF_DAY_MS;
+      const range = opsDayRange(day(lastComplete - 30 * COST_BRIEF_DAY_MS), day(lastComplete), clock());
+      const emptyBrief = {
+        period: 'trailing_31d' as const,
+        state: 'no-warehouse' as CostBriefPayload['state'],
+        grant: null,
+        reason: '',
+        range,
+        throughDay: '',
+        currency: '',
+        billingLagDays: null,
+        total: {
+          amount: null,
+          dbus: null,
+          currency: '',
+          sourceFrom: '',
+          sourceThrough: '',
+          completeness: 'unavailable' as const,
+          estimated: false,
+        },
+        spendBreakdown: {
+          attributed: {
+            amount: null,
+            dbus: null,
+            currency: '',
+            sourceFrom: '',
+            sourceThrough: '',
+            completeness: 'unavailable' as const,
+            estimated: false,
+          },
+          standing: {
+            amount: null,
+            dbus: null,
+            currency: '',
+            sourceFrom: '',
+            sourceThrough: '',
+            completeness: 'unavailable' as const,
+            estimated: false,
+          },
+        },
+        resources: [],
+        generatedAt,
+      } satisfies CostBriefPayload;
+
+      const workspace = host();
+      const warehouse = warehouseId();
+      const token = executionToken(req);
+      if (!workspace || !warehouse || !token) {
+        res.json({
+          ...emptyBrief,
+          state: 'no-warehouse',
+          reason:
+            'Billing could not be read because this app has no SQL warehouse, no workspace address, ' +
+            'or no forwarded sign-in to read it with. Nothing about spend was established.',
+        } satisfies CostBriefPayload);
+        return;
+      }
+
+      const workspaceId = await resolveWorkspaceId({ host: workspace, token, fetchImpl: deps.fetchImpl });
+      const resolved = await costIdentifiersFor(appkit, req, {
+        workspaceId,
+        warehouse,
+        fetchImpl: deps.fetchImpl,
+        readAppBillingTag: deps.readAppBillingTag,
+        readReport: deps.readOrchestratorReport,
+      });
+      const ids = resolved.ids;
+
+      if (!buildCostStatement(ids, range)) {
+        res.json({
+          ...emptyBrief,
+          state: 'no-rows',
+          reason: 'No billable app resources were resolved, so there is no spend to break down.',
+        } satisfies CostBriefPayload);
+        return;
+      }
+
+      try {
+        const breakdown = await readRangeCostBreakdown({
+          appkit,
+          ids,
+          range,
+          workspace,
+          warehouse,
+          token,
+          fetchImpl: deps.fetchImpl,
+          queryHistoryTransport: deps.queryHistoryTransport,
+        });
+        const toBriefResource = (tile: CostTile): CostBriefResource => ({
+          id: tile.id,
+          label: tile.label,
+          population: tile.population,
+          amount: tile.amount,
+          standingAmount: tile.standingAmount ?? null,
+          quality: tile.quality,
+        });
+        // The same tiles the total and attributed/standing figures sum, so the
+        // resource table reconciles: the synthetic `genie:unattributed` bucket
+        // and workspace-wide (non-deployment) tiles are excluded here exactly as
+        // `appSpendFigure`/`appCostBreakdown` exclude them.
+        const resources = breakdown.tiles
+          .filter((tile) => tile.id !== 'genie:unattributed' && deploymentAttribution(tile))
+          .map(toBriefResource);
+        res.json({
+          period: 'trailing_31d',
+          // A read that returned a last billed day saw rows; without one the
+          // window has not filled yet, which is 'no-rows', not a failure.
+          state: breakdown.throughDay ? 'ready' : 'no-rows',
+          grant: null,
+          reason: breakdown.throughDay ? '' : 'No billing rows have arrived for the last 31 days yet.',
+          // The window we asked for, so the caption matches the "trailing 31 days"
+          // title even when billing rows only begin partway through it.
+          range,
+          throughDay: breakdown.throughDay,
+          currency: breakdown.currency,
+          billingLagDays: breakdown.billingLagDays,
+          total: breakdown.figure,
+          spendBreakdown: breakdown.spendBreakdown,
+          resources,
+          generatedAt,
+        } satisfies CostBriefPayload);
+      } catch (error) {
+        const message = (error as Error).message;
+        const denial = classifyDenial(message, 'system.billing.usage');
+        if (denial.kind === 'no-grant') {
+          res.json({
+            ...emptyBrief,
+            state: 'no-grant',
+            grant: billingGrant(userEmail(req) || UNKNOWN_PRINCIPAL),
+            reason:
+              `You do not have ${denial.permission} on ${denial.object}, so no spend was read. Billing ` +
+              'runs under your own grants rather than this app’s. SELECT is needed on both ' +
+              'system.billing.usage and system.billing.list_prices.',
+          } satisfies CostBriefPayload);
+          return;
+        }
+        res.json({
+          ...emptyBrief,
+          state: 'unreadable',
+          reason: `Billing could not be read, so nothing about spend was established. Databricks said: ${message}`,
+        } satisfies CostBriefPayload);
       }
     });
 

@@ -19,8 +19,12 @@ export type BuiltinJudgeName =
   | typeof RELEVANCE_TO_QUERY_ASSESSMENT_NAME
   | typeof GUIDELINES_FEEDBACK_NAME;
 
-/** Built-in names, plus custom / multi-turn `Guidelines(name=…)` assessments. */
-export type JudgeName = BuiltinJudgeName | string;
+/**
+ * Built-in names, plus custom / multi-turn `Guidelines(name=…)` assessments.
+ * `string & {}` keeps the built-in literals as editor suggestions without the
+ * union collapsing to a bare `string`.
+ */
+export type JudgeName = BuiltinJudgeName | (string & {});
 
 export function conversationTranscript(question: string, response: string): string {
   return `User: ${question}\nAssistant: ${response}`;

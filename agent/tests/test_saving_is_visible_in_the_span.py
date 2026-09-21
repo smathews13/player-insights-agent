@@ -108,7 +108,7 @@ def test_the_synthesis_span_records_its_prompt_size_and_which_path_it_took(traci
         "is the prompt-size half of the saving"
     )
     assert synthesis.inputs.get("prompt_chars", 0) > 0, "the prompt size was not recorded"
-    assert synthesis.outputs.get("structured_output") in {"accepted", "fallback"}, (
+    assert synthesis.outputs.get("structured_output") in {"schema", "json_object", "unconstrained"}, (
         "nothing records whether the structured-output request was honoured, so a "
         "run that silently paid for two model calls looks identical to one that did not"
     )

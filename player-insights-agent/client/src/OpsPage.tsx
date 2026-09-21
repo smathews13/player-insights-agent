@@ -53,6 +53,7 @@ import { ageAgo, checkedAgoLine } from './refresh-state';
 import { useWorkspaceHost } from './data-entity-state';
 import { databricksLink } from '../../shared/databricks-links';
 import { CostBudgetProvider, CostResourceBudgets, CostSpendSummary, CostTotalBudget } from './CostBudgets';
+import { CostBriefExportMenu } from './ExportMenu';
 import {
   activeMinutesDisplay,
   bars,
@@ -615,6 +616,7 @@ export function CostBody({
               </Button>
             ) : null}
             <CostUnitControl unit={unit} onChange={onUnitChange} />
+            <CostBriefExportMenu />
             <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
           </div>
         }

@@ -25,7 +25,7 @@ describe('workspace production monitoring probe', () => {
     const monitor = await probeWorkspaceMonitoring(
       {
         apiClient: {
-          request: async () => ({ scorers: [{ name: 'guidelines' }] }),
+          request: () => Promise.resolve({ scorers: [{ name: 'guidelines' }] }),
         },
       },
       '123'
@@ -38,7 +38,7 @@ describe('workspace production monitoring probe', () => {
     const monitor = await probeWorkspaceMonitoring(
       {
         apiClient: {
-          request: async () => ({ scorers: [] }),
+          request: () => Promise.resolve({ scorers: [] }),
         },
       },
       '123'

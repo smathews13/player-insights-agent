@@ -95,7 +95,8 @@ describe('allowAstrolabeUserApiScopes', () => {
 
     const patchBody = call.mock.calls[1][1]?.body;
     if (typeof patchBody !== 'string') throw new Error('PATCH carried no JSON body');
-    expect(JSON.parse(patchBody).user_api_scopes).toEqual([
+    const patched = JSON.parse(patchBody) as { user_api_scopes: unknown[] };
+    expect(patched.user_api_scopes).toEqual([
       'catalog.tables:read',
       'serving.serving-endpoints',
       'model-serving',

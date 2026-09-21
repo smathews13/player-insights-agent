@@ -147,6 +147,20 @@ export function ChartExportMenu({ chart, name }: { chart: Chart; name?: string }
   );
 }
 
+export function CostBriefExportMenu() {
+  return (
+    <ActionsMenu
+      label="Export the trailing 31-day cost breakdown"
+      actions={[
+        {
+          label: 'Download PDF (last 31 days)',
+          run: async () => (await loadExportActions()).downloadCostBriefPdf(),
+        },
+      ]}
+    />
+  );
+}
+
 export function ConversationExportMenu({
   title,
   loadMessages,

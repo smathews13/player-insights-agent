@@ -56,13 +56,24 @@ function asStringList(value: unknown): string[] {
 }
 
 function asString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+  if (typeof value === 'string') return value.trim();
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value).trim();
+  }
+  if (typeof value === 'object') return JSON.stringify(value).trim();
+  return '';
 }
 
 function isEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
   if (Array.isArray(value)) return value.length === 0;
-  return String(value).trim() === '';
+  if (typeof value === 'string') return value.trim() === '';
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value).trim() === '';
+  }
+  // A non-array object is never blank (it stringified to a truthy value before).
+  return false;
 }
 
 /**
