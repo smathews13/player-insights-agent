@@ -1133,3 +1133,179 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
     backdrop-filter: none;
   }
 }
+
+/*
+ * COLLAPSIBLE SIDE RAILS.
+ *
+ * Both side columns start collapsed (HomePage's `railCollapsed` /
+ * `inspectorCollapsed`, remembered per browser in ask-pane-preferences.ts) so
+ * the answer column is the widest thing on the page on open. Collapsing narrows
+ * the grid track to a slim strip whose one control reopens it; the source
+ * section under an answer collapses independently (answer-body.css).
+ *
+ * These override only the track WIDTH, by the attribute the layout carries. The
+ * responsive blocks above own whether each column is DRAWN at all -- the rail is
+ * hidden below 800px for the sheet, the inspector below 1180px for the strip
+ * above the composer -- and nothing here sets `display`, so those hides still
+ * win and the collapsed strip is unreachable at the widths a column is gone.
+ */
+.ask-layout[data-rail-collapsed='true'] {
+  --conversation-width: 44px;
+}
+.ask-layout[data-inspector-collapsed='true'] {
+  --trace-width: 44px;
+}
+
+/* The collapsed column drops its block padding to centre a single slim control
+   in the 44px track. The border, sticky seat and full height are the open
+   column's and are left alone. */
+.conversation-rail[data-collapsed='true'],
+.trace-inspector[data-collapsed='true'] {
+  align-items: center;
+  padding-left: 4px;
+  padding-right: 4px;
+  gap: 8px;
+}
+
+/*
+ * The strip is the whole collapsed column: a full-height button, the panel icon
+ * at the top and the column's name set vertically beneath it so the 44px track
+ * can carry a word. `writing-mode: vertical-rl` with a 180deg turn reads the
+ * label bottom-to-top, up the column, which is the convention for a vertical
+ * rail label and keeps the icon at the top where the pointer lands first.
+ */
+.rail-collapse-strip,
+.inspector-collapse-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.rail-collapse-strip svg,
+.inspector-collapse-strip svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.rail-collapse-strip-label,
+.inspector-collapse-strip-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--ast-tracking-eyebrow);
+  text-transform: uppercase;
+}
+/* The count of saved conversations, kept while collapsed so the reader still
+   knows the history is not empty. A small pill, same idea as the sheet trigger's
+   count. */
+.rail-collapse-count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--muted, rgba(0, 0, 0, 0.06));
+  color: var(--ast-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+/* The one signal kept from the open harness while collapsed: that a run is in
+   flight. It sits under the label so it reads as belonging to the strip. */
+.inspector-collapse-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The rail's light surface: the strip text is the column's own foreground,
+   dimmed to the eyebrow's secondary until hovered. */
+.conversation-rail .rail-collapse-strip,
+.conversation-rail .rail-collapse-strip-label {
+  color: var(--ast-text-secondary);
+}
+.conversation-rail .rail-collapse-strip:hover,
+.conversation-rail .rail-collapse-strip:focus-visible {
+  color: var(--foreground);
+  background: var(--muted, rgba(0, 0, 0, 0.04));
+}
+/* The inspector's dark navy surface: the strip text is light, matching the
+   eyebrow and pill it stands in for. */
+.trace-inspector .inspector-collapse-strip,
+.trace-inspector .inspector-collapse-strip-label {
+  color: var(--ast-text-secondary);
+}
+.trace-inspector .inspector-collapse-strip:hover,
+.trace-inspector .inspector-collapse-strip:focus-visible {
+  color: var(--ast-white);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * The close control on the OPEN column. The rail's sits on its own row above the
+ * list; the inspector's rides the head row after the status pill. Both are quiet
+ * until hovered so they do not compete with the column's own content.
+ */
+.rail-collapse-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.rail-collapse-toggle,
+.inspector-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ast-radius-control);
+  background: transparent;
+  cursor: pointer;
+}
+.rail-collapse-toggle svg,
+.inspector-collapse-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.conversation-rail .rail-collapse-toggle {
+  color: var(--ast-text-secondary);
+}
+.conversation-rail .rail-collapse-toggle:hover,
+.conversation-rail .rail-collapse-toggle:focus-visible {
+  color: var(--foreground);
+  background: var(--muted, rgba(0, 0, 0, 0.04));
+}
+/* Pinned to the top of the head so it aligns with the eyebrow rather than the
+   baseline the pill sits on. */
+.trace-inspector .inspector-collapse-toggle {
+  align-self: flex-start;
+  color: var(--ast-text-secondary);
+}
+.trace-inspector .inspector-collapse-toggle:hover,
+.trace-inspector .inspector-collapse-toggle:focus-visible {
+  color: var(--ast-white);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.rail-collapse-strip:focus-visible,
+.inspector-collapse-strip:focus-visible,
+.rail-collapse-toggle:focus-visible,
+.inspector-collapse-toggle:focus-visible {
+  outline: 2px solid var(--db-blue-600, currentColor);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source-list-chevron {
+    transition: none;
+  }
+}

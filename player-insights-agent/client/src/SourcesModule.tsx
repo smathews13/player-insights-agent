@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { OpenInDatabricks, SourceEntityName } from './DataEntityLinks';
 import { KeepInMind } from './KeepInMind';
 import { sourceRows } from './source-rows';
@@ -147,8 +148,17 @@ export function SourcesModule({
   if (rows.length === 0 && derived.length === 0 && !caveats.some((caveat) => caveat.trim())) return null;
   const provenance =
     leftover.length > 0 || unmatched.length > 0 ? (
-      <section className="sources-module" aria-label="Sources and provenance">
-        <p className="source-list-heading">Sources</p>
+      <details className="sources-module" aria-label="Sources and provenance">
+        {/* Collapsed by default. The tables a run read are provenance a reader
+            opens when they ask where a figure came from, not the first thing
+            they read under the answer, so the section starts closed. Native
+            <details> keeps the whole list in the DOM either way, so nothing
+            below it (Caveats) or in export/reader paths depends on the open
+            state; the chevron rotates to show it can be opened. */}
+        <summary className="source-list-heading source-list-summary">
+          <ChevronRight className="source-list-chevron" aria-hidden="true" />
+          <span>Sources</span>
+        </summary>
         <ul className="answer-list source-list">
           {leftover.map((row) => (
             <li className="source-list-row" key={row.name}>
@@ -200,7 +210,7 @@ export function SourcesModule({
             );
           })}
         </ul>
-      </section>
+      </details>
     ) : null;
   return (
     <>
