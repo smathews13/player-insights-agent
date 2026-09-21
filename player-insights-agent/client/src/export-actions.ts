@@ -4,13 +4,17 @@ import type { Chart } from './AnswerCharts';
 import type { Report } from '../../shared/report-contract';
 import {
   answerCharts,
+  conversationChartsByMessage,
   safeExportFilename,
   serializeAnswerHtml,
   serializeAnswerJson,
   serializeAnswerMarkdown,
   serializeChartJson,
+  serializeConversationHtml,
+  serializeConversationJson,
   serializeConversationMarkdown,
   serializeTableTsv,
+  type ConversationChartImages,
   type ExportHtmlTheme,
   type ExportTable,
 } from './export-serializers';
@@ -23,11 +27,14 @@ import { copyExportText, downloadExportBlob, downloadExportText } from './export
  * the 1.4 MB chunk, and only a download that actually carries a chart should pay
  * for it. An answer with no charts never loads it.
  */
-async function answerChartImages(answer: NormalizedAnswer): Promise<Map<string, string>> {
+async function answerChartImages(
+  answer: NormalizedAnswer,
+  format: 'png' | 'jpeg' = 'png'
+): Promise<Map<string, string>> {
   const charts = answerCharts(answer);
   if (charts.length === 0) return new Map();
   const { chartPngDataUrls } = await import('./chart-image');
-  return chartPngDataUrls(charts);
+  return chartPngDataUrls(charts, format);
 }
 
 /**
@@ -46,10 +53,11 @@ export async function downloadAnswerMarkdown(answer: NormalizedAnswer, question:
 }
 
 export async function downloadAnswerPdf(answer: NormalizedAnswer, question: string): Promise<void> {
-  // The PDF writer sets type-1 text only, so the PDF stays prose-and-tables; the
-  // HTML export is the picture-bearing one.
+  // Charts embed as JPEG (DCTDecode) image XObjects: the PDF writer's one
+  // embeddable image filter. The Markdown carries them as jpeg data URLs and the
+  // writer pulls the picture out of the `![…](data:image/jpeg;…)` line.
   const filename = safeExportFilename(question || answer.takeaway, 'pdf');
-  const markdown = serializeAnswerMarkdown(question, answer);
+  const markdown = serializeAnswerMarkdown(question, answer, await answerChartImages(answer, 'jpeg'));
   const { markdownPdf } = await import('./export-binary');
   downloadExportBlob(markdownPdf(markdown), filename);
 }
@@ -149,32 +157,73 @@ export async function downloadTablePdf(table: ExportTable, name: string): Promis
   downloadExportBlob(tablePdf(table), filename);
 }
 
-async function conversationExport(title: string, loadMessages: () => Promise<ConversationMessage[]>) {
-  const markdown = serializeConversationMarkdown(title, await loadMessages());
-  const filename = safeExportFilename(title, 'md');
-  return { markdown, filename };
+/**
+ * Every answer turn's charts as PNG data URLs, keyed by message id.
+ *
+ * Same lazy-Plotly boundary as the single-answer path: a thread with no charts
+ * never loads the 1.4 MB library. Keyed by message so two turns cannot collide
+ * on the `chart-1` id each of them mints.
+ */
+async function conversationChartImages(
+  messages: readonly ConversationMessage[],
+  format: 'png' | 'jpeg' = 'png'
+): Promise<ConversationChartImages> {
+  const byMessage = conversationChartsByMessage(messages);
+  if (byMessage.size === 0) return new Map();
+  const { chartPngDataUrls } = await import('./chart-image');
+  const entries = await Promise.all(
+    [...byMessage].map(async ([id, charts]) => [id, await chartPngDataUrls(charts, format)] as const)
+  );
+  return new Map(entries);
 }
 
+/**
+ * Copy stays text-only for the same reason the answer copy does: a transcript's
+ * worth of base64 chart data is not what someone pasting into Slack wants.
+ */
 export async function copyConversationMarkdown(
   title: string,
   loadMessages: () => Promise<ConversationMessage[]>
 ): Promise<void> {
-  await copyExportText((await conversationExport(title, loadMessages)).markdown);
+  await copyExportText(serializeConversationMarkdown(title, await loadMessages()));
 }
 
 export async function downloadConversationMarkdown(
   title: string,
   loadMessages: () => Promise<ConversationMessage[]>
 ): Promise<void> {
-  const { markdown, filename } = await conversationExport(title, loadMessages);
-  downloadExportText(markdown, filename);
+  const messages = await loadMessages();
+  const markdown = serializeConversationMarkdown(title, messages, await conversationChartImages(messages));
+  downloadExportText(markdown, safeExportFilename(title, 'md'));
+}
+
+export async function downloadConversationHtml(
+  title: string,
+  loadMessages: () => Promise<ConversationMessage[]>,
+  theme: ExportHtmlTheme = 'page'
+): Promise<void> {
+  const messages = await loadMessages();
+  const html = serializeConversationHtml(title, messages, await conversationChartImages(messages), theme);
+  downloadExportText(html, safeExportFilename(title, 'html'), 'text/html;charset=utf-8');
+}
+
+export async function downloadConversationJson(
+  title: string,
+  loadMessages: () => Promise<ConversationMessage[]>
+): Promise<void> {
+  downloadExportText(
+    serializeConversationJson(title, await loadMessages()),
+    safeExportFilename(title, 'json'),
+    'application/json;charset=utf-8'
+  );
 }
 
 export async function downloadConversationPdf(
   title: string,
   loadMessages: () => Promise<ConversationMessage[]>
 ): Promise<void> {
-  const { markdown, filename } = await conversationExport(title, loadMessages);
+  const messages = await loadMessages();
+  const markdown = serializeConversationMarkdown(title, messages, await conversationChartImages(messages, 'jpeg'));
   const { markdownPdf } = await import('./export-binary');
-  downloadExportBlob(markdownPdf(markdown), filename.replace(/\.md$/, '.pdf'));
+  downloadExportBlob(markdownPdf(markdown), safeExportFilename(title, 'pdf'));
 }

@@ -5,7 +5,9 @@ const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
 const MARGIN = 42;
 const LINE_HEIGHT = 14;
-const PDF_LINES_PER_PAGE = Math.floor((PAGE_HEIGHT - MARGIN * 2) / LINE_HEIGHT);
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const CONTENT_HEIGHT = PAGE_HEIGHT - MARGIN * 2;
+const PDF_LINES_PER_PAGE = Math.floor(CONTENT_HEIGHT / LINE_HEIGHT);
 
 interface PdfLine {
   text: string;
@@ -15,13 +17,73 @@ interface PdfLine {
   gapAfter?: number;
 }
 
-function pdfText(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[^\x20-\x7e]/g, '?')
-    .replaceAll('\\', '\\\\')
-    .replaceAll('(', '\\(')
-    .replaceAll(')', '\\)');
+/**
+ * Windows-1252 (WinAnsi) code points that live outside Latin-1's own 0xA0–0xFF range.
+ *
+ * WHY THIS TABLE EXISTS. The PDF's built-in Helvetica is declared
+ * `/WinAnsiEncoding`, so a byte in a shown string is looked up in the WinAnsi
+ * table -- which is Latin-1 for 0xA0–0xFF but fills 0x80–0x9F with the typographic
+ * characters a real answer is full of: the em dash between a figure and its
+ * comparison, the curly quotes a title picks up, the euro sign, the ellipsis a
+ * truncation leaves. Latin-1 leaves those slots as control codes, so mapping a
+ * curly quote to its Latin-1 code point would draw nothing. Mapping the handful
+ * of common ones to their WinAnsi byte is the difference between "up 5%" reading
+ * as written and reading as "up 5%?" with the dash eaten.
+ */
+const WINANSI_HIGH: ReadonlyMap<number, number> = new Map([
+  [0x20ac, 0x80], // €
+  [0x201a, 0x82], // ‚
+  [0x0192, 0x83], // ƒ
+  [0x201e, 0x84], // „
+  [0x2026, 0x85], // …
+  [0x2020, 0x86], // †
+  [0x2021, 0x87], // ‡
+  [0x02c6, 0x88], // ˆ
+  [0x2030, 0x89], // ‰
+  [0x0160, 0x8a], // Š
+  [0x2039, 0x8b], // ‹
+  [0x0152, 0x8c], // Œ
+  [0x017d, 0x8e], // Ž
+  [0x2018, 0x91], // ‘
+  [0x2019, 0x92], // ’
+  [0x201c, 0x93], // “
+  [0x201d, 0x94], // ”
+  [0x2022, 0x95], // •
+  [0x2013, 0x96], // –
+  [0x2014, 0x97], // —
+  [0x02dc, 0x98], // ˜
+  [0x2122, 0x99], // ™
+  [0x0161, 0x9a], // š
+  [0x203a, 0x9b], // ›
+  [0x0153, 0x9c], // œ
+  [0x017e, 0x9e], // ž
+  [0x0178, 0x9f], // Ÿ
+]);
+
+/** One character as its WinAnsi byte, or `?` (0x3F) for anything the built-in font cannot draw. */
+function winAnsiByte(codePoint: number): number {
+  if (codePoint >= 0x20 && codePoint <= 0x7e) return codePoint;
+  if (codePoint >= 0xa0 && codePoint <= 0xff) return codePoint;
+  return WINANSI_HIGH.get(codePoint) ?? 0x3f;
+}
+
+/**
+ * A show-string's bytes: WinAnsi-encoded, with the three characters that break a
+ * PDF `(...)` literal -- backslash and the two parentheses -- backslash-escaped.
+ *
+ * NOT normalized with NFKD any more: NFKD splits `é` into `e` + a combining accent,
+ * and the combining mark then has no WinAnsi byte and became `?`, so the old writer
+ * turned every accented name into a mangled one. Mapping the precomposed code point
+ * straight to its WinAnsi byte keeps `Café` as `Café`.
+ */
+function winAnsiStringBytes(value: string): number[] {
+  const bytes: number[] = [];
+  for (const character of value) {
+    const byte = winAnsiByte(character.codePointAt(0) ?? 0x3f);
+    if (byte === 0x5c || byte === 0x28 || byte === 0x29) bytes.push(0x5c);
+    bytes.push(byte);
+  }
+  return bytes;
 }
 
 function wrapText(value: string, width: number): string[] {
@@ -67,33 +129,43 @@ function readableMarkdownLine(line: string): PdfLine | null {
   };
 }
 
-function markdownPages(text: string): PdfLine[][] {
-  const lines = text.split('\n').flatMap((line): PdfLine[] => {
-    const readable = readableMarkdownLine(line);
-    if (!readable) return [];
-    const width = readable.indent ? 84 : 88;
-    const wrappedLines = wrapText(readable.text, width);
-    return wrappedLines.map((wrapped, index) => ({
-      ...readable,
-      text: wrapped,
-      ...(index < wrappedLines.length - 1 ? { gapAfter: 0 } : {}),
-    }));
-  });
-  const pages: PdfLine[][] = [];
-  let page: PdfLine[] = [];
-  let used = 0;
-  for (const line of lines) {
-    const units = (line.size ?? 10) > 14 ? 2 : 1;
-    if (used + units > PDF_LINES_PER_PAGE && page.length) {
-      pages.push(page);
-      page = [];
-      used = 0;
+/** One flowable unit of a document: a wrapped line of text, or a chart image to embed. */
+type FlowItem = { kind: 'text'; line: PdfLine } | { kind: 'image'; dataUrl: string };
+
+/** A whole markdown image line whose target is a data URL, e.g. `![Chart](data:image/jpeg;base64,…)`. */
+const IMAGE_LINE = /^!\[[^\]]*\]\((data:image\/[^;]+;base64,[^)]+)\)$/;
+
+/**
+ * Markdown as an ordered flow of text lines and embeddable images.
+ *
+ * Images are pulled out BEFORE `readableMarkdownLine` sees the line, because that
+ * helper turns `![alt](url)` into `alt (url)` -- which for a chart would dump a
+ * quarter-megabyte of base64 into the page as text. Only a baseline JPEG data URL
+ * becomes an image (DCTDecode is the only image filter this writer emits); any
+ * other image markdown -- a PNG data URL, an http image -- is dropped rather than
+ * printed, so a picture the PDF cannot embed leaves no garbage behind.
+ */
+function markdownFlow(text: string): FlowItem[] {
+  const items: FlowItem[] = [];
+  for (const raw of text.split('\n')) {
+    const trimmed = raw.trim();
+    if (/^!\[[^\]]*\]\(/.test(trimmed)) {
+      const image = IMAGE_LINE.exec(trimmed);
+      if (image && image[1].startsWith('data:image/jpeg')) items.push({ kind: 'image', dataUrl: image[1] });
+      continue;
     }
-    page.push(line);
-    used += units;
+    const readable = readableMarkdownLine(raw);
+    if (!readable) continue;
+    const width = readable.indent ? 84 : 88;
+    const wrapped = wrapText(readable.text, width);
+    wrapped.forEach((line, index) =>
+      items.push({
+        kind: 'text',
+        line: { ...readable, text: line, ...(index < wrapped.length - 1 ? { gapAfter: 0 } : {}) },
+      })
+    );
   }
-  if (page.length || pages.length === 0) pages.push(page);
-  return pages.length ? pages : [[]];
+  return items;
 }
 
 function tableCells(row: TableRow): string[] {
@@ -150,64 +222,250 @@ function tablePages(table: ExportTable): PdfLine[][] {
   return pages;
 }
 
-/** Small dependency-free PDF writer. Text uses the built-in Helvetica font and remains selectable. */
-function buildPdf(pages: readonly PdfLine[][]): Blob {
-  const objects: string[] = [];
-  const add = (body: string) => {
-    objects.push(body);
+/* ── Byte-level PDF assembler ─────────────────────────────────────────────────── */
+
+/** A drawing instruction with page coordinates already resolved (PDF's origin is bottom-left). */
+type DrawOp =
+  | { kind: 'text'; x: number; y: number; size: number; bold: boolean; text: string }
+  | { kind: 'image'; x: number; y: number; w: number; h: number; image: number };
+
+/** A decoded baseline JPEG ready to embed as a DCTDecode image XObject. */
+interface PdfImage {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+}
+
+const ENCODER = new TextEncoder();
+
+function concatBytes(parts: readonly (string | Uint8Array)[]): Uint8Array<ArrayBuffer> {
+  const encoded = parts.map((part) => (typeof part === 'string' ? ENCODER.encode(part) : part));
+  const total = encoded.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const part of encoded) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+}
+
+/** A PDF number: integers plain, fractions to two places (enough for placement, and it keeps streams small). */
+function fmt(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+/** The raw bytes behind a `data:...;base64,...` URL. */
+function dataUrlBytes(dataUrl: string): Uint8Array {
+  const binary = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+/**
+ * A JPEG's pixel dimensions, read from its frame header, or null if it is not one.
+ *
+ * The PDF image XObject has to declare the picture's width and height, and the only
+ * place they are stated is the SOF (start-of-frame) marker. The scan walks the
+ * marker segments -- skipping the parameterless standalone markers, stepping over
+ * every other by its length -- until it reaches a frame header and reads the two
+ * 16-bit fields. A non-JPEG (no SOI, no frame) returns null and the image is dropped.
+ */
+function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  let at = 2;
+  while (at + 9 < bytes.length) {
+    if (bytes[at] !== 0xff) {
+      at += 1;
+      continue;
+    }
+    const marker = bytes[at + 1];
+    // SOI, EOI, the eight restart markers and TEM carry no length or payload.
+    if (marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) {
+      at += 2;
+      continue;
+    }
+    const length = (bytes[at + 2] << 8) | bytes[at + 3];
+    // Any SOFn (0xC0–0xCF) except the non-frame DHT/JPG/DAC markers states the size.
+    const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isFrame) {
+      return { height: (bytes[at + 5] << 8) | bytes[at + 6], width: (bytes[at + 7] << 8) | bytes[at + 8] };
+    }
+    at += 2 + length;
+  }
+  return null;
+}
+
+/** A text line's vertical footprint, including its trailing gap. */
+function textLineHeight(line: PdfLine): number {
+  return Math.max(LINE_HEIGHT, (line.size ?? 10) + 2) + (line.gapAfter ?? 0);
+}
+
+/** A chart drawn to the content width, shrunk to fit a page when its aspect ratio is tall. */
+function imageDrawSize(image: PdfImage): { w: number; h: number } {
+  const ratio = image.height / image.width;
+  if (CONTENT_WIDTH * ratio > CONTENT_HEIGHT) return { w: CONTENT_HEIGHT / ratio, h: CONTENT_HEIGHT };
+  return { w: CONTENT_WIDTH, h: CONTENT_WIDTH * ratio };
+}
+
+/**
+ * Lay out a flow of text and images into pages, decoding each image once.
+ *
+ * A top-origin cursor walks down the page; an item that would cross the bottom
+ * margin starts a fresh page. Coordinates are converted to PDF's bottom-left
+ * origin here so the assembler stays a dumb writer. Images are decoded and sized
+ * at layout time and referenced by index, so the same picture is embedded once.
+ */
+function paginateFlow(items: readonly FlowItem[]): { pages: DrawOp[][]; images: PdfImage[] } {
+  const images: PdfImage[] = [];
+  const pages: DrawOp[][] = [];
+  let page: DrawOp[] = [];
+  let top = MARGIN;
+  const flush = () => {
+    pages.push(page);
+    page = [];
+    top = MARGIN;
+  };
+  for (const item of items) {
+    if (item.kind === 'text') {
+      const size = item.line.size ?? 10;
+      if (PAGE_HEIGHT - top - size < MARGIN && page.length) flush();
+      page.push({
+        kind: 'text',
+        x: MARGIN + (item.line.indent ?? 0),
+        y: PAGE_HEIGHT - top - size,
+        size,
+        bold: Boolean(item.line.bold),
+        text: item.line.text,
+      });
+      top += textLineHeight(item.line);
+      continue;
+    }
+    const bytes = dataUrlBytes(item.dataUrl);
+    const size = jpegSize(bytes);
+    if (!size || size.width === 0 || size.height === 0) continue;
+    const index = images.push({ bytes, width: size.width, height: size.height }) - 1;
+    const draw = imageDrawSize(images[index]);
+    if (PAGE_HEIGHT - top - draw.h < MARGIN && page.length) flush();
+    page.push({ kind: 'image', x: MARGIN, y: PAGE_HEIGHT - top - draw.h, w: draw.w, h: draw.h, image: index });
+    top += draw.h + 8;
+  }
+  if (page.length || pages.length === 0) pages.push(page);
+  return { pages, images };
+}
+
+/** Pre-paginated text lines (the table path) as text draw ops, positioned from the top of each page. */
+function linesToDrawPages(pages: readonly PdfLine[][]): DrawOp[][] {
+  return pages.map((lines) => {
+    const ops: DrawOp[] = [];
+    let top = MARGIN;
+    for (const line of lines) {
+      const size = line.size ?? 10;
+      ops.push({
+        kind: 'text',
+        x: MARGIN + (line.indent ?? 0),
+        y: PAGE_HEIGHT - top - size,
+        size,
+        bold: Boolean(line.bold),
+        text: line.text,
+      });
+      top += textLineHeight(line);
+    }
+    return ops;
+  });
+}
+
+/** One page's content stream: text shown in `(...)` WinAnsi literals, images placed with `cm`/`Do`. */
+function pageContentBytes(ops: readonly DrawOp[]): Uint8Array {
+  const parts: (string | Uint8Array)[] = [];
+  for (const op of ops) {
+    if (op.kind === 'text') {
+      parts.push(`BT /${op.bold ? 'F2' : 'F1'} ${op.size} Tf ${fmt(op.x)} ${fmt(op.y)} Td (`);
+      parts.push(new Uint8Array(winAnsiStringBytes(op.text)));
+      parts.push(') Tj ET\n');
+    } else {
+      parts.push(`q ${fmt(op.w)} 0 0 ${fmt(op.h)} ${fmt(op.x)} ${fmt(op.y)} cm /Im${op.image} Do Q\n`);
+    }
+  }
+  return concatBytes(parts);
+}
+
+/**
+ * Dependency-free PDF writer. Text is selectable WinAnsi Helvetica; charts are
+ * embedded as DCTDecode (baseline JPEG) image XObjects.
+ */
+function assemblePdf(pages: readonly DrawOp[][], images: readonly PdfImage[]): Blob {
+  const objects: Uint8Array[] = [];
+  const add = (body: string | Uint8Array): number => {
+    objects.push(typeof body === 'string' ? ENCODER.encode(body) : body);
     return objects.length;
   };
   const catalog = add('');
   const pagesObject = add('');
-  const font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const boldFont = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  const font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  const boldFont = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  const imageObjects = images.map((image) =>
+    add(
+      concatBytes([
+        `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+          `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`,
+        image.bytes,
+        '\nendstream',
+      ])
+    )
+  );
   const pageObjects: number[] = [];
-  for (const lines of pages) {
-    const commands = ['BT', `${MARGIN} ${PAGE_HEIGHT - MARGIN} Td`];
-    let previousIndent = 0;
-    let previousGap = 0;
-    lines.forEach((line, index) => {
-      const size = line.size ?? 10;
-      const indent = line.indent ?? 0;
-      if (index) commands.push(`${indent - previousIndent} -${LINE_HEIGHT + previousGap} Td`);
-      else if (indent) commands.push(`${indent} 0 Td`);
-      commands.push(`/${line.bold ? 'F2' : 'F1'} ${size} Tf`, `(${pdfText(line.text)}) Tj`);
-      previousIndent = indent;
-      previousGap = line.gapAfter ?? 0;
-    });
-    commands.push('ET');
-    const content = commands.join('\n');
-    const contentObject = add(
-      `<< /Length ${new TextEncoder().encode(content).length} >>\nstream\n${content}\nendstream`
-    );
+  for (const ops of pages) {
+    const content = pageContentBytes(ops);
+    const contentObject = add(concatBytes([`<< /Length ${content.length} >>\nstream\n`, content, '\nendstream']));
+    const usedImages = [...new Set(ops.flatMap((op) => (op.kind === 'image' ? [op.image] : [])))];
+    const xobjects = usedImages.length
+      ? ` /XObject << ${usedImages.map((index) => `/Im${index} ${imageObjects[index]} 0 R`).join(' ')} >>`
+      : '';
     pageObjects.push(
       add(
-        `<< /Type /Page /Parent ${pagesObject} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${font} 0 R /F2 ${boldFont} 0 R >> >> /Contents ${contentObject} 0 R >>`
+        `<< /Type /Page /Parent ${pagesObject} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
+          `/Resources << /Font << /F1 ${font} 0 R /F2 ${boldFont} 0 R >>${xobjects} >> /Contents ${contentObject} 0 R >>`
       )
     );
   }
-  objects[catalog - 1] = `<< /Type /Catalog /Pages ${pagesObject} 0 R >>`;
-  objects[pagesObject - 1] =
-    `<< /Type /Pages /Kids [${pageObjects.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageObjects.length} >>`;
+  objects[catalog - 1] = ENCODER.encode(`<< /Type /Catalog /Pages ${pagesObject} 0 R >>`);
+  objects[pagesObject - 1] = ENCODER.encode(
+    `<< /Type /Pages /Kids [${pageObjects.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageObjects.length} >>`
+  );
 
-  let output = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  const offsets = [0];
-  for (let index = 0; index < objects.length; index += 1) {
-    offsets.push(new TextEncoder().encode(output).length);
-    output += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
-  }
-  const xref = new TextEncoder().encode(output).length;
-  output += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  output += offsets
-    .slice(1)
-    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
-    .join('');
-  output += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new Blob([new TextEncoder().encode(output)], { type: 'application/pdf' });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  const push = (part: string | Uint8Array) => {
+    const bytes = typeof part === 'string' ? ENCODER.encode(part) : part;
+    chunks.push(bytes);
+    length += bytes.length;
+  };
+  // "%PDF-1.4" then a comment line of high bytes that marks the file binary.
+  push(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(length);
+    push(`${index + 1} 0 obj\n`);
+    push(object);
+    push('\nendobj\n');
+  });
+  const xref = length;
+  push(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
+  push(offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join(''));
+  push(`trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob([concatBytes(chunks)], { type: 'application/pdf' });
+}
+
+/** Small dependency-free PDF writer for pre-paginated text (the table path). */
+function buildPdf(pages: readonly PdfLine[][]): Blob {
+  return assemblePdf(linesToDrawPages(pages), []);
 }
 
 export function markdownPdf(markdown: string): Blob {
-  return buildPdf(markdownPages(markdown));
+  const { pages, images } = paginateFlow(markdownFlow(markdown));
+  return assemblePdf(pages, images);
 }
 
 export function tablePdf(table: ExportTable): Blob {

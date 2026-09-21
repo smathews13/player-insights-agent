@@ -8,18 +8,20 @@ describe('export controls contract', () => {
   const answerCard = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
   const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 
-  it('offers exactly the required answer, conversation and table actions', () => {
+  it('offers the four export formats on both the answer and the whole conversation', () => {
+    // Copy/Download Markdown: one on the answer menu, one on the conversation menu.
     expect(source.match(/label: 'Copy Markdown'/g)).toHaveLength(2);
     expect(source.match(/label: 'Download Markdown'/g)).toHaveLength(2);
+    // Download PDF: answer, conversation, and the standalone table.
     expect(source.match(/label: 'Download PDF'/g)).toHaveLength(3);
     expect(source.match(/label: 'Copy TSV'/g)).toHaveLength(1);
     // Two PNG downloads: the table image and the standalone chart image.
     expect(source.match(/label: 'Download PNG'/g)).toHaveLength(2);
-    // Answer gains self-contained HTML (page and slide) exports.
-    expect(source.match(/label: 'Download HTML'/g)).toHaveLength(1);
-    expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(1);
-    // Canonical JSON for the whole answer and for a single chart.
-    expect(source.match(/label: 'Download JSON'/g)).toHaveLength(2);
+    // Self-contained HTML (page and slide) for both the answer and the conversation.
+    expect(source.match(/label: 'Download HTML'/g)).toHaveLength(2);
+    expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(2);
+    // Canonical JSON for the whole answer, the whole conversation, and a single chart.
+    expect(source.match(/label: 'Download JSON'/g)).toHaveLength(3);
   });
 
   it('uses accessible menus and live success/error feedback', () => {
@@ -28,10 +30,13 @@ describe('export controls contract', () => {
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
   });
 
-  it('keeps the answer-card export as the only transcript export surface', () => {
+  it('exports a single answer from its card and the whole conversation from the transcript toolbar', () => {
     expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
-    expect(home).not.toContain('<ConversationExportMenu');
-    expect(home).not.toContain('conversation-export-footer');
+    // The whole-conversation menu is mounted once, above the transcript, and reads
+    // the complete paginated thread rather than only the newest mounted page.
+    expect(home).toContain('<ConversationExportMenu');
+    expect(home).toContain('conversation-export-toolbar');
+    expect(home).toContain('readCompleteConversationMessages(conversationId)');
   });
 
   it('keeps serializers, file operations, and binary generation behind lazy boundaries', () => {

@@ -16,9 +16,22 @@ import {
   type ExportHtmlTheme,
 } from './export-html';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
+import { EXPORT_BRAND } from './export-brand';
 
 export { serializeBlocksHtml } from './export-html';
 export type { ExportHtmlTheme } from './export-html';
+
+/**
+ * Per-message chart pictures for a whole-conversation export.
+ *
+ * Keyed by message id (NOT chart id): every answer turn mints its own chart ids
+ * (`chart-1`, `chart-2`, …), so two answers in one thread collide on `chart-1`.
+ * Keying the outer map by the message the chart belongs to keeps each turn's
+ * pictures its own. The caller renders these behind the lazy Plotly boundary
+ * (see export-actions.ts) and passes them in, so the serializer stays a pure,
+ * browserless string pass.
+ */
+export type ConversationChartImages = ReadonlyMap<string, ReadonlyMap<string, string>>;
 
 export interface ExportTable {
   block: Extract<Block, { kind: 'table' }>;
@@ -226,6 +239,42 @@ function answerChartsHtml(charts: readonly Chart[], chartImages?: ReadonlyMap<st
 }
 
 /**
+ * The inner HTML for one answer -- prose, tables, charts, figures, sources -- with
+ * no surrounding `<html>` document.
+ *
+ * Split out from `serializeAnswerHtml` so the SAME markup can be a standalone
+ * answer file OR one turn inside a whole-conversation document. A conversation
+ * wraps many of these fragments in a single themed shell; an answer wraps one.
+ * Keeping the fragment in one place is what keeps the two exports from drifting
+ * into two subtly different renderings of the same answer.
+ */
+function answerHtmlSections(
+  question: string,
+  answer: NormalizedAnswer,
+  chartImages?: ReadonlyMap<string, string>
+): string {
+  const normalized = normalizeReaderAnswer(answer);
+  const bodies = answerBodies(normalized);
+  const charts = answerCharts(normalized);
+  const narrativeHtml = serializeBlocksHtml(parseAnswerMarkdown(stripToolCallDumps(bodies.narrative)));
+  const contentHtml = serializeBlocksHtml(parseAnswerMarkdown(stripToolCallDumps(bodies.content)));
+  const sourcesList = sourcesListHtml(normalized.sources);
+  const caveatsList = bulletListHtml(normalized.caveats);
+  return [
+    question.trim() ? `<section class="question"><h2>Question</h2><p>${escapeHtml(question.trim())}</p></section>` : '',
+    `<section class="answer"><h2>Answer</h2><p class="headline">${escapeHtml(bodies.headline)}</p></section>`,
+    narrativeHtml ? `<section class="narrative">${narrativeHtml}</section>` : '',
+    contentHtml ? `<section class="content">${contentHtml}</section>` : '',
+    answerChartsHtml(charts, chartImages),
+    answerFiguresHtml(normalized.figures),
+    sourcesList ? `<section class="sources"><h2>Sources</h2>${sourcesList}</section>` : '',
+    caveatsList ? `<section class="caveats"><h2>Caveats</h2>${caveatsList}</section>` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
  * A self-contained HTML document for one answer: prose, tables, charts, figures, sources.
  *
  * Everything is inlined -- the CSS in a `<style>` and the charts as data-URL PNGs --
@@ -240,25 +289,9 @@ export function serializeAnswerHtml(
 ): string {
   const normalized = normalizeReaderAnswer(answer);
   const bodies = answerBodies(normalized);
-  const charts = answerCharts(normalized);
-  const title = bodies.headline || question.trim() || 'Player Insights answer';
-  const narrativeHtml = serializeBlocksHtml(parseAnswerMarkdown(stripToolCallDumps(bodies.narrative)));
-  const contentHtml = serializeBlocksHtml(parseAnswerMarkdown(stripToolCallDumps(bodies.content)));
-  const sourcesList = sourcesListHtml(normalized.sources);
-  const caveatsList = bulletListHtml(normalized.caveats);
-  const body = [
-    question.trim() ? `<section class="question"><h2>Question</h2><p>${escapeHtml(question.trim())}</p></section>` : '',
-    `<section class="answer"><h2>Answer</h2><p class="headline">${escapeHtml(bodies.headline)}</p></section>`,
-    narrativeHtml ? `<section class="narrative">${narrativeHtml}</section>` : '',
-    contentHtml ? `<section class="content">${contentHtml}</section>` : '',
-    answerChartsHtml(charts, chartImages),
-    answerFiguresHtml(normalized.figures),
-    sourcesList ? `<section class="sources"><h2>Sources</h2>${sourcesList}</section>` : '',
-    caveatsList ? `<section class="caveats"><h2>Caveats</h2>${caveatsList}</section>` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-  return htmlDocument({ title, theme, body, footer: 'Exported from Player Insights.' });
+  const title = bodies.headline || question.trim() || `${EXPORT_BRAND.appName} answer`;
+  const body = answerHtmlSections(question, answer, chartImages);
+  return htmlDocument({ title, theme, body, footer: EXPORT_BRAND.htmlFooter });
 }
 
 /** The structured form of one answer table: header, alignment, rows as plain text, and source names. */
@@ -279,22 +312,13 @@ function structuredTable(table: ExportTable): {
 }
 
 /** The wire version this build writes into JSON exports, so a reader can key off a stable string. */
-export const ANSWER_EXPORT_SCHEMA_VERSION = 'pia.answer-export/1';
+export const ANSWER_EXPORT_SCHEMA_VERSION = `${EXPORT_BRAND.jsonSchemaPrefix}.answer-export/1`;
 
-/**
- * One answer as a canonical, reader-safe JSON document.
- *
- * The same reader-facing content the other two formats carry, structured rather
- * than laid out: prose as Markdown strings, figures and tables as data, and charts
- * as their native Plotly specs (NOT rasters -- JSON is the format a reader takes to
- * redraw a chart, so it keeps the machine-readable half the picture threw away).
- * Trace, SQL and diagnostics stay out, exactly as they do from the Markdown path.
- */
-export function serializeAnswerJson(question: string, answer: NormalizedAnswer): string {
+/** The reader-safe object one answer serializes to, before it is stringified or nested in a conversation. */
+function answerJsonDocument(question: string, answer: NormalizedAnswer): Record<string, unknown> {
   const normalized = normalizeReaderAnswer(answer);
   const bodies = answerBodies(normalized);
-  const document = {
-    schema_version: ANSWER_EXPORT_SCHEMA_VERSION,
+  return {
     question: question.trim(),
     headline: bodies.headline,
     narrative: stripToolCallDumps(bodies.narrative),
@@ -320,11 +344,24 @@ export function serializeAnswerJson(question: string, answer: NormalizedAnswer):
     caveats: normalized.caveats,
     provenance: normalized.provenance ?? null,
   };
+}
+
+/**
+ * One answer as a canonical, reader-safe JSON document.
+ *
+ * The same reader-facing content the other two formats carry, structured rather
+ * than laid out: prose as Markdown strings, figures and tables as data, and charts
+ * as their native Plotly specs (NOT rasters -- JSON is the format a reader takes to
+ * redraw a chart, so it keeps the machine-readable half the picture threw away).
+ * Trace, SQL and diagnostics stay out, exactly as they do from the Markdown path.
+ */
+export function serializeAnswerJson(question: string, answer: NormalizedAnswer): string {
+  const document = { schema_version: ANSWER_EXPORT_SCHEMA_VERSION, ...answerJsonDocument(question, answer) };
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
 /** The wire version stamped into a standalone chart JSON export. */
-export const CHART_EXPORT_SCHEMA_VERSION = 'pia.chart-export/1';
+export const CHART_EXPORT_SCHEMA_VERSION = `${EXPORT_BRAND.jsonSchemaPrefix}.chart-export/1`;
 
 /**
  * One chart on its own as canonical JSON: its id, title, kind and native Plotly spec.
@@ -420,8 +457,19 @@ function rawAssistantMarkdown(message: ConversationMessage): string {
   );
 }
 
-/** Serializes every reader-visible stored turn while omitting traces, feedback and internal diagnostics. */
-export function serializeConversationMarkdown(title: string, messages: readonly ConversationMessage[]): string {
+/**
+ * Serializes every reader-visible stored turn while omitting traces, feedback and internal diagnostics.
+ *
+ * Pass `chartImagesByMessage` (see `ConversationChartImages`) and each answer
+ * turn's charts render inline exactly as they do in a single-answer export; omit
+ * it and the transcript is prose-and-tables. The map is keyed by message id so
+ * turns never share ids.
+ */
+export function serializeConversationMarkdown(
+  title: string,
+  messages: readonly ConversationMessage[],
+  chartImagesByMessage?: ConversationChartImages
+): string {
   const turns: string[] = [];
   for (const message of messages) {
     if (message.role === 'user') {
@@ -431,7 +479,7 @@ export function serializeConversationMarkdown(title: string, messages: readonly 
     }
     const answer = storedAnswer(message);
     if (answer) {
-      turns.push(serializeAnswerMarkdown('', answer).trim());
+      turns.push(serializeAnswerMarkdown('', answer, chartImagesByMessage?.get(message.id)).trim());
       continue;
     }
     const payload = storedPayload(message);
@@ -447,6 +495,124 @@ export function serializeConversationMarkdown(title: string, messages: readonly 
     if (visible) turns.push(`## Assistant\n${visible}`);
   }
   return `# ${title.trim() || 'Conversation'}\n\n${turns.join('\n\n---\n\n')}\n`;
+}
+
+/** A themed HTML thread separator matching the `---` rule the Markdown transcript uses between turns. */
+const CONVERSATION_TURN_SEPARATOR_HTML = '<hr class="turn-separator" />';
+
+/**
+ * The whole conversation as one self-contained, themed HTML document.
+ *
+ * Each turn reuses the SAME renderers a single answer, plan or clarification
+ * export uses, wrapped in one shared document shell -- so a thread reads as a
+ * sequence of the answers a reader already recognises, not a second rendering of
+ * them. Charts render inline when `chartImagesByMessage` is supplied.
+ */
+export function serializeConversationHtml(
+  title: string,
+  messages: readonly ConversationMessage[],
+  chartImagesByMessage?: ConversationChartImages,
+  theme: ExportHtmlTheme = 'page'
+): string {
+  const heading = title.trim() || 'Conversation';
+  const turns: string[] = [];
+  for (const message of messages) {
+    if (message.role === 'user') {
+      const text = message.content.trim();
+      if (text) turns.push(`<section class="turn turn-user"><h2>User</h2><p>${escapeHtml(text)}</p></section>`);
+      continue;
+    }
+    const answer = storedAnswer(message);
+    if (answer) {
+      turns.push(
+        `<section class="turn turn-answer">${answerHtmlSections('', answer, chartImagesByMessage?.get(message.id))}</section>`
+      );
+      continue;
+    }
+    const payload = storedPayload(message);
+    if (payload?.type === 'plan') {
+      const blocks = serializeBlocksHtml(parseAnswerMarkdown(planMarkdown(payload)));
+      if (blocks) turns.push(`<section class="turn turn-plan">${blocks}</section>`);
+      continue;
+    }
+    if (payload?.type === 'clarification') {
+      const blocks = serializeBlocksHtml(parseAnswerMarkdown(clarificationMarkdown(payload)));
+      if (blocks) turns.push(`<section class="turn turn-clarification">${blocks}</section>`);
+      continue;
+    }
+    const visible = serializeBlocksHtml(
+      parseAnswerMarkdown(stripToolCallDumps(normalizeReaderText(message.content, {}, 'raw')))
+    );
+    if (visible) turns.push(`<section class="turn turn-assistant"><h2>Assistant</h2>${visible}</section>`);
+  }
+  const body = `<header><h1>${escapeHtml(heading)}</h1></header>\n${turns.join(`\n${CONVERSATION_TURN_SEPARATOR_HTML}\n`)}`;
+  return htmlDocument({ title: heading, theme, body, footer: EXPORT_BRAND.htmlFooter });
+}
+
+/** The wire version stamped into a whole-conversation JSON export. */
+export const CONVERSATION_EXPORT_SCHEMA_VERSION = `${EXPORT_BRAND.jsonSchemaPrefix}.conversation-export/1`;
+
+/**
+ * The whole conversation as canonical, reader-safe JSON: an ordered list of typed turns.
+ *
+ * Each turn is tagged (`user` | `answer` | `plan` | `clarification` | `assistant`)
+ * so a reader can walk the thread structurally. Answer turns carry the same
+ * object `serializeAnswerJson` emits (charts as native Plotly specs), so the
+ * machine-readable half survives at conversation scope too. Trace, SQL, feedback
+ * and diagnostics stay out, exactly as the other formats keep them out.
+ */
+export function serializeConversationJson(title: string, messages: readonly ConversationMessage[]): string {
+  const turns: Record<string, unknown>[] = [];
+  for (const message of messages) {
+    if (message.role === 'user') {
+      const text = message.content.trim();
+      if (text) turns.push({ role: 'user', type: 'user', text });
+      continue;
+    }
+    const answer = storedAnswer(message);
+    if (answer) {
+      turns.push({ role: 'assistant', type: 'answer', ...answerJsonDocument('', answer) });
+      continue;
+    }
+    const payload = storedPayload(message);
+    if (payload?.type === 'plan') {
+      turns.push({ role: 'assistant', type: 'plan', markdown: planMarkdown(payload) });
+      continue;
+    }
+    if (payload?.type === 'clarification') {
+      turns.push({ role: 'assistant', type: 'clarification', markdown: clarificationMarkdown(payload) });
+      continue;
+    }
+    const visible = rawAssistantMarkdown(message);
+    if (visible) turns.push({ role: 'assistant', type: 'assistant', markdown: visible });
+  }
+  const document = {
+    schema_version: CONVERSATION_EXPORT_SCHEMA_VERSION,
+    title: title.trim() || 'Conversation',
+    turns,
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+/**
+ * Each answer turn's charts, keyed by message id, for a conversation's picture pass.
+ *
+ * The action layer renders these to PNGs behind the lazy Plotly boundary and
+ * feeds them back as `ConversationChartImages`. Kept here so the one place that
+ * knows how to read a stored answer (`storedAnswer`) is also the one place that
+ * enumerates its charts -- the serializer and the image pass never disagree on
+ * which turn owns which chart.
+ */
+export function conversationChartsByMessage(messages: readonly ConversationMessage[]): Map<string, Chart[]> {
+  const byMessage = new Map<string, Chart[]>();
+  for (const message of messages) {
+    if (message.role === 'user') continue;
+    const answer = storedAnswer(message);
+    if (!answer) continue;
+    const charts = answerCharts(answer);
+    if (charts.length) byMessage.set(message.id, charts);
+  }
+  return byMessage;
 }
 
 export function answerTables(answer: NormalizedAnswer): ExportTable[] {
@@ -487,5 +653,5 @@ export function safeExportFilename(value: string, extension: string): string {
     .slice(0, 72)
     .toLowerCase();
   const ext = extension.replace(/^\.+/, '').toLowerCase();
-  return `${stem || 'player-insights-export'}.${ext}`;
+  return `${stem || EXPORT_BRAND.filenameFallback}.${ext}`;
 }

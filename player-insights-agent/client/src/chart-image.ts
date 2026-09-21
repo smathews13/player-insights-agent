@@ -39,36 +39,54 @@ const EXPORT_VIEWPORT: FigureViewport = { width: 760, height: 340 };
 const EXPORT_SCALE = 2;
 
 /**
- * One chart as a `data:image/png;base64,...` URL, themed and laid out as on screen.
+ * The raster format an export asks a chart for.
+ *
+ * `png` is the crisp, lossless picture the Markdown and HTML downloads embed. `jpeg`
+ * exists for ONE reader: the hand-rolled PDF writer, whose only embeddable image
+ * filter is DCTDecode (baseline JPEG). PDF has no native PNG filter, so the picture
+ * that goes into a PDF has to arrive as a JPEG; every other surface stays PNG.
+ */
+export type ChartImageFormat = 'png' | 'jpeg';
+
+/**
+ * One chart as a `data:image/...;base64,...` URL, themed and laid out as on screen.
  *
  * Pure of the DOM in the sense that matters: `toImage` mounts and tears down its own
  * offscreen node, so nothing has to be rendered in the transcript for a download to
  * carry the figure.
  */
-export async function chartPngDataUrl(chart: Chart, viewport: FigureViewport = EXPORT_VIEWPORT): Promise<string> {
+export async function chartPngDataUrl(
+  chart: Chart,
+  viewport: FigureViewport = EXPORT_VIEWPORT,
+  format: ChartImageFormat = 'png'
+): Promise<string> {
   const theme = readChartTheme();
   const figure = layoutFigure({ kind: chart.kind, data: chart.data, layout: chart.layout }, theme, viewport);
   const height = typeof figure.layout.height === 'number' ? figure.layout.height : viewport.height;
   return Plotly.toImage(
     { data: figure.data, layout: figure.layout },
-    { format: 'png', width: viewport.width, height, scale: EXPORT_SCALE }
+    { format, width: viewport.width, height, scale: EXPORT_SCALE }
   );
 }
 
 /**
- * Every chart as a PNG, keyed by chart id, with any that will not render dropped.
+ * Every chart as a raster, keyed by chart id, with any that will not render dropped.
  *
  * A spec Plotly refuses must not fail the whole export: the reader still gets the
  * prose, the tables and the charts that did draw, exactly as a chart that fails on
  * screen costs one panel and not the answer. A dropped id is simply absent from the
  * map, and the serializers fall back to the chart's title where its picture is
- * missing.
+ * missing. `format` is `png` for the picture-bearing Markdown/HTML downloads and
+ * `jpeg` for the PDF, whose only embeddable image filter is DCTDecode.
  */
-export async function chartPngDataUrls(charts: readonly Chart[]): Promise<Map<string, string>> {
+export async function chartPngDataUrls(
+  charts: readonly Chart[],
+  format: ChartImageFormat = 'png'
+): Promise<Map<string, string>> {
   const rendered = await Promise.all(
     charts.map(async (chart) => {
       try {
-        return [chart.id, await chartPngDataUrl(chart)] as const;
+        return [chart.id, await chartPngDataUrl(chart, EXPORT_VIEWPORT, format)] as const;
       } catch (error) {
         console.error('[export] A chart could not be rendered to an image:', error);
         return null;

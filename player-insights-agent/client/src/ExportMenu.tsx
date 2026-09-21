@@ -167,6 +167,18 @@ export function ConversationExportMenu({
           run: async () => (await loadExportActions()).downloadConversationMarkdown(title, loadMessages),
         },
         {
+          label: 'Download HTML',
+          run: async () => (await loadExportActions()).downloadConversationHtml(title, loadMessages, 'page'),
+        },
+        {
+          label: 'Download HTML for slides',
+          run: async () => (await loadExportActions()).downloadConversationHtml(title, loadMessages, 'presentation'),
+        },
+        {
+          label: 'Download JSON',
+          run: async () => (await loadExportActions()).downloadConversationJson(title, loadMessages),
+        },
+        {
           label: 'Download PDF',
           run: async () => (await loadExportActions()).downloadConversationPdf(title, loadMessages),
         },
