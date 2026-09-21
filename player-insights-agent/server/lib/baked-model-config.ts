@@ -224,6 +224,35 @@ export function configurationFromBaked(config: Record<string, unknown>): Preflig
   return entries;
 }
 
+/**
+ * Catalog and schema recovered from the served model's registered NAME.
+ *
+ * A customer's data catalog and schema are not in the public app.yaml -- it
+ * ships them empty on purpose -- and normally arrive from the served version's
+ * baked model_config. When that artifact read fails (the app principal cannot
+ * read the version's files, the version was pruned, the document will not
+ * parse), the whole data contract used to go blank even though the app still
+ * knows the served model's NAME. The model is registered at
+ * `<catalog>.<schema>.<model>` (databricks.yml `model_name`), so its name alone
+ * yields catalog and schema. Marked `served-model-name` so a reader can tell a
+ * name-derived value from one read out of the artifact, and `baked: false`
+ * because nothing was read from the artifact to get them.
+ */
+export function catalogSchemaFromServedModel(entityName: string): PreflightConfiguration[] {
+  const parts = entityName.split('.').map((part) => part.trim());
+  if (parts.length !== 3 || !parts[0] || !parts[1]) return [];
+  const entry = (key: string, value: string): PreflightConfiguration => ({
+    key,
+    env_var: envVarFor(key),
+    value,
+    source: 'served-model-name',
+    mutability: 'model-version',
+    baked: false,
+    required: false,
+  });
+  return [entry('catalog', parts[0]), entry('schema', parts[1])];
+}
+
 async function defaultGetJson(path: string, query: Record<string, string> = {}): Promise<unknown> {
   const { WorkspaceClient } = await import('@databricks/sdk-experimental');
   const client = new WorkspaceClient({});
@@ -390,8 +419,23 @@ export async function readBakedModelConfig(
     const document =
       (artifacts.modelId ? await readLoggedModelConfigText(transport, artifacts.modelId).catch(() => '') : '') ||
       (artifacts.runId ? await readModelConfigText(transport, artifacts.runId) : '');
-    if (!document) return [];
+    const derived = catalogSchemaFromServedModel(served.entityName);
+    if (!document) {
+      // The artifact could not be read (or the version held no config), but the
+      // served model's name is authoritative for catalog and schema. Return
+      // those so App catalog, App schema and the declared table list stay
+      // connected through a baked-config outage instead of the data contract
+      // going blank. NOT cached: a transient read failure must not pin the
+      // richer values (Genie, experiment, foundation model) blank for the cache
+      // window -- the next read repopulates them the moment the artifact is
+      // readable again.
+      return derived;
+    }
     const entries = configurationFromBaked(parseModelConfigDocument(document));
+    // Backfill catalog/schema from the name only where the artifact did not
+    // carry them; a value read out of the artifact always wins.
+    const present = new Set(entries.map((entry) => entry.key));
+    for (const entry of derived) if (!present.has(entry.key)) entries.push(entry);
     cache = { at: now, endpoint: endpointName, entries };
     return entries;
   } catch (error) {

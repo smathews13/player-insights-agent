@@ -180,10 +180,45 @@ export function mergeReleaseConfiguration(
   return [...byKey.values()];
 }
 
+/**
+ * A committed data-contract manifest qualified from whatever catalog+schema the
+ * merged configuration ended up with.
+ *
+ * `configurationFromRelease` already runs this fallback, but only off the app
+ * ENVIRONMENT's catalog/schema, which a customer deployment ships empty. When
+ * catalog/schema instead arrive from the served model (its baked config, or its
+ * name via {@link catalogSchemaFromServedModel} when the artifact could not be
+ * read), the env-time fallback has already been skipped. Running it again after
+ * the merge lets the declared table list reconnect from those later sources
+ * instead of the six-name contract dropping out with the artifact read.
+ */
+function withDataContractFallback(entries: PreflightConfiguration[]): PreflightConfiguration[] {
+  const hasManifest = entries.some(
+    (entry) => entry.key === 'declared_manifest' && Array.isArray(entry.value) && entry.value.length > 0
+  );
+  if (hasManifest) return entries;
+  const { catalog, schema } = catalogSchemaOf(entries);
+  if (!catalog || !schema) return entries;
+  const qualified = qualifyDataContractTables(catalog, schema);
+  if (qualified.length === 0) return entries;
+  return [
+    ...entries,
+    {
+      key: 'declared_manifest',
+      env_var: 'PLAYER_INSIGHTS_DECLARED_MANIFEST',
+      value: qualified,
+      source: 'data-contract',
+      mutability: 'model-version',
+      baked: false,
+      required: false,
+    },
+  ];
+}
+
 /** App-container configuration, with baked model_config filling only the gaps. */
 export function configurationForSettings(
   env: Record<string, string | undefined> = process.env,
   baked: readonly PreflightConfiguration[] = []
 ): PreflightConfiguration[] {
-  return mergeReleaseConfiguration(configurationFromRelease(env), baked);
+  return withDataContractFallback(mergeReleaseConfiguration(configurationFromRelease(env), baked));
 }
