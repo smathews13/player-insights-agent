@@ -190,7 +190,10 @@ describe('reading the served version as the app', () => {
     expect(paths).not.toContain('/api/2.0/mlflow/artifacts/get');
   });
 
-  it('returns nothing rather than throwing when the version cannot be read', async () => {
+  it('returns nothing rather than throwing when the endpoint itself cannot be read', async () => {
+    // The endpoint read is what tells us the served model's name, so if it
+    // fails we have neither baked config nor a name to recover catalog/schema
+    // from -- there is genuinely nothing to report.
     expect(
       await readBakedModelConfig({
         endpointName: 'an-endpoint',
@@ -198,13 +201,27 @@ describe('reading the served version as the app', () => {
         transport: transport(),
       })
     ).toEqual([]);
-    expect(
-      await readBakedModelConfig({
-        endpointName: 'an-endpoint',
-        readEndpoint: () => Promise.resolve(serving()),
-        transport: transport({ failRun: true }),
-      })
-    ).toEqual([]);
+  });
+
+  it('recovers catalog and schema from the served model name when the artifact read fails', async () => {
+    // The endpoint IS readable, so we know the served model is
+    // `a_catalog.a_schema.<model>`; the artifact read then fails. Rather than
+    // blank the whole data contract, the model's own name yields catalog and
+    // schema (marked served-model-name, not baked), which keeps App catalog,
+    // App schema and the declared table list connected through the outage.
+    const entries = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(serving()),
+      transport: transport({ failRun: true }),
+    });
+    const byKey = Object.fromEntries(entries.map((entry) => [entry.key, entry]));
+    expect(byKey.catalog?.value).toBe('a_catalog');
+    expect(byKey.schema?.value).toBe('a_schema');
+    expect(byKey.catalog?.source).toBe('served-model-name');
+    expect(byKey.catalog?.baked).toBe(false);
+    // Nothing else could be read: the artifact-only values stay absent.
+    expect(byKey.llm_endpoint).toBeUndefined();
+    expect(byKey.semantic_index).toBeUndefined();
   });
 
   it('returns nothing when no serving endpoint is configured', async () => {
