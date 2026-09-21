@@ -597,6 +597,62 @@ export interface OpsCostPayload {
 }
 
 /**
+ * One resource line in the trailing-31-day cost brief.
+ *
+ * A reader-facing slice of `CostTile`: enough to name the resource and print its
+ * figures in the exported PDF, without shipping the tile's pricing/evidence
+ * internals the document never renders.
+ */
+export interface CostBriefResource {
+  id: string;
+  label: string;
+  /** What the figure covers, e.g. 'This deployment'. */
+  population: string;
+  amount: number | null;
+  /** Idle-uptime remainder for always-on meters; absent for question-caused spend. */
+  standingAmount?: number | null;
+  quality: CostQuality;
+}
+
+/**
+ * A cost breakdown over the 31 most recent COMPLETE days, computed independently
+ * of the current-month on-screen payload for the PDF export.
+ *
+ * DELIBERATELY A DIFFERENT WINDOW than `OpsCostPayload`, which is locked to the
+ * calendar month. This carries its own `period: 'trailing_31d'` and its own range
+ * so a reader never confuses the exported document's window with the block's. The
+ * same incomplete-day rule applies: `range.to` is the last complete day, never
+ * today, because billing rows arrive late.
+ */
+export interface CostBriefPayload {
+  period: 'trailing_31d';
+  state: CostState;
+  /** Present only when `state` is 'no-grant'. */
+  grant: GrantRemedy | null;
+  /** The sentence for 'unreadable', 'no-warehouse', and 'no-rows'. Empty when ready. */
+  reason: string;
+  /** The 31 complete days actually queried. */
+  range: OpsDayRange;
+  /** The last complete day the range covers, ISO date. Empty when nothing was read. */
+  throughDay: string;
+  /** From the billing rows themselves, never assumed. Empty when nothing was read. */
+  currency: string;
+  /** Complete days between the requested end and the newest billing row, or null. */
+  billingLagDays: number | null;
+  /** The full app-attributable spend over the window. */
+  total: AppSpendFigure;
+  /**
+   * The window's bill split into what questions caused and the fixed standing
+   * infrastructure. `attributed + standing` reconciles to the full billed total.
+   */
+  spendBreakdown: { attributed: AppSpendFigure; standing: AppSpendFigure };
+  /** Per-resource rows, slimmed for the exported document. */
+  resources: CostBriefResource[];
+  /** ISO stamp of this read. */
+  generatedAt: string;
+}
+
+/**
  * A dependency's result, in three states.
  *
  * `not-checked` is its own state and must never be rendered as either of the

@@ -51,7 +51,7 @@ export async function loadCasesForAlignment(
         [trimmed]
       );
       const raw = result?.rows?.[0]?.metrics_json;
-      const metrics = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const metrics: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const listed = Array.isArray((metrics as { cases?: unknown } | null)?.cases)
         ? ((metrics as { cases: JudgeCaseForAlignment[] }).cases)
         : [];

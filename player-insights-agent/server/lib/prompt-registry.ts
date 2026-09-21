@@ -34,7 +34,12 @@ export function parsePromptVersion(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
   const record = body as Record<string, unknown>;
   const version = record.version ?? record.prompt_version ?? (record.prompt as { version?: unknown } | undefined)?.version;
-  return version !== undefined && version !== null ? String(version) : '';
+  if (version === undefined || version === null) return '';
+  if (typeof version === 'string') return version;
+  if (typeof version === 'number' || typeof version === 'boolean' || typeof version === 'bigint') {
+    return String(version);
+  }
+  return typeof version === 'object' ? JSON.stringify(version) : '';
 }
 
 export function parsePromptTemplate(body: unknown): string {

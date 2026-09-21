@@ -9,7 +9,7 @@ function completeDays(payload: Pick<OpsCostPayload, 'range'>): number {
   return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / DAY_MS) + 1 : 0;
 }
 
-function deploymentAttribution(tile: CostTile): boolean {
+export function deploymentAttribution(tile: CostTile): boolean {
   if (tile.attribution) return tile.attribution === 'deployment';
   return tile.population !== 'Whole warehouse' && tile.population !== 'Whole workspace' && tile.amount !== null;
 }

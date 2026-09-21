@@ -11,16 +11,16 @@ function tableForSql(sql: string): ExecutedTable {
 
 function asker(script: Record<string, { sql?: string; error?: string; rows?: ExecutedTable }>): GenieAsker {
   return {
-    async ask({ question }) {
+    ask({ question }) {
       const next = script[question];
       if (!next) throw new Error(`unexpected question: ${question}`);
       if (next.error) throw new Error(next.error);
-      return { sql: next.sql ?? '', note: 'scripted', rows: next.rows };
+      return Promise.resolve({ sql: next.sql ?? '', note: 'scripted', rows: next.rows });
     },
   };
 }
 
-const sqlExecutor: SqlExecutor = async (sql) => ({ ok: true, table: tableForSql(sql) });
+const sqlExecutor: SqlExecutor = (sql) => Promise.resolve({ ok: true, table: tableForSql(sql) });
 
 describe('Genie SQL extraction', () => {
   it('reads the statement from a conversation attachment', () => {
@@ -209,7 +209,7 @@ describe('Genie accuracy run', () => {
         Extra: { sql: 'SELECT extra', rows: extra },
         Under: { sql: 'SELECT under', rows: under },
       }),
-      executor: async (sql) => (sql.includes('ground') ? { ok: true, table: ground } : { ok: false, note: 'unused' }),
+      executor: (sql) => Promise.resolve(sql.includes('ground') ? { ok: true, table: ground } : { ok: false, note: 'unused' }),
     });
     expect(result.cases[0]?.outcome).toBe('pass');
     expect(result.cases[1]?.outcome).toBe('fail');
@@ -228,10 +228,10 @@ describe('Genie accuracy run', () => {
         Broken: { sql: 'SELECT bad' },
         Warming: { sql: 'SELECT wait' },
       }),
-      executor: async (sql) => {
-        if (sql.includes('bad')) return { ok: false, note: 'column `sessions` does not exist' };
-        if (sql.includes('wait')) return { ok: false, note: 'warehouse is starting' };
-        return { ok: true, table: tableForSql(sql) };
+      executor: (sql) => {
+        if (sql.includes('bad')) return Promise.resolve({ ok: false, note: 'column `sessions` does not exist' });
+        if (sql.includes('wait')) return Promise.resolve({ ok: false, note: 'warehouse is starting' });
+        return Promise.resolve({ ok: true, table: tableForSql(sql) });
       },
     });
     expect(result.cases[0]?.outcome).toBe('fail');

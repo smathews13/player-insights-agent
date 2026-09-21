@@ -45,6 +45,7 @@ import { CircleAlert, Play, Plus, RefreshCw, ThumbsDown, ThumbsUp } from 'lucide
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
 
 export type { ConnectedGenieSpace };
+// eslint-disable-next-line react-refresh/only-export-components -- shared constant re-export, covered without mounting the flywheel
 export { connectedGenieSpaces };
 
 export interface GenieAccuracyCaseView {

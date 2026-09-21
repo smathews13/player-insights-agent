@@ -52,7 +52,9 @@ describe('benchmark lab persistence', () => {
       'admin@example.com'
     );
     expect(writer.calls[0]?.values?.[2]).toBe('admin@example.com');
-    const saved = JSON.parse(String(writer.calls[0]?.values?.[1]));
+    const saved = JSON.parse(String(writer.calls[0]?.values?.[1])) as {
+      contract: { candidateRunId: string };
+    };
     expect(saved.contract.candidateRunId).toBe('run_057');
     expect(JSON.stringify(saved)).not.toMatch(/https:\/\/example\.com/);
   });

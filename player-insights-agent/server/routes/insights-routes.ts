@@ -1992,6 +1992,19 @@ export function userEmail(req: Request): string {
 }
 
 /**
+ * Read a trimmed string field from an untyped request body. `req.body` is
+ * `any`, so a bare `req.body?.x` access leaks `any` into everything downstream
+ * and each use trips the no-unsafe-* rules. Casting through
+ * `Record<string, unknown>` yields an `unknown` the `typeof` guard can narrow,
+ * so callers get a real `string`. Non-string fields collapse to `''`, matching
+ * the `typeof … === 'string' ? …trim() : ''` pattern this replaces.
+ */
+export function requestString(body: unknown, key: string): string {
+  const value = (body as Record<string, unknown> | null | undefined)?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
  * Diagnostics that have to keep answering when everything else is refusing.
  *
  * Each describes the app's own health or configuration rather than anyone's

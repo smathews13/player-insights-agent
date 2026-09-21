@@ -26,7 +26,7 @@ describe('align guidelines to human labels', () => {
         },
       ],
       alignClient: {
-        request: async () => ({ instructions: 'Stay on labelled SQL only.' }),
+        request: () => Promise.resolve({ instructions: 'Stay on labelled SQL only.' }),
       },
     });
     expect(result.method).toBe('mlflow');
@@ -41,13 +41,12 @@ describe('align guidelines to human labels', () => {
       rows: [row()],
       cases: [],
       alignClient: {
-        request: async () => {
-          throw new Error('403 missing scope');
-        },
+        request: () => Promise.reject(new Error('403 missing scope')),
       },
-      invokeJudge: async () => ({
-        choices: [{ message: { content: '{"guidelines":"Match the labelled expected answer.","result":"yes"}' } }],
-      }),
+      invokeJudge: () =>
+        Promise.resolve({
+          choices: [{ message: { content: '{"guidelines":"Match the labelled expected answer.","result":"yes"}' } }],
+        }),
     });
     expect(result.method).toBe('rewrite');
     expect(result.guidelinesText).toBe('Match the labelled expected answer.');
@@ -71,7 +70,7 @@ describe('align guidelines to human labels', () => {
     expect(guidelinesFromAlignBody({ status: 'ok' })).toBe('');
     await expect(
       tryMLflowJudgeAlign(
-        { request: async () => ({ status: 'ok' }) },
+        { request: () => Promise.resolve({ status: 'ok' }) },
         { experimentId: '', guidelines: 'x', pairs: [] }
       )
     ).rejects.toThrow();
