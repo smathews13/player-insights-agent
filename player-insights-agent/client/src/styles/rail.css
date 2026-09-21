@@ -58,6 +58,9 @@
      one width; the header still reads `--conversation-width` from tokens.css,
      which is the same 340px. */
   --conversation-width: var(--trace-width);
+  /* The slim track a collapsed side rail leaves behind. See the collapse block
+     at the foot of this file. */
+  --ask-pane-collapsed-width: 44px;
   grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--trace-width);
   grid-template-rows: auto;
   min-height: calc(100vh - var(--app-header-h));
@@ -1143,17 +1146,30 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
  * the grid track to a slim strip whose one control reopens it; the source
  * section under an answer collapses independently (answer-body.css).
  *
- * These override only the track WIDTH, by the attribute the layout carries. The
- * responsive blocks above own whether each column is DRAWN at all -- the rail is
- * hidden below 800px for the sheet, the inspector below 1180px for the strip
- * above the composer -- and nothing here sets `display`, so those hides still
- * win and the collapsed strip is unreachable at the widths a column is gone.
+ * The responsive blocks above own whether each column is DRAWN at all -- the
+ * rail is hidden below 800px for the sheet, the inspector below 1180px for the
+ * strip above the composer -- and nothing here sets `display`, so those hides
+ * still win and the collapsed strip is unreachable at the widths a column is
+ * gone.
+ *
+ * THE TWO SIDES COLLAPSE BY DIFFERENT MEANS, and the asymmetry is load-bearing.
+ * `--conversation-width` reads `--trace-width` (ask-layout-rails.test.ts pins
+ * that the two rails share one token), so shrinking `--trace-width` for the
+ * inspector would drag the conversation rail narrow with it -- which it did.
+ * So the rail collapses by overriding its OWN token (nothing derives from it),
+ * and the inspector collapses by overriding only the third grid track, leaving
+ * `--trace-width` -- and therefore the rail -- alone.
  */
 .ask-layout[data-rail-collapsed='true'] {
-  --conversation-width: 44px;
+  --conversation-width: var(--ask-pane-collapsed-width);
 }
-.ask-layout[data-inspector-collapsed='true'] {
-  --trace-width: 44px;
+/* Only where the inspector is drawn: above 1180px responsive.css hides the
+   column and owns a two-column grid, so restating a third track there would
+   re-add the column it just removed. */
+@media (min-width: 1181px) {
+  .ask-layout[data-inspector-collapsed='true'] {
+    grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--ask-pane-collapsed-width);
+  }
 }
 
 /* The collapsed column drops its block padding to centre a single slim control
