@@ -23,6 +23,7 @@ const saved = {
   host: process.env.DATABRICKS_HOST,
   warehouse: process.env.DATABRICKS_SQL_WAREHOUSE_ID,
   endpoint: process.env.DATABRICKS_SERVING_ENDPOINT_NAME,
+  llm: process.env.PLAYER_INSIGHTS_LLM_ENDPOINT,
   app: process.env.DATABRICKS_APP_NAME,
   dataGenie: process.env.PLAYER_INSIGHTS_DATA_GENIE_ID,
   dataTitle: process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE,
@@ -37,6 +38,7 @@ const ENV_NAMES: Record<keyof typeof saved, string> = {
   host: 'DATABRICKS_HOST',
   warehouse: 'DATABRICKS_SQL_WAREHOUSE_ID',
   endpoint: 'DATABRICKS_SERVING_ENDPOINT_NAME',
+  llm: 'PLAYER_INSIGHTS_LLM_ENDPOINT',
   app: 'DATABRICKS_APP_NAME',
   dataGenie: 'PLAYER_INSIGHTS_DATA_GENIE_ID',
   dataTitle: 'PLAYER_INSIGHTS_DATA_GENIE_TITLE',
@@ -52,6 +54,7 @@ beforeEach(() => {
   process.env.DATABRICKS_HOST = 'https://workspace.example.test';
   process.env.DATABRICKS_SQL_WAREHOUSE_ID = 'warehouse-1';
   process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'agent-endpoint';
+  process.env.PLAYER_INSIGHTS_LLM_ENDPOINT = 'foundation-model';
   process.env.DATABRICKS_APP_NAME = 'player-insights';
   delete process.env.PLAYER_INSIGHTS_DATA_GENIE_ID;
   delete process.env.PLAYER_INSIGHTS_DATA_GENIE_TITLE;
@@ -315,6 +318,9 @@ describe('the ranged cost route', () => {
         { name: 'from_day', value: '2026-08-01', type: 'DATE' },
         { name: 'to_day', value: '2026-08-17', type: 'DATE' },
       ])
+    );
+    expect(statementBodies.some((body) => String(body.statement).includes('system.serving.endpoint_usage'))).toBe(
+      true
     );
     expect(payload.perQuestion.runs[0].parts.map((part) => part.id)).toEqual(
       expect.arrayContaining(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'genie'])

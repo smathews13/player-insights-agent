@@ -98,6 +98,28 @@ describe('Cost component accuracy presentation', () => {
       },
     };
     expect(costCardView(zero, payload([zero])).secondaryMetric).toBe('0 total tokens');
+
+    const queryFailure = tile({
+      id: 'foundation-model',
+      quality: 'unknown',
+      amount: null,
+      dbus: null,
+      attribution: 'unavailable',
+      unavailable: 'Foundation billing query could not cast an unfinished Ask timestamp.',
+      evidence: { billingRows: null, astrolabeQueries: null, coverageComplete: false, tokens: null },
+    });
+    expect(costCardView(queryFailure, payload([queryFailure])).detail).toBe(
+      'Foundation billing query could not cast an unfinished Ask timestamp.'
+    );
+
+    const lowerBound = tile({
+      id: 'foundation-model',
+      note: 'Measured lower bound; 3 eligible Asks missing model evidence',
+      evidence: { billingRows: null, astrolabeQueries: null, coverageComplete: false, tokens: null },
+    });
+    expect(costCardView(lowerBound, payload([lowerBound])).detail).toBe(
+      'Measured lower bound; 3 eligible Asks missing model evidence'
+    );
   });
 
   it('keeps endpoint and warehouse totals off the question average numerator', () => {

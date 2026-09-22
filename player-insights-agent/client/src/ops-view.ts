@@ -416,7 +416,7 @@ export function costCardView(
     status: 'Estimated',
     basis: primaryBasis(tile),
     evidence: '',
-    detail: partial ? 'Some request or price coverage is incomplete.' : view.absence,
+    detail: tile.unavailable || tile.note || (partial ? 'Some request or price coverage is incomplete.' : view.absence),
     resource: [tile.resourceId, tile.secondaryResourceId].filter(Boolean).join(' · '),
   };
 }
