@@ -17,6 +17,13 @@ describe('questionTraceSessionId', () => {
     expect(questionTraceSessionId('Analyze activity by label.', attachment)).toBe('plan-b92b33fa2775c690');
   });
 
+  it('caps supplementary-plane characters by Python code point rather than UTF-16 unit', () => {
+    const attachment = '😀'.repeat(8_001);
+
+    expect(attachment.length).toBe(16_002);
+    expect(questionTraceSessionId('Emoji attachment', attachment)).toBe('plan-583a47f4cefeac08');
+  });
+
   it('hashes a revision under its clean question rather than its revision-specific plan id', () => {
     const question = 'Compare activity by label.';
     const revision = [
