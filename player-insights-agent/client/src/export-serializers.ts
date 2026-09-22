@@ -17,6 +17,8 @@ import {
 } from './export-html';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { EXPORT_BRAND } from './export-brand';
+import { normalizeReport, type Report } from '../../shared/report-contract';
+import { reportHtmlBody, serializeReportJson, serializeReportMarkdown } from './report-serializers';
 
 export { serializeBlocksHtml } from './export-html';
 export type { ExportHtmlTheme } from './export-html';
@@ -389,7 +391,7 @@ function storedAnswer(message: ConversationMessage): NormalizedAnswer | null {
     if (
       !raw ||
       typeof raw !== 'object' ||
-      ['plan', 'clarification'].includes(String((raw as { type?: unknown }).type))
+      ['plan', 'clarification', 'report'].includes(String((raw as { type?: unknown }).type))
     ) {
       return null;
     }
@@ -408,6 +410,23 @@ function storedPayload(message: ConversationMessage): Record<string, unknown> | 
   } catch {
     return null;
   }
+}
+
+function storedReport(message: ConversationMessage): Report | null {
+  const payload = storedPayload(message);
+  return payload?.type === 'report' ? normalizeReport(payload.report) : null;
+}
+
+function reportCharts(report: Report): Chart[] {
+  return report.sections.flatMap((section) =>
+    (section.charts ?? []).map((chart) => ({
+      id: chart.id,
+      title: chart.title,
+      kind: chart.kind,
+      data: chart.plotly.data,
+      layout: chart.plotly.layout,
+    }))
+  );
 }
 
 function stringValue(value: unknown): string {
@@ -483,6 +502,11 @@ export function serializeConversationMarkdown(
       continue;
     }
     const payload = storedPayload(message);
+    const report = storedReport(message);
+    if (report) {
+      turns.push(serializeReportMarkdown(report, chartImagesByMessage?.get(message.id)).trim());
+      continue;
+    }
     if (payload?.type === 'plan') {
       turns.push(planMarkdown(payload));
       continue;
@@ -530,6 +554,12 @@ export function serializeConversationHtml(
       continue;
     }
     const payload = storedPayload(message);
+    const report = storedReport(message);
+    if (report) {
+      const body = reportHtmlBody(report, chartImagesByMessage?.get(message.id));
+      if (body) turns.push(`<section class="turn turn-report">${body}</section>`);
+      continue;
+    }
     if (payload?.type === 'plan') {
       const blocks = serializeBlocksHtml(parseAnswerMarkdown(planMarkdown(payload)));
       if (blocks) turns.push(`<section class="turn turn-plan">${blocks}</section>`);
@@ -575,6 +605,12 @@ export function serializeConversationJson(title: string, messages: readonly Conv
       continue;
     }
     const payload = storedPayload(message);
+    const report = storedReport(message);
+    if (report) {
+      const document = JSON.parse(serializeReportJson(report)) as Record<string, unknown>;
+      turns.push({ role: 'assistant', type: 'report', ...document });
+      continue;
+    }
     if (payload?.type === 'plan') {
       turns.push({ role: 'assistant', type: 'plan', markdown: planMarkdown(payload) });
       continue;
@@ -608,8 +644,8 @@ export function conversationChartsByMessage(messages: readonly ConversationMessa
   for (const message of messages) {
     if (message.role === 'user') continue;
     const answer = storedAnswer(message);
-    if (!answer) continue;
-    const charts = answerCharts(answer);
+    const report = storedReport(message);
+    const charts = answer ? answerCharts(answer) : report ? reportCharts(report) : [];
     if (charts.length) byMessage.set(message.id, charts);
   }
   return byMessage;

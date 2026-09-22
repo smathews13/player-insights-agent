@@ -77,6 +77,32 @@ function sectionHtml(section: ReportSection, chartImages?: ReadonlyMap<string, s
 }
 
 /**
+ * The report's reader-visible HTML, without a document shell.
+ *
+ * Conversation export embeds this directly as one turn. Standalone report
+ * export wraps the exact same markup in its themed document shell below.
+ */
+export function reportHtmlBody(report: Report, chartImages?: ReadonlyMap<string, string>): string {
+  const header = [
+    `<h1>${escapeHtml(report.title)}</h1>`,
+    report.subtitle ? `<p class="subtitle">${escapeHtml(report.subtitle)}</p>` : '',
+    bodyHtml(report.summary),
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const sourcesList = sourcesListHtml(report.sources ?? []);
+  const caveatsList = bulletListHtml(report.caveats ?? []);
+  return [
+    `<header>${header}</header>`,
+    ...report.sections.map((section) => sectionHtml(section, chartImages)),
+    sourcesList ? `<section class="sources"><h2>Sources</h2>${sourcesList}</section>` : '',
+    caveatsList ? `<section class="caveats"><h2>Caveats</h2>${caveatsList}</section>` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
  * A self-contained HTML document for the whole report.
  *
  * The theme resolves from the caller's override, then the agent's design hint, then
@@ -89,23 +115,7 @@ export function serializeReportHtml(
   themeOverride?: ExportHtmlTheme
 ): string {
   const theme: ExportHtmlTheme = themeOverride ?? report.theme ?? 'page';
-  const header = [
-    `<h1>${escapeHtml(report.title)}</h1>`,
-    report.subtitle ? `<p class="subtitle">${escapeHtml(report.subtitle)}</p>` : '',
-    bodyHtml(report.summary),
-  ]
-    .filter(Boolean)
-    .join('\n');
-  const sourcesList = sourcesListHtml(report.sources ?? []);
-  const caveatsList = bulletListHtml(report.caveats ?? []);
-  const body = [
-    `<header>${header}</header>`,
-    ...report.sections.map((section) => sectionHtml(section, chartImages)),
-    sourcesList ? `<section class="sources"><h2>Sources</h2>${sourcesList}</section>` : '',
-    caveatsList ? `<section class="caveats"><h2>Caveats</h2>${caveatsList}</section>` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const body = reportHtmlBody(report, chartImages);
   const footer = report.generatedAt
     ? `Generated ${report.generatedAt} · Player Insights`
     : 'Exported from Player Insights.';

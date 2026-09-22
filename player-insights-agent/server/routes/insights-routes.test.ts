@@ -486,6 +486,43 @@ describe('plan and conversation contracts', () => {
     expect(history[0]?.content).toContain(stored.takeaway);
   });
 
+  it('replays report content rather than only its stored title', () => {
+    const history = buildServingHistory([
+      {
+        role: 'assistant',
+        content: 'Player overlap report',
+        response_json: {
+          type: 'report',
+          report: {
+            schema_version: 'pia.report/1',
+            title: 'Player overlap report',
+            summary: 'The complete report summary.',
+            sections: [
+              {
+                heading: 'Cross-play',
+                figures: [{ label: 'Players', value: '200M', caption: 'Unique players' }],
+                table: {
+                  columns: ['Franchise', 'Players'],
+                  rows: [['Hoops', '122.5M']],
+                },
+                note: 'Rounded.',
+              },
+            ],
+            sources: [{ name: 'catalog.schema.play_by_title' }],
+            caveats: ['All-time overlap.'],
+          },
+        },
+      },
+    ]);
+
+    expect(history[0]?.content).toContain('The complete report summary.');
+    expect(history[0]?.content).toContain('Players: 200M (Unique players)');
+    expect(history[0]?.content).toContain('Franchise | Players');
+    expect(history[0]?.content).toContain('Hoops | 122.5M');
+    expect(history[0]?.content).toContain('Sources: catalog.schema.play_by_title');
+    expect(history[0]?.content).toContain('Caveats: All-time overlap.');
+  });
+
   it('drops rows that are not usable conversation turns', () => {
     const history = buildServingHistory([
       { role: 'system', content: 'ignored' },
@@ -1473,6 +1510,27 @@ describe('serving request body', () => {
         { role: 'assistant', content: 'A plan.', response_json: { type: 'plan', plan: { id: 'plan-9' } } },
         { role: 'user', content: 'plot the first answer' },
       ];
+      expect(priorEvidenceFromHistory(rows)).toEqual(['row-a', 'row-b']);
+    });
+
+    it('skips a report generated between the data answer and a chart follow-up', () => {
+      const rows = [
+        answerRow(['row-a', 'row-b']),
+        {
+          role: 'assistant',
+          content: 'Player report',
+          response_json: {
+            type: 'report',
+            report: {
+              schema_version: 'pia.report/1',
+              title: 'Player report',
+              sections: [{ body: 'A document generated from the prior answer.' }],
+            },
+          },
+        },
+        { role: 'user', content: 'plot the answer that produced this report' },
+      ];
+
       expect(priorEvidenceFromHistory(rows)).toEqual(['row-a', 'row-b']);
     });
 
