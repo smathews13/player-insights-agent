@@ -1031,7 +1031,12 @@ describe('the cost block', () => {
     expect(visible).not.toContain('system.billing.list_prices');
     expect(visible).not.toContain('complete days');
     expect(markup.indexOf('>Cost Tracking</h3>')).toBeLessThan(markup.indexOf('>Experimental</span>'));
+    expect(markup.indexOf('>Experimental</span>')).toBeLessThan(
+      markup.indexOf('aria-label="Export the trailing 31-day cost breakdown"')
+    );
     expect(heading).toContain('ops-block-title-group');
+    const rightControls = heading.slice(heading.indexOf('ops-block-head-control'));
+    expect(rightControls).not.toContain('aria-label="Export the trailing 31-day cost breakdown"');
   });
 
   it('states exact partial Query History coverage instead of implying an estimate is complete', () => {
@@ -1658,8 +1663,9 @@ describe('the cost block', () => {
       'Dictionary Genie budget',
       'App compute budget',
     ]) {
-      expect(editor).toContain(`>${label}</label>`);
+      expect(editor).toContain(`>${label}</span>`);
     }
+    expect(editor.match(/ops-budget-product-mark/g)).toHaveLength(5);
     expect(editor).not.toContain('>Advisory<');
     expect(OPS_STYLES).toMatch(
       /\.ops-cost-resource-budgets \.ops-ticker-assumption-grid\s*\{[^}]*repeat\(auto-fit,\s*minmax\(15rem,\s*1fr\)\)/

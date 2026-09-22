@@ -39,6 +39,8 @@ import {
 } from './app-budget-status';
 import { useIdentity } from './app-state';
 import type { AppBudgetStatus } from '../../shared/app-budget-guard';
+import { BrandIcon } from './BrandIcon';
+import { productForCostTile } from './ops-view';
 
 export type BudgetSaveGroup = 'total' | 'resources';
 export const COST_BUDGET_SAVED_MS = 2_000;
@@ -510,11 +512,11 @@ export function monthlyBudgetProgress(
   const balance =
     unit === 'USD'
       ? difference < 0
-        ? `$${formatted(Math.abs(difference))} over $${formatted(savedBudget)} app budget`
-        : `$${formatted(difference)} of $${formatted(savedBudget)} app budget remaining`
+        ? `$${formatted(Math.abs(difference))} over $${formatted(savedBudget)} app budget in the current month`
+        : `$${formatted(difference)} of $${formatted(savedBudget)} app budget remaining in the current month`
       : difference < 0
-        ? `${formatted(Math.abs(difference))} over ${formatted(savedBudget)} DBU app budget`
-        : `${formatted(difference)} of ${formatted(savedBudget)} DBU app budget remaining`;
+        ? `${formatted(Math.abs(difference))} over ${formatted(savedBudget)} DBU app budget in the current month`
+        : `${formatted(difference)} of ${formatted(savedBudget)} DBU app budget remaining in the current month`;
   const spent = `${snapshot.amount.toFixed(2)} ${unit}`;
   const estimated = snapshot.coverage !== 'complete';
   if (snapshot.amount >= savedBudget) {
@@ -707,10 +709,16 @@ export function resourceBudgetLabel(tile: Pick<CostTile, 'id' | 'label'>): strin
 function CostResourceBudgetField({ tile }: { tile: CostTile }) {
   const api = useCostBudgets();
   const label = resourceBudgetLabel(tile);
+  const product = productForCostTile(tile.id);
   return (
     <CostBudgetField
       fieldKey={`resource:${tile.id}`}
-      label={label}
+      label={
+        <span className="ops-budget-product-label">
+          {product ? <BrandIcon product={product} size={14} className="ops-budget-product-mark" /> : null}
+          <span>{label}</span>
+        </span>
+      }
       ariaLabel={`${tile.label} monthly budget`}
       budget={resourceBudget(api.budgets, tile.id)}
       unit={api.unit}
@@ -738,7 +746,7 @@ function CostBudgetField({
   controlAfter,
 }: {
   fieldKey: string;
-  label: string;
+  label: ReactNode;
   labelHidden?: boolean;
   ariaLabel: string;
   budget: CostBudget;

@@ -510,14 +510,17 @@ export function markdownPdf(markdown: string): Blob {
 
 export type CostBriefPdfMode = 'observed' | 'dev-prod-projection';
 
-const INK: PdfColor = [0.07, 0.1, 0.16];
-const MUTED: PdfColor = [0.36, 0.41, 0.49];
-const RULE: PdfColor = [0.84, 0.86, 0.89];
-const PANEL: PdfColor = [0.96, 0.97, 0.98];
-const BLUE: PdfColor = [0.11, 0.39, 0.72];
-const BLUE_LIGHT: PdfColor = [0.76, 0.86, 0.96];
-const SLATE: PdfColor = [0.35, 0.43, 0.54];
-const GREEN: PdfColor = [0.12, 0.48, 0.37];
+// The cost report intentionally uses the app's dark presentation palette. Keep
+// both observed and projection exports on this one visual system.
+const INK: PdfColor = [0.95, 0.97, 0.98];
+const MUTED: PdfColor = [0.59, 0.63, 0.68];
+const RULE: PdfColor = [0.2, 0.24, 0.27];
+const BACKGROUND: PdfColor = [0.07, 0.09, 0.11];
+const PANEL: PdfColor = [0.1, 0.12, 0.14];
+const PANEL_HEADER: PdfColor = [0.12, 0.15, 0.17];
+const BLUE: PdfColor = [0.13, 0.45, 0.71];
+const BLUE_LIGHT: PdfColor = [0.08, 0.58, 0.55];
+const GREEN: PdfColor = [0.08, 0.62, 0.48];
 
 function costText(
   page: DrawOp[],
@@ -546,12 +549,26 @@ function costDays(brief: CostBriefPayload): number {
   return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / 86_400_000) + 1 : 0;
 }
 
-function costCard(page: DrawOp[], x: number, label: string, value: string, note: string, accent: PdfColor): void {
-  page.push({ kind: 'rect', x, y: 552, w: 166, h: 76, fill: PANEL, stroke: RULE, lineWidth: 0.6 });
-  page.push({ kind: 'rect', x, y: 624, w: 166, h: 4, fill: accent });
+function costCard(page: DrawOp[], x: number, label: string, value: string, note: string): void {
+  const money = /^(.*)\s(USD|DBU|EUR|GBP|CAD|AUD|JPY)$/.exec(value);
+  page.push({ kind: 'rect', x, y: 538, w: 166, h: 90, fill: PANEL, stroke: RULE, lineWidth: 0.6 });
   costText(page, label.toUpperCase(), x + 12, 607, 8, true, MUTED);
-  costText(page, value, x + 12, 582, 17, true);
-  costText(page, note, x + 12, 565, 8, false, MUTED);
+  costText(page, money?.[1] ?? value, x + 12, 578, 19, true);
+  if (money?.[2]) costText(page, money[2], x + 12, 558, 8, false, MUTED);
+  costText(page, note, x + 12, 544, 8, false, MUTED);
+}
+
+function costMark(page: DrawOp[]): void {
+  const squares = [
+    [52, 714],
+    [52, 726],
+    [40, 714],
+    [64, 714],
+  ] as const;
+  for (const [x, y] of squares) {
+    page.push({ kind: 'rect', x, y, w: 9, h: 9, fill: INK });
+  }
+  page.push({ kind: 'rect', x: 55, y: 717, w: 3, h: 3, fill: BLUE });
 }
 
 function projectionCards(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): void {
@@ -560,24 +577,21 @@ function projectionCards(page: DrawOp[], brief: CostBriefPayload, projection: De
     42,
     'Observed Dev',
     costMoney(projection.devObserved, brief.currency),
-    'Billing-derived · last 31 days',
-    BLUE
+    'Billing-derived · last 31 days'
   );
   costCard(
     page,
     223,
     'Projected Prod',
     costMoney(projection.prodProjected, brief.currency, true),
-    'Projection · rounded',
-    GREEN
+    'Projection · rounded'
   );
   costCard(
     page,
     404,
     'Combined total',
     costMoney(projection.combined, brief.currency, true),
-    'Dev observed + Prod projected',
-    INK
+    'Dev observed + Prod projected'
   );
 
   const dev = projection.devObserved ?? 0;
@@ -594,22 +608,20 @@ function projectionCards(page: DrawOp[], brief: CostBriefPayload, projection: De
 }
 
 function observedCards(page: DrawOp[], brief: CostBriefPayload, exported: CostBriefExportView): void {
-  costCard(page, 42, 'Total', costMoney(exported.total, brief.currency), 'Observed billing · estimated', BLUE);
+  costCard(page, 42, 'Total', costMoney(exported.total, brief.currency), 'Observed billing · estimated');
   costCard(
     page,
     223,
     'Attributed to questions',
     costMoney(exported.attributed, brief.currency),
-    'Question-driven usage',
-    BLUE
+    'Question-driven usage'
   );
   costCard(
     page,
     404,
     'Standing infrastructure',
     costMoney(exported.standing, brief.currency),
-    'Fixed idle remainder',
-    SLATE
+    'Fixed idle remainder'
   );
 
   const attributed = exported.attributed ?? 0;
@@ -628,19 +640,41 @@ function observedCards(page: DrawOp[], brief: CostBriefPayload, exported: CostBr
 
 function observedResourceTable(page: DrawOp[], brief: CostBriefPayload, exported: CostBriefExportView): number {
   costText(page, 'BY RESOURCE', 42, 476, 9, true, BLUE);
+  const tableBottom = 428 - exported.resources.length * 28 - 18;
+  page.push({
+    kind: 'rect',
+    x: 42,
+    y: tableBottom,
+    w: 528,
+    h: 470 - tableBottom,
+    fill: PANEL,
+    stroke: RULE,
+    lineWidth: 0.6,
+  });
+  page.push({ kind: 'rect', x: 42, y: 446, w: 528, h: 24, fill: PANEL_HEADER });
   costText(page, 'RESOURCE', 42, 454, 8, true, MUTED);
-  costText(page, 'SHARE', 397, 454, 8, true, MUTED);
+  costText(page, 'SHARE', 220, 454, 8, true, MUTED);
   costText(page, 'SPEND', 478, 454, 8, true, MUTED);
   page.push({ kind: 'line', x1: 42, y1: 446, x2: 570, y2: 446, color: RULE, lineWidth: 0.8 });
   let y = 428;
   const total = exported.total;
-  for (const resource of exported.resources) {
-    const share =
-      typeof resource.amount === 'number' && typeof total === 'number' && total > 0
-        ? `${((resource.amount / total) * 100).toFixed(1)}%`
-        : '—';
+  for (const [index, resource] of exported.resources.entries()) {
+    const shareValue =
+      typeof resource.amount === 'number' && typeof total === 'number' && total > 0 ? resource.amount / total : null;
+    const share = shareValue === null ? '—' : `${(shareValue * 100).toFixed(1)}%`;
     costText(page, resource.label, 42, y, 9, false);
-    costText(page, share, 397, y, 9, false, MUTED);
+    page.push({ kind: 'rect', x: 220, y: y + 1, w: 170, h: 5, fill: RULE });
+    if (shareValue !== null && shareValue > 0) {
+      page.push({
+        kind: 'rect',
+        x: 220,
+        y: y + 1,
+        w: Math.max(1, 170 * shareValue),
+        h: 5,
+        fill: index === 0 ? BLUE : BLUE_LIGHT,
+      });
+    }
+    costText(page, share, 402, y, 9, false, MUTED);
     costText(page, costMoney(resource.amount, brief.currency), 478, y, 9, false);
     page.push({ kind: 'line', x1: 42, y1: y - 10, x2: 570, y2: y - 10, color: RULE, lineWidth: 0.4 });
     y -= 28;
@@ -652,6 +686,18 @@ function observedResourceTable(page: DrawOp[], brief: CostBriefPayload, exported
 
 function projectionResourceTable(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): number {
   costText(page, 'BY RESOURCE', 42, 476, 9, true, BLUE);
+  const tableBottom = 428 - projection.resources.length * 28 - 18;
+  page.push({
+    kind: 'rect',
+    x: 42,
+    y: tableBottom,
+    w: 528,
+    h: 470 - tableBottom,
+    fill: PANEL,
+    stroke: RULE,
+    lineWidth: 0.6,
+  });
+  page.push({ kind: 'rect', x: 42, y: 446, w: 528, h: 24, fill: PANEL_HEADER });
   costText(page, 'RESOURCE', 42, 454, 8, true, MUTED);
   costText(page, 'DEV OBSERVED', 286, 454, 8, true, MUTED);
   costText(page, 'PROD PROJECTED', 390, 454, 8, true, MUTED);
@@ -686,11 +732,11 @@ export function costBriefPdf(brief: CostBriefPayload, mode: CostBriefPdfMode = '
   const days = costDays(brief);
   const window = opsRangeDates(brief.range);
 
-  page.push({ kind: 'rect', x: 42, y: 748, w: 528, h: 4, fill: BLUE });
-  costText(page, projection ? 'DEV + PROD PROJECTION' : 'COST BREAKDOWN', 42, 728, 9, true, BLUE);
-  costText(page, projection ? 'Dev + Prod projection' : 'Cost breakdown', 42, 693, 24, true);
-  costText(page, projection ? 'Last 31 complete days' : 'Trailing 31 days', 42, 673, 12, false, MUTED);
-  costText(page, 'Player Insights · Databricks App', 350, 710, 9, true);
+  page.push({ kind: 'rect', x: 0, y: 0, w: PAGE_WIDTH, h: PAGE_HEIGHT, fill: BACKGROUND });
+  costMark(page);
+  costText(page, projection ? 'DEV + PROD PROJECTION' : 'COST BREAKDOWN', 86, 728, 9, true, BLUE_LIGHT);
+  costText(page, projection ? 'Dev + Prod projection' : 'Trailing 31 days', 86, 693, 24, true);
+  costText(page, 'Player Insights · Databricks App', 86, 673, 11, false, MUTED);
   costText(page, `Window ${window}${days ? ` · ${days} complete days` : ''}`, 350, 693, 8, false, MUTED);
   costText(page, `Generated ${brief.generatedAt}`, 350, 678, 8, false, MUTED);
   page.push({ kind: 'line', x1: 42, y1: 654, x2: 570, y2: 654, color: RULE, lineWidth: 0.8 });

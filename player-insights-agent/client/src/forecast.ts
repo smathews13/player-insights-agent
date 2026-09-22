@@ -417,6 +417,9 @@ export function deriveForecastBaseline(
 
   const known = new Set(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute']);
   for (const tile of cost.tiles) {
+    // Vector Search is retired from the product surface. Old deployments can
+    // still send this tile, but it must not reappear in projections or totals.
+    if (tile.id === 'vector-search') continue;
     if (known.has(tile.id) || tile.id === 'genie:unattributed') continue;
     const amount = dailyInWindow(tile, days, unit);
     if (amount !== null) {

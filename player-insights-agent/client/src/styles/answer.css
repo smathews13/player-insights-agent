@@ -954,6 +954,50 @@ ol.answer-list {
   cursor: wait;
   opacity: 0.65;
 }
+.cost-brief-export-menu-content {
+  gap: 8px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 8px;
+}
+.cost-brief-export-options {
+  display: grid;
+  gap: 4px;
+}
+.cost-brief-export-option {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--ast-text);
+  cursor: pointer;
+  font-size: var(--ast-fs-12);
+}
+.cost-brief-export-option:hover,
+.cost-brief-export-option[data-selected='true'] {
+  border-color: var(--ast-border-input);
+  background: var(--ast-neutral-fill);
+}
+.cost-brief-export-option input {
+  margin: 0;
+  accent-color: var(--ast-blue);
+}
+.cost-brief-export-option svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ast-blue);
+}
+.cost-brief-export-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cost-brief-export-submit {
+  width: 100%;
+  justify-content: center;
+}
 .export-outcome {
   position: absolute;
   right: 0;

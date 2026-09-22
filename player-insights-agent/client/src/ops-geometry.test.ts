@@ -274,9 +274,13 @@ describe('the Cost budget layout', () => {
     expect(rule('.ops-number-ticker-wide input')).toMatch(/height:\s*var\(--ops-ticker-control-height,\s*36px\)/);
     expect(rule('.ops-cost-total .ops-budget-apply')).toMatch(/height:\s*var\(--ops-ticker-control-height\)/);
     expect(rule('.ops-app-budget-status')).toMatch(/min-height:\s*0/);
+    expect(rule('.ops-app-budget-status')).toMatch(/padding-inline-start:\s*28px/);
     expect(rule('.ops-recent-monthly-spend-list')).toMatch(/display:\s*grid/);
     expect(RESPONSIVE).toMatch(
       /@media \(max-width: 480px\)[\s\S]*\.ops-cost-total \.ops-ticker-input-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/
+    );
+    expect(RESPONSIVE).toMatch(
+      /@media \(max-width: 480px\)[\s\S]*\.ops-app-budget-status\s*\{[^}]*padding-inline-start:\s*0/
     );
   });
 

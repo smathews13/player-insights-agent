@@ -66,6 +66,7 @@
   }
   .ops-app-budget-status {
     grid-column: 1 / -1;
+    padding-inline-start: 0;
   }
   .ops-number-ticker-wide,
   .ops-ticker-assumption {

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Download, MoreHorizontal } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Download, FileText, MoreHorizontal, TrendingUp } from 'lucide-react';
 import { Button, Popover, PopoverContent, PopoverTrigger } from './ui';
 import type { NormalizedAnswer } from './answer-shape';
 import type { ExportTable } from './export-serializers';
@@ -148,20 +148,90 @@ export function ChartExportMenu({ chart, name }: { chart: Chart; name?: string }
 }
 
 export function CostBriefExportMenu() {
+  const groupName = useId();
+  const [open, setOpen] = useState(false);
+  const [selection, setSelection] = useState<'observed' | 'dev-prod'>('observed');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const activate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const actions = await loadExportActions();
+      if (selection === 'observed') await actions.downloadCostBriefPdf();
+      else await actions.downloadDevProdCostProjectionPdf();
+      setOpen(false);
+    } catch (error) {
+      setError(error instanceof Error && error.message ? error.message : 'Cost report export failed. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <ActionsMenu
-      label="Export the trailing 31-day cost breakdown"
-      actions={[
-        {
-          label: 'Download PDF (last 31 days)',
-          run: async () => (await loadExportActions()).downloadCostBriefPdf(),
-        },
-        {
-          label: 'Dev + Prod projection (last 31 days)',
-          run: async () => (await loadExportActions()).downloadDevProdCostProjectionPdf(),
-        },
-      ]}
-    />
+    <div className="export-menu cost-brief-export-menu">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="Export the trailing 31-day cost breakdown"
+            aria-haspopup="dialog"
+          >
+            <Download aria-hidden="true" />
+            <span className="export-menu-label">Export</span>
+            <MoreHorizontal aria-hidden="true" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="export-menu-content cost-brief-export-menu-content"
+          align="start"
+          role="dialog"
+          aria-label="Choose a cost report"
+        >
+          <div className="cost-brief-export-options" role="radiogroup" aria-label="Cost report type">
+            <label className="cost-brief-export-option" data-selected={selection === 'observed'}>
+              <input
+                type="radio"
+                name={groupName}
+                value="observed"
+                checked={selection === 'observed'}
+                onChange={() => setSelection('observed')}
+              />
+              <FileText aria-hidden="true" />
+              <span>Cost report PDF (last 31 days)</span>
+            </label>
+            <label className="cost-brief-export-option" data-selected={selection === 'dev-prod'}>
+              <input
+                type="radio"
+                name={groupName}
+                value="dev-prod"
+                checked={selection === 'dev-prod'}
+                onChange={() => setSelection('dev-prod')}
+              />
+              <TrendingUp aria-hidden="true" />
+              <span>Dev + Prod projection (last 31 days)</span>
+            </label>
+          </div>
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="cost-brief-export-submit"
+            disabled={busy}
+            aria-busy={busy || undefined}
+            onClick={() => void activate()}
+          >
+            <PiaBusyButtonContent busy={busy} label="Export selected" busyLabel="Exporting…" />
+          </Button>
+        </PopoverContent>
+      </Popover>
+      {error ? (
+        <span className="export-outcome export-outcome--error" role="alert" aria-live="assertive">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

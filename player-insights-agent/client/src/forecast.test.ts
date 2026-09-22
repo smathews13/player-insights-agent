@@ -176,12 +176,11 @@ describe('forecast arithmetic', () => {
       ['serving-endpoint', 2],
       ['sql-warehouse', 1],
       ['app-compute', 2],
-      ['vector-search', 3],
     ]);
     expect(result.horizons.map((horizon) => horizon.days)).toEqual([7, 30, 180]);
-    expect(result.horizons[0].total).toBeCloseTo(56);
-    expect(result.horizons[1].total).toBeCloseTo(240);
-    expect(result.horizons[2].total).toBeCloseTo(1440);
+    expect(result.horizons[0].total).toBeCloseTo(35);
+    expect(result.horizons[1].total).toBeCloseTo(150);
+    expect(result.horizons[2].total).toBeCloseTo(900);
     for (const horizon of result.horizons) {
       expect(horizon.components.reduce((total, component) => total + (component.amount ?? 0), 0)).toBeCloseTo(
         horizon.total!
@@ -191,7 +190,7 @@ describe('forecast arithmetic', () => {
     expect(JSON.stringify(result)).not.toMatch(/buffer|contingency/i);
   });
 
-  it('carries a measured zero Vector Search baseline through every horizon', () => {
+  it('drops stale Vector Search payloads from every projection and subtotal', () => {
     const base = cost();
     const withZero = cost({
       tiles: base.tiles.map((item) =>
@@ -200,11 +199,11 @@ describe('forecast arithmetic', () => {
     });
     const baseline = deriveForecastBaseline(withZero, traffic());
     const result = calculateForecast(baseline, baseline.defaults);
-    expect(baseline.fixedDailyCosts).toContainEqual({ id: 'vector-search', label: 'Vector Search', amount: 0 });
-    expect(result.components.find((item) => item.id === 'vector-search')?.dailyAmount).toBe(0);
-    expect(
-      result.horizons.map((horizon) => horizon.components.find((item) => item.id === 'vector-search')?.amount)
-    ).toEqual([0, 0, 0]);
+    expect(baseline.fixedDailyCosts).not.toContainEqual(expect.objectContaining({ id: 'vector-search' }));
+    expect(result.components.some((item) => item.id === 'vector-search')).toBe(false);
+    expect(result.horizons.every((horizon) => horizon.components.every((item) => item.id !== 'vector-search'))).toBe(
+      true
+    );
   });
 
   it('uses the editable token ratio for serving without changing SQL', () => {
@@ -357,7 +356,6 @@ describe('missing and excluded baselines', () => {
 
     expect(result.components.map((component) => [component.id, component.dailyAmount])).toEqual([
       ['app-compute', null],
-      ['vector-search', 3],
     ]);
     expect(baseline.exclusions.map((item) => item.component)).toEqual(
       expect.arrayContaining(['Serving endpoint', 'PIA SQL', 'Data Genie'])
@@ -397,11 +395,11 @@ describe('missing and excluded baselines', () => {
     expect(
       result.horizons.map((horizon) => horizon.components.find((item) => item.id === 'app-compute')?.amount)
     ).toEqual([14, 60, 360]);
-    expect(result.horizons[0].total).toBeCloseTo(56);
+    expect(result.horizons[0].total).toBeCloseTo(35);
   });
 
   it.each([
-    ['USD', 2, 56, 240],
+    ['USD', 2, 35, 150],
     ['DBU', 1, 17.5, 75],
   ] as const)(
     'projects measured App compute in %s without conversion or double counting',
@@ -441,7 +439,7 @@ describe('missing and excluded baselines', () => {
 
     expect(result.components.find((item) => item.id === 'app-compute')?.dailyAmount).toBe(0);
     expect(result.horizons[0].components.find((item) => item.id === 'app-compute')?.amount).toBe(0);
-    expect(result.horizons[0].total).toBeCloseTo(42);
+    expect(result.horizons[0].total).toBeCloseTo(21);
   });
 
   it('uses exact horizon days and removes the Genie promotion at the 2027 boundary', () => {

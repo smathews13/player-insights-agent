@@ -390,7 +390,18 @@ export function costCardView(
   payload: Pick<OpsCostPayload, 'currency' | 'throughDay'>,
   unit: CostBudgetUnit = 'USD'
 ): CostCardView {
-  const view = tileView(tile, payload.currency, unit);
+  // The SQL component is labelled "Ask SQL", so its card must show only the
+  // execution-time share attributed to Ask. Keep the full warehouse amount on
+  // the payload for app-total reconciliation and forecasting diagnostics.
+  const displayedTile =
+    tile.id === 'sql-warehouse'
+      ? {
+          ...tile,
+          amount: tile.marginalAmount === undefined ? tile.amount : tile.marginalAmount,
+          dbus: tile.marginalDbus === undefined ? tile.dbus : tile.marginalDbus,
+        }
+      : tile;
+  const view = tileView(displayedTile, payload.currency, unit);
   const partial = isPartialFoundation(tile);
   return {
     id: tile.id,

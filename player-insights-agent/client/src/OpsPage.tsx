@@ -616,11 +616,15 @@ export function CostBody({
               </Button>
             ) : null}
             <CostUnitControl unit={unit} onChange={onUnitChange} />
-            <CostBriefExportMenu />
             <RefreshControl busy={block.busy} checkedAt={payload?.readAt ?? ''} onRefresh={block.refresh} />
           </div>
         }
-        titleBadge={<ExperimentalBadge />}
+        titleBadge={
+          <>
+            <ExperimentalBadge />
+            <CostBriefExportMenu />
+          </>
+        }
       />
 
       <BlockBody>
