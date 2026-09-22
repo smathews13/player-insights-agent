@@ -206,6 +206,12 @@ export interface MonitoringQuestion {
   rating?: 'up' | 'down' | null;
   /** Fully-qualified tables this run read, as the answer recorded them. */
   tables: string[];
+  /**
+   * The MLflow session that groups this question's plan and execution traces.
+   *
+   * Null/absent on historical direct answers that predate session persistence.
+   */
+  traceSessionId?: string | null;
   /** Current app-team memberships for the asker, resolved by email at read time. */
   askerAppGroups?: string[];
 }
@@ -363,6 +369,8 @@ export interface MonitoringDetail {
   usefulness?: number | null;
   /** Absent, not dead, when the run recorded no trace id. */
   mlflowUrl: string | null;
+  /** The same per-question MLflow session shown on Monitoring list rows. */
+  traceSessionId?: string | null;
   /** The run id Run Explorer opens, which is the answer message's id. */
   runId: string | null;
   /**

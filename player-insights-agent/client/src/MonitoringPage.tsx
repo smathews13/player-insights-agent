@@ -31,7 +31,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router';
-import { ArrowLeft, ArrowUpRight, ChevronRight, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ChevronRight, Layers3, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
 import { Button, Input, Skeleton } from './ui';
@@ -698,6 +698,19 @@ function TotalTokens({ value }: { value: number | null }) {
   );
 }
 
+function TraceGroupMark({ sessionId }: { sessionId: string | null | undefined }) {
+  if (!sessionId) return null;
+  return (
+    <span
+      className="monitoring-trace-group"
+      title="MLflow groups the plan and execution traces for this question into one session."
+    >
+      <Layers3 aria-hidden="true" />
+      Grouped traces
+    </span>
+  );
+}
+
 function QuestionRow({
   question,
   selected,
@@ -731,6 +744,7 @@ function QuestionRow({
           header row above just settled. It was on the cell. */}
       <td className="monitoring-question">
         <span className="monitoring-question-text">{question.question}</span>
+        <TraceGroupMark sessionId={question.traceSessionId} />
       </td>
       {/* The local part, with the full address on hover. A column of
           identical domains is a column of noise. */}
@@ -821,6 +835,7 @@ function QuestionCard({
       {...activation}
     >
       <span className="monitoring-question-card-text">{question.question}</span>
+      <TraceGroupMark sessionId={question.traceSessionId} />
       <span className="monitoring-question-card-meta">
         <AskerMark email={question.askedBy} onOpen={onOpenPerson} />
         <span>{whenLabel(question.askedAt, now)}</span>
@@ -1075,6 +1090,7 @@ export function QuestionDrawer({
             .filter((segment): segment is string => Boolean(segment))
             .join(' · ')}
         </p>
+        <TraceGroupMark sessionId={detail.traceSessionId} />
       </div>
       <UsedThisRun used={detail.runtimeUsed ?? null} />
 
@@ -1087,7 +1103,7 @@ export function QuestionDrawer({
           <a href={detail.mlflowUrl} target="_blank" rel="noreferrer">
             {/* Sized by height, not boxed: MLflow is published as a wordmark. */}
             <BrandIcon product="mlflow" size={12} />
-            Open the MLflow trace
+            {detail.traceSessionId ? 'Open grouped MLflow traces' : 'Open the MLflow trace'}
             <ArrowUpRight className="monitoring-link-arrow size-3.5" aria-hidden="true" />
           </a>
         ) : null}
@@ -1549,6 +1565,7 @@ function ProfileQuestionHistory({
                 <button type="button" className="user-profile-modal-question-open" onClick={() => onOpen(question)}>
                   {question.question}
                 </button>
+                <TraceGroupMark sessionId={question.traceSessionId} />
               </td>
               <td data-label="When">{whenLabel(question.askedAt, now)}</td>
               <td data-label="Outcome">

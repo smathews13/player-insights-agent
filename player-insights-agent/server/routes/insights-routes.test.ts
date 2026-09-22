@@ -3,6 +3,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import express, { type Request } from 'express';
 import { serving as sdkServing } from '@databricks/sdk-experimental';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { questionTraceSessionId } from '../lib/trace-session';
 import {
   buildAskServingBody,
   buildServingHistory,
@@ -1230,6 +1231,8 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     expect(String(assistant?.response_json)).toContain('"type":"plan"');
     expect(String(assistant?.response_json)).toContain('plan-stale-and-wrong');
+    const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
+    expect(persisted.trace_session_id).toBe('plan-freshly-issued');
   });
 
   /**
@@ -1909,6 +1912,7 @@ describe('what the route actually puts on the wire', () => {
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
     expect(persisted.runtime_settings).toEqual(stored);
+    expect(persisted.trace_session_id).toBe(questionTraceSessionId('How many active players are there?', ''));
   });
 
   it('sends stored attachment text, which no route test could previously observe', async () => {
@@ -3819,6 +3823,19 @@ describe('the MLflow trace behind an answer', () => {
     expect(reference?.url).toBe(
       'https://example.cloud.databricks.com/ml/experiments/9998887776665554/traces' +
         '?selectedEvaluationId=tr-0123456789abcdef0123456789abcdef'
+    );
+  });
+
+  it('opens Monitoring references in MLflow session grouping', () => {
+    process.env.DATABRICKS_HOST = 'https://example.cloud.databricks.com';
+
+    const reference = mlflowReference('tr-0123456789abcdef0123456789abcdef', '9998887776665554', {
+      groupBySession: true,
+    });
+
+    expect(reference?.url).toBe(
+      'https://example.cloud.databricks.com/ml/experiments/9998887776665554/traces' +
+        '?groupBy=session&selectedEvaluationId=tr-0123456789abcdef0123456789abcdef'
     );
   });
 
