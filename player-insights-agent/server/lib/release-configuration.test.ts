@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { qualifyDataContractTables } from '../../shared/data-contract';
 import { configurationForSettings, configurationFromRelease } from './release-configuration';
 
 describe('release configuration, without asking the agent', () => {
@@ -18,8 +17,7 @@ describe('release configuration, without asking the agent', () => {
     expect(byKey.schema.value).toBe('sch');
     expect(byKey.warehouse_id.value).toBe('wh-1');
     expect(byKey.data_genie_space_id.value).toBe('space-data');
-    expect(byKey.declared_manifest.value).toEqual(qualifyDataContractTables('cat', 'sch'));
-    expect(byKey.declared_manifest.source).toBe('data-contract');
+    expect(byKey.declared_manifest).toBeUndefined();
   });
 
   it('resolves a semantic-index flag of true using catalog and schema', () => {
@@ -62,10 +60,13 @@ describe('release configuration, without asking the agent', () => {
     expect(manifest?.value).toEqual(['other.place.t1', 'other.place.t2']);
   });
 
-  it('does not invent a table list when catalog or schema is missing', () => {
-    expect(configurationFromRelease({ PLAYER_INSIGHTS_CATALOG: 'cat' }).map((entry) => entry.key)).not.toContain(
-      'declared_manifest'
-    );
+  it('does not invent a table list from catalog and schema names', () => {
+    expect(
+      configurationFromRelease({
+        PLAYER_INSIGHTS_CATALOG: 'cat',
+        PLAYER_INSIGHTS_SCHEMA: 'sch',
+      }).map((entry) => entry.key)
+    ).not.toContain('declared_manifest');
   });
 });
 
@@ -115,12 +116,11 @@ describe('filling gaps from the served model version', () => {
   });
 });
 
-describe('no fake serving question remains in the app', () => {
-  it('does not POST the word preflight as an Ask', () => {
+describe('the only preflight request is configuration recovery', () => {
+  it('does not POST the word preflight from an interactive or health path', () => {
     const root = path.resolve(__dirname, '../..');
     const files = [
       'server/routes/insights-routes.ts',
-      'server/routes/settings-routes.ts',
       'server/routes/ops-routes.ts',
       'server/routes/access-verification.ts',
       'client/src/session-checks.ts',
@@ -135,5 +135,8 @@ describe('no fake serving question remains in the app', () => {
       expect(source, `${relative} still calls invokePreflight`).not.toContain('invokePreflight');
       expect(source, `${relative} still builds a preflight serving body`).not.toContain('buildPreflightServingBody');
     }
+    const settings = readFileSync(path.join(root, 'server/routes/settings-routes.ts'), 'utf8');
+    expect(settings).toContain('recoverServedConfiguration');
+    expect(settings).toMatch(/custom_inputs:\s*\{\s*preflight:\s*true\s*\}/);
   });
 });

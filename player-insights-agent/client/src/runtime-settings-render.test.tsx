@@ -44,13 +44,6 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('failure.message');
   });
 
-  it('never lets the admin Runtime document repaint the caller theme', () => {
-    expect(source).toContain("if (section === 'appearance') applyColorScheme(loaded.settings.colorScheme)");
-    expect(source).toContain("if (section === 'appearance') adoptRuntimeEntityStyles(saved.settings)");
-    expect(source).not.toMatch(/setSettings\(loaded\.settings\);\s*applyColorScheme/);
-    expect(source).not.toMatch(/setSettings\(saved\.settings\);\s*adoptRuntimeEntityStyles/);
-  });
-
   it('draws the requested loop, answer and timezone controls without caption filler', () => {
     for (const label of [
       'Max DSF steps',

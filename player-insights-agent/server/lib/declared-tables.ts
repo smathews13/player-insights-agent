@@ -73,6 +73,12 @@ export function exclusionReason(table: ListedTable, denylist: readonly string[] 
   }
   const pattern = denylistMatch(table.fullName, table.shortName, denylist);
   if (pattern) return `catalog_denylist pattern ${pattern}`;
+  // Older UC list responses can omit columns, so the signature check below
+  // cannot identify the app's own inference payload table. Its generated name
+  // is narrow and stable; never present it as customer data.
+  if (/^astrolabe_agent_\d+_payload$/i.test(table.shortName)) {
+    return 'inference payload table';
+  }
   if (isInferencePayloadTable(table.columns) === true) {
     return 'inference payload table';
   }

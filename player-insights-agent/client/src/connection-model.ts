@@ -449,39 +449,26 @@ export interface ConnectionGroup {
 /**
  * The order the sections are drawn in, which is the order a reader needs them.
  *
- * Anything actionable first. Blocked is the only state on this page with a
- * statement attached to it, drift is the only other one that says something is
- * wrong, and everything below them is a report.
+ * Disconnected first because it is actionable, then connected. Diagnostic
+ * details such as a configuration mismatch stay inside the row instead of
+ * becoming another connection state.
  */
 const GROUP_ORDER: Array<{ key: ConnectionGroupKey; title: string }> = [
-  { key: 'blocked', title: 'Disconnected resources' },
-  { key: 'drifted', title: 'Drifted' },
-  // Above `reachable` because it is actionable, below the two that assert
-  // something is WRONG because a refusal does not: the call stopped at the
-  // permission layer, so nothing was established about the object. Its own section
-  // rather than a heading shared with `not-checked` -- a permission and a run are
-  // different next moves, and one heading over both is the conflation the count
-  // line was making.
-  { key: 'reachable', title: 'Connections' },
+  { key: 'blocked', title: 'Disconnected' },
+  { key: 'reachable', title: 'Connected' },
 ];
 
 /**
  * Which section one reading belongs in.
  *
- * Drift outranks reachability, and that is the whole reason this is a function
- * rather than a read of `status`. A warehouse the endpoint reached, running under
- * an id this deployment was not configured with, is `reachable` on the badge and
- * is the most interesting row on the page: filed under "Connected resources"
- * it would be the twelfth green row in a list nobody reads to the end.
+ * Only a completed successful reachability check is connected. Every other
+ * outcome is disconnected; mismatch findings remain row detail.
  */
 export function connectionGroupKey(reading: ConnectionReading): ConnectionGroupKey {
-  if (reading.status === 'blocked' || reading.status === 'refused' || reading.status === 'unreachable') {
-    return 'blocked';
-  }
-  if (reading.marker === 'drift') return 'drifted';
-  // Reachable, absent and unavailable checks all remain in the main logical
-  // resource list. Each row states its own exact status from its canonical view.
-  return 'reachable';
+  // Drift remains useful diagnostic detail inside a row, but it is not a third
+  // connection state. A resource is either confirmed reachable or it is shown
+  // as disconnected.
+  return reading.status === 'reachable' ? 'reachable' : 'blocked';
 }
 
 /**

@@ -10,7 +10,6 @@ import {
 } from './settings-routes';
 import { extractConfigurationReport, type InsightsAppKit, type ServingTransport } from './insights-routes';
 import { resourceStates, settingsPayload } from '../lib/app-settings';
-import { qualifyDataContractTables } from '../../shared/data-contract';
 
 /**
  * What the endpoint says it is configured with has to survive the trip.
@@ -18,9 +17,9 @@ import { qualifyDataContractTables } from '../../shared/data-contract';
  * These tests exist because it did not. `extractPreflightReport` looks for
  * `custom_outputs.preflight`, the shape from when the endpoint still ran
  * dependency checks; every current version answers `preflight_retired` and puts
- * its configuration at the top level of `custom_outputs`. `/api/settings` no
- * longer invokes serving, but the parser remains so an old payload can still
- * be read. The fixture below is the literal payload
+ * its configuration at the top level of `custom_outputs`. The settings route
+ * uses that cheap response only when the model artifact cannot supply its table
+ * declaration. The fixture below is the literal payload
  * `agent.py::_preflight_retired` returns.
  */
 
@@ -32,7 +31,7 @@ function retiredPreflight(configuration: Record<string, unknown>[]) {
   };
 }
 
-function entry(key: string, value: string, over: Record<string, unknown> = {}) {
+function entry(key: string, value: unknown, over: Record<string, unknown> = {}) {
   return {
     key,
     env_var: `PLAYER_INSIGHTS_${key.toUpperCase()}`,
@@ -100,6 +99,7 @@ const RELEASE_ENV_KEYS = [
   'PLAYER_INSIGHTS_WAREHOUSE_ID',
   'PLAYER_INSIGHTS_LLM_ENDPOINT',
   'PLAYER_INSIGHTS_SEMANTIC_INDEX',
+  'PLAYER_INSIGHTS_EXPERIMENT_PATH',
 ] as const;
 
 const savedReleaseEnv: Record<string, string | undefined> = {};
@@ -238,9 +238,8 @@ describe('what /api/settings makes of this release, without asking the agent', (
     process.env.PLAYER_INSIGHTS_SCHEMA = 'a_schema';
     const read = await readOrchestratorReport();
     expect(read.answered).toBe(false);
-    expect(read.report?.configuration.map((item) => item.key)).toEqual(
-      expect.arrayContaining(['catalog', 'schema', 'declared_manifest'])
-    );
+    expect(read.report?.configuration.map((item) => item.key)).toEqual(expect.arrayContaining(['catalog', 'schema']));
+    expect(read.report?.configuration.map((item) => item.key)).not.toContain('declared_manifest');
     const catalog = read.report?.configuration.find((item) => item.key === 'catalog');
     expect(catalog).toMatchObject({ value: 'a_catalog', source: 'app-environment' });
   });
@@ -289,10 +288,44 @@ describe('what /api/settings makes of this release, without asking the agent', (
     const catalog = states.find((state) => state.resource.id === 'catalog');
     expect(catalog?.configured).toBe('a_catalog');
     expect(catalog?.configuredFrom).toBe('app-environment');
-    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual(
-      qualifyDataContractTables('a_catalog', 'a_schema')
+    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')).toBeUndefined();
+  });
+
+  it('recovers the model declaration from the running endpoint when the artifact is unreadable', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'recovery-endpoint';
+    process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH = '/Shared/player-insights-agent';
+    const transport = vi
+      .fn()
+      .mockResolvedValue(
+        {
+          ...retiredPreflight([
+            entry('catalog', 'customer_data'),
+            entry('schema', 'players'),
+            entry('declared_manifest', ['customer_data.players.matches', 'customer_data.players.players']),
+          ]),
+          databricks_output: {
+            databricks_request_id: 'tr-0123456789abcdef0123456789abcdef',
+          },
+        }
+      );
+    const read = await readOrchestratorReport(appkit(transport));
+    expect(transport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          input: [{ role: 'user', content: 'preflight' }],
+          custom_inputs: { preflight: true },
+        },
+      })
     );
-    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.source).toBe('data-contract');
+    expect(read.answered).toBe(true);
+    expect(read.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual([
+      'customer_data.players.matches',
+      'customer_data.players.players',
+    ]);
+    expect(read.report?.checks.find((check) => check.id === 'experiment-id')).toMatchObject({
+      status: 'ok',
+      name: '/Shared/player-insights-agent',
+    });
   });
 
   it('does not let the page claim agreement it never measured', async () => {

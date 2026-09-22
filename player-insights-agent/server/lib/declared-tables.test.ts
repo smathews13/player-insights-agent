@@ -59,6 +59,18 @@ describe('what the Connections matrix may list', () => {
   it('keeps a table whose columns were not returned, rather than dropping it as unscreened', () => {
     expect(tablesFromListing([table({ fullName: 'cat.sch.kept', columns: null })])).toEqual(['cat.sch.kept']);
   });
+
+  it('drops the app inference payload even when UC omits its columns', () => {
+    expect(
+      tablesFromListing([
+        table({
+          fullName: 'gnt_sandbox_prod.astrolabe_app_assets.astrolabe_agent_1_payload',
+          shortName: 'astrolabe_agent_1_payload',
+          columns: null,
+        }),
+      ])
+    ).toEqual([]);
+  });
 });
 
 describe('the data-contract fallback', () => {
