@@ -145,6 +145,21 @@ describe('Ops failure and refusal population', () => {
     });
   });
 
+  it('labels a pre-query unknown-column guard separately from a warehouse rejection', () => {
+    const read = readTrafficBreakdowns([
+      { kind: 'population', key: '', count: 2 },
+      { kind: 'outcome_covered', key: '', count: 2 },
+      { kind: 'tool_covered', key: '', count: 2 },
+      { kind: 'failure', key: 'SQL_UNKNOWN_COLUMN', count: 1 },
+      { kind: 'failure', key: 'SQL_UNRESOLVED_COLUMN', count: 1 },
+    ]);
+
+    expect(read.failuresByCause).toEqual([
+      { key: 'SQL_UNKNOWN_COLUMN', label: 'SQL column typo caught before the query ran', count: 1 },
+      { key: 'SQL_UNRESOLVED_COLUMN', label: 'SQL referenced a missing column', count: 1 },
+    ]);
+  });
+
   it('reports complete zero tool calls only with complete explicit coverage', () => {
     const read = readTrafficBreakdowns([
       { kind: 'population', key: '', count: 2 },

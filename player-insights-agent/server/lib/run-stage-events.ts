@@ -67,12 +67,23 @@ function asFiniteNumber(value: unknown): number | undefined {
 /** Safe structured outcome derived from persisted stage evidence, never raw output. */
 export function stageOutcomeCode(stage: Record<string, unknown>): string | undefined {
   const status = typeof stage.status === 'string' ? stage.status.toLowerCase() : '';
+  const output = typeof stage.output === 'string' ? stage.output : '';
+  // Guard refusals are deliberately partial, not failed: the control worked and
+  // prevented a bad query. Read only the stable prefix and bounded prose shape
+  // instead of widening the gate to every partial stage, which would also sweep
+  // in dependency waits and clarification steps.
+  if (status === 'partial' && output.startsWith('REFUSED: ')) {
+    // Keep the static guard distinct from SQL_UNRESOLVED_COLUMN. The latter is
+    // the warehouse reporting a typo after query execution; this is the agent
+    // proving the column is absent before spending the query.
+    if (/ is not a column on /.test(output)) return 'SQL_UNKNOWN_COLUMN';
+    return 'TOOL_REFUSED';
+  }
   if (!['failed', 'refused'].includes(status)) return undefined;
   for (const key of ['outcome_code', 'error_code', 'code']) {
     const candidate = typeof stage[key] === 'string' ? stage[key].trim().toUpperCase() : '';
     if (/^[A-Z][A-Z0-9_]{1,79}$/.test(candidate)) return candidate;
   }
-  const output = typeof stage.output === 'string' ? stage.output : '';
   if (/APITimeoutError|Request timed out|reasoning endpoint.*not reachable/i.test(output)) {
     return 'REASONING_ENDPOINT_TIMEOUT';
   }
