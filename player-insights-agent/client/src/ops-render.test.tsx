@@ -1165,6 +1165,7 @@ describe('the cost block', () => {
           resourceId: 'warehouse',
           quality: 'estimate',
           amount: 4,
+          marginalAmount: 4,
           basis: 'total-in-range',
           population: 'This warehouse',
           attribution: 'deployment',
@@ -1752,7 +1753,7 @@ describe('the cost block', () => {
     expect(markup).not.toContain('Spent this calendar month');
   });
 
-  it('breaks the month total into question-driven and standing infrastructure lines', () => {
+  it('keeps the month reconciliation out of the spend summary', () => {
     const payload = cost({
       throughDay: '2026-09-02',
       range: { from: '2026-09-01', to: '2026-09-02' },
@@ -1779,14 +1780,12 @@ describe('the cost block', () => {
       budgets: { total: { USD: 900, DBU: null }, resources: {} },
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    const breakdown = markup.slice(markup.indexOf('ops-cost-breakdown'));
 
-    expect(breakdown).toContain('From questions');
-    expect(breakdown).toContain('12.50 USD');
-    expect(breakdown).toContain('Per-question and per-user active use');
-    expect(breakdown).toContain('Standing infrastructure');
-    expect(breakdown).toContain('88.00 USD');
-    expect(breakdown).toContain('Fixed cost to keep PIA online');
+    expect(markup).not.toContain('ops-cost-breakdown');
+    expect(markup).not.toContain('From questions');
+    expect(markup).not.toContain('Per-question and per-user active use');
+    expect(markup).not.toContain('Standing infrastructure');
+    expect(markup).not.toContain('Fixed cost to keep PIA online');
   });
 
   it('uses each configured space id in the canonical Databricks Genie link without printing raw URLs', () => {

@@ -14,6 +14,11 @@ import type { InsightsAppKit } from './insights-routes';
 import type { OpsCostPayload } from '../../shared/ops-contract';
 import { USER_MONITORING_ACTIVITY_QUERY } from '../lib/user-spend';
 
+it('uses every interactive Ask attempt as the question-cost denominator', () => {
+  expect(QUESTION_COST_RUNS_QUERY).toContain('WHERE r.created_at >= $1::date');
+  expect(QUESTION_COST_RUNS_QUERY).not.toContain("r.state = 'SUCCEEDED'");
+});
+
 const saved = {
   host: process.env.DATABRICKS_HOST,
   warehouse: process.env.DATABRICKS_SQL_WAREHOUSE_ID,

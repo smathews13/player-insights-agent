@@ -1075,7 +1075,7 @@ async function trafficBreakdownsFor(
  * uses and avoids pairing a question with a proposed plan from the same turn.
  */
 export const QUESTION_COST_RUNS_QUERY = `
-  WITH completed AS (
+  WITH attempted AS (
     SELECT r.run_id,
            COALESCE(m.response_json->'trace'->>'request_id', r.correlation_id, r.run_id, '') AS request_id,
            COALESCE(r.correlation_id, '') AS correlation_id,
@@ -1100,23 +1100,22 @@ export const QUESTION_COST_RUNS_QUERY = `
            END AS total_tokens
     FROM ${APP_SCHEMA}.runs r
     LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
-    WHERE r.state = 'SUCCEEDED'
-      AND r.completed_at >= $1::date
-      AND r.completed_at < ($2::date + INTERVAL '1 day')
+    WHERE r.created_at >= $1::date
+      AND r.created_at < ($2::date + INTERVAL '1 day')
   ),
   counted AS (
     SELECT *,
            COUNT(*) OVER ()::int AS runs_in_range,
            COUNT(*) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER ()::int AS token_covered_runs,
            COALESCE(SUM(total_tokens) FILTER (WHERE total_tokens IS NOT NULL AND total_tokens > 0) OVER (), 0)::bigint AS total_recorded_tokens
-    FROM completed
+    FROM attempted
   )
   SELECT run_id, request_id, correlation_id, trace_id, user_email, created_at, completed_at,
          input_tokens, output_tokens, total_tokens, cached_read_tokens, cache_write_tokens,
          runs_in_range, token_covered_runs, total_recorded_tokens,
          (runs_in_range <= 1000) AS evidence_complete
   FROM counted
-  ORDER BY completed_at DESC
+  ORDER BY created_at DESC
   LIMIT 1000`;
 
 const QUESTION_COST_LIMIT = 100;

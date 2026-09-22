@@ -42,7 +42,6 @@ import {
   labelClearances,
   labelRect,
   nodeBox,
-  nodeHeight,
   overlappingNodes,
   overlappingRects,
   pathEnds,
@@ -436,10 +435,9 @@ describe('a card is as tall as the stylesheet and the copy make it', () => {
     expect(wrappedLines('unbreakablelongword', 11, 0.58, 10)).toBe(1);
   });
 
-  it('keeps the compact Vector Search description tied to its measured height', () => {
+  it('keeps every remaining architecture card within the compact height budget', () => {
     const heights = Object.entries(NODE_BOXES).map(([id, box]) => [id, box.height] as const);
     expect(Math.max(...heights.map(([, height]) => height))).toBeLessThan(190);
-    expect(nodeHeight('semantic-index')).toBe(NODE_BOXES['semantic-index'].height);
   });
 });
 
@@ -470,13 +468,8 @@ describe('storage is the bottom row, which is what the page says it is', () => {
     }
   });
 
-  it('keeps the exception to two cards, both of them semantic and both drawn', () => {
-    // The lane the rule above exempts. Naming it here means a node added to it
-    // has to be a deliberate act rather than a way past the bottom-row check.
-    expect(nodesInLane('semantic').map((node) => node.id)).toEqual(['semantic-index', 'semantic-index-endpoint']);
-    for (const node of nodesInLane('semantic')) {
-      expect(nodeBox(node.id), `${node.id} is placed`).toBeDefined();
-    }
+  it('keeps the retired semantic lane empty', () => {
+    expect(nodesInLane('semantic')).toEqual([]);
   });
 
   it('names the same two nodes the model keeps off the answer path', () => {
@@ -753,19 +746,11 @@ describe('every line can be followed from one card to the other', () => {
 describe('the travelling dot rides the line it belongs to', () => {
   const dot = rule(CSS, '.arch-dot');
 
-  it('keeps hosting static while query and data edges flow', () => {
-    const hosting = drawnEdges().find(
-      (edge) => edge.from === 'semantic-index-endpoint' && edge.to === 'semantic-index'
-    )!;
-    const query = drawnEdges().find((edge) => edge.from === 'data-source-finder' && edge.to === 'semantic-index')!;
+  it('keeps every remaining query and data edge in the animated flow set', () => {
     const page = readFileSync(fileURLToPath(new URL('./ArchitecturePage.tsx', import.meta.url)), 'utf8');
 
-    expect(hosting.relationship).toBe('hosting');
-    expect(hosting.label).toBe('hosts');
-    expect(query.relationship).toBe('flow');
+    expect(drawnEdges().every((edge) => edge.relationship === 'flow')).toBe(true);
     expect(page).toMatch(/edges\s*\.filter\(\(edge\) => edge\.relationship === 'flow'\)\s*\.map/);
-    expect(rule(CSS, ".arch-edge[data-relationship='hosting']")).toMatch(/animation:\s*none/);
-    expect(rule(CSS, ".arch-edge[data-relationship='hosting']")).toMatch(/stroke-dasharray:\s*none/);
   });
 
   it('places the box at the origin the path coordinates are stated in', () => {
@@ -1313,16 +1298,10 @@ describe('nothing on the canvas is drawn over anything else', () => {
     expect(data.top - (dictionary.top + dictionary.height)).toBeGreaterThanOrEqual(ROW_GAP_MIN);
   });
 
-  it('keeps the card that was cut off by the old canvas inside this one', () => {
-    // The other half of "hidden or clipped", and the half that WAS unambiguous:
-    // the Vector Search endpoint card ended 33px below a canvas of 760, and the
-    // scroller is `overflow-y: hidden` -- see architecture.css -- so those pixels,
-    // its "Open in Databricks" link among them, were not scrolled to but simply
-    // not drawn. Stated against the canvas rather than against the old bottom
-    // edge, because that figure has moved twice since and the rule has not.
-    const endpoint = NODE_BOXES['semantic-index-endpoint'];
-    expect(endpoint.top + endpoint.height).toBeLessThanOrEqual(CANVAS_HEIGHT);
-    expect(endpoint.top + endpoint.height, 'and it is the lowest card in its column').toBeGreaterThan(760);
+  it('keeps every remaining card inside the clipped canvas', () => {
+    for (const [id, box] of Object.entries(NODE_BOXES)) {
+      expect(box.top + box.height, id).toBeLessThanOrEqual(CANVAS_HEIGHT);
+    }
     expect(rule(CSS, '.arch-canvas-scroll'), 'the clip is real').toMatch(/overflow-y:\s*hidden/);
   });
 

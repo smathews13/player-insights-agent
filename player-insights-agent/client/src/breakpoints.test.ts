@@ -31,6 +31,9 @@ const ROUTE_EXCEPTIONS = new Map<string, number[]>([
   // The responsive wordmark, Run Explorer split, and dense settings editors
   // switch on the widths of their own fixed content rather than app navigation.
   ['pia-brand.css', [720]],
+  // The inspector exists only above the shared 1180px max-width handoff, so its
+  // inverse min-width starts at the next whole CSS pixel.
+  ['rail.css', [1181]],
   ['responsive-runs.css', [960]],
   ['settings.css', [900, 720]],
   ['responsive-settings.css', [960, 640]],

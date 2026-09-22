@@ -29,19 +29,15 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
       'data-source-finder',
       'genie-dictionary',
       'genie-data',
-      'semantic-index',
-      'semantic-index-endpoint',
       'sql-warehouse',
       'catalog',
     ]);
     expect(ARCHITECTURE_CONTROL_SCOPES.maxToolCalls.edges).toEqual([
       'data-source-finder->genie-dictionary',
       'data-source-finder->genie-data',
-      'data-source-finder->semantic-index',
       'data-source-finder->sql-warehouse',
       'genie-data->sql-warehouse',
       'sql-warehouse->catalog',
-      'semantic-index-endpoint->semantic-index',
     ]);
     expect(nodeControlBounds('agent-endpoint')).not.toContain('maxToolCalls');
     expect(edgeControlBounds('data-source-finder', 'llm-endpoint')).not.toContain('maxToolCalls');
@@ -54,8 +50,6 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
       'llm-endpoint',
       'genie-dictionary',
       'genie-data',
-      'semantic-index',
-      'semantic-index-endpoint',
       'sql-warehouse',
       'catalog',
     ]);
@@ -65,11 +59,9 @@ describe('the runtime bounds illuminate only what the agent actually bounds', ()
       'data-source-finder->llm-endpoint',
       'data-source-finder->genie-dictionary',
       'data-source-finder->genie-data',
-      'data-source-finder->semantic-index',
       'data-source-finder->sql-warehouse',
       'genie-data->sql-warehouse',
       'sql-warehouse->catalog',
-      'semantic-index-endpoint->semantic-index',
     ]);
     for (const outside of ['browser', 'app', 'lakebase', 'experiment-id']) {
       expect(nodeControlBounds(outside), outside).not.toContain('maxRunSeconds');

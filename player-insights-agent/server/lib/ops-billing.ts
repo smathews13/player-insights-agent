@@ -1598,6 +1598,10 @@ function componentTile(
     });
   }
   if (component === 'sql-warehouse') {
+    const askExecutionMs =
+      warehouseAttribution.askRuns === undefined
+        ? null
+        : warehouseAttribution.askRuns.reduce((sum, run) => sum + run.executionMs, 0);
     const attributedExecutionMs =
       warehouseAttribution.astrolabeExecutionMs +
       warehouseAttribution.genieSpaces.reduce((sum, space) => sum + space.executionMs, 0);
@@ -1617,6 +1621,15 @@ function componentTile(
       ...base,
       amount: (amount * attributedExecutionMs) / warehouseAttribution.totalExecutionMs,
       dbus: dbus === null ? null : (dbus * attributedExecutionMs) / warehouseAttribution.totalExecutionMs,
+      // The tile covers all attributable app and Genie SQL. The per-question
+      // metric must use only statements carrying an authoritative Ask run id;
+      // otherwise Genie and background app queries are charged to questions.
+      ...(askExecutionMs === null
+        ? {}
+        : {
+            marginalAmount: (amount * askExecutionMs) / warehouseAttribution.totalExecutionMs,
+            marginalDbus: dbus === null ? null : (dbus * askExecutionMs) / warehouseAttribution.totalExecutionMs,
+          }),
       pricing,
       note: '',
       unavailable: '',
@@ -1733,7 +1746,9 @@ export function buildQuestionAttribution(
   const servingSpend = servingTile?.amount;
   const foundationTile = tiles.find((tile) => tile.id === 'foundation-model');
   const foundationSpend = foundationTile?.amount;
-  const sqlSpend = tiles.find((tile) => tile.id === 'sql-warehouse')?.amount;
+  const sqlTile = tiles.find((tile) => tile.id === 'sql-warehouse');
+  const sqlSpend =
+    sqlTile?.marginalAmount ?? (warehouseAttribution.askRuns === undefined ? sqlTile?.amount : undefined);
   const durationByRun = new Map(
     runs
       .map((run) => [run.runId, validRunDurationMs(run)])
@@ -1899,6 +1914,6 @@ export function buildQuestionAttribution(
     timingCoveredRuns: durationByRun.size,
     complete: Boolean(first?.evidenceComplete ?? runsInRange === runs.length),
     limited: runsInRange > attributed.length,
-    reason: runsInRange === 0 ? 'No completed runs were recorded.' : '',
+    reason: runsInRange === 0 ? 'No interactive Ask attempts were recorded.' : '',
   };
 }

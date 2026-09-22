@@ -30,7 +30,7 @@ function render(node: React.ReactNode): string {
 }
 
 describe('production-shaped Ops regressions', () => {
-  it('keeps the configured resource inventory, including MLflow, Genie, and Vector Search', () => {
+  it('keeps the configured resource inventory, including MLflow and Genie', () => {
     const payload: OpsHealthPayload = {
       checkedAt: CHECKED_AT,
       reason: '',
@@ -69,7 +69,6 @@ describe('production-shaped Ops regressions', () => {
       'Benchmark judge model',
       'Data Genie space',
       'Dictionary Genie space',
-      'Semantic Vector Search index',
       'MLflow experiment',
       'App',
       'Lakebase',

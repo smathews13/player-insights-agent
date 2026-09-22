@@ -4108,6 +4108,21 @@ def test_tier_labels_in_a_catalog_listing_are_not_bullets():
     assert "Only the tables under a tier are a list" in SYNTHESIS_INSTRUCTIONS
 
 
+def test_schema_discovery_stays_out_of_business_answers():
+    assert "internal working context" in SYNTHESIS_INSTRUCTIONS
+    assert "explicitly asks" in SYNTHESIS_INSTRUCTIONS
+    assert "what tables, columns, metadata, or restrictions exist" in SYNTHESIS_INSTRUCTIONS
+    assert "keep them out of takeaway" in SYNTHESIS_INSTRUCTIONS
+
+
+def test_comparisons_produce_a_breakout_table_and_executive_kpis():
+    assert "analytical comparison across franchises" in SYNTHESIS_INSTRUCTIONS
+    assert "titles, labels, regions, cohorts, or" in SYNTHESIS_INSTRUCTIONS
+    assert "put a concise breakout table first in content" in SYNTHESIS_INSTRUCTIONS
+    assert "use figures as executive KPI tiles" in SYNTHESIS_INSTRUCTIONS
+    assert "Do not spend a tile on a table name" in SYNTHESIS_INSTRUCTIONS
+
+
 def test_the_prompt_no_longer_forbids_the_markdown_it_now_depends_on():
     """It used to open "Return one valid JSON object and no markdown", which meant do not
     fence the JSON and was read as do not structure the answer. The instruction that was

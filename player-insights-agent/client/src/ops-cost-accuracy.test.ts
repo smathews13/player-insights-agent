@@ -100,7 +100,7 @@ describe('Cost component accuracy presentation', () => {
     expect(costCardView(zero, payload([zero])).secondaryMetric).toBe('0 total tokens');
   });
 
-  it('keeps endpoint total off the marginal average numerator and removes request-count copy', () => {
+  it('keeps endpoint and warehouse totals off the question average numerator', () => {
     const serving = tile({
       id: 'serving-endpoint',
       amount: 64,
@@ -108,7 +108,7 @@ describe('Cost component accuracy presentation', () => {
       evidence: { billingRows: 8, astrolabeQueries: null, interactiveRequests: 4, coveredRequests: 4 },
     });
     const foundation = tile({ id: 'foundation-model', amount: 0.4 });
-    const sql = tile({ id: 'sql-warehouse', amount: 0.2 });
+    const sql = tile({ id: 'sql-warehouse', amount: 200, marginalAmount: 0.2 });
     const current = payload([serving, foundation, sql]);
     expect(costCardView(serving, current)).toMatchObject({ amount: '64.00 USD', evidence: '' });
     expect(questionCostCardView(current).amount).toBe('0.20 USD');

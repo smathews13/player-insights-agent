@@ -673,8 +673,10 @@ describe('the mark on a cost tile', () => {
 });
 
 describe('approx average cost per question', () => {
-  it('divides attributed serving and SQL spend by completed questions', () => {
-    expect(QUESTION_COST_FORMULA).toBe('Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks');
+  it('divides only question-driven spend by every Ask attempt', () => {
+    expect(QUESTION_COST_FORMULA).toBe(
+      'Marginal serving + foundation tokens + Ask-tagged SQL ÷ all interactive Ask attempts'
+    );
     expect(
       questionServingAverage(
         costPayload({
@@ -683,7 +685,8 @@ describe('approx average cost per question', () => {
             tile({
               id: 'sql-warehouse',
               quality: 'estimate',
-              amount: 4,
+              amount: 400,
+              marginalAmount: 4,
               population: 'This warehouse',
               attribution: 'deployment',
             }),

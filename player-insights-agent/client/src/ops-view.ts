@@ -416,7 +416,7 @@ function usableQuestionComponent(tile: CostTile | undefined, unit: CostBudgetUni
     return null;
   }
   const value =
-    tile.id === 'serving-endpoint'
+    tile.id === 'serving-endpoint' || tile.id === 'sql-warehouse'
       ? unit === 'DBU'
         ? tile.marginalDbus
         : tile.marginalAmount
@@ -1002,9 +1002,10 @@ export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage 
 
 /**
  * The three marginal question-serving components with defensible period attribution,
- * divided by every completed question in that same complete-day period.
+ * divided by every interactive Ask attempt started in that same complete-day period.
  */
-export const QUESTION_COST_FORMULA = 'Marginal serving + foundation tokens + Ask SQL ÷ completed interactive Asks';
+export const QUESTION_COST_FORMULA =
+  'Marginal serving + foundation tokens + Ask-tagged SQL ÷ all interactive Ask attempts';
 
 export function questionServingAverage(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
@@ -1016,7 +1017,7 @@ export function questionServingAverage(payload: OpsCostPayload, unit: CostBudget
     !tile?.pricing || tile.pricing.match === 'priced' || tile.pricing.match === 'none';
   const servingAmount = unit === 'DBU' ? serving?.marginalDbus : serving?.marginalAmount;
   const foundationAmount = unit === 'DBU' ? foundation?.dbus : foundation?.amount;
-  const sqlAmount = unit === 'DBU' ? sql?.dbus : sql?.amount;
+  const sqlAmount = unit === 'DBU' ? sql?.marginalDbus : sql?.marginalAmount;
   const usdUnavailable =
     unit === 'USD' &&
     (serving?.quality === 'unknown' ||
