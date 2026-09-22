@@ -2536,6 +2536,28 @@ interface HistoryRow {
   response_json?: unknown;
 }
 
+function reportHistoryContent(report: Report): string {
+  const parts: string[] = [`Report: ${report.title}`];
+  if (report.subtitle) parts.push(report.subtitle);
+  if (report.summary) parts.push(report.summary);
+  for (const section of report.sections) {
+    if (section.heading) parts.push(section.heading);
+    if (section.body) parts.push(section.body);
+    for (const figure of section.figures ?? []) {
+      parts.push(`${figure.label}: ${figure.value}${figure.caption ? ` (${figure.caption})` : ''}`);
+    }
+    if (section.table) {
+      if (section.table.title) parts.push(section.table.title);
+      if (section.table.columns.length) parts.push(section.table.columns.join(' | '));
+      parts.push(...section.table.rows.map((row) => row.join(' | ')));
+    }
+    if (section.note) parts.push(section.note);
+  }
+  if (report.sources?.length) parts.push(`Sources: ${report.sources.map((source) => source.name).join(', ')}`);
+  if (report.caveats?.length) parts.push(`Caveats: ${report.caveats.join('; ')}`);
+  return parts.join('\n').slice(0, 4000);
+}
+
 export function buildServingHistory(rows: HistoryRow[]) {
   return rows
     .filter(
@@ -2564,6 +2586,10 @@ export function buildServingHistory(rows: HistoryRow[]) {
             content: `${summary} Plan ID: ${planId}`.trim(),
           };
         }
+        if (record.type === 'report') {
+          const report = normalizeReport(record.report);
+          if (report) return { role: row.role, content: reportHistoryContent(report) };
+        }
         if (typeof record.takeaway === 'string') {
           const narrative = typeof record.narrative === 'string' ? record.narrative : row.content;
           return {
@@ -2581,10 +2607,10 @@ export function buildServingHistory(rows: HistoryRow[]) {
  * `custom_inputs.prior_evidence`.
  *
  * Scans stored history newest-first and returns the first real answer's evidence
- * rows, verbatim. Plan and clarification turns are assistant messages but not
- * answers and carry none, so they are skipped -- a plan proposed between the data
- * answer and a "plot the results" follow-up must not erase the rows that
- * follow-up needs. The single most recent answer's evidence, not an accumulation,
+ * rows, verbatim. Plan, clarification, and report turns are assistant messages
+ * but not evidence-bearing answers, so they are skipped -- a document generated
+ * between the data answer and a "plot the results" follow-up must not erase the
+ * rows that follow-up needs. The single most recent answer's evidence, not an accumulation,
  * the same lifecycle `prior_chart` has: an answer that queried nothing this turn
  * stored an empty array, and that empty result is returned empty rather than
  * reaching further back for stale rows.
@@ -2603,7 +2629,7 @@ export function priorEvidenceFromHistory(rows: HistoryRow[]): string[] {
     }
     if (!response || typeof response !== 'object') continue;
     const record = response as Record<string, unknown>;
-    if (record.type === 'plan' || record.type === 'clarification') continue;
+    if (record.type === 'plan' || record.type === 'clarification' || record.type === 'report') continue;
     const evidence = record.chart_evidence;
     // A real answer is the stopping point whether or not it carried evidence: an
     // answer that predates this field, or one whose own query returned nothing,
