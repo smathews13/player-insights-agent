@@ -1,5 +1,17 @@
 import { useId, useState } from 'react';
-import { Download, FileText, MoreHorizontal, TrendingUp } from 'lucide-react';
+import {
+  Braces,
+  Code2,
+  Copy,
+  Download,
+  FileDown,
+  FileImage,
+  FileText,
+  MoreHorizontal,
+  Presentation,
+  TrendingUp,
+  type LucideIcon,
+} from 'lucide-react';
 import { Button, Popover, PopoverContent, PopoverTrigger } from './ui';
 import type { NormalizedAnswer } from './answer-shape';
 import type { ExportTable } from './export-serializers';
@@ -12,6 +24,7 @@ const loadExportActions = () => import('./export-actions');
 
 interface ExportAction {
   label: string;
+  icon: LucideIcon;
   run: () => Promise<void>;
 }
 
@@ -46,18 +59,26 @@ function ActionsMenu({ label, actions }: { label: string; actions: readonly Expo
           </Button>
         </PopoverTrigger>
         <PopoverContent className="export-menu-content" align="end" role="menu" aria-label={label}>
-          {actions.map((action) => (
-            <button
-              type="button"
-              role="menuitem"
-              key={action.label}
-              disabled={Boolean(busy)}
-              aria-busy={busy === action.label || undefined}
-              onClick={() => void activate(action)}
-            >
-              <PiaBusyButtonContent busy={busy === action.label} label={action.label} busyLabel={`${action.label}…`} />
-            </button>
-          ))}
+          {actions.map((action) => {
+            const ActionIcon = action.icon;
+            return (
+              <button
+                type="button"
+                role="menuitem"
+                key={action.label}
+                disabled={Boolean(busy)}
+                aria-busy={busy === action.label || undefined}
+                onClick={() => void activate(action)}
+              >
+                <PiaBusyButtonContent
+                  busy={busy === action.label}
+                  label={action.label}
+                  busyLabel={`${action.label}…`}
+                  icon={<ActionIcon aria-hidden="true" />}
+                />
+              </button>
+            );
+          })}
         </PopoverContent>
       </Popover>
       {outcome ? (
@@ -80,26 +101,32 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
       actions={[
         {
           label: 'Copy Markdown',
+          icon: Copy,
           run: async () => (await loadExportActions()).copyAnswerMarkdown(answer, question),
         },
         {
           label: 'Download Markdown',
+          icon: FileDown,
           run: async () => (await loadExportActions()).downloadAnswerMarkdown(answer, question),
         },
         {
           label: 'Download HTML',
+          icon: Code2,
           run: async () => (await loadExportActions()).downloadAnswerHtml(answer, question, 'page'),
         },
         {
           label: 'Download HTML for slides',
+          icon: Presentation,
           run: async () => (await loadExportActions()).downloadAnswerHtml(answer, question, 'presentation'),
         },
         {
           label: 'Download JSON',
+          icon: Braces,
           run: async () => (await loadExportActions()).downloadAnswerJson(answer, question),
         },
         {
           label: 'Download PDF',
+          icon: FileText,
           run: async () => (await loadExportActions()).downloadAnswerPdf(answer, question),
         },
       ]}
@@ -114,22 +141,27 @@ export function ReportExportMenu({ report }: { report: Report }) {
       actions={[
         {
           label: 'Copy Markdown',
+          icon: Copy,
           run: async () => (await loadExportActions()).copyReportMarkdown(report),
         },
         {
           label: 'Download Markdown',
+          icon: FileDown,
           run: async () => (await loadExportActions()).downloadReportMarkdown(report),
         },
         {
           label: 'Download HTML',
+          icon: Code2,
           run: async () => (await loadExportActions()).downloadReportHtml(report, 'page'),
         },
         {
           label: 'Download HTML for slides',
+          icon: Presentation,
           run: async () => (await loadExportActions()).downloadReportHtml(report, 'presentation'),
         },
         {
           label: 'Download JSON',
+          icon: Braces,
           run: async () => (await loadExportActions()).downloadReportJson(report),
         },
       ]}
@@ -144,14 +176,17 @@ export function TableExportMenu({ table, name = 'answer-table' }: { table: Expor
       actions={[
         {
           label: 'Copy TSV',
+          icon: Copy,
           run: async () => (await loadExportActions()).copyTableTsv(table),
         },
         {
           label: 'Download PNG',
+          icon: FileImage,
           run: async () => (await loadExportActions()).downloadTablePng(table, name),
         },
         {
           label: 'Download PDF',
+          icon: FileText,
           run: async () => (await loadExportActions()).downloadTablePdf(table, name),
         },
       ]}
@@ -167,10 +202,12 @@ export function ChartExportMenu({ chart, name }: { chart: Chart; name?: string }
       actions={[
         {
           label: 'Download PNG',
+          icon: FileImage,
           run: async () => (await loadExportActions()).downloadChartPng(chart, label),
         },
         {
           label: 'Download JSON',
+          icon: Braces,
           run: async () => (await loadExportActions()).downloadChartJson(chart, label),
         },
       ]}
@@ -279,26 +316,32 @@ export function ConversationExportMenu({
       actions={[
         {
           label: 'Copy Markdown',
+          icon: Copy,
           run: async () => (await loadExportActions()).copyConversationMarkdown(title, loadMessages),
         },
         {
           label: 'Download Markdown',
+          icon: FileDown,
           run: async () => (await loadExportActions()).downloadConversationMarkdown(title, loadMessages),
         },
         {
           label: 'Download HTML',
+          icon: Code2,
           run: async () => (await loadExportActions()).downloadConversationHtml(title, loadMessages, 'page'),
         },
         {
           label: 'Download HTML for slides',
+          icon: Presentation,
           run: async () => (await loadExportActions()).downloadConversationHtml(title, loadMessages, 'presentation'),
         },
         {
           label: 'Download JSON',
+          icon: Braces,
           run: async () => (await loadExportActions()).downloadConversationJson(title, loadMessages),
         },
         {
           label: 'Download PDF',
+          icon: FileText,
           run: async () => (await loadExportActions()).downloadConversationPdf(title, loadMessages),
         },
       ]}

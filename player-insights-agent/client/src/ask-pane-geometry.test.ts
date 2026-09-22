@@ -60,6 +60,19 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     );
   });
 
+  it('puts each open-pane collapse control in line with that pane heading', () => {
+    expect(HOME).toMatch(
+      /className=\{scope === 'rail' \? 'rail-primary-actions'[\s\S]*?<Button[\s\S]*?New conversation[\s\S]*?className="rail-collapse-toggle"/
+    );
+    expect(HOME).not.toContain('rail-collapse-head');
+    expect(HOME).toMatch(
+      /className="trace-title-row"[\s\S]*?className="inspector-collapse-toggle"[\s\S]*?<h3 className="trace-title">Agent path/
+    );
+    expect(rule(RAIL, '.rail-primary-actions')).toMatch(/display:\s*flex[\s\S]*align-items:\s*center/);
+    expect(rule(RAIL, '.rail-new-conversation')).toMatch(/flex:\s*1 1 auto[\s\S]*min-width:\s*0/);
+    expect(rule(RAIL, '.trace-title-row')).toMatch(/display:\s*flex[\s\S]*align-items:\s*center/);
+  });
+
   it('keeps Agent path sticky while the page owns scrolling', () => {
     const right = rule(RAIL, '.trace-inspector');
     expect(right).toContain('position: sticky');

@@ -935,6 +935,9 @@ ol.answer-list {
   padding: 6px;
 }
 .export-menu-content [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  width: 100%;
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -944,6 +947,20 @@ ol.answer-list {
   font-size: var(--ast-fs-12);
   padding: 8px 10px;
   text-align: left;
+}
+.export-menu-content [role='menuitem'] .pia-button-state {
+  width: 100%;
+  justify-items: start;
+}
+.export-menu-content [role='menuitem'] .pia-button-state__idle,
+.export-menu-content [role='menuitem'] .pia-button-state__busy {
+  width: 100%;
+  justify-content: flex-start;
+}
+.export-menu-content [role='menuitem'] svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 .export-menu-content [role='menuitem']:hover,
 .export-menu-content [role='menuitem']:focus-visible {

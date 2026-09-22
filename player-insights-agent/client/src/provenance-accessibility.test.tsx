@@ -68,4 +68,15 @@ describe('figure accessibility', () => {
     expect(css).not.toContain('.answer-stat-context');
     expect(css).toMatch(/\.provenance-detail:focus-visible\s*\{[^}]*outline:\s*2px solid/s);
   });
+
+  it('fits KPI context badges to their tile and uses the report information blue', () => {
+    const css = readFileSync(new URL('./styles/answer-body.css', import.meta.url), 'utf8');
+    const badge = css.match(/\.answer-kpi-comparison\s*\{([^}]*)\}/s)?.[1] ?? '';
+
+    expect(badge).toMatch(/box-sizing:\s*border-box/);
+    expect(badge).toMatch(/width:\s*100%/);
+    expect(badge).toMatch(/color:\s*var\(--ast-info-text\)/);
+    expect(badge).toMatch(/background:\s*var\(--ast-info-fill\)/);
+    expect(badge).not.toContain('--ast-pos-');
+  });
 });

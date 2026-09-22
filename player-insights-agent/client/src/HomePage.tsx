@@ -179,11 +179,9 @@ import {
   capturePrependAnchor,
   mergeNewestConversationMessages,
   prependConversationMessages,
-  readCompleteConversationMessages,
   readConversationMessagePage,
   restorePrependAnchor,
 } from './conversation-messages';
-import { ConversationExportMenu } from './ExportMenu';
 import type {
   AgentResponse,
   AnalysisPlan,
@@ -2253,16 +2251,30 @@ export function HomePage() {
    */
   const renderRail = (scope: RailScope) => (
     <>
-      <Button
-        className="w-full justify-center"
-        onClick={() => {
-          setRailSheetOpen(false);
-          startNewConversation();
-          focusQuestionInput();
-        }}
-      >
-        <Plus /> New conversation
-      </Button>
+      <div className={scope === 'rail' ? 'rail-primary-actions' : undefined}>
+        <Button
+          className={scope === 'rail' ? 'rail-new-conversation justify-center' : 'w-full justify-center'}
+          onClick={() => {
+            setRailSheetOpen(false);
+            startNewConversation();
+            focusQuestionInput();
+          }}
+        >
+          <Plus /> New conversation
+        </Button>
+        {scope === 'rail' ? (
+          <button
+            type="button"
+            className="rail-collapse-toggle"
+            onClick={toggleRailCollapsed}
+            aria-expanded
+            aria-label="Hide conversation history"
+            title="Hide conversation history"
+          >
+            <PanelLeftClose aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
       <div className="conversation-rail-content">
         <p className="section-label">Conversations</p>
         {adminSharedRail && rail.owners.length > 0 ? (
@@ -2534,21 +2546,7 @@ export function HomePage() {
             {rail.entries.length > 0 && <span className="rail-collapse-count">{rail.entries.length}</span>}
           </button>
         ) : (
-          <>
-            <div className="rail-collapse-head">
-              <button
-                type="button"
-                className="rail-collapse-toggle"
-                onClick={toggleRailCollapsed}
-                aria-expanded
-                aria-label="Hide conversation history"
-                title="Hide conversation history"
-              >
-                <PanelLeftClose aria-hidden="true" />
-              </button>
-            </div>
-            {renderRail('rail')}
-          </>
+          renderRail('rail')
         )}
       </aside>
 
@@ -2593,20 +2591,6 @@ export function HomePage() {
               <h2>What would you like to understand about your players?</h2>
             </div>
           )}
-
-          {/* Whole-conversation export. Drawn only once the thread has turns to
-              export -- an empty transcript has nothing to download -- and it reads
-              the complete, paginated thread from the store rather than the newest
-              page mounted here, so a long conversation exports whole. The single
-              answer's own export menu still lives on each answer card. */}
-          {!transcriptEmpty && messages.length > 0 ? (
-            <div className="conversation-export-toolbar">
-              <ConversationExportMenu
-                title={conversations.find((item) => item.id === conversationId)?.title ?? 'Conversation'}
-                loadMessages={() => readCompleteConversationMessages(conversationId)}
-              />
-            </div>
-          ) : null}
 
           {!conversationLoading && (olderMessages.hasMore || olderMessagesLoading || olderMessagesError) ? (
             <div className="message-pagination" aria-live="polite">
@@ -3042,6 +3026,8 @@ export function HomePage() {
             <div className="trace-head">
               <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
               <RunStatusPill status={runStatus} onDark />
+            </div>
+            <div className="trace-title-row">
               <button
                 type="button"
                 className="inspector-collapse-toggle"
@@ -3052,8 +3038,8 @@ export function HomePage() {
               >
                 <PanelRightClose aria-hidden="true" />
               </button>
+              <h3 className="trace-title">Agent path</h3>
             </div>
-            <h3 className="trace-title">Agent path</h3>
             {/* A clarification has a trace too, and it is the one that explains why the
             agent is asking. There is deliberately no reference-stage fallback: this
             rail used to show a completed four-stage run, including a red "partial"

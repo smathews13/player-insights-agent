@@ -126,18 +126,6 @@
   outline: 2px solid var(--db-blue-600);
   outline-offset: 4px;
 }
-/*
- * The whole-conversation export menu sits above the transcript, right-aligned to
- * the same measure the answer cards use so its trigger lines up with the export
- * menu on each answer card below it rather than floating over the left rail.
- */
-.conversation-export-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  max-width: var(--conversation-measure);
-  width: calc(100% - 16px);
-  margin: 0 auto 6px;
-}
 .conversation-main .answer-card,
 .conversation-main .plan-card {
   max-width: var(--conversation-measure);
