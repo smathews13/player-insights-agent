@@ -62,7 +62,10 @@ export function buildFoundationCostStatement(
     completed_at: run.completedAt,
   }));
   const statement = `WITH run_evidence AS (
-  SELECT run.*
+  SELECT
+    run.*,
+    TRY_CAST(NULLIF(run.started_at, '') AS TIMESTAMP) AS started_at_ts,
+    TRY_CAST(NULLIF(run.completed_at, '') AS TIMESTAMP) AS completed_at_ts
   FROM EXPLODE(
     FROM_JSON(
       :interactive_runs_json,
@@ -120,7 +123,14 @@ request_candidates AS (
       LOWER(TRIM(run.correlation_id)),
       LOWER(TRIM(run.trace_id))
     )
-    OR request.request_time BETWEEN CAST(run.started_at AS TIMESTAMP) AND CAST(run.completed_at AS TIMESTAMP)
+    OR (
+      run.started_at_ts IS NOT NULL
+      AND request.request_time >= run.started_at_ts
+      AND request.request_time <= COALESCE(
+        run.completed_at_ts,
+        run.started_at_ts + INTERVAL 11 MINUTES
+      )
+    )
 ),
 classified_requests AS (
   SELECT

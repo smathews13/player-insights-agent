@@ -416,4 +416,15 @@ describe('foundation billing query contract', () => {
       type: 'TIMESTAMP',
     });
   });
+
+  it('keeps unfinished Ask attempts from invalidating the whole billing query', () => {
+    const unfinished = { ...runs()[0], completedAt: '' };
+    const built = buildFoundationCostStatement(IDS, RANGE, [unfinished]);
+    expect(built?.statement).toContain("TRY_CAST(NULLIF(run.completed_at, '') AS TIMESTAMP)");
+    expect(built?.statement).toContain('run.started_at_ts + INTERVAL 11 MINUTES');
+    expect(built?.statement).not.toContain('CAST(run.completed_at AS TIMESTAMP)');
+    expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).toContain(
+      '"completed_at":""'
+    );
+  });
 });
