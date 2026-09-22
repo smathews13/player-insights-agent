@@ -72,6 +72,7 @@ import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
 import { listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
+import { TRACE_SESSION_BASIS } from '../lib/trace-session';
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -308,7 +309,11 @@ export const MONITORING_QUESTIONS_QUERY = `
   SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
          a.id AS answer_id, a.trace_id,
-         COALESCE(a.response_json->>'trace_session_id', p.trace_session_id) AS trace_session_id,
+         COALESCE(
+           CASE WHEN a.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+                THEN a.response_json->>'trace_session_id' END,
+           p.trace_session_id
+         ) AS trace_session_id,
          a.execution_mode, a.execution_identity_verified, a.access_mode,
          a.response_json->'trace'->>'totalMs' AS total_ms,
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
@@ -356,11 +361,12 @@ export const MONITORING_QUESTIONS_QUERY = `
     LIMIT 1
   ) a ON TRUE
   LEFT JOIN LATERAL (
-    SELECT m.response_json->'plan'->>'id' AS trace_session_id
+    SELECT m.response_json->>'trace_session_id' AS trace_session_id
     FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = q.conversation_id
       AND m.role = 'assistant'
       AND m.response_json->>'type' = 'plan'
+      AND m.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
       AND m.created_at >= q.asked_at
       AND m.created_at < COALESCE(
             (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
@@ -406,7 +412,11 @@ export const MONITORING_DETAIL_QUERY = `
   SELECT q.id AS question_id, q.conversation_id, q.content AS question,
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
-         COALESCE(a.response_json->>'trace_session_id', p.trace_session_id) AS trace_session_id,
+         COALESCE(
+           CASE WHEN a.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+                THEN a.response_json->>'trace_session_id' END,
+           p.trace_session_id
+         ) AS trace_session_id,
          jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
          jsonb_path_exists(
            a.response_json->'trace',
@@ -444,11 +454,12 @@ export const MONITORING_DETAIL_QUERY = `
     LIMIT 1
   ) a ON TRUE
   LEFT JOIN LATERAL (
-    SELECT m.response_json->'plan'->>'id' AS trace_session_id
+    SELECT m.response_json->>'trace_session_id' AS trace_session_id
     FROM ${APP_SCHEMA}.messages m
     WHERE m.conversation_id = q.conversation_id
       AND m.role = 'assistant'
       AND m.response_json->>'type' = 'plan'
+      AND m.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
       AND m.created_at >= q.created_at
       AND (SELECT u.id FROM ${APP_SCHEMA}.messages u
             WHERE u.conversation_id = m.conversation_id AND u.role = 'user'

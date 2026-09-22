@@ -3,7 +3,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import express, { type Request } from 'express';
 import { serving as sdkServing } from '@databricks/sdk-experimental';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { questionTraceSessionId } from '../lib/trace-session';
+import { questionTraceSessionId, TRACE_SESSION_BASIS } from '../lib/trace-session';
 import {
   buildAskServingBody,
   buildServingHistory,
@@ -1232,7 +1232,38 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
     expect(String(assistant?.response_json)).toContain('"type":"plan"');
     expect(String(assistant?.response_json)).toContain('plan-stale-and-wrong');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
-    expect(persisted.trace_session_id).toBe('plan-freshly-issued');
+    expect(persisted.trace_session_id).toBe(questionTraceSessionId(NONTRIVIAL_QUESTION, ''));
+    expect(persisted.trace_session_id).not.toBe('plan-freshly-issued');
+    expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
+  });
+
+  it('stores a revised plan under the clean question session rather than its revision-specific plan id', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const revisedPlanId = 'plan-revision-specific';
+    const lakebase = memoryLakebase();
+    const app = await startInsightsApp(alwaysPlans(revisedPlanId), lakebase);
+    const revision = [
+      `Revise the proposed analysis plan for this question: ${NONTRIVIAL_QUESTION}`,
+      '',
+      'What to change: Use the second source.',
+      '',
+      'Propose an updated plan for approval. Do not run the analysis yet.',
+    ].join('\n');
+
+    try {
+      await app.askRaw({
+        conversationId: 'conv-revised-plan-session',
+        prompt: revision,
+      });
+    } finally {
+      await app.close();
+    }
+
+    const assistant = lakebase.messages.find((message) => message.role === 'assistant');
+    const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
+    expect(persisted.trace_session_id).toBe(questionTraceSessionId(NONTRIVIAL_QUESTION, ''));
+    expect(persisted.trace_session_id).not.toBe(revisedPlanId);
+    expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
   });
 
   /**
@@ -1913,6 +1944,7 @@ describe('what the route actually puts on the wire', () => {
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
     expect(persisted.runtime_settings).toEqual(stored);
     expect(persisted.trace_session_id).toBe(questionTraceSessionId('How many active players are there?', ''));
+    expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
   });
 
   it('sends stored attachment text, which no route test could previously observe', async () => {
@@ -1943,6 +1975,15 @@ describe('what the route actually puts on the wire', () => {
     expect(customInputs.attachment_text).toBe(
       '## halcyon-memo.txt\nProject HALCYON-7742 retires Iron Frontier Online on 2026-11-15.'
     );
+    const assistant = lakebase.messages.find((message) => message.role === 'assistant');
+    const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
+    expect(persisted.trace_session_id).toBe(
+      questionTraceSessionId(
+        NONTRIVIAL_QUESTION,
+        '## halcyon-memo.txt\nProject HALCYON-7742 retires Iron Frontier Online on 2026-11-15.'
+      )
+    );
+    expect(persisted.trace_session_id).not.toBe('plan-attach');
   });
 
   it('concatenates every attachment in the conversation', async () => {
