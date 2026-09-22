@@ -30,27 +30,17 @@ const FINDER_STEP_EDGES = ['data-source-finder->llm-endpoint'] as const;
  * Calls admitted through `DataSourceFinder._admit_tool_call`.
  *
  * The Finder-to-node edges are the calls the setting counts. The three backing
- * edges are included because Data Genie SQL, Unity Catalog reads and Vector
- * Search serving happen inside those admitted calls; presenting those cards as
+ * edges are included because Data Genie SQL and Unity Catalog reads happen
+ * inside those admitted calls; presenting those cards as
  * outside the call would split one operation at an implementation boundary.
  */
-const TOOL_NODES = [
-  'data-source-finder',
-  'genie-dictionary',
-  'genie-data',
-  'semantic-index',
-  'semantic-index-endpoint',
-  'sql-warehouse',
-  'catalog',
-] as const;
+const TOOL_NODES = ['data-source-finder', 'genie-dictionary', 'genie-data', 'sql-warehouse', 'catalog'] as const;
 const TOOL_EDGES = [
   'data-source-finder->genie-dictionary',
   'data-source-finder->genie-data',
-  'data-source-finder->semantic-index',
   'data-source-finder->sql-warehouse',
   'genie-data->sql-warehouse',
   'sql-warehouse->catalog',
-  'semantic-index-endpoint->semantic-index',
 ] as const;
 
 /**
@@ -67,8 +57,6 @@ const RUN_NODES = [
   'llm-endpoint',
   'genie-dictionary',
   'genie-data',
-  'semantic-index',
-  'semantic-index-endpoint',
   'sql-warehouse',
   'catalog',
 ] as const;

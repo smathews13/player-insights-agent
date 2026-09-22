@@ -221,8 +221,8 @@ variables:
     default: system-passthrough
   app_user_api_scopes:
     description: >-
-      OAuth scopes requested from each signed-in user. Catalog, workspace, and
-      Vector Search read scopes support resource browsing. Apps consent is
+      OAuth scopes requested from each signed-in user. Catalog and workspace
+      read scopes support resource browsing. Apps consent is
       all-or-nothing, so remove any scope the destination workspace cannot
       issue. After changing scopes, stop and start the app and sign in again.
     type: complex
@@ -239,8 +239,6 @@ variables:
       - catalog.schemas:read
       - catalog.tables:read
       - workspace.workspace:read
-      - vectorsearch.vector-search-indexes:read
-      - vectorsearch.vector-search-endpoints:read
       # Official Lakebase/Postgres API family scope.
       - postgres
   app_source_code_path:

@@ -18,8 +18,6 @@ const EXPECTED: Readonly<Record<(typeof KNOWN_HEALTH_RESOURCE_KINDS)[number], He
   schema: { type: 'brand', product: 'unity-catalog' },
   table: { type: 'brand', product: 'unity-catalog' },
   'serving-endpoint': { type: 'brand', product: 'mosaic-ai' },
-  'vector-index': { type: 'brand', product: 'mosaic-ai' },
-  'vector-endpoint': { type: 'brand', product: 'mosaic-ai' },
   app: { type: 'brand', product: 'apps' },
   lakebase: { type: 'brand', product: 'lakebase' },
   observability: { type: 'brand', product: 'mlflow' },

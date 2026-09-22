@@ -1,5 +1,14 @@
 import { inlinePlainText, type TableRow } from './answer-markdown';
 import type { ExportTable } from './export-serializers';
+import type { CostBriefPayload } from '../../shared/ops-contract';
+import { opsRangeDates } from '../../shared/ops-contract';
+import {
+  buildDevProdProjection,
+  costBriefExportView,
+  PROD_VARIABLE_USAGE_FACTOR,
+  type CostBriefExportView,
+  type DevProdProjection,
+} from './cost-brief-serializer';
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
@@ -225,8 +234,21 @@ function tablePages(table: ExportTable): PdfLine[][] {
 /* ── Byte-level PDF assembler ─────────────────────────────────────────────────── */
 
 /** A drawing instruction with page coordinates already resolved (PDF's origin is bottom-left). */
+type PdfColor = readonly [number, number, number];
+
 type DrawOp =
-  | { kind: 'text'; x: number; y: number; size: number; bold: boolean; text: string }
+  | { kind: 'text'; x: number; y: number; size: number; bold: boolean; text: string; color?: PdfColor }
+  | {
+      kind: 'rect';
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      fill?: PdfColor;
+      stroke?: PdfColor;
+      lineWidth?: number;
+    }
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: PdfColor; lineWidth?: number }
   | { kind: 'image'; x: number; y: number; w: number; h: number; image: number };
 
 /** A decoded baseline JPEG ready to embed as a DCTDecode image XObject. */
@@ -376,14 +398,32 @@ function linesToDrawPages(pages: readonly PdfLine[][]): DrawOp[][] {
   });
 }
 
-/** One page's content stream: text shown in `(...)` WinAnsi literals, images placed with `cm`/`Do`. */
+function pdfColor(color: PdfColor): string {
+  return color.map((channel) => fmt(channel)).join(' ');
+}
+
+/** One page's content stream: selectable text plus vector layout and embedded images. */
 function pageContentBytes(ops: readonly DrawOp[]): Uint8Array {
   const parts: (string | Uint8Array)[] = [];
   for (const op of ops) {
     if (op.kind === 'text') {
-      parts.push(`BT /${op.bold ? 'F2' : 'F1'} ${op.size} Tf ${fmt(op.x)} ${fmt(op.y)} Td (`);
+      const color = op.color ? `${pdfColor(op.color)} rg ` : '';
+      parts.push(`${color}BT /${op.bold ? 'F2' : 'F1'} ${op.size} Tf ${fmt(op.x)} ${fmt(op.y)} Td (`);
       parts.push(new Uint8Array(winAnsiStringBytes(op.text)));
       parts.push(') Tj ET\n');
+    } else if (op.kind === 'rect') {
+      const paint = op.fill && op.stroke ? 'B' : op.fill ? 'f' : 'S';
+      parts.push(
+        `q ${op.fill ? `${pdfColor(op.fill)} rg ` : ''}${op.stroke ? `${pdfColor(op.stroke)} RG ` : ''}${
+          op.lineWidth ? `${fmt(op.lineWidth)} w ` : ''
+        }${fmt(op.x)} ${fmt(op.y)} ${fmt(op.w)} ${fmt(op.h)} re ${paint} Q\n`
+      );
+    } else if (op.kind === 'line') {
+      parts.push(
+        `q ${pdfColor(op.color)} RG ${fmt(op.lineWidth ?? 1)} w ${fmt(op.x1)} ${fmt(op.y1)} m ${fmt(op.x2)} ${fmt(
+          op.y2
+        )} l S Q\n`
+      );
     } else {
       parts.push(`q ${fmt(op.w)} 0 0 ${fmt(op.h)} ${fmt(op.x)} ${fmt(op.y)} cm /Im${op.image} Do Q\n`);
     }
@@ -466,6 +506,246 @@ function buildPdf(pages: readonly PdfLine[][]): Blob {
 export function markdownPdf(markdown: string): Blob {
   const { pages, images } = paginateFlow(markdownFlow(markdown));
   return assemblePdf(pages, images);
+}
+
+export type CostBriefPdfMode = 'observed' | 'dev-prod-projection';
+
+const INK: PdfColor = [0.07, 0.1, 0.16];
+const MUTED: PdfColor = [0.36, 0.41, 0.49];
+const RULE: PdfColor = [0.84, 0.86, 0.89];
+const PANEL: PdfColor = [0.96, 0.97, 0.98];
+const BLUE: PdfColor = [0.11, 0.39, 0.72];
+const BLUE_LIGHT: PdfColor = [0.76, 0.86, 0.96];
+const SLATE: PdfColor = [0.35, 0.43, 0.54];
+const GREEN: PdfColor = [0.12, 0.48, 0.37];
+
+function costText(
+  page: DrawOp[],
+  text: string,
+  x: number,
+  y: number,
+  size = 10,
+  bold = false,
+  color: PdfColor = INK
+): void {
+  page.push({ kind: 'text', x, y, size, bold, text, color });
+}
+
+function costMoney(amount: number | null | undefined, currency: string, projection = false): string {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return 'Unavailable';
+  const value = amount.toLocaleString('en-US', {
+    minimumFractionDigits: projection ? 0 : 2,
+    maximumFractionDigits: projection ? 0 : 2,
+  });
+  return currency ? `${value} ${currency}` : value;
+}
+
+function costDays(brief: CostBriefPayload): number {
+  const from = Date.parse(`${brief.range.from}T00:00:00Z`);
+  const to = Date.parse(`${brief.range.to}T00:00:00Z`);
+  return Number.isFinite(from) && Number.isFinite(to) && to >= from ? Math.round((to - from) / 86_400_000) + 1 : 0;
+}
+
+function costCard(page: DrawOp[], x: number, label: string, value: string, note: string, accent: PdfColor): void {
+  page.push({ kind: 'rect', x, y: 552, w: 166, h: 76, fill: PANEL, stroke: RULE, lineWidth: 0.6 });
+  page.push({ kind: 'rect', x, y: 624, w: 166, h: 4, fill: accent });
+  costText(page, label.toUpperCase(), x + 12, 607, 8, true, MUTED);
+  costText(page, value, x + 12, 582, 17, true);
+  costText(page, note, x + 12, 565, 8, false, MUTED);
+}
+
+function projectionCards(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): void {
+  costCard(
+    page,
+    42,
+    'Observed Dev',
+    costMoney(projection.devObserved, brief.currency),
+    'Billing-derived · last 31 days',
+    BLUE
+  );
+  costCard(
+    page,
+    223,
+    'Projected Prod',
+    costMoney(projection.prodProjected, brief.currency, true),
+    'Projection · rounded',
+    GREEN
+  );
+  costCard(
+    page,
+    404,
+    'Combined total',
+    costMoney(projection.combined, brief.currency, true),
+    'Dev observed + Prod projected',
+    INK
+  );
+
+  const dev = projection.devObserved ?? 0;
+  const prod = projection.prodProjected ?? 0;
+  const total = dev + prod;
+  const devWidth = total > 0 ? 528 * (dev / total) : 0;
+  page.push({ kind: 'rect', x: 42, y: 526, w: 528, h: 8, fill: PANEL });
+  if (devWidth > 0) page.push({ kind: 'rect', x: 42, y: 526, w: devWidth, h: 8, fill: BLUE });
+  if (total > 0) page.push({ kind: 'rect', x: 42 + devWidth, y: 526, w: 528 - devWidth, h: 8, fill: GREEN });
+  page.push({ kind: 'rect', x: 42, y: 509, w: 7, h: 7, fill: BLUE });
+  costText(page, 'Observed Dev', 54, 508, 8, false, MUTED);
+  page.push({ kind: 'rect', x: 137, y: 509, w: 7, h: 7, fill: GREEN });
+  costText(page, 'Projected Prod', 149, 508, 8, false, MUTED);
+}
+
+function observedCards(page: DrawOp[], brief: CostBriefPayload, exported: CostBriefExportView): void {
+  costCard(page, 42, 'Total', costMoney(exported.total, brief.currency), 'Observed billing · estimated', BLUE);
+  costCard(
+    page,
+    223,
+    'Attributed to questions',
+    costMoney(exported.attributed, brief.currency),
+    'Question-driven usage',
+    BLUE
+  );
+  costCard(
+    page,
+    404,
+    'Standing infrastructure',
+    costMoney(exported.standing, brief.currency),
+    'Fixed idle remainder',
+    SLATE
+  );
+
+  const attributed = exported.attributed ?? 0;
+  const standing = exported.standing ?? 0;
+  const total = attributed + standing;
+  const attributedWidth = total > 0 ? 528 * (attributed / total) : 0;
+  page.push({ kind: 'rect', x: 42, y: 526, w: 528, h: 8, fill: PANEL });
+  if (attributedWidth > 0) page.push({ kind: 'rect', x: 42, y: 526, w: attributedWidth, h: 8, fill: BLUE });
+  if (total > 0)
+    page.push({ kind: 'rect', x: 42 + attributedWidth, y: 526, w: 528 - attributedWidth, h: 8, fill: BLUE_LIGHT });
+  page.push({ kind: 'rect', x: 42, y: 509, w: 7, h: 7, fill: BLUE });
+  costText(page, 'Attributed to questions', 54, 508, 8, false, MUTED);
+  page.push({ kind: 'rect', x: 172, y: 509, w: 7, h: 7, fill: BLUE_LIGHT, stroke: RULE, lineWidth: 0.3 });
+  costText(page, 'Standing infrastructure', 184, 508, 8, false, MUTED);
+}
+
+function observedResourceTable(page: DrawOp[], brief: CostBriefPayload, exported: CostBriefExportView): number {
+  costText(page, 'BY RESOURCE', 42, 476, 9, true, BLUE);
+  costText(page, 'RESOURCE', 42, 454, 8, true, MUTED);
+  costText(page, 'SHARE', 397, 454, 8, true, MUTED);
+  costText(page, 'SPEND', 478, 454, 8, true, MUTED);
+  page.push({ kind: 'line', x1: 42, y1: 446, x2: 570, y2: 446, color: RULE, lineWidth: 0.8 });
+  let y = 428;
+  const total = exported.total;
+  for (const resource of exported.resources) {
+    const share =
+      typeof resource.amount === 'number' && typeof total === 'number' && total > 0
+        ? `${((resource.amount / total) * 100).toFixed(1)}%`
+        : '—';
+    costText(page, resource.label, 42, y, 9, false);
+    costText(page, share, 397, y, 9, false, MUTED);
+    costText(page, costMoney(resource.amount, brief.currency), 478, y, 9, false);
+    page.push({ kind: 'line', x1: 42, y1: y - 10, x2: 570, y2: y - 10, color: RULE, lineWidth: 0.4 });
+    y -= 28;
+  }
+  costText(page, 'Total', 42, y, 9, true);
+  costText(page, costMoney(exported.total, brief.currency), 478, y, 9, true);
+  return y;
+}
+
+function projectionResourceTable(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): number {
+  costText(page, 'BY RESOURCE', 42, 476, 9, true, BLUE);
+  costText(page, 'RESOURCE', 42, 454, 8, true, MUTED);
+  costText(page, 'DEV OBSERVED', 286, 454, 8, true, MUTED);
+  costText(page, 'PROD PROJECTED', 390, 454, 8, true, MUTED);
+  costText(page, 'COMBINED', 500, 454, 8, true, MUTED);
+  page.push({ kind: 'line', x1: 42, y1: 446, x2: 570, y2: 446, color: RULE, lineWidth: 0.8 });
+  let y = 428;
+  for (const resource of projection.resources) {
+    costText(page, resource.label, 42, y, 9, false);
+    costText(page, costMoney(resource.devObserved, brief.currency), 286, y, 8, false);
+    costText(page, costMoney(resource.prodProjected, brief.currency, true), 390, y, 8, false, GREEN);
+    costText(page, costMoney(resource.combined, brief.currency, true), 500, y, 8, true);
+    page.push({ kind: 'line', x1: 42, y1: y - 10, x2: 570, y2: y - 10, color: RULE, lineWidth: 0.4 });
+    y -= 28;
+  }
+  costText(page, 'Total', 42, y, 9, true);
+  costText(page, costMoney(projection.devObserved, brief.currency), 286, y, 8, true);
+  costText(page, costMoney(projection.prodProjected, brief.currency, true), 390, y, 8, true, GREEN);
+  costText(page, costMoney(projection.combined, brief.currency, true), 500, y, 8, true);
+  return y;
+}
+
+/**
+ * Branded, one-page cost report matching the supplied reference's hierarchy:
+ * title and window, three spend cards, a comparison bar, resource table, and
+ * restrained footer. The projection variant keeps that layout but labels every
+ * modeled Prod number as projected and prints its assumptions in the document.
+ */
+export function costBriefPdf(brief: CostBriefPayload, mode: CostBriefPdfMode = 'observed'): Blob {
+  const page: DrawOp[] = [];
+  const exported = costBriefExportView(brief);
+  const projection = mode === 'dev-prod-projection' ? buildDevProdProjection(brief) : null;
+  const days = costDays(brief);
+  const window = opsRangeDates(brief.range);
+
+  page.push({ kind: 'rect', x: 42, y: 748, w: 528, h: 4, fill: BLUE });
+  costText(page, projection ? 'DEV + PROD PROJECTION' : 'COST BREAKDOWN', 42, 728, 9, true, BLUE);
+  costText(page, projection ? 'Dev + Prod projection' : 'Cost breakdown', 42, 693, 24, true);
+  costText(page, projection ? 'Last 31 complete days' : 'Trailing 31 days', 42, 673, 12, false, MUTED);
+  costText(page, 'Player Insights · Databricks App', 350, 710, 9, true);
+  costText(page, `Window ${window}${days ? ` · ${days} complete days` : ''}`, 350, 693, 8, false, MUTED);
+  costText(page, `Generated ${brief.generatedAt}`, 350, 678, 8, false, MUTED);
+  page.push({ kind: 'line', x1: 42, y1: 654, x2: 570, y2: 654, color: RULE, lineWidth: 0.8 });
+
+  if (brief.state !== 'ready') {
+    costText(page, 'SPEND COULD NOT BE ESTABLISHED', 42, 620, 9, true, BLUE);
+    wrapText(brief.reason || 'No spend could be established for this window.', 82).forEach((line, index) =>
+      costText(page, line, 42, 590 - index * 16, 10, false, MUTED)
+    );
+  } else {
+    costText(page, projection ? 'PLANNING SCENARIO' : 'SPEND', 42, 638, 9, true, BLUE);
+    if (projection) {
+      projectionCards(page, brief, projection);
+      const tableEnd = projectionResourceTable(page, brief, projection);
+      const boxY = Math.max(72, tableEnd - 88);
+      page.push({ kind: 'rect', x: 42, y: boxY, w: 528, h: 70, fill: PANEL, stroke: RULE, lineWidth: 0.6 });
+      costText(page, 'PROJECTION ASSUMPTIONS · NOT ACTUAL SPEND', 54, boxY + 52, 8, true, GREEN);
+      costText(page, 'Prod fixed hosting: 100% of each applicable Dev standing-cost share.', 54, boxY + 35, 8, false);
+      costText(
+        page,
+        `Prod question-driven usage: ${Math.round(PROD_VARIABLE_USAGE_FACTOR * 100)}% of observed Dev variable usage.`,
+        54,
+        boxY + 21,
+        8,
+        false
+      );
+      costText(page, 'Projected figures are displayed to the nearest currency unit.', 54, boxY + 7, 8, false, MUTED);
+    } else {
+      observedCards(page, brief, exported);
+      observedResourceTable(page, brief, exported);
+    }
+  }
+
+  page.push({ kind: 'line', x1: 42, y1: 55, x2: 570, y2: 55, color: RULE, lineWidth: 0.6 });
+  costText(
+    page,
+    projection ? 'Player Insights Agent · Dev + Prod projection' : 'Player Insights Agent · Cost breakdown',
+    42,
+    38,
+    8,
+    false,
+    MUTED
+  );
+  costText(
+    page,
+    projection
+      ? 'Observed Dev + modeled Prod · Projection, not actual spend'
+      : 'Spend shown in billing currency · Estimated',
+    345,
+    38,
+    8,
+    false,
+    MUTED
+  );
+  return assemblePdf([page], []);
 }
 
 export function tablePdf(table: ExportTable): Blob {

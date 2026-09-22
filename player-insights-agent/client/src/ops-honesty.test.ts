@@ -376,7 +376,6 @@ describe('an empty cost block', () => {
       'sql-warehouse',
       'genie:data',
       'genie:dictionary',
-      'vector-search',
       'app-compute',
     ]);
     expect(tiles.every((tile) => tile.unavailable === 'No billing rows')).toBe(true);

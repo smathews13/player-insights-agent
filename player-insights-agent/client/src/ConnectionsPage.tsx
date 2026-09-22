@@ -1630,7 +1630,6 @@ export function ConnectionRow({
   declaredTables: declaredTablesProp,
   tableChecks = [],
   checkedAt = '',
-  hostedIndex = '',
   catalogInUse = '',
   allowMutations = false,
   lakebaseMigration,
@@ -1668,7 +1667,6 @@ export function ConnectionRow({
   declaredTables?: readonly string[];
   tableChecks?: readonly PreflightCheck[];
   checkedAt?: string;
-  hostedIndex?: string;
   /**
    * The catalog this deployment is configured with, for the schema picker.
    *
@@ -1699,14 +1697,12 @@ export function ConnectionRow({
     checkedAt,
     declaredNames: declaredTables,
     tableChecks,
-    hostedIndex,
   });
   const picker = pickerForField(resource.id);
   const lakebaseManaged = resource.id === 'lakebase';
   // A picker makes a value discoverable; it does not prove the app has a release
   // path for it. Only runtime values and explicitly stageable model settings get
-  // an editor. Bundle-owned resources such as the Vector Search endpoint stay
-  // read-only instead of accepting an intention no automated Apply can consume.
+  // an editor.
   const canWrite = Boolean(allowMutations && picker && (row.editable || resource.stageable));
   const canWriteInline = canWrite && !lakebaseManaged;
   // Open on arrival when a link named this row. The collapsed line carries the
@@ -2205,11 +2201,6 @@ export function ConnectionsPage() {
     return (model?.intended ?? model?.configured ?? '').trim();
   }, [readings]);
   const gatewayMode = payload?.resources.find((row) => row.resource.id === 'llm-gateway-mode')?.configured.trim() ?? '';
-  const hostedIndex = useMemo(() => {
-    const index = readingsById(readings).get('semantic-index');
-    if (!index) return '';
-    return ((index.row.actualObserved ? index.row.actual : '') || index.check?.name || index.row.configured).trim();
-  }, [readings]);
   const denylistRow = payload?.resources.find((row) => row.resource.id === 'catalog-denylist');
   const managedDenylist = (denylistRow?.intended ?? denylistRow?.configured ?? '').trim();
 
@@ -2541,7 +2532,6 @@ export function ConnectionsPage() {
                   declaredTables={canonicalDeclaredTableNames(reading.row.configured, tableChecks)}
                   tableChecks={tableChecks}
                   checkedAt={lastCheckedAt}
-                  hostedIndex={hostedIndex}
                   requested={requestedResource === reading.resource.id}
                   catalogInUse={catalogInUse}
                   allowMutations={allowMutations}

@@ -240,7 +240,7 @@ export interface InsightsAppKit {
   };
   /** Overridable so tests can assert the exact JSON that reaches Model Serving. */
   servingTransport?: ServingTransport;
-  /** Test seam for the interactive deadline; production always uses 240 seconds. */
+  /** Test seam for the interactive deadline; production allows the 600s runtime plus response overhead. */
   servingTimeoutMs?: number;
   /**
    * Overridable endpoint metadata read used by the cheap readiness route.
@@ -3089,10 +3089,12 @@ export function buildAskServingBody({
  * Generous on purpose. It stops a silent socket holding a request open forever
  * by aborting the transport signal and its response reader, rather than merely
  * abandoning the promise. The longest real answer measured against the deployed
- * endpoint is a little over a minute; the benchmark runner keeps its own tighter
- * per-turn bound because it is running twelve of them unattended.
+ * endpoint is a little over a minute. The extra minute beyond the configurable
+ * 600-second agent budget lets final synthesis and the response reach the app
+ * without the transport cancelling a valid configured run.
  */
-export const SERVING_INVOKE_TIMEOUT_MS = 240_000;
+export const SERVING_INVOKE_TIMEOUT_MS = 660_000;
+export const BENCHMARK_SERVING_INVOKE_TIMEOUT_MS = 240_000;
 
 // Exported for Ask and the other real serving callers. A second implementation
 // of the invoke path is how `custom_inputs` got dropped once already, see the
@@ -5167,7 +5169,7 @@ export function setupInsightsRoutes(
                 cancellationController.signal
               );
           throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
-          // The 240-second budget bounds orchestration and stream consumption.
+          // The serving budget bounds orchestration and stream consumption.
           // Once the complete envelope is in hand, persistence is fenced
           // separately and must not inherit a timer intended for the transport.
           clearTimeout(deadlineTimer);
@@ -6095,10 +6097,17 @@ export function setupInsightsRoutes(
                   payload,
                   identity.token,
                   undefined,
-                  SERVING_INVOKE_TIMEOUT_MS,
+                  BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
                   agentEndpoint
                 )
-              : await invokeServing(appkit, payload, undefined, SERVING_INVOKE_TIMEOUT_MS, undefined, agentEndpoint);
+              : await invokeServing(
+                  appkit,
+                  payload,
+                  undefined,
+                  BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
+                  undefined,
+                  agentEndpoint
+                );
           } catch (error) {
             if (!(error instanceof AuthorizationRefused)) throw error;
             // `disclosable`, not `message`, for the reason spelled out on the

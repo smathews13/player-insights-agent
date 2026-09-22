@@ -30,6 +30,16 @@ describe('export controls contract', () => {
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
   });
 
+  it('places the Dev + Prod projection directly below the 31-day PDF', () => {
+    const pdf = source.indexOf("label: 'Download PDF (last 31 days)'");
+    const projection = source.indexOf("label: 'Dev + Prod projection (last 31 days)'");
+    expect(pdf).toBeGreaterThan(-1);
+    expect(projection).toBeGreaterThan(pdf);
+    expect(source.indexOf('label:', pdf + 'label:'.length)).toBe(projection);
+    expect(actionSource).toContain('downloadDevProdCostProjectionPdf');
+    expect(actionSource).toContain("costBriefPdf(brief, 'dev-prod-projection')");
+  });
+
   it('exports a single answer from its card and the whole conversation from the transcript toolbar', () => {
     expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
     // The whole-conversation menu is mounted once, above the transcript, and reads

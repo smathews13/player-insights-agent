@@ -9,6 +9,7 @@ import {
   RUNTIME_BEHAVIOR_KEYS,
   RUNTIME_ENTITY_KINDS,
   RUNTIME_ENTITY_STYLE_KEYS,
+  RUNTIME_LOOP_LIMITS,
   RUNTIME_LOOP_KEYS,
   RUNTIME_SETTINGS_KEYS,
   THEME_FONT_COLORS,
@@ -28,6 +29,7 @@ export {
   RUNTIME_BEHAVIOR_KEYS,
   RUNTIME_ENTITY_KINDS,
   RUNTIME_ENTITY_STYLE_KEYS,
+  RUNTIME_LOOP_LIMITS,
   RUNTIME_LOOP_KEYS,
   RUNTIME_SETTINGS_KEYS,
   THEME_FONT_COLORS,
@@ -72,9 +74,13 @@ export const RuntimeEntityStylesObjectSchema = z.strictObject(
  */
 export const RuntimeSettingsObjectSchema = z.strictObject({
   loop: z.strictObject({
-    maxSteps: z.number().int().min(1).max(20),
-    maxToolCalls: z.number().int().min(1).max(40),
-    maxRunSeconds: z.number().int().min(30).max(200),
+    maxSteps: z.number().int().min(RUNTIME_LOOP_LIMITS.maxSteps.min).max(RUNTIME_LOOP_LIMITS.maxSteps.max),
+    maxToolCalls: z.number().int().min(RUNTIME_LOOP_LIMITS.maxToolCalls.min).max(RUNTIME_LOOP_LIMITS.maxToolCalls.max),
+    maxRunSeconds: z
+      .number()
+      .int()
+      .min(RUNTIME_LOOP_LIMITS.maxRunSeconds.min)
+      .max(RUNTIME_LOOP_LIMITS.maxRunSeconds.max),
   }),
   answer: z.strictObject({
     takeaway: z.boolean(),
@@ -127,9 +133,19 @@ export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
 export const RuntimeSettingsPatchSchema = z.strictObject({
   loop: z
     .strictObject({
-      maxSteps: z.number().int().min(1).max(20).optional(),
-      maxToolCalls: z.number().int().min(1).max(40).optional(),
-      maxRunSeconds: z.number().int().min(30).max(200).optional(),
+      maxSteps: z.number().int().min(RUNTIME_LOOP_LIMITS.maxSteps.min).max(RUNTIME_LOOP_LIMITS.maxSteps.max).optional(),
+      maxToolCalls: z
+        .number()
+        .int()
+        .min(RUNTIME_LOOP_LIMITS.maxToolCalls.min)
+        .max(RUNTIME_LOOP_LIMITS.maxToolCalls.max)
+        .optional(),
+      maxRunSeconds: z
+        .number()
+        .int()
+        .min(RUNTIME_LOOP_LIMITS.maxRunSeconds.min)
+        .max(RUNTIME_LOOP_LIMITS.maxRunSeconds.max)
+        .optional(),
     })
     .optional(),
   answer: z

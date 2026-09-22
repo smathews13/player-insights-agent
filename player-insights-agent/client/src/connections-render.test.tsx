@@ -1070,15 +1070,9 @@ describe('optional permissions are not a thing to fix', () => {
     // One cause in the panel, and it is the required one (Genie).
     expect([...rendered.matchAll(/connections-fix-problem-head/g)]).toHaveLength(1);
     expect(text(rendered)).toContain('Genie space');
-    // The optional names, catalog AND Vector Search, are on the screen and not
-    // inside the panel.
+    // Optional catalog names are on the screen and not inside the panel.
     const panel = rendered.slice(0, rendered.indexOf('connections-optional-scopes'));
-    for (const scope of [
-      'catalog.catalogs:read',
-      'catalog.schemas:read',
-      'catalog.tables:read',
-      'vectorsearch.vector-search-indexes:read',
-    ]) {
+    for (const scope of ['catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read']) {
       expect(text(rendered)).toContain(scope);
       expect(panel).not.toContain(scope);
     }
@@ -1151,9 +1145,9 @@ describe('optional permissions are not a thing to fix', () => {
   it('reports the optional shortfall neutrally, with no cause and no fix', () => {
     const readable = text(renderRegion(LIVE));
     expect(readable).toContain('Optional permissions');
-    // Fifteen now: the twelve tables, catalog, schema, and the Vector Search
-    // index, all optional as of Sam's call.
-    expect(readable).toContain('15 checks stopped before reaching the object');
+    // Fourteen: the twelve tables, catalog, and schema. Vector Search is absent
+    // from the frontend rather than presented as an optional shortfall.
+    expect(readable).toContain('14 checks stopped before reaching the object');
     expect(readable).toContain('before reaching the object');
     expect(readable).not.toContain('Questions do not need them');
     expect(readable).not.toMatch(/you have not|because/i);
@@ -1371,20 +1365,16 @@ describe('a connection row', () => {
     // The AssetPickerField only mounts once the pencil puts the row into edit
     // mode (client state), so a static open-row render cannot assert the picker
     // markup. What this page must not regress is the unlock + the field mapping.
-    for (const id of ['genie-data', 'genie-dictionary', 'sql-warehouse', 'semantic-index', 'experiment-id'] as const) {
+    for (const id of ['genie-data', 'genie-dictionary', 'sql-warehouse', 'experiment-id'] as const) {
       expect(pickerForField(id), id).not.toBeNull();
       const rendered = renderRow(id, { configured: 'placeholder', editable: id === 'experiment-id' }, { open: true });
       expect(text(rendered), id).toMatch(/Change/);
     }
   });
 
-  it('keeps bundle-owned Vector Search endpoint discovery read-only', () => {
-    expect(pickerForField('semantic-index-endpoint')).not.toBeNull();
-    const endpoint = renderRow('semantic-index-endpoint', { configured: 'semantic-vs' }, { open: true });
-    expect(text(endpoint)).not.toMatch(/\bChange\b|Save and apply|Stage/);
-    expect(endpoint).not.toContain('data-affordance="write"');
-    const index = renderRow('semantic-index', { configured: 'catalog.schema.index' }, { open: true });
-    expect(text(index)).toContain('Change');
+  it('offers no Vector Search picker after the frontend removal', () => {
+    expect(pickerForField('semantic-index-endpoint')).toBeNull();
+    expect(pickerForField('semantic-index')).toBeNull();
   });
 
   it('draws Expected and Observed only for a real mismatch', () => {

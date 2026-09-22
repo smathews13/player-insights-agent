@@ -14,6 +14,49 @@ import { opsRangeDates } from '../../shared/ops-contract';
 
 const DAY_MS = 86_400_000;
 
+/**
+ * Planning assumption for the second, lightly used production deployment.
+ *
+ * No production traffic baseline exists in the product requirements or tests.
+ * Fifteen percent is therefore an intentionally round scenario for “a few
+ * intermittent tester questions” beside the observed development testing
+ * apparatus. It is disclosed in the export and must never be described as
+ * measured spend. Standing cost is not reduced: hosting a second app duplicates
+ * every measured fixed/idle remainder in full.
+ */
+export const PROD_VARIABLE_USAGE_FACTOR = 0.15;
+
+export interface DevProdProjectionResource {
+  id: string;
+  label: string;
+  quality: CostBriefResource['quality'];
+  devObserved: number | null;
+  devStanding: number | null;
+  devVariable: number | null;
+  prodProjected: number | null;
+  prodStanding: number | null;
+  prodVariable: number | null;
+  combined: number | null;
+}
+
+export interface DevProdProjection {
+  currency: string;
+  variableUsageFactor: number;
+  devObserved: number | null;
+  devStanding: number | null;
+  devVariable: number | null;
+  prodProjected: number | null;
+  combined: number | null;
+  resources: DevProdProjectionResource[];
+}
+
+export interface CostBriefExportView {
+  total: number | null;
+  standing: number | null;
+  attributed: number | null;
+  resources: CostBriefResource[];
+}
+
 function completeDays(range: CostBriefPayload['range']): number {
   const from = Date.parse(`${range.from}T00:00:00Z`);
   const to = Date.parse(`${range.to}T00:00:00Z`);
@@ -50,7 +93,117 @@ function resourceRow(resource: CostBriefResource, currency: string): string {
   )} | ${escape(resource.quality)} |`;
 }
 
+function finite(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Frontend export guard for the component that is intentionally absent from
+ * every customer-facing cost view. The API can still include `vector-search`
+ * while backend tracking is being removed, so filtering only its row would
+ * leave its spend hidden inside the headline. Subtract its fixed and variable
+ * portions from all three summaries as well.
+ */
+export function costBriefExportView(brief: CostBriefPayload): CostBriefExportView {
+  const excluded = brief.resources.filter((resource) => resource.id === 'vector-search');
+  const resources = brief.resources.filter((resource) => resource.id !== 'vector-search');
+  if (excluded.length === 0) {
+    return {
+      total: finite(brief.total.amount) ? brief.total.amount : null,
+      standing: finite(brief.spendBreakdown.standing.amount) ? brief.spendBreakdown.standing.amount : null,
+      attributed: finite(brief.spendBreakdown.attributed.amount) ? brief.spendBreakdown.attributed.amount : null,
+      resources,
+    };
+  }
+
+  const excludedParts = excluded.map((resource) => {
+    if (!finite(resource.amount)) return null;
+    const standing = finite(resource.standingAmount)
+      ? Math.max(0, Math.min(resource.amount, resource.standingAmount))
+      : 0;
+    return { total: resource.amount, standing, attributed: Math.max(0, resource.amount - standing) };
+  });
+  const subtract = (value: number | null | undefined, part: keyof NonNullable<(typeof excludedParts)[number]>) =>
+    finite(value) && excludedParts.every((item) => item !== null)
+      ? Math.max(0, value - excludedParts.reduce((sum, item) => sum + (item?.[part] ?? 0), 0))
+      : null;
+
+  return {
+    total: subtract(brief.total.amount, 'total'),
+    standing: subtract(brief.spendBreakdown.standing.amount, 'standing'),
+    attributed: subtract(brief.spendBreakdown.attributed.amount, 'attributed'),
+    resources,
+  };
+}
+
+/**
+ * Turn one observed Dev bill into a clearly labelled Dev + Prod planning case.
+ *
+ * Resource treatment follows the existing attribution rather than a hand-built
+ * category list:
+ * - `standingAmount` is the measured fixed/idle share and is copied at 100%.
+ * - the remainder (`amount - standingAmount`) is question-driven and projected
+ *   at `PROD_VARIABLE_USAGE_FACTOR`.
+ * - resources without a standing share are entirely question-driven.
+ *
+ * Null stays null. A missing price must not silently become a zero-cost Prod
+ * resource, and no projected value is represented as actual spend.
+ */
+export function buildDevProdProjection(brief: CostBriefPayload): DevProdProjection {
+  const exported = costBriefExportView(brief);
+  const devObserved = exported.total;
+  const devStanding = exported.standing;
+  const devVariable = exported.attributed;
+  const prodProjected =
+    devStanding !== null && devVariable !== null ? devStanding + devVariable * PROD_VARIABLE_USAGE_FACTOR : null;
+
+  return {
+    currency: brief.currency,
+    variableUsageFactor: PROD_VARIABLE_USAGE_FACTOR,
+    devObserved,
+    devStanding,
+    devVariable,
+    prodProjected,
+    combined: devObserved !== null && prodProjected !== null ? devObserved + prodProjected : null,
+    resources: exported.resources.map((resource) => {
+      if (!finite(resource.amount)) {
+        return {
+          id: resource.id,
+          label: resource.label,
+          quality: resource.quality,
+          devObserved: null,
+          devStanding: null,
+          devVariable: null,
+          prodProjected: null,
+          prodStanding: null,
+          prodVariable: null,
+          combined: null,
+        };
+      }
+      const standing = finite(resource.standingAmount)
+        ? Math.max(0, Math.min(resource.amount, resource.standingAmount))
+        : 0;
+      const variable = Math.max(0, resource.amount - standing);
+      const prodVariable = variable * PROD_VARIABLE_USAGE_FACTOR;
+      const projected = standing + prodVariable;
+      return {
+        id: resource.id,
+        label: resource.label,
+        quality: resource.quality,
+        devObserved: resource.amount,
+        devStanding: standing,
+        devVariable: variable,
+        prodProjected: projected,
+        prodStanding: standing,
+        prodVariable,
+        combined: resource.amount + projected,
+      };
+    }),
+  };
+}
+
 export function serializeCostBriefMarkdown(brief: CostBriefPayload): string {
+  const exported = costBriefExportView(brief);
   const window = opsRangeDates(brief.range);
   const days = completeDays(brief.range);
   const header = [
@@ -78,15 +231,26 @@ export function serializeCostBriefMarkdown(brief: CostBriefPayload): string {
   // could be priced or attributed to this deployment. Say so, rather than let a
   // table of dashes read as "the app spent nothing".
   const unpriced =
-    (typeof brief.total.amount !== 'number' || !Number.isFinite(brief.total.amount)) &&
-    (typeof brief.total.dbus !== 'number' || !Number.isFinite(brief.total.dbus));
+    exported.total === null &&
+    (brief.resources.some((resource) => resource.id === 'vector-search') ||
+      typeof brief.total.dbus !== 'number' ||
+      !Number.isFinite(brief.total.dbus));
+  const exportFigure = (figure: AppSpendFigure, amount: number | null): AppSpendFigure => ({
+    ...figure,
+    amount,
+    // Resource rows do not carry DBUs, so a payload containing Vector Search
+    // cannot produce a DBU headline with that component defensibly removed.
+    dbus: brief.resources.some((resource) => resource.id === 'vector-search') ? null : figure.dbus,
+  });
 
   const spend = [
     '## Spend',
     [
-      `- **Total:** ${figureText(brief.total)}`,
-      `- **Attributed to questions:** ${figureText(brief.spendBreakdown.attributed)}`,
-      `- **Standing infrastructure:** ${figureText(brief.spendBreakdown.standing)}`,
+      `- **Total:** ${figureText(exportFigure(brief.total, exported.total))}`,
+      `- **Attributed to questions:** ${figureText(
+        exportFigure(brief.spendBreakdown.attributed, exported.attributed)
+      )}`,
+      `- **Standing infrastructure:** ${figureText(exportFigure(brief.spendBreakdown.standing, exported.standing))}`,
     ].join('\n'),
     unpriced
       ? '_Billing rows were found for this window, but none could be priced or attributed to this deployment, ' +
@@ -99,7 +263,7 @@ export function serializeCostBriefMarkdown(brief: CostBriefPayload): string {
     [
       '| Resource | Population | Spend | Standing | Quality |',
       '| --- | --- | ---: | ---: | --- |',
-      ...brief.resources.map((resource) => resourceRow(resource, brief.currency)),
+      ...exported.resources.map((resource) => resourceRow(resource, brief.currency)),
     ].join('\n'),
   ];
 

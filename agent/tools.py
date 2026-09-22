@@ -107,8 +107,8 @@ ENUMERATION_BUDGET = RowBudget(max_chars=120_000, max_rows=5_000)
 DESCRIBE_STOP_MARKERS = ("# Detailed Table Information", "# Partition Information", "")
 
 #: How long one Genie call may take before the turn gives up on it, and how often
-#: it is checked. Sized against the turn: `MAX_RUN_SECONDS` is 150 and the endpoint
-#: is killed at about 240, so a single call may spend a third of the turn and no more.
+#: it is checked. Kept deliberately tighter than the full 600-second turn so one
+#: remote call cannot consume the whole run.
 #: The SDK's own default is twenty minutes, which cannot be spent (the request is
 #: already dead), so it is not a timeout, only a way to return nothing.
 GENIE_TIMEOUT_SECONDS = 45.0
@@ -135,9 +135,9 @@ GENIE_WAREHOUSE_START_SECONDS = 150.0
 
 #: What one warehouse wait must LEAVE BEHIND for the rest of the turn.
 #:
-#: Named at the compiled 150s default. The live wait uses
+#: Named at any budget at or above 150s. The live wait uses
 #: `runtime_settings.answer_reserve_seconds()` so a 30s minimum budget is not
-#: blocked by a 25s flat hold-back. Tests pin this constant as the default-budget
+#: blocked by a flat hold-back. Tests pin this constant as the default-budget
 #: share both tiers agree on.
 GENIE_BUDGET_RESERVE_SECONDS = 25.0
 

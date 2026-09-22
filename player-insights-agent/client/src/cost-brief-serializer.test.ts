@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { AppSpendFigure, CostBriefPayload } from '../../shared/ops-contract';
-import { serializeCostBriefMarkdown } from './cost-brief-serializer';
+import {
+  buildDevProdProjection,
+  costBriefExportView,
+  PROD_VARIABLE_USAGE_FACTOR,
+  serializeCostBriefMarkdown,
+} from './cost-brief-serializer';
 
 /**
  * The trailing-31-day cost brief is rendered to Markdown for the PDF export.
@@ -101,5 +106,88 @@ describe('serializeCostBriefMarkdown', () => {
     expect(markdown).toContain('_No billing rows have arrived for the last 31 days yet._');
     expect(markdown).not.toContain('## By resource');
     expect(markdown).not.toContain('## Spend');
+  });
+});
+
+describe('buildDevProdProjection', () => {
+  it('duplicates fixed hosting and applies the disclosed lower factor only to question-driven usage', () => {
+    const projection = buildDevProdProjection(ready);
+
+    expect(PROD_VARIABLE_USAGE_FACTOR).toBe(0.15);
+    expect(projection.devObserved).toBe(1234.5);
+    expect(projection.devStanding).toBe(334.5);
+    expect(projection.devVariable).toBe(900);
+    expect(projection.prodProjected).toBe(334.5 + 900 * 0.15);
+    expect(projection.combined).toBe(1234.5 + 334.5 + 900 * 0.15);
+    expect(projection.prodProjected).toBeLessThan(projection.devObserved!);
+  });
+
+  it('keeps existing resource categories and treats only their standing share as fixed', () => {
+    const projection = buildDevProdProjection(ready);
+    expect(projection.resources.map((resource) => resource.label)).toEqual(['Serving endpoint', 'Ask SQL warehouse']);
+    expect(projection.resources[0]).toMatchObject({
+      devObserved: 500,
+      devStanding: 200,
+      devVariable: 300,
+      prodStanding: 200,
+      prodVariable: 45,
+      prodProjected: 245,
+      combined: 745,
+    });
+    // No standing attribution means this resource is wholly question-driven.
+    expect(projection.resources[1]).toMatchObject({
+      devObserved: 734.5,
+      devStanding: 0,
+      devVariable: 734.5,
+      prodStanding: 0,
+      prodVariable: 110.175,
+      prodProjected: 110.175,
+      combined: 844.675,
+    });
+  });
+
+  it('does not turn an unavailable observed category into zero projected spend', () => {
+    const projection = buildDevProdProjection({
+      ...ready,
+      resources: [{ ...ready.resources[0], amount: null, standingAmount: null }],
+    });
+    expect(projection.resources[0]).toMatchObject({
+      devObserved: null,
+      prodProjected: null,
+      combined: null,
+    });
+  });
+
+  it('excludes Vector Search from rows, observed totals, and Prod projection math', () => {
+    const withVectorSearch: CostBriefPayload = {
+      ...ready,
+      total: figure(1334.5),
+      spendBreakdown: { attributed: figure(950), standing: figure(384.5) },
+      resources: [
+        ...ready.resources,
+        {
+          id: 'vector-search',
+          label: 'Vector Search',
+          population: 'This deployment',
+          amount: 100,
+          standingAmount: 50,
+          quality: 'estimate',
+        },
+      ],
+    };
+
+    expect(costBriefExportView(withVectorSearch)).toMatchObject({
+      total: 1234.5,
+      attributed: 900,
+      standing: 334.5,
+    });
+    const projection = buildDevProdProjection(withVectorSearch);
+    expect(projection.resources.map((resource) => resource.id)).not.toContain('vector-search');
+    expect(projection.devObserved).toBe(1234.5);
+    expect(projection.prodProjected).toBe(334.5 + 900 * 0.15);
+
+    const markdown = serializeCostBriefMarkdown(withVectorSearch);
+    expect(markdown).toContain('**Total:** 1,234.50 USD');
+    expect(markdown).not.toContain('Vector Search');
   });
 });

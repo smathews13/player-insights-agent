@@ -163,6 +163,28 @@ else
   DICT_GENIE_ADOPTED="$(bundle_var genie_dictionary_space_id)"
   DICT_GENIE_ID="$DICT_GENIE_ADOPTED"
 fi
+
+# Refuse to create a customer model artifact whose required model_config would
+# be blank. Environment overrides intentionally accept an explicit empty value,
+# so bundle variable validation alone cannot protect this boundary. A deploy of
+# an already-logged version does not re-bake configuration and is exempt.
+if [[ "$SKIP_LOG" != true ]]; then
+  missing_baked=()
+  require_baked_value() {
+    local key="$1" value="$2"
+    [[ "$value" =~ [^[:space:]] ]] || missing_baked+=("$key")
+  }
+  require_baked_value catalog "$CATALOG"
+  require_baked_value schema "$SCHEMA"
+  require_baked_value warehouse_id "$WAREHOUSE_ID"
+  require_baked_value data_genie_space_id "$DATA_GENIE_ID"
+  require_baked_value dictionary_genie_space_id "$DICT_GENIE_ID"
+  require_baked_value llm_endpoint "$LLM_ENDPOINT"
+  if (( ${#missing_baked[@]} > 0 )); then
+    die "agent release preflight REFUSED: required model_config values are empty: ${missing_baked[*]}. Re-log stopped before MLflow."
+  fi
+fi
+
 genie_origin() {
   if [[ -n "${1:-}" ]]; then printf 'from the environment'
   else printf 'existing space from the bundle variable'; fi

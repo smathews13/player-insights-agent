@@ -186,17 +186,6 @@ function workspaceObject(
       return shown ? { kind: 'sql-warehouse', warehouseId: shown } : null;
     case 'catalog':
       return shown ? { kind: 'catalog', catalog: shown } : null;
-    // A Vector Search index is a Unity Catalog object, browsed at the same path
-    // a table is. `databricks-links` refuses a name that is not three levels
-    // rather than truncating it to the catalog, which would be a link that
-    // worked to the wrong object.
-    case 'semantic-index':
-      return shown ? { kind: 'vector-index', index: shown } : null;
-    // The endpoint is not a Unity Catalog object and this app has no verified
-    // workspace path for one, so the card carries its in-app link and no
-    // outward one. A guessed URL is a dead affordance that looks live.
-    case 'semantic-index-endpoint':
-      return null;
     case 'experiment-id': {
       const id = shown || payload?.experimentId || '';
       return id ? { kind: 'experiment', experimentId: id } : null;

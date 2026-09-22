@@ -98,7 +98,6 @@ function formulaText(component: { id: string; formula: string }): string {
   }
   if (component.id === 'sql-warehouse') return 'Daily questions × observed attributed SQL cost per question';
   if (component.id === 'app-compute') return 'Measured app-compute daily billing rate, held fixed';
-  if (component.id === 'vector-search') return 'Measured daily spend, held fixed';
   return 'Measured attributable daily spend, held fixed';
 }
 

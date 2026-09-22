@@ -14,23 +14,26 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-#: Compiled run budget, and the floor/ceiling `_integer` accepts for an override.
-#: 150s is Acme's measured default; 200s is the highest that still leaves
-#: synthesis and the trip home inside the app's 240s abandon.
-DEFAULT_MAX_RUN_SECONDS = 150
+#: Compiled loop defaults and the floor/ceiling `_integer` accepts for overrides.
+DEFAULT_MAX_STEPS = 40
+MAX_STEPS_CEILING = 40
+DEFAULT_MAX_TOOL_CALLS = 80
+MAX_TOOL_CALLS_CEILING = 80
+DEFAULT_MAX_RUN_SECONDS = 600
 MIN_RUN_SECONDS = 30
-MAX_RUN_SECONDS_CEILING = 200
+MAX_RUN_SECONDS_CEILING = 600
 
-#: Seconds held back from tools so the write-up can still run, at the compiled
-#: 150s default. Scales with the budget: a flat 35s hold-back against the 30s
-#: minimum left the loop unable to run a single step.
-ANSWER_RESERVE_AT_DEFAULT = 25
+#: Seconds held back from tools so the write-up can still run. The larger run
+#: ceiling gives tools more time; it must not turn into 100 seconds of forced
+#: idle time before synthesis. Smaller budgets scale this reserve down.
+ANSWER_RESERVE_SECONDS = 25
+ANSWER_RESERVE_FULL_BUDGET = 150
 
 
 @dataclass(frozen=True)
 class LoopSettings:
-    max_steps: int = 12
-    max_tool_calls: int = 12
+    max_steps: int = DEFAULT_MAX_STEPS
+    max_tool_calls: int = DEFAULT_MAX_TOOL_CALLS
     max_run_seconds: int = DEFAULT_MAX_RUN_SECONDS
 
 
@@ -122,8 +125,13 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             timezone = ""
     value = RuntimeSettings(
         loop=LoopSettings(
-            max_steps=_integer(loop.get("maxSteps"), 12, 1, 20),
-            max_tool_calls=_integer(loop.get("maxToolCalls"), 12, 1, 40),
+            max_steps=_integer(loop.get("maxSteps"), DEFAULT_MAX_STEPS, 1, MAX_STEPS_CEILING),
+            max_tool_calls=_integer(
+                loop.get("maxToolCalls"),
+                DEFAULT_MAX_TOOL_CALLS,
+                1,
+                MAX_TOOL_CALLS_CEILING,
+            ),
             max_run_seconds=_integer(
                 loop.get("maxRunSeconds"),
                 DEFAULT_MAX_RUN_SECONDS,
@@ -194,15 +202,18 @@ def remaining_seconds() -> float:
 def answer_reserve_seconds(max_run_seconds: int | None = None) -> float:
     """Time both the finder loop and the write-up must agree to leave.
 
-    Scales with the budget. A flat 35s hold-back against the 30s minimum left
+    Scales with the budget. A flat hold-back against the 30s minimum left
     the loop with nothing; at the floor the reserve is zero so a step can still
-    run. At the 150s default it is `ANSWER_RESERVE_AT_DEFAULT` seconds.
+    run. Budgets at or above `ANSWER_RESERVE_FULL_BUDGET` reserve the full
+    `ANSWER_RESERVE_SECONDS`.
     """
 
     budget = float(
         max_run_seconds if max_run_seconds is not None else current().loop.max_run_seconds
     )
-    share = budget * (ANSWER_RESERVE_AT_DEFAULT / DEFAULT_MAX_RUN_SECONDS)
+    share = min(
+        ANSWER_RESERVE_SECONDS, budget * (ANSWER_RESERVE_SECONDS / ANSWER_RESERVE_FULL_BUDGET)
+    )
     if budget <= MIN_RUN_SECONDS:
         return 0.0
     return max(0.0, min(share, budget - MIN_RUN_SECONDS))

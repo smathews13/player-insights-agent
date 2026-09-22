@@ -5,6 +5,7 @@ import {
   FONT_FAMILY_STACKS,
   FONT_SIZE_IDS,
   FONT_SIZE_SCALE,
+  RUNTIME_LOOP_LIMITS,
   fontColorsForScheme,
   isHexColor,
   type FontFamilyId,
@@ -13,7 +14,11 @@ import {
   type RuntimeSettings,
 } from '../../shared/runtime-settings';
 import { applyColorScheme, type ColorScheme } from './color-scheme';
-import { runtimeSettingsDocumentFromResponse } from './runtime-settings-api';
+import {
+  RuntimeSettingsDraftConflict,
+  runtimeSettingsDocumentFromResponse,
+  saveRuntimeSettingsDraft,
+} from './runtime-settings-api';
 import { AppSelect } from './AppSelect';
 import { adoptRuntimeEntityStyles, previewRuntimeAppearance } from './runtime-entity-styles';
 import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
@@ -21,7 +26,6 @@ import { RuntimeTimezoneField } from './RuntimeTimezoneField';
 import { wholeNumberFrom } from './runtime-number';
 import {
   changedSettingKeys,
-  changedSettingsPatch,
   saveRetryAfterLoad,
   type SettingsLoadResult,
   type SettingsSaveState,
@@ -290,15 +294,12 @@ export function RuntimeSettingsPanel({
       const changed = savedSettings.current ? changedSettingKeys(savedSettings.current, settings).length : 0;
       const before = savedSettings.current;
       if (!before) throw new Error('Runtime settings have not loaded from Lakebase.');
-      const response = await fetch(section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          revision: revision.current,
-          patch: changedSettingsPatch(before, settings) ?? {},
-        }),
-      });
-      const saved = await runtimeSettingsDocumentFromResponse(response, 'saved');
+      const saved = await saveRuntimeSettingsDraft(
+        section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings',
+        before,
+        settings,
+        revision.current
+      );
       savedSettings.current = saved.settings;
       revision.current = saved.revision;
       setCanReset(section === 'appearance' && saved.canReset);
@@ -308,11 +309,11 @@ export function RuntimeSettingsPanel({
       onDirtyChange(0);
       onSaveState({ kind: 'saved', count: changed });
     } catch (caught) {
-      const prior = savedSettings.current;
-      if (prior) {
-        setSettings(prior);
-        adoptRuntimeEntityStyles(prior);
-        onDirtyChange(0);
+      if (caught instanceof RuntimeSettingsDraftConflict) {
+        savedSettings.current = caught.latest.settings;
+        revision.current = caught.latest.revision;
+        setCanReset(section === 'appearance' && caught.latest.canReset);
+        onDirtyChange(changedSettingKeys(caught.latest.settings, settings).length);
       }
       setState('failed');
       setFailure({ operation: 'save', message: (caught as Error).message });
@@ -388,16 +389,23 @@ export function RuntimeSettingsPanel({
             <h4 className="runtime-section-label">Loop structure</h4>
             <div className="runtime-loop-layout">
               <div className="runtime-loop-row">
-                {number('Max DSF steps', settings.loop.maxSteps, 1, 20, (value) => setLoop('maxSteps', value), {
-                  labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
-                  help: 'Reasoning steps in one Ask.',
-                  helpId: 'runtime-max-steps-help',
-                })}
+                {number(
+                  'Max DSF steps',
+                  settings.loop.maxSteps,
+                  RUNTIME_LOOP_LIMITS.maxSteps.min,
+                  RUNTIME_LOOP_LIMITS.maxSteps.max,
+                  (value) => setLoop('maxSteps', value),
+                  {
+                    labelClassName: 'runtime-loop-label runtime-loop-label--agent ast-pill',
+                    help: 'Reasoning steps in one Ask.',
+                    helpId: 'runtime-max-steps-help',
+                  }
+                )}
                 {number(
                   'Max tool calls',
                   settings.loop.maxToolCalls,
-                  1,
-                  40,
+                  RUNTIME_LOOP_LIMITS.maxToolCalls.min,
+                  RUNTIME_LOOP_LIMITS.maxToolCalls.max,
                   (value) => setLoop('maxToolCalls', value),
                   {
                     labelClassName: 'runtime-loop-label runtime-loop-label--tool ast-pill',
@@ -408,8 +416,8 @@ export function RuntimeSettingsPanel({
                 {number(
                   'Run budget (s)',
                   settings.loop.maxRunSeconds,
-                  30,
-                  200,
+                  RUNTIME_LOOP_LIMITS.maxRunSeconds.min,
+                  RUNTIME_LOOP_LIMITS.maxRunSeconds.max,
                   (value) => setLoop('maxRunSeconds', value),
                   {
                     labelClassName: 'runtime-loop-label runtime-loop-label--budget ast-pill',

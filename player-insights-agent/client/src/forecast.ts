@@ -415,22 +415,7 @@ export function deriveForecastBaseline(
     baseline.appComputeUnavailable = tileReason(app, 'No priced app-compute spend was measured.', unit);
   }
 
-  const vector = cost.tiles.find((tile) => tile.id === 'vector-search');
-  const vectorDaily = dailyInWindow(vector, days, unit);
-  if (vectorDaily !== null && vector?.resourceId) {
-    baseline.fixedDailyCosts.push({
-      id: 'vector-search',
-      label: vector.label || 'Vector Search',
-      amount: vectorDaily,
-    });
-  } else if (vector?.resourceId) {
-    baseline.exclusions.push({
-      component: vector?.label || 'Vector Search',
-      reason: tileReason(vector, 'No measured, attributable Vector Search spend is available.', unit),
-    });
-  }
-
-  const known = new Set(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute', 'vector-search']);
+  const known = new Set(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute']);
   for (const tile of cost.tiles) {
     if (known.has(tile.id) || tile.id === 'genie:unattributed') continue;
     const amount = dailyInWindow(tile, days, unit);

@@ -142,16 +142,18 @@ export function experimentVerdict(input: {
   if (input.read.kind === 'refused') {
     const { status, code, message } = input.read;
     const refusal = `HTTP ${status}${code ? ` ${code}` : ''}`;
+    const missing = status === 404 || code === 'RESOURCE_DOES_NOT_EXIST';
     return {
       ...base,
-      // FAILED RATHER THAN UNVERIFIED, and the difference is the identity. A
-      // refusal of the reader's token leaves open whether the object is fine and
-      // the person is short a grant; this call was made as the application that
-      // writes the traces, so a refusal or a missing experiment means the trace
-      // has nowhere to land -- a fact about the deployment, not about anybody's
-      // permissions.
-      status: 'failed',
-      detail: `${refusal}: ${message || 'the workspace gave no message'}. Read as the application, not as you.`,
+      // A missing experiment is a real broken destination. A 403 is not: this
+      // request runs as the Databricks App service principal, while traces are
+      // written by the served model's execution identity. Conflating those two
+      // identities made Connections paint a healthy MLflow destination red
+      // whenever the app itself lacked experiment-read permission.
+      status: missing ? 'failed' : 'unverified',
+      detail: missing
+        ? `${refusal}: ${message || 'the workspace gave no message'}. The configured experiment does not exist.`
+        : `${refusal}: ${message || 'the workspace gave no message'}. The app service principal could not verify the experiment; the served model uses a separate execution identity to write traces.`,
       error: message || refusal,
     };
   }

@@ -28,32 +28,39 @@ const PANEL = readFileSync(new URL('RuntimeSettingsPanel.tsx', import.meta.url),
 const BENCHMARK = readFileSync(new URL('BenchmarkSettingsPanel.tsx', import.meta.url), 'utf8');
 
 describe('Runtime numeric fields', () => {
+  it('accepts the new loop values after clearing and retyping', () => {
+    expect(wholeNumberFrom('', 1, 40, 20)).toBe(20);
+    expect(wholeNumberFrom('40', 1, 40, 20)).toBe(40);
+    expect(wholeNumberFrom('80', 1, 80, 40)).toBe(80);
+    expect(wholeNumberFrom('600', 30, 600, 200)).toBe(600);
+  });
+
   it('keeps the last good value when the box is emptied, rather than snapping to zero', () => {
     // The defect: `Number('')` is 0, so clearing "Run budget" to retype it made
     // the value 0 and drew a "0" the next digits landed after.
-    expect(wholeNumberFrom('', 30, 200, 150)).toBe(150);
-    expect(wholeNumberFrom('   ', 1, 20, 8)).toBe(8);
+    expect(wholeNumberFrom('', 30, 600, 600)).toBe(600);
+    expect(wholeNumberFrom('   ', 1, 40, 8)).toBe(8);
   });
 
   it('reads a padded entry as the number it looks like', () => {
-    expect(wholeNumberFrom('0200', 30, 200, 150)).toBe(200);
-    expect(wholeNumberFrom('010', 1, 20, 8)).toBe(10);
-    expect(wholeNumberFrom('200', 30, 200, 150)).toBe(200);
+    expect(wholeNumberFrom('0600', 30, 600, 600)).toBe(600);
+    expect(wholeNumberFrom('040', 1, 40, 8)).toBe(40);
+    expect(wholeNumberFrom('600', 30, 600, 600)).toBe(600);
   });
 
   it('holds the value inside the range the server enforces', () => {
-    // The schema is min(30).max(200) for the run budget and min(1).max(20) for
+    // The schema is min(30).max(600) for the run budget and min(1).max(40) for
     // steps, so an unclamped 0 was a 400 the reader could not see.
-    expect(wholeNumberFrom('0', 30, 200, 150)).toBe(30);
-    expect(wholeNumberFrom('9999', 30, 200, 150)).toBe(200);
-    expect(wholeNumberFrom('0', 1, 20, 8)).toBe(1);
-    expect(wholeNumberFrom('25', 1, 20, 8)).toBe(20);
+    expect(wholeNumberFrom('0', 30, 600, 600)).toBe(30);
+    expect(wholeNumberFrom('9999', 30, 600, 600)).toBe(600);
+    expect(wholeNumberFrom('0', 1, 40, 8)).toBe(1);
+    expect(wholeNumberFrom('41', 1, 40, 8)).toBe(40);
   });
 
   it('ignores anything that is not a digit', () => {
-    expect(wholeNumberFrom('1e5', 1, 20, 8)).toBe(15);
-    expect(wholeNumberFrom('abc', 1, 20, 8)).toBe(8);
-    expect(wholeNumberFrom('-5', 1, 20, 8)).toBe(5);
+    expect(wholeNumberFrom('1e5', 1, 40, 8)).toBe(15);
+    expect(wholeNumberFrom('abc', 1, 40, 8)).toBe(8);
+    expect(wholeNumberFrom('-5', 1, 40, 8)).toBe(5);
   });
 
   it('stops using a number input, which is what made the padding permanent', () => {
@@ -64,6 +71,11 @@ describe('Runtime numeric fields', () => {
     expect(PANEL).toContain('inputMode="numeric"');
     // And the arithmetic that turned an empty box into zero is gone.
     expect(PANEL).not.toContain('Number(event.target.value)');
+  });
+
+  it('keeps the typed draft on a failed or conflicted save', () => {
+    expect(PANEL).toContain('RuntimeSettingsDraftConflict');
+    expect(PANEL).not.toContain('setSettings(prior)');
   });
 });
 

@@ -106,7 +106,13 @@ export function DeclaredConnectionsCard({
     remove: removeConnection,
   } = controller;
 
-  const listed = controller.listed.filter((entry) => !isDeclaredUnityCatalogConnection(entry.connection));
+  const listed = controller.listed.filter(
+    (entry) =>
+      !isDeclaredUnityCatalogConnection(entry.connection) &&
+      entry.connection.kind !== 'vector-search' &&
+      entry.connection.resourceType !== 'vector-search-index' &&
+      entry.connection.resourceType !== 'vector-search-endpoint'
+  );
   const chosenKind = GENERIC_ADDABLE_KINDS.find((entry) => entry.id === kindChoice);
   const picker = chosenKind ? ADD_CONNECTION_PICKERS[chosenKind.browse] : null;
   const selectedId = chosenKind

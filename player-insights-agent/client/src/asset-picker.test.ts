@@ -108,11 +108,9 @@ describe('which fields get a browser', () => {
     }
   });
 
-  it('maps Lakebase, volume, VS and experiment fields to their chains', () => {
+  it('maps Lakebase and volume fields to their chains', () => {
     expect(spec('lakebase').levels).toEqual(['lakebase-projects', 'lakebase-branches', 'lakebase-databases']);
     expect(spec('assets-volume').levels).toEqual(['catalogs', 'schemas', 'volumes']);
-    expect(spec('semantic-index-endpoint').levels).toEqual(['vector-search-endpoints']);
-    expect(spec('semantic-index').levels).toEqual(['vector-search-endpoints', 'vector-search-indexes']);
   });
 });
 

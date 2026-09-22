@@ -388,10 +388,12 @@ export function readConnections(
   if (!payload) return [];
   const checksById = indexChecks(allChecks(payload, checks));
   const findings = findingsByResource(payload.drift);
+  const hiddenResources = new Set(['semantic-index', 'semantic-index-endpoint']);
   return payload.resources
     .filter(
       (row) =>
         row.resource.namesRemoteObject &&
+        !hiddenResources.has(row.resource.id) &&
         (SHOW_NOTEBOOK_DECLARATION_EDITOR || row.resource.id !== 'notebook-declaration')
     )
     .map((row) =>

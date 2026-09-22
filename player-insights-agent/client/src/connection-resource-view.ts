@@ -1,7 +1,6 @@
 import type { ConnectionReading } from './connection-model';
 import type { PreflightCheck } from './preflight';
 import { formatCheckedAt } from './preflight';
-import { contentAge } from './semantic-freshness';
 import { PRIMARY_CONNECTION_LABEL, primaryConnectionState } from './connection-status';
 
 export interface ConnectionDetail {
@@ -31,16 +30,12 @@ interface ResourceViewContext {
   checkedAt?: string;
   declaredNames?: readonly string[];
   tableChecks?: readonly PreflightCheck[];
-  hostedIndex?: string;
   now?: number;
 }
 
 const ABSENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'llm-gateway':
     'An AI Gateway route can sit between the orchestrator and its foundation model to apply routing, limits, and observability.',
-  'semantic-index':
-    'A Vector Search index can provide the semantic layer used to retrieve player and title vocabulary.',
-  'semantic-index-endpoint': 'A Vector Search endpoint hosts the semantic index when semantic retrieval is enabled.',
 };
 
 function clean(value: unknown): string {
@@ -178,18 +173,6 @@ export function connectionResourceView(
       add(details, 'Database', fact(check, 'database'));
       add(details, 'Endpoint', fact(check, 'endpoint') || identity);
       add(details, 'Connection', status);
-      break;
-    case 'semantic-index':
-      add(details, 'Index', identity);
-      add(details, 'Host endpoint', fact(check, 'endpoint'));
-      add(details, 'Index type', fact(check, 'index_type'));
-      add(details, 'Source table', fact(check, 'source_table'));
-      if (check?.content_at) add(details, 'Rebuild', contentAge(check.content_at, context.now ?? Date.now()).label);
-      break;
-    case 'semantic-index-endpoint':
-      add(details, 'Endpoint', identity);
-      add(details, 'Type', fact(check, 'endpoint_type'));
-      add(details, 'Hosted index', context.hostedIndex);
       break;
     default:
       add(details, row.resource.label, identity);

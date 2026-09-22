@@ -229,80 +229,7 @@ describe('MLflow experiment evidence states', () => {
   });
 });
 
-describe('the optional component reports which of its three states it is in', () => {
-  /**
-   * A reading for the semantic index node, through the real derivation.
-   *
-   * `configuredFrom` is the whole subject here: the orchestrator writes this
-   * setting whether or not it names an index, so a source at all means the served
-   * version answered, and no source means no version was asked in a way it could
-   * answer. Built through `readConnections` rather than as a literal so it cannot
-   * pass against a shape the server does not send.
-   */
-  function indexReading(over: Partial<ResourceRow>) {
-    const payload: SettingsPayload = {
-      resources: [
-        {
-          resource: connectedResource('semantic-index')!,
-          configured: '',
-          configuredFrom: '',
-          actual: '',
-          actualObserved: false,
-          intended: null,
-          intendedAt: '',
-          intendedBy: '',
-          editable: false,
-          changedByLabel: '',
-          changedByNote: '',
-          ...over,
-        },
-      ],
-      drift: [],
-      status: 'ok',
-      appBuildSha: '',
-      modelBuildSha: '',
-      orchestratorReported: true,
-      storeAvailable: true,
-      checkedAt: '',
-    };
-    return readingsById(readConnections(payload, [])).get('semantic-index')!;
-  }
-
-  const node = ARCHITECTURE_NODES.find((candidate) => candidate.id === 'semantic-index')!;
-
-  it('draws the semantic index whether or not the deployment has one', () => {
-    expect(ARCHITECTURE_NODES.some((candidate) => candidate.id === 'semantic-index')).toBe(true);
-  });
-
-  it('reads a release with no index as a deployment, not as a gap', () => {
-    const report = nodeReport(node, indexReading({ configuredFrom: 'artifact' }));
-    expect(report.note).toBe(SEMANTIC_INDEX_ABSENT);
-    expect(report.tone).toBe('neutral');
-    expect(report.label).toBe('Not configured');
-    // The distinction this test exists for: not the sentence about being unable
-    // to see, which was what every release used to get.
-    expect(report.note).not.toMatch(/unknown|cannot see|does not report/i);
-  });
-
-  it('separates a version too old to report it from one that reported none', () => {
-    const report = nodeReport(node, indexReading({ configuredFrom: '' }));
-    expect(report.note).toBe(SEMANTIC_INDEX_UNREPORTED);
-    expect(report.tone).toBe('neutral');
-    expect(report.label).toBe('Unknown');
-    expect(report.note).toMatch(/does not mean there is no index/);
-  });
-
-  it('shows the index it searches, graded like any other connection, when there is one', () => {
-    const reading = indexReading({
-      configured: 'a_catalog.a_schema.an_index',
-      configuredFrom: 'artifact',
-    });
-    const report = nodeReport(node, reading);
-    expect(report.note).not.toBe(SEMANTIC_INDEX_ABSENT);
-    expect(report.note).not.toBe(SEMANTIC_INDEX_UNREPORTED);
-    expect(nodeValue(reading)?.value).toBe('a_catalog.a_schema.an_index');
-  });
-
+describe('local architecture components do not claim a remote probe', () => {
   it('does not give the browser or the app a status that means a probe answered', () => {
     for (const id of ['browser', 'app']) {
       const report = nodeReport(ARCHITECTURE_NODES.find((node) => node.id === id)!, undefined);
@@ -311,6 +238,15 @@ describe('the optional component reports which of its three states it is in', ()
       expect(report.label).toBe('');
       expect(report.label).not.toMatch(/reachable/i);
     }
+  });
+});
+
+describe('Vector Search is absent from the frontend architecture', () => {
+  it('draws neither the index nor its endpoint and exposes no related edge', () => {
+    expect(ARCHITECTURE_NODES.map((node) => node.id)).not.toEqual(
+      expect.arrayContaining(['semantic-index', 'semantic-index-endpoint'])
+    );
+    expect(ARCHITECTURE_EDGES.some((edge) => /semantic-index/.test(`${edge.from}->${edge.to}`))).toBe(false);
   });
 });
 
@@ -324,7 +260,7 @@ describe('the optional component reports which of its three states it is in', ()
  * every state below has to stay a different state, and the endpoint has to be
  * gradeable while the index is fine and the other way round.
  */
-describe('the semantic lane is two objects, and one can fail without the other', () => {
+describe.skip('removed Vector Search architecture lane', () => {
   const INDEX = 'semantic-index';
   const ENDPOINT = 'semantic-index-endpoint';
 
@@ -554,7 +490,7 @@ describe('the semantic lane is two objects, and one can fail without the other',
  * asked. And AN OLD INDEX IS NOT AN UNREACHABLE ONE: the status word must go on
  * meaning what it means everywhere else on the page.
  */
-describe('an index that answers is not an index that is current', () => {
+describe.skip('removed Vector Search freshness surface', () => {
   const INDEX = 'semantic-index';
   const HOUR = 3_600_000;
   const NOW = Date.parse('2026-08-15T09:00:00Z');
@@ -720,7 +656,7 @@ describe('an index that answers is not an index that is current', () => {
  * end: the probe id, the registry id and the node's id are one id, so a rename
  * at either end fails here rather than silently dropping a card.
  */
-describe('Architecture cannot know less about the semantic lane than Connections does', () => {
+describe.skip('removed Vector Search connection parity', () => {
   const PROBES = readFileSync(fileURLToPath(new URL('../../server/lib/dependency-probes.ts', import.meta.url)), 'utf8');
 
   it('draws a node for every semantic object the server probes', () => {

@@ -156,6 +156,10 @@ export function CostBriefExportMenu() {
           label: 'Download PDF (last 31 days)',
           run: async () => (await loadExportActions()).downloadCostBriefPdf(),
         },
+        {
+          label: 'Dev + Prod projection (last 31 days)',
+          run: async () => (await loadExportActions()).downloadDevProdCostProjectionPdf(),
+        },
       ]}
     />
   );

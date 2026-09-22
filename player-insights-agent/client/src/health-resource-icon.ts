@@ -22,8 +22,6 @@ const HEALTH_RESOURCE_ICONS: Readonly<Record<string, HealthResourceIconSpec>> = 
   schema: brand('unity-catalog'),
   table: brand('unity-catalog'),
   'serving-endpoint': brand('mosaic-ai'),
-  'vector-index': brand('mosaic-ai'),
-  'vector-endpoint': brand('mosaic-ai'),
   app: brand('apps'),
   lakebase: brand('lakebase'),
 
@@ -49,8 +47,6 @@ export const KNOWN_HEALTH_RESOURCE_KINDS = [
   'schema',
   'table',
   'serving-endpoint',
-  'vector-index',
-  'vector-endpoint',
   'app',
   'lakebase',
   'observability',

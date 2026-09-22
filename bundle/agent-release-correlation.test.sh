@@ -85,6 +85,7 @@ case "$1 $2" in
     "model_name":               { "value": "test_catalog.test_schema.model" },
     "serving_endpoint_name":    { "value": "test-endpoint" },
     "serving_rollbacks_kept":   { "value": "0" },
+    "serving_scale_to_zero":    { "value": "true" },
     "bundle_root_path":         { "value": "/Workspace/test" },
     "genie_mcp_signing_key_version": { "value": "v1" },
     "experiment_path":          { "value": "/Shared/test" },
@@ -210,8 +211,8 @@ run_release() {
   PATH="$STUBS:$PATH" \
   TARGET=testtarget \
   PROFILE=test-profile \
-  PLAYER_INSIGHTS_DATA_GENIE_ID=data-space-id \
-  PLAYER_INSIGHTS_DICTIONARY_GENIE_ID=dict-space-id \
+  PLAYER_INSIGHTS_DATA_GENIE_ID="${TEST_DATA_GENIE_ID-data-space-id}" \
+  PLAYER_INSIGHTS_DICTIONARY_GENIE_ID="${TEST_DICTIONARY_GENIE_ID-dict-space-id}" \
     bash "$SCRIPT" "$@" >"$LAST_OUT" 2>&1
   return $?
 }
@@ -391,6 +392,15 @@ expect_status 0 "$status" "the coherent Direct release proceeds"
 expect_text "compares the empty Gateway endpoint" "llm-gateway:"
 expect_text "compares the empty Gateway transport" "llm-gateway-mode:"
 expect_text "compares the preserved direct model" "llm-endpoint:"
+
+echo
+echo "=== 13. an empty required model_config value refuses the re-log before MLflow ==="
+TEST_DATA_GENIE_ID="" FAKE_SETTINGS_BODY="$NOTHING_SAVED" \
+  run_release empty-baked-value; status=$?
+expect_status nonzero "$status" "the release fails closed"
+expect_text "names the model_config preflight" "agent release preflight REFUSED"
+expect_text "names the empty key" "data_genie_space_id"
+expect_absent "MLflow logging never starts" "Logging and registering model"
 
 echo
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"

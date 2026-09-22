@@ -7,6 +7,7 @@ import {
   buildAskServingBody,
   buildServingHistory,
   ApprovedPlanBodySchema,
+  BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
   createServingTransport,
   DEVELOPMENT_IDENTITY,
   discloseAnswerProvenance,
@@ -26,6 +27,7 @@ import {
   RUN_TRACE_MESSAGE_QUERY,
   RUNS_QUERY,
   SERVICE_PRINCIPAL_FALLBACK_CAVEAT,
+  SERVING_INVOKE_TIMEOUT_MS,
   servingInvocationPath,
   setupInsightsRoutes,
   SHARED_RUN_OWNER,
@@ -1756,7 +1758,7 @@ describe('what the route actually puts on the wire', () => {
     const captured: CapturedInvocation[] = [];
     const stored: RuntimeSettings = {
       ...DEFAULT_RUNTIME_SETTINGS,
-      loop: { maxSteps: 10, maxToolCalls: 15, maxRunSeconds: 200 },
+      loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
       answer: {
         ...DEFAULT_RUNTIME_SETTINGS.answer,
         takeaway: true,
@@ -3640,6 +3642,11 @@ describe('an agent endpoint that never answers', () => {
   afterEach(() => {
     if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
+
+  it('allows the configured 600-second run while keeping benchmark turns tighter', () => {
+    expect(SERVING_INVOKE_TIMEOUT_MS).toBeGreaterThan(600_000);
+    expect(BENCHMARK_SERVING_INVOKE_TIMEOUT_MS).toBe(240_000);
   });
 
   it('abandons a silent endpoint rather than waiting forever', async () => {
