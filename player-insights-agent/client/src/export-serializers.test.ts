@@ -6,6 +6,7 @@ import {
   safeExportFilename,
   serializeAnswerMarkdown,
   serializeConversationMarkdown,
+  serializeTableCsv,
   serializeTableTsv,
 } from './export-serializers';
 import type { ExportTable } from './export-serializers';
@@ -57,6 +58,13 @@ describe('reader export serializers', () => {
   it('serializes one parsed table with its header and source attribution as TSV', () => {
     const [table] = answerTables(answer);
     expect(serializeTableTsv(table)).toBe('Platform\tPlayers\nPC\t42\n\n# Sources\tcatalog.schema.player_daily\n');
+  });
+
+  it('serializes a standalone table as clean CSV with escaped cells and no metadata rows', () => {
+    const table = parsedTable(['| Platform | Players |', '| --- | ---: |', '| "PC, Console" | 42 |'].join('\n'), [
+      { name: 'catalog.schema.player_daily', freshness: '2026-09-09' },
+    ]);
+    expect(serializeTableCsv(table)).toBe('Platform,Players\n"""PC, Console""",42\n');
   });
 
   it('uses stable filesystem-safe filenames', () => {

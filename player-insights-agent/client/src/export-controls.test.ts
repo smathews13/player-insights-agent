@@ -14,11 +14,11 @@ describe('export controls contract', () => {
     // Copy/Download Markdown: answer, report, and conversation.
     expect(source.match(/label: 'Copy Markdown'/g)).toHaveLength(3);
     expect(source.match(/label: 'Download Markdown'/g)).toHaveLength(3);
-    // Download PDF: answer, conversation, and the standalone table.
-    expect(source.match(/label: 'Download PDF'/g)).toHaveLength(3);
-    expect(source.match(/label: 'Copy TSV'/g)).toHaveLength(1);
-    // Two PNG downloads: the table image and the standalone chart image.
-    expect(source.match(/label: 'Download PNG'/g)).toHaveLength(2);
+    // Download PDF: answer and conversation. Tables have one direct CSV export.
+    expect(source.match(/label: 'Download PDF'/g)).toHaveLength(2);
+    expect(source).not.toContain("label: 'Copy TSV'");
+    // The only PNG download is the standalone chart image.
+    expect(source.match(/label: 'Download PNG'/g)).toHaveLength(1);
     // Self-contained HTML (page and slide) for answers, reports, and conversations.
     expect(source.match(/label: 'Download HTML'/g)).toHaveLength(3);
     expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(3);
@@ -33,7 +33,7 @@ describe('export controls contract', () => {
   });
 
   it('gives every standard export option a uniformly aligned icon', () => {
-    expect(source.match(/\{\s*label: '[^']+',\s*icon: \w+,\s*run:/g)).toHaveLength(22);
+    expect(source.match(/\{\s*label: '[^']+',\s*icon: \w+,\s*run:/g)).toHaveLength(19);
     expect(source).toContain('icon={<ActionIcon aria-hidden="true" />}');
     expect(answerCss).toMatch(/\.export-menu-content \[role='menuitem'\]\s*\{[^}]*display:\s*flex[^}]*width:\s*100%/s);
     expect(answerCss).toMatch(
@@ -59,10 +59,40 @@ describe('export controls contract', () => {
   });
 
   it('keeps export controls at the bottom of answer and report cards', () => {
-    expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
+    expect(answerCard.indexOf('<AnswerExportControls')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
     expect(reportCard).toContain('<ReportExportMenu report={report} />');
     expect(home).not.toContain('<ConversationExportMenu');
     expect(home).not.toContain('conversation-export-toolbar');
+  });
+
+  it('right-aligns separate dashboard and answer exports without a trailing dots icon', () => {
+    const answerMenu = source.slice(
+      source.indexOf('export function AnswerExportMenu'),
+      source.indexOf('export function AnswerExportControls')
+    );
+    const answerControls = source.slice(
+      source.indexOf('export function AnswerExportControls'),
+      source.indexOf('export function ReportExportMenu')
+    );
+    expect(answerMenu).toContain('triggerLabel="Export answer"');
+    expect(answerMenu).toContain('showMoreIcon={false}');
+    expect(answerControls.indexOf('label="Export dashboard"')).toBeLessThan(
+      answerControls.indexOf('<AnswerExportMenu')
+    );
+    expect(answerCss).toMatch(/\.answer-export-controls\s*\{[^}]*margin-left:\s*auto/s);
+  });
+
+  it('exports each table directly as CSV without opening an options menu', () => {
+    const tableMenu = source.slice(
+      source.indexOf('export function TableExportMenu'),
+      source.indexOf('export function ChartExportMenu')
+    );
+    expect(tableMenu).toContain('label="Export CSV"');
+    expect(tableMenu).toContain('downloadTableCsv(table, name)');
+    expect(tableMenu).not.toContain('<ActionsMenu');
+    expect(tableMenu).not.toContain('<MoreHorizontal');
+    expect(actionSource).toContain('serializeTableCsv(table)');
+    expect(actionSource).toContain("safeExportFilename(name, 'csv')");
   });
 
   it('keeps serializers, file operations, and binary generation behind lazy boundaries', () => {

@@ -516,9 +516,6 @@
   background: var(--ast-neg-fill);
   color: var(--ast-neg-text);
 }
-.feedback > .export-menu {
-  margin-left: 2px;
-}
 .feedback.answer-export-only {
   justify-content: flex-end;
 }
