@@ -55,7 +55,7 @@ describe('release runtime configuration persistence', () => {
     expect(recorded).not.toHaveProperty('PLAYER_INSIGHTS_ADMIN_EMAILS');
   });
 
-  it('hydrates a target-neutral Git manifest before Connections derives its configured tables', async () => {
+  it('hydrates target-neutral Git settings without inventing a table manifest', async () => {
     const persisted: Partial<Record<ReleaseEnvironmentKey, string>> = {
       PLAYER_INSIGHTS_CATALOG: 'example_catalog',
       PLAYER_INSIGHTS_SCHEMA: 'player_data',
@@ -86,7 +86,11 @@ describe('release runtime configuration persistence', () => {
     expect(configuration.find((entry) => entry.key === 'catalog')?.value).toBe('example_catalog');
     expect(configuration.find((entry) => entry.key === 'schema')?.value).toBe('player_data');
     expect(configuration.find((entry) => entry.key === 'data_genie_space_id')?.value).toBe('data-space');
-    expect(Array.isArray(manifest?.value) ? manifest.value.length : 0).toBeGreaterThan(0);
+    // Catalog and schema identify the governed scope, not the tables inside it.
+    // The Git app recovers the exact manifest from the served model; this
+    // persisted environment must never recreate the old synthetic six-table
+    // fallback.
+    expect(manifest).toBeUndefined();
     expect(env.PLAYER_INSIGHTS_EXPERIMENT_ID).toBe('target-experiment-id');
     expect(env.PLAYER_INSIGHTS_EXPERIMENT_PATH).toBe('/Shared/target-experiment');
     expect(env.PLAYER_INSIGHTS_BUILD_SHA).toBe('new-git-build');
