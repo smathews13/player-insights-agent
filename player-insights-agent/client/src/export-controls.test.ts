@@ -30,12 +30,16 @@ describe('export controls contract', () => {
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
   });
 
-  it('places the Dev + Prod projection directly below the 31-day PDF', () => {
-    const pdf = source.indexOf("label: 'Download PDF (last 31 days)'");
-    const projection = source.indexOf("label: 'Dev + Prod projection (last 31 days)'");
+  it('offers icon-labelled radio choices for either 31-day cost export', () => {
+    const pdf = source.indexOf('Cost report PDF (last 31 days)');
+    const projection = source.indexOf('Dev + Prod projection (last 31 days)');
     expect(pdf).toBeGreaterThan(-1);
     expect(projection).toBeGreaterThan(pdf);
-    expect(source.indexOf('label:', pdf + 'label:'.length)).toBe(projection);
+    expect(source).toContain('role="radiogroup"');
+    expect(source.match(/type="radio"/g)).toHaveLength(2);
+    expect(source).toContain('<FileText aria-hidden="true" />');
+    expect(source).toContain('<TrendingUp aria-hidden="true" />');
+    expect(source).toContain('label="Export selected"');
     expect(actionSource).toContain('downloadDevProdCostProjectionPdf');
     expect(actionSource).toContain("costBriefPdf(brief, 'dev-prod-projection')");
   });

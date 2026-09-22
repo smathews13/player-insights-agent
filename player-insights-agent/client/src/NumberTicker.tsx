@@ -110,7 +110,7 @@ export function TickerAssumptionField({
   children,
 }: {
   id: string;
-  label: string;
+  label: ReactNode;
   helper: string;
   error?: string;
   unit?: string;

@@ -319,18 +319,19 @@ describe('Forecasting visibility and placement', () => {
     );
 
     const componentIds = [...breakdown.matchAll(/data-cost-component="([^"]+)"/g)].map((match) => match[1]);
-    expect(componentIds).toEqual(['serving-endpoint', 'sql-warehouse', 'app-compute', 'vector-search', 'genie:data']);
-    for (const component of ['Agent serving', 'Ask SQL', 'App compute', 'Vector Search', 'Data Genie']) {
+    expect(componentIds).toEqual(['serving-endpoint', 'sql-warehouse', 'app-compute', 'genie:data']);
+    for (const component of ['Agent serving', 'Ask SQL', 'App compute', 'Data Genie']) {
       expect(breakdown).toContain(`<span>${component}</span>`);
     }
-    expect(breakdown.match(/ops-forecast-component-mark/g)).toHaveLength(5);
+    expect(breakdown).not.toContain('Vector Search');
+    expect(breakdown.match(/ops-forecast-component-mark/g)).toHaveLength(4);
     expect(breakdown).toContain('lucide-sigma');
     expect(breakdown).not.toContain('Dictionary Genie');
     expect(markup).not.toContain('Dictionary Genie pricing is unavailable.');
     expect(breakdown).toContain('<span>Subtotal</span>');
-    expect(markup.match(/84\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(markup.match(/360\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
-    expect(markup.match(/2,150\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(markup.match(/63\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(markup.match(/270\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(markup.match(/1,610\.00 USD/g)?.length).toBeGreaterThanOrEqual(1);
     expect(breakdown.match(/data-cost-component="sql-warehouse"/g)).toHaveLength(1);
   });
 
@@ -352,7 +353,6 @@ describe('Forecasting visibility and placement', () => {
       ['foundation-model', 'Foundation model tokens'],
       ['sql-warehouse', 'Ask SQL'],
       ['app-compute', 'App compute'],
-      ['vector-search', 'Vector Search'],
       ['genie:data', 'Data Genie'],
       ['genie:dictionary', 'Dictionary Genie'],
     ].map(([id, label]) => ({ id, label, dailyAmount: 1, formula: '', unavailable: '' }));

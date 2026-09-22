@@ -1033,6 +1033,17 @@ a.ops-dependency-name:hover {
   white-space: nowrap;
 }
 
+.ops-budget-product-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ops-budget-product-mark {
+  flex: 0 0 auto;
+}
+
 .ops-cost-resource-budgets .ops-ticker-assumption-helper {
   min-height: 2.7em;
 }
@@ -1376,6 +1387,7 @@ a.ops-cost-resource {
   min-height: 0;
   min-width: 0;
   max-width: 100%;
+  padding-inline-start: 28px;
   font-size: var(--text-xs);
   color: var(--ast-text-secondary);
 }

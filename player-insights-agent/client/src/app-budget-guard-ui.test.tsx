@@ -101,7 +101,7 @@ describe('app budget guard UI', () => {
     const partial = renderToStaticMarkup(
       <SavedAppBudgetSummary savedBudget={800} unit="USD" status={status('unavailable/partial', { budget: 800 })} />
     );
-    expect(partial).toContain('$700.00 of $800.00 app budget remaining');
+    expect(partial).toContain('$700.00 of $800.00 app budget remaining in the current month');
     expect(partial).not.toContain('Monthly app budget');
     expect(partial).not.toContain('Within budget');
     expect(partial).toContain('lucide-circle-check');
@@ -197,9 +197,9 @@ describe('app budget guard UI', () => {
     const selectedPeriodSpend = 135.49;
     const usd = monthlyBudgetProgress(status('below', { measured: 180, budget: 900 }), 900, 'USD');
     expect(selectedPeriodSpend).not.toBe(180);
-    expect(usd?.balance).toBe('$720.00 of $900.00 app budget remaining');
+    expect(usd?.balance).toBe('$720.00 of $900.00 app budget remaining in the current month');
     expect(monthlyBudgetProgress(status('below', { measured: 45, budget: 90, unit: 'DBU' }), 90, 'DBU')?.balance).toBe(
-      '45.00 of 90.00 DBU app budget remaining'
+      '45.00 of 90.00 DBU app budget remaining in the current month'
     );
     expect(monthlyBudgetProgress(status('below', { measured: 180, budget: 900 }), 90, 'DBU')).toBeNull();
   });
@@ -220,11 +220,13 @@ describe('app budget guard UI', () => {
     });
     const markup = renderToStaticMarkup(<SavedAppBudgetSummary savedBudget={900} unit="USD" status={production} />);
     expect(markup).not.toContain('Monthly app budget');
-    expect(markup).toContain('$863.13 of $900.00 app budget remaining');
+    expect(markup).toContain('$863.13 of $900.00 app budget remaining in the current month');
     expect(markup).not.toMatch(/>Estimated</);
     expect(markup).not.toContain('Spent this calendar month');
     expect(markup).not.toContain('$764.51');
-    expect(monthlyBudgetProgress(production, 1_000, 'USD')?.balance).toBe('$963.13 of $1,000.00 app budget remaining');
+    expect(monthlyBudgetProgress(production, 1_000, 'USD')?.balance).toBe(
+      '$963.13 of $1,000.00 app budget remaining in the current month'
+    );
   });
 
   it('renders three completed months in selected units, preserving missing and zero values', () => {

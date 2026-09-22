@@ -111,6 +111,7 @@ describe('Cost component accuracy presentation', () => {
     const sql = tile({ id: 'sql-warehouse', amount: 200, marginalAmount: 0.2 });
     const current = payload([serving, foundation, sql]);
     expect(costCardView(serving, current)).toMatchObject({ amount: '64.00 USD', evidence: '' });
+    expect(costCardView(sql, current)).toMatchObject({ title: 'Ask SQL', amount: '0.20 USD' });
     expect(questionCostCardView(current).amount).toBe('0.20 USD');
     expect(costCardView(serving, current).evidence).not.toMatch(/interactive requests/);
   });

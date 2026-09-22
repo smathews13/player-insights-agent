@@ -138,7 +138,6 @@ describe('styled cost brief PDF', () => {
   it('renders the supplied reference hierarchy with vector cards, spend split, and resource table', async () => {
     const text = await pdfText(costBriefPdf(costBrief), 'windows-1252');
     expect(text).toContain('(COST BREAKDOWN)');
-    expect(text).toContain('(Cost breakdown)');
     expect(text).toContain('(Trailing 31 days)');
     expect(text).toContain('(Window 18 Jul 2026 to 17 Aug 2026 · 31 complete days)');
     expect(text).toContain('(SPEND)');
@@ -146,12 +145,13 @@ describe('styled cost brief PDF', () => {
     expect(text).toContain('(STANDING INFRASTRUCTURE)');
     expect(text).toContain('(BY RESOURCE)');
     expect(text).toContain('(Foundation model tokens)');
-    expect(text).toContain('(1,000.00 USD)');
+    expect(text).toContain('(1,000.00)');
+    expect(text).toContain('(USD)');
     expect(text).not.toContain('Vector Search');
-    // Filled/stroked rectangles and the report-blue fill prove the output is
-    // styled vector layout, not the generic line-by-line Markdown PDF.
+    // Filled/stroked rectangles and the full-page dark fill prove the output is
+    // the supplied dark vector layout, not the generic text or light report.
     expect(text).toMatch(/ re [fB]/);
-    expect(text).toContain('0.11 0.39 0.72 rg');
+    expect(text).toContain('0.07 0.09 0.11 rg');
   });
 
   it('labels Prod as a projection and prints the lower-usage and fixed-hosting assumptions', async () => {
@@ -164,7 +164,9 @@ describe('styled cost brief PDF', () => {
     expect(text).toContain('(Prod fixed hosting: 100% of each applicable Dev standing-cost share.)');
     expect(text).toContain('(Prod question-driven usage: 15% of observed Dev variable usage.)');
     expect(text).toContain('(Projected figures are displayed to the nearest currency unit.)');
-    expect(text).toContain('(490 USD)');
+    expect(text).toContain('(490)');
+    expect(text).toContain('(USD)');
     expect(text).not.toContain('Vector Search');
+    expect(text).toContain('0.07 0.09 0.11 rg');
   });
 });
