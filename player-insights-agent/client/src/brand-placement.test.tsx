@@ -79,8 +79,6 @@ describe('the Architecture tab marks every node that is a Databricks product', (
     'genie-dictionary': 'genie',
     'sql-warehouse': 'databricks-sql',
     catalog: 'unity-catalog',
-    'semantic-index': 'mosaic-ai',
-    'semantic-index-endpoint': 'mosaic-ai',
     lakebase: 'lakebase',
     'experiment-id': 'mlflow',
   };

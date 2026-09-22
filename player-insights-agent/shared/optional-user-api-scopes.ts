@@ -41,7 +41,12 @@ export function isOptionalUserApiScope(name: string): boolean {
   return (OPTIONAL_USER_API_SCOPES as readonly string[]).includes(name);
 }
 
+/** Scope names retained only in stale payloads from deployments that exposed Vector Search. */
+export function isRetiredUserApiScope(name: string): boolean {
+  return name.startsWith('vectorsearch.');
+}
+
 /** Declared shortfalls that still gate the login verdict / sign-in remedy. */
 export function requiredMissingScopes(missing: readonly string[]): string[] {
-  return missing.filter((name) => name && !isOptionalUserApiScope(name));
+  return missing.filter((name) => name && !isOptionalUserApiScope(name) && !isRetiredUserApiScope(name));
 }

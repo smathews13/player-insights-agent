@@ -188,12 +188,13 @@ describe('answer evidence variants', () => {
     expect(evidenceSource).toContain('onFailure={() => setShowRows(true)}');
   });
 
-  it('keeps figures in the answer data without rendering KPI tiles', () => {
+  it('renders every figure as a KPI tile after the breakout table', () => {
     const markup = card(answer());
     expect(answer().figures).toHaveLength(5);
-    expect(markup).not.toContain('answer-stat');
-    expect(markup).not.toContain('Key figures');
-    expect(markup).not.toContain('Historical extra');
+    expect(markup.match(/class="answer-kpi"/g)).toHaveLength(5);
+    expect(markup).toContain('Key figures');
+    expect(markup).toContain('Historical extra');
+    expect(markup.indexOf('<table')).toBeLessThan(markup.indexOf('Key figures'));
     expect(markup).not.toContain('Result breakdown');
   });
 });

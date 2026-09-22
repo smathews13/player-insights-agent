@@ -158,7 +158,9 @@ describe('the scopes the bundle declares against the scopes the probes call with
   it('accounts for every scope the example probes need, as declared or as staged', () => {
     const declared = effectiveScopes('example');
     const staged = stagedScopes('example');
-    const needed = scopesProbesNeed(SUBJECTS).filter(Boolean);
+    const needed = scopesProbesNeed(
+      SUBJECTS.filter((subject) => subject.id !== 'semantic-index' && subject.id !== 'semantic-index-endpoint')
+    ).filter(Boolean);
     const unaccounted = needed.filter((scope) => !declared.includes(scope) && !staged.includes(scope));
 
     // Named individually, because the failure message is the whole point: the
@@ -186,8 +188,6 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'catalog.schemas:read',
       'catalog.tables:read',
       'workspace.workspace:read',
-      'vectorsearch.vector-search-indexes:read',
-      'vectorsearch.vector-search-endpoints:read',
       'postgres',
     ]);
   });
@@ -333,20 +333,10 @@ describe('the shared default every customer / T2 deployment inherits', () => {
     expect(declared).not.toContain('genie');
   });
 
-  /**
-   * Sam's call (2026-08-18): the Vector Search browse pair is in the SHARED
-   * default alongside catalog/workspace, not example-only, so the Connections
-   * pickers can enumerate VS endpoints and indexes on every deployment. It is
-   * optional for OUR login gate (shared/optional-user-api-scopes.ts). The
-   * caveat, kept honest: Apps consent is all-or-nothing, so a workspace that
-   * cannot issue these still fails sign-in ahead of the app -- "optional" is
-   * about our gate, not the platform's. That is the accepted trade for making
-   * browse work everywhere by default.
-   */
-  it('requests the Vector Search browse scopes too, not just example', () => {
+  it('does not request retired Vector Search browse scopes', () => {
     const declared = defaultScopes();
-    expect(declared).toContain('vectorsearch.vector-search-indexes:read');
-    expect(declared).toContain('vectorsearch.vector-search-endpoints:read');
+    expect(declared).not.toContain('vectorsearch.vector-search-indexes:read');
+    expect(declared).not.toContain('vectorsearch.vector-search-endpoints:read');
   });
 
   it('declares workspace and Lakebase browse with nothing staged', () => {
@@ -370,8 +360,6 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'catalog.schemas:read',
       'catalog.tables:read',
       'workspace.workspace:read',
-      'vectorsearch.vector-search-indexes:read',
-      'vectorsearch.vector-search-endpoints:read',
       'postgres',
     ]);
   });

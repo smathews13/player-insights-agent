@@ -249,10 +249,11 @@ describe("the modal draws one run view, the card's own", () => {
     expect(rendered).not.toContain('Keep in mind');
     expect(rendered).not.toContain('What to keep in mind');
     expect(markup).not.toContain('answer-stat');
-    expect(markup).not.toContain('Key figures');
-    expect(markup).not.toContain('Legacy KPI');
+    expect(markup).toContain('Key figures');
+    expect(markup).toContain('Legacy KPI');
 
     const evidence = markup.indexOf('answer-evidence');
+    const figures = markup.indexOf('answer-kpis');
     const origin = markup.indexOf('answer-table-origin');
     const tokens = markup.indexOf('monitoring-drawer-tokens');
     const sources = markup.indexOf('sources-module');
@@ -260,6 +261,8 @@ describe("the modal draws one run view, the card's own", () => {
     const process = markup.indexOf('run-process');
     expect(evidence).toBeGreaterThan(-1);
     expect(origin).toBeGreaterThan(evidence);
+    expect(figures).toBeGreaterThan(origin);
+    expect(tokens).toBeGreaterThan(figures);
     expect(origin).toBeLessThan(markup.indexOf('<table'));
     expect(tokens).toBeGreaterThan(origin);
     expect(sources).toBeGreaterThan(tokens);

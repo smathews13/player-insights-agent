@@ -45,14 +45,14 @@ describe('staged Settings saves', () => {
     expect(PAGE).not.toMatch(/setTimeout\(\(\) => close\(\), SAVE_PRESS_MS\)/);
   });
 
-  it('restores canonical server state after a failed durable save', () => {
-    for (const panel of [RUNTIME, BENCHMARK]) {
-      const resetStart = panel.indexOf('const resetAppearance');
-      const saveSource = resetStart >= 0 ? panel.slice(0, resetStart) : panel;
-      const failure = saveSource.slice(saveSource.lastIndexOf('} catch (caught)'));
-      expect(failure).toContain("onSaveState({ kind: 'failed'");
-      expect(failure).toContain('onDirtyChange(0)');
-    }
+  it('preserves a conflicting runtime draft while ordinary failures restore canonical state', () => {
+    expect(RUNTIME).toContain('if (caught instanceof RuntimeSettingsDraftConflict)');
+    expect(RUNTIME).toContain('onDirtyChange(changedSettingKeys');
+    expect(RUNTIME).toContain("onSaveState({ kind: 'failed'");
+
+    const benchmarkFailure = BENCHMARK.slice(BENCHMARK.lastIndexOf('} catch (caught)'));
+    expect(benchmarkFailure).toContain("onSaveState({ kind: 'failed'");
+    expect(benchmarkFailure).toContain('onDirtyChange(0)');
     expect(settingsSaveDisabled(false, 0, true)).toBe(true);
   });
 

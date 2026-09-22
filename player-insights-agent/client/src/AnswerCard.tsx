@@ -13,7 +13,7 @@
  */
 import './styles/answer-body.css';
 import './styles/answer-charts.css';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { dataAccessDisclosure } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, DEGRADED_ANSWER_MARKER, splitCaveats } from './degraded-answer';
@@ -228,6 +228,15 @@ export function AnswerCard({
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(readerAnswer.executionIdentity);
+  const generatedId = useId();
+  const keyFiguresId = `${id || generatedId}-key-figures`;
+  const figureOccurrences = new Map<string, number>();
+  const keyedFigures = readerAnswer.figures.map((figure) => {
+    const signature = JSON.stringify([figure.label, figure.value, figure.display, figure.comparison]);
+    const occurrence = figureOccurrences.get(signature) ?? 0;
+    figureOccurrences.set(signature, occurrence + 1);
+    return { figure, key: `${signature}:${occurrence}` };
+  });
   return (
     <Card className="answer-card" id={id}>
       <CardHeader>
@@ -341,6 +350,24 @@ export function AnswerCard({
           charts={readerAnswer.charts}
           sources={readerAnswer.sources}
         />
+        {keyedFigures.length > 0 ? (
+          <section className="answer-kpis" aria-labelledby={keyFiguresId}>
+            <h3 id={keyFiguresId} className="answer-kpi-heading">
+              Key figures
+            </h3>
+            <div className="answer-kpi-grid">
+              {keyedFigures.map(({ figure, key }) => (
+                <article className="answer-kpi" key={key}>
+                  <span className="answer-kpi-label">{figure.label}</span>
+                  <strong className="answer-kpi-value ast-num">{figure.display ?? figure.value}</strong>
+                  {figure.comparison ? (
+                    <span className="answer-kpi-comparison">{figure.comparison}</span>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {afterEvidence}
         <SourcesModule
           sources={readerAnswer.sources}

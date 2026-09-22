@@ -506,7 +506,7 @@ export interface QuestionCostRun {
  */
 export interface QuestionCostAttribution {
   runs: QuestionCostRun[];
-  /** All completed runs in range, including rows omitted by the display limit. */
+  /** All interactive Ask attempts started in range, including rows omitted by the display limit. */
   runsInRange: number;
   /** Runs whose answer recorded a usable token count. */
   tokenCoveredRuns: number;

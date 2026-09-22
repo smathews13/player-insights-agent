@@ -426,7 +426,7 @@ def test_deadline_stop_does_not_replay_the_package_in_the_cap_step():
                 return stopped.value
             yield event
             if getattr(event, "id", "") == "step-1-1-data_genie":
-                log.started -= 100
+                log.started -= 1_000
 
     runtime.data_source_finder._run = orchestrate
     response = execute(runtime, "Show the launch spike.")

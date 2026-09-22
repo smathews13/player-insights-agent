@@ -31,8 +31,8 @@ describe('source freshness provenance', () => {
   });
 });
 
-describe('legacy figure compatibility', () => {
-  it('keeps figure comparison data without rendering the retired KPI rail', () => {
+describe('figure accessibility', () => {
+  it('renders the comparison beside its KPI value', () => {
     const comparison = '+12% against the previous 28-day retained-player baseline';
     const raw = {
       id: 'answer-1',
@@ -57,9 +57,10 @@ describe('legacy figure compatibility', () => {
     );
 
     expect(normalizeAnswer(raw).figures[0]?.comparison).toBe(comparison);
-    expect(markup).not.toContain(comparison);
+    expect(markup).toContain(comparison);
+    expect(markup).toContain('answer-kpi-comparison');
     expect(markup).not.toContain('answer-stat');
-    expect(markup).not.toContain('Key figures');
+    expect(markup).toContain('Key figures');
   });
 
   it('removes figure-card-only CSS without removing shared focus styling', () => {

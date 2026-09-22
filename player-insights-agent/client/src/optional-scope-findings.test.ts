@@ -75,13 +75,12 @@ describe('which refusals are a reader’s to fix', () => {
     expect(isOptionalScopeShortfall(WAREHOUSE)).toBe(false);
   });
 
-  /**
-   * Vector Search browse is now optional (Sam's call): it browses VS from the
-   * app's forwarded token, and ask-time semantic retrieval runs on the model's
-   * own token, so an app-side VS refusal is a neutral shortfall.
-   */
-  it('treats a Vector Search browse refusal as an optional shortfall', () => {
-    expect(isOptionalScopeShortfall(SEMANTIC_INDEX)).toBe(true);
+  it('drops retired Vector Search checks from the reader-facing split', () => {
+    expect(isOptionalScopeShortfall(SEMANTIC_INDEX)).toBe(false);
+    expect(splitOptionalScopeFindings([SEMANTIC_INDEX])).toEqual({
+      required: [],
+      optional: { scopes: [], checks: [] },
+    });
   });
 
   /**
@@ -130,9 +129,8 @@ describe('the split the panel is drawn from', () => {
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',
-      'vectorsearch.vector-search-indexes:read',
     ]);
-    expect(split.optional.checks).toHaveLength(15);
+    expect(split.optional.checks).toHaveLength(14);
   });
 
   /**
@@ -152,11 +150,7 @@ describe('the split the panel is drawn from', () => {
   it('keeps both halves in the order the report produced them', () => {
     const ordered = splitOptionalScopeFindings([WAREHOUSE, CATALOG, SCHEMA, SEMANTIC_INDEX]);
     expect(ordered.required.map((entry) => entry.id)).toEqual(['warehouse']);
-    expect(ordered.optional.checks.map((entry) => entry.id)).toEqual([
-      'catalog',
-      'schema',
-      'semantic-index',
-    ]);
+    expect(ordered.optional.checks.map((entry) => entry.id)).toEqual(['catalog', 'schema']);
   });
 });
 

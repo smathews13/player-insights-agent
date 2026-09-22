@@ -429,6 +429,18 @@ describe('billing attribution', () => {
   });
 
   it('apportions serving by recorded tokens while keeping SQL an estimate', () => {
+    const warehouseAttribution = {
+      complete: true,
+      astrolabeQueries: 2,
+      totalQueries: 4,
+      astrolabeExecutionMs: 100,
+      totalExecutionMs: 100,
+      askRuns: [
+        { runId: 'run-1', executionMs: 50 },
+        { runId: 'run-2', executionMs: 50 },
+      ],
+      genieSpaces: [],
+    };
     const tiles = buildTiles(
       IDS,
       [
@@ -449,14 +461,7 @@ describe('billing attribution', () => {
           lastDay: RANGE.to,
         },
       ],
-      {
-        complete: true,
-        astrolabeQueries: 2,
-        totalQueries: 4,
-        astrolabeExecutionMs: 100,
-        totalExecutionMs: 100,
-        genieSpaces: [],
-      }
+      warehouseAttribution
     );
     const attribution = buildQuestionAttribution(
       [
@@ -472,7 +477,8 @@ describe('billing attribution', () => {
         },
       ],
       tiles,
-      100
+      100,
+      warehouseAttribution
     );
     const parts = attribution.runs[0].parts;
     expect(parts.find((part) => part.id === 'serving-endpoint')).toEqual(
@@ -515,6 +521,7 @@ describe('billing attribution', () => {
 
     expect(sql).toMatchObject({
       amount: 40,
+      marginalAmount: 10,
       quality: 'estimate',
       population: 'Attributed app and Genie queries',
       attribution: 'deployment',

@@ -326,6 +326,10 @@ something, who skims it before reading it:
   reader's own Export control, so there is never a reason to paste an HTML document here.
 - When listing tables by tier, Gold, Silver, Raw, and Reference / Metadata are each a
   bold line of their own, never a bullet. Only the tables under a tier are a list.
+- Table and column inventories, schema notes, tier listings, reference metadata, and
+  governance boilerplate are internal working context. Unless the reader explicitly asks
+  what tables, columns, metadata, or restrictions exist, keep them out of takeaway,
+  narrative, content, and figures. Sources and the run process already preserve provenance.
 - The narrative is one JSON string, so every line break in it is written \\n. A real
   newline inside the string is invalid JSON and the whole answer is lost.
 
@@ -334,6 +338,13 @@ How to write content and figures:
   empty, omitted, or null.
 - Include a Markdown table only when rows were actually returned and they add something
   the headline does not already say. Never manufacture a table for a scalar.
+- For an analytical comparison across franchises, titles, labels, regions, cohorts, or
+  periods, put a concise breakout table first in content: one row per compared group and
+  only the decision-useful measures the evidence returned. Follow it with short findings,
+  not a repetition of every cell.
+- For that comparison, use figures as executive KPI tiles for the 2–6 most useful totals,
+  rates, overlaps, deltas, or trend endpoints. Put the baseline or direction in comparison.
+  Do not spend a tile on a table name, row count, null check, identifier, or methodology.
 - Use figures for at most {MAX_FIGURES} of the most decision-useful headline statistics when
   available. Their display strings must quote values already present in the assessed package.
 - State each baseline, peak, and delta once in the combined takeaway, narrative, content,
