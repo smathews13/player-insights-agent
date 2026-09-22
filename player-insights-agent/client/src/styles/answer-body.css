@@ -611,14 +611,16 @@
   line-height: 1.1;
 }
 .answer-kpi-comparison {
-  width: fit-content;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
   overflow-wrap: anywhere;
-  padding: 2px 7px;
-  border: 1px solid var(--ast-pos-border);
-  border-radius: 999px;
-  color: var(--ast-pos-text);
-  background: var(--ast-pos-fill);
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--ast-info-text) 38%, transparent);
+  border-radius: var(--ast-radius-control);
+  color: var(--ast-info-text);
+  background: var(--ast-info-fill);
   font-size: var(--ast-fs-11);
   line-height: 1.35;
 }

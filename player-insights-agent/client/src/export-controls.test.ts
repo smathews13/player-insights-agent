@@ -8,6 +8,7 @@ describe('export controls contract', () => {
   const answerCard = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
   const reportCard = readFileSync(new URL('./ReportCard.tsx', import.meta.url), 'utf8');
   const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
+  const answerCss = readFileSync(new URL('./styles/answer.css', import.meta.url), 'utf8');
 
   it('offers the supported export formats on answers, reports, and conversations', () => {
     // Copy/Download Markdown: answer, report, and conversation.
@@ -31,6 +32,18 @@ describe('export controls contract', () => {
     expect(source).toContain("outcome.tone === 'error' ? 'alert' : 'status'");
   });
 
+  it('gives every standard export option a uniformly aligned icon', () => {
+    expect(source.match(/\{\s*label: '[^']+',\s*icon: \w+,\s*run:/g)).toHaveLength(22);
+    expect(source).toContain('icon={<ActionIcon aria-hidden="true" />}');
+    expect(answerCss).toMatch(/\.export-menu-content \[role='menuitem'\]\s*\{[^}]*display:\s*flex[^}]*width:\s*100%/s);
+    expect(answerCss).toMatch(
+      /\.export-menu-content \[role='menuitem'\] \.pia-button-state__idle,[\s\S]*?justify-content:\s*flex-start/
+    );
+    expect(answerCss).toMatch(
+      /\.export-menu-content \[role='menuitem'\] svg\s*\{[^}]*width:\s*16px[^}]*height:\s*16px[^}]*flex:\s*none/s
+    );
+  });
+
   it('offers icon-labelled radio choices for either 31-day cost export', () => {
     const pdf = source.indexOf('Cost report PDF (last 31 days)');
     const projection = source.indexOf('Dev + Prod projection (last 31 days)');
@@ -45,14 +58,11 @@ describe('export controls contract', () => {
     expect(actionSource).toContain("costBriefPdf(brief, 'dev-prod-projection')");
   });
 
-  it('exports a single answer from its card and the whole conversation from the transcript toolbar', () => {
+  it('keeps export controls at the bottom of answer and report cards', () => {
     expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
     expect(reportCard).toContain('<ReportExportMenu report={report} />');
-    // The whole-conversation menu is mounted once, above the transcript, and reads
-    // the complete paginated thread rather than only the newest mounted page.
-    expect(home).toContain('<ConversationExportMenu');
-    expect(home).toContain('conversation-export-toolbar');
-    expect(home).toContain('readCompleteConversationMessages(conversationId)');
+    expect(home).not.toContain('<ConversationExportMenu');
+    expect(home).not.toContain('conversation-export-toolbar');
   });
 
   it('keeps serializers, file operations, and binary generation behind lazy boundaries', () => {
