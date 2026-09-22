@@ -24,7 +24,7 @@ import {
   type IdleTimeoutConfig,
 } from '../lib/app-session';
 import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
-import { questionTraceSessionId } from '../lib/trace-session';
+import { questionTraceSessionId, TRACE_SESSION_BASIS } from '../lib/trace-session';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import {
@@ -660,6 +660,7 @@ const LiveAnswerSchema = z.looseObject({
   // Also route-owned: the question fingerprint MLflow uses to group the plan
   // and execution traces. Monitoring reads it from the stored answer.
   trace_session_id: z.string().optional(),
+  trace_session_basis: z.literal(TRACE_SESSION_BASIS).optional(),
 });
 type LiveAnswer = z.infer<typeof LiveAnswerSchema>;
 
@@ -1328,6 +1329,7 @@ function withAskRuntime<T extends Record<string, unknown>>(
     ...body,
     ...(runtimeSettings ? { runtime_settings: runtimeSettings } : {}),
     trace_session_id: traceSessionId,
+    trace_session_basis: TRACE_SESSION_BASIS,
   };
 }
 
@@ -4917,10 +4919,12 @@ export function setupInsightsRoutes(
         .join('\n\n')
         .slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
       // Exactly the fingerprint the Python agent writes to
-      // `mlflow.trace.session`. An approved turn names its already-issued plan,
-      // while a direct turn derives the same id from the prompt and attachment
-      // text the endpoint receives.
-      const traceSessionId = approvedPlanId ?? questionTraceSessionId(prompt, attachmentText);
+      // `mlflow.trace.session`. It is deliberately derived rather than copied
+      // from the approved/displayed plan id: revised plans include the revision
+      // note in their own identity, while MLflow groups both proposals under the
+      // original clean question. The helper also applies the agent's attachment
+      // trim/cap and unwraps the one-turn revision envelope.
+      const traceSessionId = questionTraceSessionId(prompt, attachmentText);
 
       /**
        * The run ledger. Shadow by default, which records the run and changes
@@ -5346,7 +5350,7 @@ export function setupInsightsRoutes(
                 conversationId,
                 'assistant',
                 plan.summary,
-                JSON.stringify(withAskRuntime(planResponse, askRuntime, plan.id)),
+                JSON.stringify(withAskRuntime(planResponse, askRuntime, traceSessionId)),
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
               ]

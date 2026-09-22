@@ -283,11 +283,13 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY).not.toMatch(/mlflow|trace-token/i);
   });
 
-  it('carries the stored MLflow question session and falls back to a historical plan id', () => {
+  it('carries only canonical stored MLflow sessions, including from plan-only turns', () => {
     for (const query of [MONITORING_QUESTIONS_QUERY, MONITORING_DETAIL_QUERY]) {
       expect(query).toContain("a.response_json->>'trace_session_id'");
-      expect(query).toContain("m.response_json->'plan'->>'id' AS trace_session_id");
+      expect(query).toContain("m.response_json->>'trace_session_id' AS trace_session_id");
       expect(query).toContain("m.response_json->>'type' = 'plan'");
+      expect(query).toContain("response_json->>'trace_session_basis' = 'agent-question-v1'");
+      expect(query).not.toContain("m.response_json->'plan'->>'id' AS trace_session_id");
     }
   });
 
