@@ -14,7 +14,10 @@ function traceSessionQuestion(question: string): string {
 }
 
 function traceSessionAttachment(attachmentContext: string): string {
-  return attachmentContext.trim().slice(0, TRACE_SESSION_ATTACHMENT_CHARS);
+  // Python slices `str` by Unicode code point; JavaScript's String.slice uses
+  // UTF-16 code units and would cut supplementary-plane characters in half.
+  // Iterating the string preserves the agent's exact 8,000-code-point boundary.
+  return Array.from(attachmentContext.trim()).slice(0, TRACE_SESSION_ATTACHMENT_CHARS).join('');
 }
 
 /**
