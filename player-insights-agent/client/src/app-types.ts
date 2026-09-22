@@ -19,6 +19,7 @@ import type { SpIdentitySummary } from '../../shared/sp-identity';
 import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
 import type { Report } from '../../shared/report-contract';
+import type { DashboardResponse } from '../../shared/dashboard-contract';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -80,7 +81,8 @@ export interface ReportResponse {
   id: string;
   report: Report;
 }
-export type AgentResponse = Answer | PlanResponse | ClarificationResponse | ReportResponse;
+export type { DashboardResponse } from '../../shared/dashboard-contract';
+export type AgentResponse = Answer | PlanResponse | ClarificationResponse | ReportResponse | DashboardResponse;
 export interface Identity {
   /** Proxy-authenticated value used by server authorization and tenancy checks. */
   signedInAs: string;

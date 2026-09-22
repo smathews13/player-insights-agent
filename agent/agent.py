@@ -52,6 +52,9 @@ from charts import (
 )
 from config import Settings, baked_config, format_genie_space, open_ai_client
 from contracts import (
+    DEGRADED_ANSWER_MARKER,
+    MLFLOW_NOT_RECORDED_CAVEAT,
+    SALVAGED_CAVEAT,
     AnalysisPlan,
     AnswerContract,
     Chart,
@@ -2291,11 +2294,8 @@ def sql_object_denial(error: Exception, identity: str = "") -> str | None:
 #: the literal string in a test, because the two are released separately and in
 #: either order.
 #:
-#: A PREFIX rather than a field on `AnswerContract`, so that an app build that
-#: does not recognise it still shows the sentence, just less loudly.
-DEGRADED_ANSWER_MARKER = "This answer is degraded:"
-
-
+#: The literal itself lives in `contracts.py` and is published in the generated
+#: shared JSON Schema; this module only applies it.
 def _and_list(items: Sequence[str]) -> str:
     """ "a", "a and b", "a, b and c", so a caveat reads as a sentence."""
 
@@ -2370,7 +2370,6 @@ def _json_payload(text: str) -> dict[str, Any]:
 
 
 SALVAGED_TAKEAWAY = "The analysis completed, but the structured presentation was incomplete."
-SALVAGED_CAVEAT = "Review the generated SQL and source details before using this result."
 DEADLINE_TAKEAWAY = "The run reached its time limit before the answer could be composed."
 DEADLINE_TAKEAWAY_NO_DATA = "The run reached its time limit before any data was measured."
 UNREACHABLE_TAKEAWAY = "This question was not answered."
@@ -2535,13 +2534,6 @@ def _salvaged_synthesis(text: str, findings: str) -> Synthesis:
 #: `player-insights-agent/shared/mlflow-trace-id.ts`. A local `trace-<uuid>` is
 #: deliberately not one: the app will not paint a process view for it.
 _MLFLOW_TRACE_ID = re.compile(r"^tr-[0-9a-f]+$", re.I)
-
-#: Reader-facing diagnosis for a run that completed without an MLflow record.
-#: Deliberately not marked as degraded: it limits process/SQL inspection, not the
-#: validity of figures the run read from governed tables.
-MLFLOW_NOT_RECORDED_CAVEAT = (
-    "MLflow did not record this run, so process and SQL inspection are unavailable."
-)
 
 
 def _is_mlflow_trace_id(value: object) -> bool:

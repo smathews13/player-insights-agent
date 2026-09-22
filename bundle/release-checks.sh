@@ -39,6 +39,9 @@ run_fast() {
   step "Release-critical Player Insights Agent brand contract"
   python3 "$HERE/brand-contract.test.py"
 
+  step "Release-critical shared agent response contract"
+  python3 "$ROOT/agent/check_contract.py"
+
   step "Release-critical App staging cleanup safety"
   bash "$HERE/app-source-staging.test.sh"
 

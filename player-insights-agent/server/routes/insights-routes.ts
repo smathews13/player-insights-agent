@@ -38,6 +38,7 @@ import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { isReportPayload, normalizeReport, type Report } from '../../shared/report-contract';
+import { dashboardRenderableFrom, type DashboardRenderable } from '../../shared/dashboard-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -613,7 +614,7 @@ const DocumentSnippetSchema = z.looseObject({
   supports: z.string().min(1),
 });
 
-const LiveAnswerSchema = z.looseObject({
+export const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
   takeaway: z.string().min(1),
   // Empty is allowed: a deadline-stopped run can have a takeaway and no written
@@ -708,7 +709,7 @@ const PlanStepSchema = z.looseObject({
  * to the Python `AnalysisPlan` and stripped here would be approved by a user who
  * was never shown it.
  */
-const AnalysisPlanSchema = z.looseObject({
+export const AnalysisPlanSchema = z.looseObject({
   id: z.string().min(1),
   question: z.string().min(1),
   summary: z.string().min(1),
@@ -740,7 +741,7 @@ export function undeclaredPlanKeys(plan: AnalysisPlan): string[] {
  * `options` and `reason` are defaulted, because a clarification with neither is
  * still usable and must not fail the parse.
  */
-const ClarificationSchema = z.looseObject({
+export const ClarificationSchema = z.looseObject({
   id: z.string().min(1),
   question: z.string().min(1),
   reason: z.string().default(''),
@@ -2515,6 +2516,27 @@ export function extractReport(value: unknown): Report | null {
   return null;
 }
 
+/**
+ * A backend-authored dashboard renderable, kept in its declared format.
+ *
+ * The only inspection here is the envelope and format discriminator. HTML is
+ * returned byte-for-byte; JSON retains its backend-authored value.
+ */
+export function extractDashboardRenderable(value: unknown): DashboardRenderable | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (isEndpointError(record)) return null;
+  const direct = dashboardRenderableFrom(record.custom_outputs);
+  if (direct !== null) return direct;
+  for (const key of ['data', 'response', 'result', 'body']) {
+    if (record[key]) {
+      const nested = extractDashboardRenderable(record[key]);
+      if (nested !== null) return nested;
+    }
+  }
+  return null;
+}
+
 export function extractAnalysisPlan(value: unknown): AnalysisPlan | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -2604,6 +2626,11 @@ export function buildServingHistory(rows: HistoryRow[]) {
           const report = normalizeReport(record.report);
           if (report) return { role: row.role, content: reportHistoryContent(report) };
         }
+        if (record.type === 'dashboard') {
+          // Never derive prose or metadata from the renderable. The backend owns
+          // that payload and the frontend's only job is format-faithful rendering.
+          return { role: row.role, content: 'The assistant returned a dashboard.' };
+        }
         if (typeof record.takeaway === 'string') {
           const narrative = typeof record.narrative === 'string' ? record.narrative : row.content;
           return {
@@ -2621,10 +2648,10 @@ export function buildServingHistory(rows: HistoryRow[]) {
  * `custom_inputs.prior_evidence`.
  *
  * Scans stored history newest-first and returns the first real answer's evidence
- * rows, verbatim. Plan, clarification, and report turns are assistant messages
- * but not evidence-bearing answers, so they are skipped -- a document generated
- * between the data answer and a "plot the results" follow-up must not erase the
- * rows that follow-up needs. The single most recent answer's evidence, not an accumulation,
+ * rows, verbatim. Plan, clarification, report, and dashboard turns are assistant
+ * messages but not evidence-bearing answers, so they are skipped -- a document
+ * generated between the data answer and a "plot the results" follow-up must not
+ * erase the rows that follow-up needs. The single most recent answer's evidence, not an accumulation,
  * the same lifecycle `prior_chart` has: an answer that queried nothing this turn
  * stored an empty array, and that empty result is returned empty rather than
  * reaching further back for stale rows.
@@ -2643,7 +2670,14 @@ export function priorEvidenceFromHistory(rows: HistoryRow[]): string[] {
     }
     if (!response || typeof response !== 'object') continue;
     const record = response as Record<string, unknown>;
-    if (record.type === 'plan' || record.type === 'clarification' || record.type === 'report') continue;
+    if (
+      record.type === 'plan' ||
+      record.type === 'clarification' ||
+      record.type === 'report' ||
+      record.type === 'dashboard'
+    ) {
+      continue;
+    }
     const evidence = record.chart_evidence;
     // A real answer is the stopping point whether or not it carried evidence: an
     // answer that predates this field, or one whose own query returned nothing,
@@ -5408,6 +5442,51 @@ export function setupInsightsRoutes(
             return;
           }
           const platformTraceId = servingMlflowTraceId(endpointResult);
+          // The dashboard renderable is backend-owned. Persist it before any
+          // answer/report normalizer can reinterpret its declared format.
+          const dashboardRenderable = extractDashboardRenderable(endpointResult);
+          if (dashboardRenderable !== null) {
+            const messageId = `msg-${crypto.randomUUID()}`;
+            const dashboardResponse = {
+              type: 'dashboard' as const,
+              mode: 'live' as const,
+              id: messageId,
+              renderable: dashboardRenderable,
+            };
+            const persisted = await readStored(
+              appkit,
+              'POST /api/insights/ask (dashboard)',
+              `INSERT INTO ${APP_SCHEMA}.messages
+             (id, conversation_id, role, content, response_json, trace_id,
+              app_principal, serving_principal, serving_principal_observed_at, access_mode,
+              execution_mode, execution_identity_verified)
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+              WHERE ${outputFenceSql(13, 14)}
+             RETURNING id`,
+              [
+                messageId,
+                conversationId,
+                'assistant',
+                'Dashboard',
+                JSON.stringify(withAskRuntime(dashboardResponse, askRuntime, traceSessionId)),
+                platformTraceId,
+                ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+                ...outputFenceParams,
+              ]
+            );
+            const runStored =
+              persisted.available && conversationAddressable && (!hasOutputFence || persisted.rows.length > 0);
+            if (replyIfCancelled()) return;
+            await settleRun(
+              appkit,
+              admission,
+              runStored
+                ? { to: 'SUCCEEDED', traceId: platformTraceId, messageId }
+                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: platformTraceId }
+            );
+            reply.json({ ...dashboardResponse, runStored, execution_identity: executionIdentityClaim(identity) });
+            return;
+          }
           // Reports are a first-class endpoint result. Recognize and persist
           // them before the answer/prose paths can flatten them into a degraded
           // summary and discard their sections.

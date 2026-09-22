@@ -4535,6 +4535,7 @@ APP_ANSWER_FIELDS = {
     "content",
     "figures",
     "charts",
+    "chart_evidence",
     "sources",
     "document_snippets",
     "caveats",

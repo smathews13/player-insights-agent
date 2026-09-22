@@ -1,8 +1,193 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+# ---------------------------------------------------------------------------
+# Reader-facing caveats
+# ---------------------------------------------------------------------------
+#
+# Caveats are not an enum. Some are produced from live facts -- the table whose
+# grant was denied, the dates missing from a window, or the metric whose
+# definition was absent -- and their complete sentences cannot be known before
+# the run. The shared JSON contract therefore publishes a CLOSED LIST OF
+# SEMANTIC FAMILIES and the few stable literal forms that another component
+# matches. `agent/generate_contract.py` writes these values beside the response
+# schema so the app and the agent can release independently without pretending
+# dynamic disclosures are a finite string enum.
+
+DEGRADED_ANSWER_MARKER = "This answer is degraded:"
+SALVAGED_CAVEAT = "Review the generated SQL and source details before using this result."
+MLFLOW_NOT_RECORDED_CAVEAT = (
+    "MLflow did not record this run, so process and SQL inspection are unavailable."
+)
+
+CAVEAT_CATEGORIES: tuple[dict[str, object], ...] = (
+    {
+        "id": "refused",
+        "rank": 0,
+        "meaning": "Part of the request was refused or the answer is degraded.",
+        "always_visible": True,
+    },
+    {
+        "id": "evidence",
+        "rank": 1,
+        "meaning": "Part of the evidence is unaccounted for or the run stopped early.",
+    },
+    {
+        "id": "undefined",
+        "rank": 2,
+        "meaning": "A number relies on a metric or field without a governed definition.",
+    },
+    {
+        "id": "coverage",
+        "rank": 3,
+        "meaning": "The measured window or population does not fully cover the question.",
+    },
+    {
+        "id": "aggregation",
+        "rank": 4,
+        "meaning": "The number is valid but its aggregation or grain limits interpretation.",
+    },
+    {
+        "id": "omitted",
+        "rank": 5,
+        "meaning": "Valid supporting content was omitted from figures for presentation limits.",
+    },
+    {
+        "id": "unclassified",
+        "rank": 6,
+        "meaning": "A valid free-form caveat that no published family recognizes yet.",
+    },
+    {
+        "id": "identity",
+        "rank": 7,
+        "meaning": "The grants or execution identity under which governed data was read.",
+    },
+    {
+        "id": "deployment",
+        "rank": 8,
+        "meaning": "A standing deployment or dataset condition rather than a run-specific risk.",
+    },
+)
+
+KNOWN_CAVEAT_FORMS: tuple[dict[str, object], ...] = (
+    {
+        "id": "degraded-answer",
+        "producer": "agent-and-app",
+        "category": "refused",
+        "match": "prefix",
+        "value": DEGRADED_ANSWER_MARKER,
+    },
+    {
+        "id": "salvaged-structured-answer",
+        "producer": "agent",
+        "category": "evidence",
+        "match": "exact",
+        "value": SALVAGED_CAVEAT,
+    },
+    {
+        "id": "mlflow-not-recorded",
+        "producer": "agent",
+        "category": "deployment",
+        "match": "exact",
+        "value": MLFLOW_NOT_RECORDED_CAVEAT,
+    },
+    {
+        "id": "prose-only-answer",
+        "producer": "app",
+        "category": "refused",
+        "match": "exact",
+        "value": (
+            "This answer is degraded: the response format was incomplete. "
+            "Retry the question before using this result."
+        ),
+    },
+    {
+        "id": "prose-only-after-stages",
+        "producer": "app",
+        "category": "refused",
+        "match": "exact",
+        "value": (
+            "This answer is degraded: the response ended before the answer format completed. "
+            "Retry the question before using this result."
+        ),
+    },
+    {
+        "id": "service-principal-fallback",
+        "producer": "app",
+        "category": "identity",
+        "match": "exact",
+        "value": (
+            "Data access scope: this answer used the application’s Unity Catalog grants, "
+            "which may include data outside the signed-in account’s direct access."
+        ),
+    },
+    {
+        "id": "historical-untraced-answer",
+        "producer": "app-read-policy",
+        "category": "deployment",
+        "match": "exact",
+        "value": (
+            "No MLflow trace was recorded for this answer, so it cannot be opened in MLflow."
+        ),
+        "historical_only": True,
+    },
+)
+
+DYNAMIC_CAVEAT_FAMILIES: tuple[dict[str, str], ...] = (
+    {
+        "id": "governance-refusal",
+        "category": "refused",
+        "contents": "Names the control or access decision and the portion of the request refused.",
+    },
+    {
+        "id": "dependency-degradation",
+        "category": "refused",
+        "contents": "Names the unavailable dependency and which answer path could not be used.",
+    },
+    {
+        "id": "incomplete-provenance",
+        "category": "evidence",
+        "contents": "Names missing source attribution or evidence that could not be retrieved.",
+    },
+    {
+        "id": "run-limit",
+        "category": "evidence",
+        "contents": "Names the time, step, tool-call, or budget limit that stopped the run.",
+    },
+    {
+        "id": "definition-gap",
+        "category": "undefined",
+        "contents": "Names a metric or field absent from the governed data dictionary.",
+    },
+    {
+        "id": "window-or-population-gap",
+        "category": "coverage",
+        "contents": "Names dates, rows, labels, or populations missing from the measurement.",
+    },
+    {
+        "id": "grain-or-rollup",
+        "category": "aggregation",
+        "contents": "States the grain, weighting, additivity, or rollup limitation.",
+    },
+    {
+        "id": "presentation-omission",
+        "category": "omitted",
+        "contents": "Names valid results omitted because of chart or figure limits.",
+    },
+    {
+        "id": "execution-identity",
+        "category": "identity",
+        "contents": "Names the effective identity or grant scope that produced the evidence.",
+    },
+    {
+        "id": "deployment-disclosure",
+        "category": "deployment",
+        "contents": "States a standing environment or dataset condition.",
+    },
+)
 
 
 class Figure(BaseModel):
@@ -254,6 +439,70 @@ class Clarification(BaseModel):
     trace: TraceSummary
 
 
+class ReportFigure(BaseModel):
+    id: str | None = None
+    label: str
+    value: str
+    caption: str | None = None
+
+
+class ReportTable(BaseModel):
+    id: str | None = None
+    title: str | None = None
+    columns: list[str]
+    align: list[Literal["left", "right", "center"]] | None = None
+    rows: list[list[str]]
+    sources: list[str] | None = None
+
+
+class ReportPlotlySpec(BaseModel):
+    data: list[dict[str, Any]]
+    layout: dict[str, Any]
+
+
+class ReportChart(BaseModel):
+    id: str
+    title: str
+    kind: str
+    plotly: ReportPlotlySpec
+
+
+class ReportSection(BaseModel):
+    id: str | None = None
+    heading: str | None = None
+    body: str | None = None
+    figures: list[ReportFigure] | None = None
+    table: ReportTable | None = None
+    charts: list[ReportChart] | None = None
+    note: str | None = None
+
+
+class ReportSource(BaseModel):
+    name: str
+    freshness: str | None = None
+
+
+class ReportContract(BaseModel):
+    """A structured multi-section document interpreted by the application."""
+
+    schema_version: Literal["pia.report/1"] = "pia.report/1"
+    title: str
+    subtitle: str | None = None
+    theme: Literal["page", "presentation"] | None = None
+    summary: str | None = None
+    sections: list[ReportSection]
+    sources: list[ReportSource] | None = None
+    caveats: list[str] | None = Field(
+        default=None,
+        description=(
+            "Reader-facing qualifications using the same open caveat semantics "
+            "published in x-pia-caveats."
+        ),
+    )
+    generatedAt: str | None = None
+    provenance: Any | None = None
+
+
 class AnswerContract(BaseModel):
     id: str
     takeaway: str
@@ -262,9 +511,21 @@ class AnswerContract(BaseModel):
     content: str = ""
     figures: list[Figure] = Field(default_factory=list)
     charts: list[Chart] = Field(default_factory=list)
+    #: Opaque evidence rows a later follow-up may reuse to draw a chart without
+    #: pretending it queried the data again. Empty when this turn has no
+    #: transferable chart evidence.
+    chart_evidence: list[str] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
     document_snippets: list[DocumentSnippet] = Field(default_factory=list)
-    caveats: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Reader-facing qualifications. This is intentionally an open list of strings: "
+            "live table names, dates, metric names and access decisions make the sentence set "
+            "dynamic. See x-pia-caveats in the generated shared schema for the closed semantic "
+            "families, stable markers and ordering rules."
+        ),
+    )
     #: Per-statement provenance, in the order the run ran them.
     #:
     #: NOT called `provenance` on purpose, and this is a wire-compatibility point
@@ -288,6 +549,7 @@ class AnswerContract(BaseModel):
     @field_validator(
         "figures",
         "charts",
+        "chart_evidence",
         "sources",
         "document_snippets",
         "caveats",
@@ -299,3 +561,110 @@ class AnswerContract(BaseModel):
         """A null section is none of that section, not a failed answer object."""
 
         return [] if value is None else value
+
+
+# ---------------------------------------------------------------------------
+# Model Serving `custom_outputs` envelopes
+# ---------------------------------------------------------------------------
+#
+# These wrappers are the actual boundary Acme's backend and the app share.
+# The inner models above existed already, but without the envelope a consumer
+# still had to infer whether `answer`, `plan`, or `clarification` was present.
+# The generated JSON Schema uses this discriminated union as its root.
+
+
+class ExecutionIdentityClaim(BaseModel):
+    mode: str
+    verified: bool
+
+
+class AnswerOutput(BaseModel):
+    type: Literal["answer"]
+    answer: AnswerContract
+
+
+class PlanOutput(BaseModel):
+    type: Literal["plan"]
+    plan: AnalysisPlan
+
+
+class ClarificationOutput(BaseModel):
+    type: Literal["clarification"]
+    clarification: Clarification
+
+
+class ReportOutput(BaseModel):
+    type: Literal["report"]
+    report: ReportContract
+
+
+class HtmlRenderable(BaseModel):
+    """A complete backend-authored HTML document."""
+
+    format: Literal["html"]
+    content: str
+
+
+class JsonRenderable(BaseModel):
+    """Backend-authored JSON whose structure remains backend-owned."""
+
+    format: Literal["json"]
+    content: Any
+
+
+DashboardRenderable = Annotated[
+    HtmlRenderable | JsonRenderable,
+    Field(discriminator="format"),
+]
+
+
+class DashboardOutput(BaseModel):
+    """A backend-authored renderable artifact.
+
+    The backend selects the declared format and owns the payload. The frontend
+    chooses only the matching generic rendering surface; it does not infer a
+    format, derive dashboard components, or reinterpret the payload as its own
+    answer/report contract.
+    """
+
+    type: Literal["dashboard"]
+    renderable: DashboardRenderable = Field(
+        description=(
+            "Backend-selected renderable payload. HTML is passed byte-for-byte "
+            "to an isolated browser frame. JSON preserves the backend value and "
+            "is displayed as JSON rather than rebuilt as frontend components."
+        )
+    )
+
+
+class UnavailableOutput(BaseModel):
+    """A terminal refusal emitted by the served agent inside an HTTP 200.
+
+    `code` and `layer` remain open strings on purpose. A newer agent can add a
+    terminal code before the app deploys; the app must preserve the refusal and
+    degrade it to its unknown-code fallback rather than misread it as an answer.
+    Request/run ids and execution identity are present on identity refusals and
+    absent on gateway/transport refusals.
+    """
+
+    type: Literal["unavailable"]
+    code: str
+    layer: str
+    retryable: bool
+    message: str
+    request_id: str | None = None
+    run_id: str | None = None
+    execution_identity: ExecutionIdentityClaim | None = None
+
+
+AgentTerminalOutput = Annotated[
+    (
+        AnswerOutput
+        | PlanOutput
+        | ClarificationOutput
+        | ReportOutput
+        | DashboardOutput
+        | UnavailableOutput
+    ),
+    Field(discriminator="type"),
+]
