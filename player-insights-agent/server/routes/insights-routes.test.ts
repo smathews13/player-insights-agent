@@ -15,6 +15,7 @@ import {
   extractAnalysisPlan,
   extractAttachmentText,
   extractClarification,
+  extractDashboard,
   extractLiveText,
   extractReport,
   extractStructuredAnswer,
@@ -237,6 +238,49 @@ describe('extractClarification', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('extractDashboard', () => {
+  const dashboardResponse = {
+    custom_outputs: {
+      type: 'dashboard',
+      dashboard: {
+        schemaVersion: 'pia.dashboard/1',
+        title: 'Cross-franchise reach',
+        html: '<!DOCTYPE html><html><body><h1>Reach</h1></body></html>',
+        caveats: ['One source was unavailable.'],
+      },
+    },
+  };
+
+  it('reads the complete dashboard document without converting it to a report', () => {
+    expect(extractDashboard(dashboardResponse)).toEqual(dashboardResponse.custom_outputs.dashboard);
+    expect(extractReport(dashboardResponse)).toBeNull();
+  });
+
+  it('reads an AppKit-wrapped dashboard and rejects endpoint errors', () => {
+    expect(extractDashboard({ data: dashboardResponse })?.title).toBe('Cross-franchise reach');
+    expect(
+      extractDashboard({
+        error_code: 'ENDPOINT_NOT_FOUND',
+        custom_outputs: dashboardResponse.custom_outputs,
+      })
+    ).toBeNull();
+  });
+
+  it('logs and drops a malformed dashboard envelope', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      extractDashboard({
+        custom_outputs: { type: 'dashboard', dashboard: { title: 'Missing HTML' } },
+      })
+    ).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      '[dashboard] Dropped malformed dashboard payload.',
+      expect.objectContaining({ hasHtml: false })
+    );
+    warn.mockRestore();
   });
 });
 
@@ -485,6 +529,29 @@ describe('plan and conversation contracts', () => {
     ]);
 
     expect(history[0]?.content).toContain(stored.takeaway);
+  });
+
+  it('replays dashboard metadata without feeding its HTML back to the model', () => {
+    const history = buildServingHistory([
+      {
+        role: 'assistant',
+        content: 'Cross-franchise reach',
+        response_json: {
+          type: 'dashboard',
+          dashboard: {
+            schemaVersion: 'pia.dashboard/1',
+            title: 'Cross-franchise reach',
+            html: '<!DOCTYPE html><html><body><script>do-not-replay()</script></body></html>',
+            caveats: ['One source was unavailable.'],
+          },
+        },
+      },
+    ]);
+
+    expect(history[0]?.content).toContain('Dashboard: Cross-franchise reach');
+    expect(history[0]?.content).toContain('Caveats: One source was unavailable.');
+    expect(history[0]?.content).not.toContain('do-not-replay');
+    expect(history[0]?.content).not.toContain('<html');
   });
 
   it('replays report content rather than only its stored title', () => {
@@ -4088,6 +4155,56 @@ describe('a canned answer discloses that no live query produced it', () => {
 
       expect((answered.trace as { id: string }).id).toBe('tr-0123456789abcdef0123456789abcdef');
       expect((answered.trace as { stages: unknown[] }).stages.length).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a dashboard answer is served and persisted as its own artifact', () => {
+  const savedEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+
+  afterEach(() => {
+    if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+    else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
+
+  it('returns the complete standalone HTML dashboard instead of prose fallback', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const html = '<!DOCTYPE html><html><body><h1>Cross-franchise reach</h1></body></html>';
+    const app = await startInsightsApp(
+      () =>
+        Promise.resolve({
+          output: [
+            {
+              type: 'message',
+              content: [{ type: 'output_text', text: 'Dashboard complete.' }],
+            },
+          ],
+          custom_outputs: {
+            type: 'dashboard',
+            dashboard: {
+              schemaVersion: 'pia.dashboard/1',
+              title: 'Cross-franchise reach',
+              html,
+              caveats: ['One source was unavailable.'],
+            },
+          },
+        }),
+      memoryLakebase()
+    );
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-dashboard-contract',
+        prompt: 'Build me a dashboard on cross-franchise reach.',
+        executePlan: true,
+      });
+
+      expect(answered.type).toBe('dashboard');
+      expect((answered.dashboard as { title?: string }).title).toBe('Cross-franchise reach');
+      expect((answered.dashboard as { html?: string }).html).toBe(html);
+      expect(JSON.stringify(answered)).not.toContain(DEGRADED_ANSWER_MARKER);
     } finally {
       await app.close();
     }

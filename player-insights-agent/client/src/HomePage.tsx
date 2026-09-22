@@ -190,11 +190,13 @@ import type {
   Clarification,
   Conversation,
   ConversationMessage,
+  DashboardResponse,
   FeedbackEntry,
   PlanResponse,
   ReportResponse,
 } from './app-types';
 import { normalizeReport } from '../../shared/report-contract';
+import { normalizeDashboard } from '../../shared/dashboard-contract';
 import { answeredQuestion } from './answered-question';
 
 /** What Approve posts: the plan id, the transcript label, and the plan itself. */
@@ -210,6 +212,7 @@ const ConversationFilters = lazy(() =>
 );
 const RunRatingBadge = lazy(() => import('./RunRatingBadge').then(({ RunRatingBadge: badge }) => ({ default: badge })));
 const ReportCard = lazy(() => import('./ReportCard').then(({ ReportCard: card }) => ({ default: card })));
+const DashboardCard = lazy(() => import('./DashboardCard').then(({ DashboardCard: card }) => ({ default: card })));
 
 /** Formats the customer confirmed: PDF, Markdown, JSON, TXT, CSV. */
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
@@ -267,6 +270,11 @@ function normalizeResponse(raw: unknown, executionIdentity?: unknown): AgentResp
   if (response.type === 'plan') return response as unknown as PlanResponse;
   if (response.type === 'clarification') {
     return { type: 'clarification', mode: 'live', clarification: normalizeClarification(response.clarification) };
+  }
+  if (response.type === 'dashboard') {
+    const dashboard = normalizeDashboard(response.dashboard);
+    const id = typeof response.id === 'string' && response.id ? response.id : `msg-${crypto.randomUUID()}`;
+    return dashboard ? ({ type: 'dashboard', mode: 'live', id, dashboard } satisfies DashboardResponse) : null;
   }
   if (response.type === 'report') {
     const report = normalizeReport(response.report);
@@ -671,11 +679,12 @@ export function HomePage() {
     .filter((response): response is AgentResponse => response !== undefined);
   const latestResponse = responses.at(-1);
   // `type` is absent on answers stored before it was added, so an answer is what
-  // is left after the three types that name themselves, not what carries 'answer'.
+  // is left after the response types that name themselves, not what carries 'answer'.
   const answer =
     latestResponse &&
     latestResponse.type !== 'plan' &&
     latestResponse.type !== 'clarification' &&
+    latestResponse.type !== 'dashboard' &&
     latestResponse.type !== 'report'
       ? latestResponse
       : null;
@@ -985,7 +994,11 @@ export function HomePage() {
         const last = [...stored].reverse().find((message) => message.role === 'assistant');
         const parsed = responseFromMessage(last);
         const storedStages =
-          parsed && parsed.type !== 'plan' && parsed.type !== 'clarification' && parsed.type !== 'report'
+          parsed &&
+          parsed.type !== 'plan' &&
+          parsed.type !== 'clarification' &&
+          parsed.type !== 'dashboard' &&
+          parsed.type !== 'report'
             ? parsed.trace.stages
             : [];
         if (storedStages.length === 0) {
@@ -1582,9 +1595,11 @@ export function HomePage() {
               ? result.plan.summary
               : result.type === 'clarification'
                 ? result.clarification.question
-                : result.type === 'report'
-                  ? result.report.title
-                  : result.narrative,
+                : result.type === 'dashboard'
+                  ? result.dashboard.title
+                  : result.type === 'report'
+                    ? result.report.title
+                    : result.narrative,
           response_json: result,
         },
       ]);
@@ -2632,10 +2647,14 @@ export function HomePage() {
               // This answer's own feedback, looked up by the ANSWER's id rather
               // than the message's -- they are not always the same value -- so no
               // other answer's rating, comment or saved flag can appear here.
-              // Only an answer has feedback. Reports carry a persistence id,
-              // but they are document artifacts rather than rateable answer turns.
+              // Only an answer has feedback. Reports and dashboards carry a
+              // persistence id, but they are artifacts rather than rateable answer turns.
               const rated =
-                response && response.type !== 'plan' && response.type !== 'clarification' && response.type !== 'report'
+                response &&
+                response.type !== 'plan' &&
+                response.type !== 'clarification' &&
+                response.type !== 'dashboard' &&
+                response.type !== 'report'
                   ? feedback[response.id]
                   : undefined;
               const entry = rated ?? emptyFeedback;
@@ -2650,6 +2669,7 @@ export function HomePage() {
                 approvalResponse &&
                 approvalResponse.type !== 'plan' &&
                 approvalResponse.type !== 'clarification' &&
+                approvalResponse.type !== 'dashboard' &&
                 approvalResponse.type !== 'report'
                   ? approvalResponse.sources.filter((source) => source.role === 'reading').map((source) => source.name)
                   : [];
@@ -2702,6 +2722,7 @@ export function HomePage() {
                       response &&
                       response.type !== 'plan' &&
                       response.type !== 'clarification' &&
+                      response.type !== 'dashboard' &&
                       response.type !== 'report' &&
                       response.trace.stages.length === 0
                         ? liveStages
@@ -3286,6 +3307,21 @@ const MessageItem = memo(function MessageItem({
         // card now; see PlanCard and plan-revision.ts.
         onRevise={(request) => onAsk(request)}
       />
+    );
+  }
+  if (response.type === 'dashboard') {
+    return (
+      <Suspense
+        fallback={
+          <Card className="answer-card">
+            <CardContent className="pt-6">
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
+        }
+      >
+        <DashboardCard dashboard={response.dashboard} />
+      </Suspense>
     );
   }
   if (response.type === 'report') {

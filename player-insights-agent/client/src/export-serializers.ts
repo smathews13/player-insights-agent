@@ -391,7 +391,7 @@ function storedAnswer(message: ConversationMessage): NormalizedAnswer | null {
     if (
       !raw ||
       typeof raw !== 'object' ||
-      ['plan', 'clarification', 'report'].includes(String((raw as { type?: unknown }).type))
+      ['plan', 'clarification', 'dashboard', 'report'].includes(String((raw as { type?: unknown }).type))
     ) {
       return null;
     }

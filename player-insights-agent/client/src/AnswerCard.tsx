@@ -56,7 +56,7 @@ import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import { answerHasGeneratedSql } from './answer-sql';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import { toolStageDurationMs } from './run-explorer-state';
-import { AnswerExportControls } from './ExportMenu';
+import { AnswerExportMenu } from './ExportMenu';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -86,7 +86,6 @@ export function AnswerCard({
   processStages,
   runProcessVariant = 'default',
   afterEvidence,
-  onExportDashboard,
 }: {
   answer: Answer;
   /**
@@ -149,13 +148,6 @@ export function AnswerCard({
    * modal's height-capped column. Ask does not pass one.
    */
   afterEvidence?: ReactNode;
-  /**
-   * Exports the backend-provided dashboard handover for this answer.
-   *
-   * Optional until that backend contract is wired. The control remains visible
-   * but unavailable so answer export cannot be mistaken for dashboard export.
-   */
-  onExportDashboard?: () => Promise<void>;
 }) {
   const readerAnswer = normalizeReaderAnswer(answer);
   const hasGeneratedSql = answerHasGeneratedSql(readerAnswer.sql);
@@ -568,11 +560,11 @@ export function AnswerCard({
                 {feedback.error}
               </span>
             )}
-            <AnswerExportControls question={question} answer={readerAnswer} onExportDashboard={onExportDashboard} />
+            <AnswerExportMenu question={question} answer={readerAnswer} />
           </div>
         ) : (
           <div className="feedback answer-export-only">
-            <AnswerExportControls question={question} answer={readerAnswer} onExportDashboard={onExportDashboard} />
+            <AnswerExportMenu question={question} answer={readerAnswer} />
           </div>
         )}
       </CardContent>

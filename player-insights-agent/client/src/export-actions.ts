@@ -2,6 +2,7 @@ import type { ConversationMessage } from './app-types';
 import type { NormalizedAnswer } from './answer-shape';
 import type { Chart } from './AnswerCharts';
 import type { Report } from '../../shared/report-contract';
+import type { Dashboard } from '../../shared/dashboard-contract';
 import {
   answerCharts,
   conversationChartsByMessage,
@@ -188,6 +189,10 @@ export async function copyTableTsv(table: ExportTable): Promise<void> {
 
 export function downloadTableCsv(table: ExportTable, name: string): void {
   downloadExportText(serializeTableCsv(table), safeExportFilename(name, 'csv'), 'text/csv;charset=utf-8');
+}
+
+export function downloadDashboardHtml(dashboard: Dashboard): void {
+  downloadExportText(dashboard.html, safeExportFilename(dashboard.title, 'html'), 'text/html;charset=utf-8');
 }
 
 export async function downloadTablePng(table: ExportTable, name: string): Promise<void> {

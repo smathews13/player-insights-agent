@@ -38,6 +38,7 @@ import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { isReportPayload, normalizeReport, type Report } from '../../shared/report-contract';
+import { normalizeDashboard, type Dashboard } from '../../shared/dashboard-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -2526,6 +2527,32 @@ export function extractClarification(value: unknown): Clarification | null {
 }
 
 /**
+ * A complete dashboard document from `custom_outputs`, or null.
+ *
+ * Dashboard HTML is opaque here. The server validates only its envelope,
+ * persists it unchanged, and leaves the client to render it in a sandbox.
+ */
+export function extractDashboard(value: unknown): Dashboard | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (isEndpointError(record)) return null;
+  const custom = record.custom_outputs;
+  if (custom && typeof custom === 'object') {
+    const customRecord = custom as Record<string, unknown>;
+    if (customRecord.type === 'dashboard') {
+      return normalizeDashboard(customRecord.dashboard);
+    }
+  }
+  for (const key of ['data', 'response', 'result', 'body']) {
+    if (record[key]) {
+      const nested = extractDashboard(record[key]);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+/**
  * A report from `custom_outputs`, or null.
  *
  * Checked before the answer contract, just like `extractClarification`: a
@@ -2589,6 +2616,16 @@ interface HistoryRow {
   response_json?: unknown;
 }
 
+function dashboardHistoryContent(dashboard: Dashboard): string {
+  const parts = [`Dashboard: ${dashboard.title}`];
+  if (dashboard.generatedAt) parts.push(`Generated: ${dashboard.generatedAt}`);
+  if (dashboard.truncated) parts.push('The dashboard artifact was truncated.');
+  if (dashboard.caveats?.length) parts.push(`Caveats: ${dashboard.caveats.join('; ')}`);
+  // The HTML is deliberately excluded. It is an artifact to render and
+  // download, not conversation instructions for a later model turn.
+  return parts.join('\n').slice(0, 4000);
+}
+
 function reportHistoryContent(report: Report): string {
   const parts: string[] = [`Report: ${report.title}`];
   if (report.subtitle) parts.push(report.subtitle);
@@ -2639,6 +2676,10 @@ export function buildServingHistory(rows: HistoryRow[]) {
             content: `${summary} Plan ID: ${planId}`.trim(),
           };
         }
+        if (record.type === 'dashboard') {
+          const dashboard = normalizeDashboard(record.dashboard);
+          if (dashboard) return { role: row.role, content: dashboardHistoryContent(dashboard) };
+        }
         if (record.type === 'report') {
           const report = normalizeReport(record.report);
           if (report) return { role: row.role, content: reportHistoryContent(report) };
@@ -2682,7 +2723,14 @@ export function priorEvidenceFromHistory(rows: HistoryRow[]): string[] {
     }
     if (!response || typeof response !== 'object') continue;
     const record = response as Record<string, unknown>;
-    if (record.type === 'plan' || record.type === 'clarification' || record.type === 'report') continue;
+    if (
+      record.type === 'plan' ||
+      record.type === 'clarification' ||
+      record.type === 'dashboard' ||
+      record.type === 'report'
+    ) {
+      continue;
+    }
     const evidence = record.chart_evidence;
     // A real answer is the stopping point whether or not it carried evidence: an
     // answer that predates this field, or one whose own query returned nothing,
@@ -5446,6 +5494,52 @@ export function setupInsightsRoutes(
             return;
           }
           const platformTraceId = servingMlflowTraceId(endpointResult);
+          // Dashboards are complete HTML artifacts, distinct from structured
+          // Reports. Persist the exact normalized envelope before any prose
+          // fallback can flatten or discard its document.
+          const dashboard = extractDashboard(endpointResult);
+          if (dashboard) {
+            const messageId = `msg-${crypto.randomUUID()}`;
+            const dashboardResponse = {
+              type: 'dashboard' as const,
+              mode: 'live' as const,
+              id: messageId,
+              dashboard,
+            };
+            const persisted = await readStored(
+              appkit,
+              'POST /api/insights/ask (dashboard)',
+              `INSERT INTO ${APP_SCHEMA}.messages
+             (id, conversation_id, role, content, response_json, trace_id,
+              app_principal, serving_principal, serving_principal_observed_at, access_mode,
+              execution_mode, execution_identity_verified)
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+              WHERE ${outputFenceSql(13, 14)}
+             RETURNING id`,
+              [
+                messageId,
+                conversationId,
+                'assistant',
+                dashboard.title,
+                JSON.stringify(withAskRuntime(dashboardResponse, askRuntime, traceSessionId)),
+                platformTraceId,
+                ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+                ...outputFenceParams,
+              ]
+            );
+            const runStored =
+              persisted.available && conversationAddressable && (!hasOutputFence || persisted.rows.length > 0);
+            if (replyIfCancelled()) return;
+            await settleRun(
+              appkit,
+              admission,
+              runStored
+                ? { to: 'SUCCEEDED', traceId: platformTraceId, messageId }
+                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: platformTraceId }
+            );
+            reply.json({ ...dashboardResponse, runStored, execution_identity: executionIdentityClaim(identity) });
+            return;
+          }
           // Reports are a first-class endpoint result. Recognize and persist
           // them before the answer/prose paths can flatten them into a degraded
           // summary and discard their sections.
