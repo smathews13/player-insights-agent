@@ -38,7 +38,7 @@ import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
-import { parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
+import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
 import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME } from '../../shared/held-out-suite';
@@ -3094,7 +3094,10 @@ export function buildAskServingBody({
  * without the transport cancelling a valid configured run.
  */
 export const SERVING_INVOKE_TIMEOUT_MS = 660_000;
-export const BENCHMARK_SERVING_INVOKE_TIMEOUT_MS = 240_000;
+// Keep the endpoint transport and benchmark runner's per-turn watchdog aligned.
+// Either one firing before the 600-second agent budget plus synthesis grace
+// would abandon a valid benchmark answer.
+export const BENCHMARK_SERVING_INVOKE_TIMEOUT_MS = DEFAULT_TURN_TIMEOUT_MS;
 
 // Exported for Ask and the other real serving callers. A second implementation
 // of the invoke path is how `custom_inputs` got dropped once already, see the

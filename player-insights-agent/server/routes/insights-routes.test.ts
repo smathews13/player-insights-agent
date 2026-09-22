@@ -3629,12 +3629,10 @@ describe('GET /api/runs/:id/trace', () => {
 /**
  * An endpoint that accepts the connection and then says nothing.
  *
- * The benchmark runner bounds a turn at 120 s and the judges at 60 s, because
- * those are the paths somebody watched fail unattended. The interactive path had
- * no bound at all: `fetch` against a silent socket never settles, so a question
- * asked at a demo would sit with a spinner on it until the tab was closed, and
- * `GET /api/setup` (which the client calls before showing anything), would do
- * the same to the whole app.
+ * The benchmark runner and interactive transport both bound a turn beyond the
+ * configured agent budget, while judges remain bounded separately. Without a
+ * transport bound, `fetch` against a silent socket never settles, so a question
+ * asked at a demo would sit with a spinner on it until the tab was closed.
  */
 describe('an agent endpoint that never answers', () => {
   const savedEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
@@ -3644,9 +3642,9 @@ describe('an agent endpoint that never answers', () => {
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
   });
 
-  it('allows the configured 600-second run while keeping benchmark turns tighter', () => {
+  it('allows configured 600-second Ask and benchmark runs to finish synthesis', () => {
     expect(SERVING_INVOKE_TIMEOUT_MS).toBeGreaterThan(600_000);
-    expect(BENCHMARK_SERVING_INVOKE_TIMEOUT_MS).toBe(240_000);
+    expect(BENCHMARK_SERVING_INVOKE_TIMEOUT_MS).toBe(SERVING_INVOKE_TIMEOUT_MS);
   });
 
   it('abandons a silent endpoint rather than waiting forever', async () => {
