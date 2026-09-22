@@ -7,19 +7,12 @@
  *
  * The table list a release may read is generated at log time from
  * `agent/preflight.py` and written into the app container as
- * `PLAYER_INSIGHTS_DECLARED_MANIFEST` (or catalog + schema, which qualifies the
- * committed data contract). Connections and the access gate probe Unity Catalog
- * for that list as the signed-in user.
- *
- * The six-name data contract is a fallback, not the live declaration: a schema
- * enumeration at log time is usually longer. When the container has only the
- * fallback, later readers may fill gaps from the served model version's baked
- * `model_config` or from a Unity Catalog listing of the same schema.
+ * `PLAYER_INSIGHTS_DECLARED_MANIFEST`. Connections and the access gate probe
+ * Unity Catalog for that exact list as the signed-in user. Catalog and schema
+ * names never imply that any hard-coded table exists.
  */
 import { APPLY_ENV_VARS } from '../../shared/apply-declaration';
-import { qualifyDataContractTables } from '../../shared/data-contract';
 import type { PreflightConfiguration } from '../routes/insights-routes';
-import { isDataContractFallback } from './declared-tables';
 import { resolveSemanticIndexValue } from './semantic-index-name';
 
 const EXTRA_ENV: Record<string, string> = {
@@ -43,16 +36,6 @@ function splitList(raw: string): string[] {
 
 function text(env: Record<string, string | undefined>, name: string): string {
   return (env[name] ?? '').trim();
-}
-
-function entryValue(entry: PreflightConfiguration | undefined): unknown {
-  return entry?.value;
-}
-
-function asStringList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
-  if (typeof value === 'string') return splitList(value);
-  return [];
 }
 
 function asString(value: unknown): string {
@@ -80,9 +63,9 @@ function isEmptyValue(value: unknown): boolean {
  * Configuration entries from the app container, never from a serving invoke.
  *
  * `source` is `app-environment` on purpose for values the release wrote into
- * the app. The committed data-contract table list is tagged `data-contract`
- * so later recovery can tell "we only have the six fallback names" from "the
- * container was given this list".
+ * the app. A table list is emitted only when the release actually supplied one:
+ * catalog and schema names are scope, not evidence that any particular table
+ * exists.
  */
 export function configurationFromRelease(
   env: Record<string, string | undefined> = process.env
@@ -95,11 +78,8 @@ export function configurationFromRelease(
     if (!raw) continue;
     if (key === 'semantic_index') {
       raw =
-        resolveSemanticIndexValue(
-          raw,
-          text(env, 'PLAYER_INSIGHTS_CATALOG'),
-          text(env, 'PLAYER_INSIGHTS_SCHEMA')
-        ) || raw;
+        resolveSemanticIndexValue(raw, text(env, 'PLAYER_INSIGHTS_CATALOG'), text(env, 'PLAYER_INSIGHTS_SCHEMA')) ||
+        raw;
     }
     entries.push({
       key,
@@ -111,43 +91,13 @@ export function configurationFromRelease(
       required: false,
     });
   }
-  const hasManifest = entries.some(
-    (entry) => entry.key === 'declared_manifest' && Array.isArray(entry.value) && entry.value.length > 0
-  );
-  if (!hasManifest) {
-    const qualified = qualifyDataContractTables(text(env, 'PLAYER_INSIGHTS_CATALOG'), text(env, 'PLAYER_INSIGHTS_SCHEMA'));
-    if (qualified.length > 0) {
-      entries.push({
-        key: 'declared_manifest',
-        env_var: 'PLAYER_INSIGHTS_DECLARED_MANIFEST',
-        value: qualified,
-        source: 'data-contract',
-        mutability: 'model-version',
-        baked: false,
-        required: false,
-      });
-    }
-  }
   return entries;
-}
-
-function catalogSchemaOf(entries: readonly PreflightConfiguration[]): { catalog: string; schema: string } {
-  return {
-    catalog: asString(entryValue(entries.find((entry) => entry.key === 'catalog'))),
-    schema: asString(entryValue(entries.find((entry) => entry.key === 'schema'))),
-  };
-}
-
-function isDataContractManifest(entry: PreflightConfiguration, catalog: string, schema: string): boolean {
-  if (entry.source === 'data-contract') return true;
-  return isDataContractFallback(asStringList(entry.value), catalog, schema);
 }
 
 /**
  * Fill gaps in the app-container configuration from the served model version.
  *
- * Env and an explicit declared manifest win. A data-contract fallback is
- * replaced when the artifact has a longer (or just different non-empty) list.
+ * Env and an explicit declared manifest win.
  * `true` for the semantic index is replaced by a resolved three-level name.
  */
 export function mergeReleaseConfiguration(
@@ -155,18 +105,10 @@ export function mergeReleaseConfiguration(
   fromBaked: readonly PreflightConfiguration[]
 ): PreflightConfiguration[] {
   const byKey = new Map(fromEnv.map((entry) => [entry.key, entry]));
-  const { catalog, schema } = catalogSchemaOf(fromEnv);
   for (const baked of fromBaked) {
     const existing = byKey.get(baked.key);
     if (!existing || isEmptyValue(existing.value)) {
       byKey.set(baked.key, baked);
-      continue;
-    }
-    if (baked.key === 'declared_manifest' && isDataContractManifest(existing, catalog, schema)) {
-      const bakedList = asStringList(baked.value);
-      if (bakedList.length > asStringList(existing.value).length) {
-        byKey.set(baked.key, baked);
-      }
       continue;
     }
     if (baked.key === 'semantic_index') {
@@ -180,45 +122,10 @@ export function mergeReleaseConfiguration(
   return [...byKey.values()];
 }
 
-/**
- * A committed data-contract manifest qualified from whatever catalog+schema the
- * merged configuration ended up with.
- *
- * `configurationFromRelease` already runs this fallback, but only off the app
- * ENVIRONMENT's catalog/schema, which a customer deployment ships empty. When
- * catalog/schema instead arrive from the served model (its baked config, or its
- * name via {@link catalogSchemaFromServedModel} when the artifact could not be
- * read), the env-time fallback has already been skipped. Running it again after
- * the merge lets the declared table list reconnect from those later sources
- * instead of the six-name contract dropping out with the artifact read.
- */
-function withDataContractFallback(entries: PreflightConfiguration[]): PreflightConfiguration[] {
-  const hasManifest = entries.some(
-    (entry) => entry.key === 'declared_manifest' && Array.isArray(entry.value) && entry.value.length > 0
-  );
-  if (hasManifest) return entries;
-  const { catalog, schema } = catalogSchemaOf(entries);
-  if (!catalog || !schema) return entries;
-  const qualified = qualifyDataContractTables(catalog, schema);
-  if (qualified.length === 0) return entries;
-  return [
-    ...entries,
-    {
-      key: 'declared_manifest',
-      env_var: 'PLAYER_INSIGHTS_DECLARED_MANIFEST',
-      value: qualified,
-      source: 'data-contract',
-      mutability: 'model-version',
-      baked: false,
-      required: false,
-    },
-  ];
-}
-
 /** App-container configuration, with baked model_config filling only the gaps. */
 export function configurationForSettings(
   env: Record<string, string | undefined> = process.env,
   baked: readonly PreflightConfiguration[] = []
 ): PreflightConfiguration[] {
-  return withDataContractFallback(mergeReleaseConfiguration(configurationFromRelease(env), baked));
+  return mergeReleaseConfiguration(configurationFromRelease(env), baked);
 }

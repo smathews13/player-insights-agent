@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { terminalSettlementForResponse } from './ask-terminal-state';
-import type { ClarificationResponse, DashboardResponse, PlanResponse, ReportResponse } from './app-types';
+import type { ClarificationResponse, PlanResponse, ReportResponse } from './app-types';
 
 describe('SSE terminal response projection', () => {
   it('parks an approval response without leaving it Live', () => {
@@ -57,24 +57,6 @@ describe('SSE terminal response projection', () => {
       state: 'SUCCEEDED',
       terminalMessageId: 'msg-report-1',
       summary: { runId: 'msg-report-1', status: 'Complete', durationMs: null },
-    });
-  });
-
-  it('settles opaque dashboard HTML as a complete persisted response', () => {
-    const dashboard: DashboardResponse = {
-      type: 'dashboard',
-      mode: 'live',
-      id: 'msg-dashboard-1',
-      renderable: {
-        format: 'html',
-        content: '<!doctype html><html><body>Dashboard</body></html>',
-      },
-    };
-
-    expect(terminalSettlementForResponse(dashboard, dashboard)).toMatchObject({
-      state: 'SUCCEEDED',
-      terminalMessageId: 'msg-dashboard-1',
-      summary: { runId: 'msg-dashboard-1', status: 'Complete', durationMs: null },
     });
   });
 });

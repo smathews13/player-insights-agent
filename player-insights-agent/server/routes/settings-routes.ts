@@ -14,6 +14,8 @@ import type { Request } from 'express';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
+  extractConfigurationReport,
+  invokeServing,
   userEmail,
   type InsightsAppKit,
   type PreflightCheck,
@@ -22,7 +24,7 @@ import {
 } from './insights-routes';
 import { configurationForSettings } from '../lib/release-configuration';
 import { readBakedModelConfig } from '../lib/baked-model-config';
-import { isDataContractFallback, listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
+import { listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
 import type { StoredSetting } from '../lib/app-settings';
 import { lakebaseStorageCheck } from '../lib/lakebase-store';
 import {
@@ -46,6 +48,7 @@ import { browseRequestContext, validateNotebookPath, validateUnityCatalogAsset }
 import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { executionToken } from '../lib/execution-credential';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { servingMlflowTraceId } from '../../shared/mlflow-trace-id';
 import { readPublishedDeclaration, type DeclarationRead } from '../lib/notebook-declaration-read';
 import {
   compareDeclaration,
@@ -203,29 +206,79 @@ const CompletionBody = z.strictObject({
   errorSummary: z.string().trim().max(1000).nullable().optional(),
 });
 
-/**
- * What this release was wired to: a configuration list, never a live serving ping.
- *
- * `answered` stays false. The app used to treat a serving reply as proof the
- * agent was reachable; that ping is gone, so this must not claim one ran.
- */
+/** What this release was wired to, plus whether serving supplied recovery data. */
 interface OrchestratorRead {
   report: PreflightReport | null;
-  /** Always false: this path no longer invokes the serving endpoint. */
+  /** True only when the endpoint supplied its baked configuration directly. */
   answered: boolean;
 }
 
+const SERVED_CONFIGURATION_TTL_MS = 45_000;
+interface ServedConfigurationRecovery {
+  entries: PreflightConfiguration[];
+  traceId: string;
+}
+let servedConfigurationCache:
+  | ({ endpoint: string; at: number } & ServedConfigurationRecovery)
+  | null = null;
+
+function hasDeclaredTables(configuration: readonly PreflightConfiguration[]): boolean {
+  return configuration.some((entry) => {
+    if (entry.key !== 'declared_manifest' && entry.key !== 'tables') return false;
+    if (Array.isArray(entry.value)) return entry.value.some((value) => String(value).trim());
+    return typeof entry.value === 'string' && entry.value.trim().length > 0;
+  });
+}
+
+async function recoverServedConfiguration(appkit: InsightsAppKit): Promise<ServedConfigurationRecovery> {
+  const endpoint = (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
+  if (!endpoint) return { entries: [], traceId: '' };
+  const now = Date.now();
+  if (
+    servedConfigurationCache &&
+    servedConfigurationCache.endpoint === endpoint &&
+    now - servedConfigurationCache.at < SERVED_CONFIGURATION_TTL_MS
+  ) {
+    return {
+      entries: servedConfigurationCache.entries,
+      traceId: servedConfigurationCache.traceId,
+    };
+  }
+  try {
+    const response = await invokeServing(
+      appkit,
+      {
+        input: [{ role: 'user', content: 'preflight' }],
+        custom_inputs: { preflight: true },
+      },
+      undefined,
+      15_000
+    );
+    const entries = extractConfigurationReport(response);
+    const traceId = servingMlflowTraceId(response);
+    if (entries.length > 0 || traceId) {
+      servedConfigurationCache = { endpoint, at: now, entries, traceId };
+    }
+    return { entries, traceId };
+  } catch (error) {
+    console.warn('[settings] The served configuration recovery could not be read:', (error as Error).message);
+    return { entries: [], traceId: '' };
+  }
+}
+
 /**
- * What this release was wired to, and nothing about live agent health.
+ * What this release was wired to.
  *
  * Lakebase is included because the app can ask its own store. Every other field
- * is empty ON PURPOSE: this path no longer invokes serving, so it must not
- * stamp a check time, a serving principal, or an "ok" on the agent endpoint.
+ * is empty ON PURPOSE: even when the compatibility recovery runs, it reads
+ * configuration rather than dependency health, so it must not stamp a check
+ * time, a serving principal, or an "ok" on unrelated dependencies.
  *
  * `build_sha` is lifted out of the configuration when the release wrote one.
  */
-function configurationOnlyReport(configuration: PreflightConfiguration[]): PreflightReport {
+function configurationOnlyReport(configuration: PreflightConfiguration[], servingTraceId = ''): PreflightReport {
   const stamped = configuration.find((entry) => entry.key === 'build_sha');
+  const experimentPath = (process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH ?? '').trim();
   return {
     checked_at: '',
     status: 'unverified',
@@ -234,7 +287,26 @@ function configurationOnlyReport(configuration: PreflightConfiguration[]): Prefl
     table_source: '',
     build_sha: typeof stamped?.value === 'string' ? stamped.value : '',
     configuration,
-    checks: [lakebaseStorageCheck()],
+    checks: [
+      lakebaseStorageCheck(),
+      ...(servingTraceId
+        ? [
+            {
+              id: 'experiment-id',
+              kind: 'observability',
+              name: experimentPath,
+              label: 'MLflow experiment',
+              status: 'ok' as const,
+              detail:
+                'The running model recorded this configuration check as an MLflow trace, confirming its trace destination is connected.',
+              checked_with: `Model Serving recorded ${servingTraceId}`,
+              duration_ms: 0,
+              error: '',
+              remedy: null,
+            },
+          ]
+        : []),
+    ],
     assumptions: [],
     counts: { ok: 0, failed: 0, unverified: 0 },
     source: 'configuration',
@@ -242,26 +314,41 @@ function configurationOnlyReport(configuration: PreflightConfiguration[]): Prefl
 }
 
 /**
- * The release's configuration, never a serving invoke.
+ * The release's configuration, recovered from serving only when necessary.
  *
  * Connections still needs catalog, schema, Genie ids, the foundation model,
  * the Vector Search index and the declared table list. Those come from the app
- * container where the release wrote them, from the served model version's
- * baked model_config (a GET, never an Ask), and, when catalog+schema are
- * present and nothing longer was written, from the committed data contract.
- * Unity Catalog then answers whether the signed-in user can reach those objects.
+ * container where the release wrote them or from the served model version's
+ * baked model_config. If the app cannot read that artifact, the endpoint's
+ * compatibility response echoes its exact baked configuration without running
+ * an agent turn. Unity Catalog then answers whether the signed-in user can
+ * reach only the objects that configuration actually declared.
  */
-export async function readOrchestratorReport(): Promise<OrchestratorRead> {
+export async function readOrchestratorReport(appkit?: InsightsAppKit): Promise<OrchestratorRead> {
   const baked = await readBakedModelConfig();
+  const initial = configurationForSettings(process.env, baked);
+  if (!appkit || hasDeclaredTables(initial)) {
+    return {
+      report: configurationOnlyReport(initial),
+      answered: false,
+    };
+  }
+  // When the app principal cannot read the MLflow artifact, ask the already
+  // running model for the exact configuration it baked. This compatibility
+  // request is handled before any model call and supplies declarations only.
+  const served = await recoverServedConfiguration(appkit);
   return {
-    report: configurationOnlyReport(configurationForSettings(process.env, baked)),
-    answered: false,
+    report: configurationOnlyReport(
+      configurationForSettings(process.env, [...served.entries, ...baked]),
+      served.traceId
+    ),
+    answered: served.entries.length > 0 || Boolean(served.traceId),
   };
 }
 
 export function setupSettingsRoutes(appkit: InsightsAppKit) {
   setupResourceTagRoutes(appkit, {
-    readReport: async () => (await readOrchestratorReport()).report,
+    readReport: async () => (await readOrchestratorReport(appkit)).report,
     resolveExperimentId: () => resolveExperimentId(appkit),
   });
   appkit.server.extend((app) => {
@@ -307,7 +394,7 @@ export function setupSettingsRoutes(appkit: InsightsAppKit) {
      * and a 503 would leave them with the app-side half they can already see.
      */
     app.get('/api/settings', async (req, res) => {
-      const { report, answered } = await readOrchestratorReport();
+      const { report, answered } = await readOrchestratorReport(appkit);
       const stored = await readStoredSettings(appkit);
       const experiment = await resolveExperimentConfiguration(appkit, { stored });
       const resolved = new Map([['experiment-id', { value: experiment.id, source: experiment.source }]]);
@@ -862,7 +949,7 @@ async function buildApplyResponse(
   modelName: string;
   preflight: ReleasePreflight | null;
 }> {
-  const { report, answered } = await readOrchestratorReport();
+  const { report, answered } = await readOrchestratorReport(appkit);
   const stored = await readStoredSettings(appkit);
   const environment = appEnvironment();
   const payload = settingsPayload({
@@ -1044,7 +1131,7 @@ function configuredValues(states: ReturnType<typeof resourceStates>): string[] {
 }
 
 async function impactFor(appkit: InsightsAppKit, connection: StoredDeclaredConnection): Promise<RemovalImpact> {
-  const { report } = await readOrchestratorReport();
+  const { report } = await readOrchestratorReport(appkit);
   const stored = await readStoredSettings(appkit);
   const states = resourceStates({ report, environment: appEnvironment(), stored });
   return removalImpact(connection, configuredValues(states));
@@ -1122,8 +1209,13 @@ async function readReachability(
     ];
     const catalog = configured.catalog ?? '';
     const schema = configured.schema ?? '';
-    const manifest = configuration.find((entry) => entry.key === 'declared_manifest');
-    if (manifest?.source === 'data-contract' || isDataContractFallback(tables, catalog, schema)) {
+    const catalogEntry = configuration.find((entry) => entry.key === 'catalog');
+    const schemaEntry = configuration.find((entry) => entry.key === 'schema');
+    const dataScopeIsDeclared =
+      catalogEntry?.source !== 'served-model-name' &&
+      schemaEntry?.source !== 'served-model-name' &&
+      Boolean(catalogEntry && schemaEntry);
+    if (tables.length === 0 && catalog && schema && dataScopeIsDeclared) {
       const denylistEntry = configuration.find((entry) => entry.key === 'catalog_denylist');
       const denylist = Array.isArray(denylistEntry?.value)
         ? denylistEntry.value.map((item) => String(item).trim()).filter(Boolean)
@@ -1140,7 +1232,7 @@ async function readReachability(
         token: executionToken(req) ?? '',
         denylist,
       });
-      tables = completeReachabilityTables(tables, listed);
+      tables = listed;
     }
     // The MLflow experiment, asked as the APPLICATION rather than as the reader,
     // because Databricks Apps has no MLflow scope to forward -- see
@@ -1148,6 +1240,9 @@ async function readReachability(
     // It starts with the user-scoped probes so their shairon frontierline cannot expire
     // before MLflow is even attempted. Both settle into this one canonical check
     // list, which the session cache shares between Connections and Architecture.
+    const recoveredExperiment = input.report?.checks.find(
+      (check) => check.id === 'experiment-id' && check.status === 'ok'
+    );
     const [checks, experiment] = await Promise.all([
       probeConnections({
         configured,
@@ -1156,7 +1251,9 @@ async function readReachability(
         token: executionToken(req),
         principal: req.header('x-forwarded-email')?.trim() ?? '',
       }),
-      checkExperimentAsApp(configured['experiment-id'] ?? ''),
+      recoveredExperiment
+        ? Promise.resolve(recoveredExperiment)
+        : checkExperimentAsApp(configured['experiment-id'] ?? ''),
     ]);
     return [...checks, experiment];
   } catch (error) {

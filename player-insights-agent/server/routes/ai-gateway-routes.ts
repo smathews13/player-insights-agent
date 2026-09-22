@@ -63,7 +63,7 @@ function browserValidation(validation: Awaited<ReturnType<typeof validateAiGatew
 
 async function currentSummary(req: Request, res: Response, appkit: InsightsAppKit): Promise<void> {
   const stored = await readStoredSettings(appkit);
-  const { report } = await readOrchestratorReport();
+  const { report } = await readOrchestratorReport(appkit);
   const active = liveConfiguration(report);
   const gateway = stored.get('llm-gateway');
   const gatewayMode = stored.get('llm-gateway-mode');
@@ -169,7 +169,7 @@ export function setupAiGatewayRoutes(appkit: InsightsAppKit): void {
           res.status(statusForValidation(validation.state)).json(validation);
           return;
         }
-        const { report } = await readOrchestratorReport();
+        const { report } = await readOrchestratorReport(appkit);
         const active = liveConfiguration(report);
         const activeDirectModel = active.llm_endpoint?.trim() ?? '';
         if (parsed.data.mode && !activeDirectModel) {

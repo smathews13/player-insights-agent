@@ -46,7 +46,7 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
       terminalCode: 'PERSISTENCE_UNAVAILABLE',
     };
   }
-  if (response.type === 'report' || response.type === 'dashboard') {
+  if (response.type === 'report') {
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,

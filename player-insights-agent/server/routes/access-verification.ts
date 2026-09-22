@@ -8,7 +8,6 @@
  */
 
 import type { Request } from 'express';
-import { qualifyDataContractTables } from '../../shared/data-contract';
 import { sqlQueryTags } from '../lib/sql-query-tags';
 
 // The copy for a refused token, and the comparison it is derived from. Here
@@ -1194,10 +1193,9 @@ function asRecord(value: unknown): Record<string, unknown> {
 /**
  * Tables and Genie spaces the access gate should probe, from release config / env.
  *
- * Prefers an explicit declared manifest, then PLAYER_INSIGHTS_TABLES, then the
- * committed data contract qualified with this release's catalog and schema.
- * Empty means the gate keeps its warehouse-only behaviour and names what it
- * could not check. Nothing here asks the live agent a question.
+ * Prefers an explicit declared manifest, then PLAYER_INSIGHTS_TABLES. Catalog
+ * and schema alone never manufacture table names: empty means the gate keeps
+ * its warehouse-only behaviour and names what it could not check.
  */
 export function accessDependenciesFrom(sources: {
   configuration?: readonly ServedConfigEntry[] | null;
@@ -1216,15 +1214,7 @@ export function accessDependenciesFrom(sources: {
 
   const manifest = asStringList(fromConfig('declared_manifest', 'PLAYER_INSIGHTS_DECLARED_MANIFEST'));
   const listed = asStringList(fromConfig('tables', 'PLAYER_INSIGHTS_TABLES'));
-  const tables =
-    manifest.length > 0
-      ? manifest
-      : listed.length > 0
-        ? listed
-        : qualifyDataContractTables(
-            asString(fromConfig('catalog', 'PLAYER_INSIGHTS_CATALOG')),
-            asString(fromConfig('schema', 'PLAYER_INSIGHTS_SCHEMA'))
-          );
+  const tables = manifest.length > 0 ? manifest : listed;
 
   const dataId = asString(fromConfig('data_genie_space_id', 'PLAYER_INSIGHTS_DATA_GENIE_ID'));
   const dictionaryId = asString(fromConfig('dictionary_genie_space_id', 'PLAYER_INSIGHTS_DICTIONARY_GENIE_ID'));
@@ -1534,9 +1524,8 @@ export function limitsOfThisCheck(
           {
             what: 'Whether you can read the tables behind an answer.',
             why:
-              'The app could not learn which tables this release may read (no ' +
-              'PLAYER_INSIGHTS_DECLARED_MANIFEST / PLAYER_INSIGHTS_TABLES, and no catalog+schema ' +
-              'to qualify the committed data contract), so no SELECT was run on your behalf. A ' +
+              'The running release did not provide a declared table manifest, so no SELECT was ' +
+              'run on your behalf. A ' +
               'pass above means you can run a statement, not that you could read the data.',
           },
         ]

@@ -241,11 +241,7 @@ export function RuntimeSettingsPanel({
       revision.current = loaded.revision;
       setCanReset(section === 'appearance' && loaded.canReset);
       setSettings(loaded.settings);
-      // Runtime is an admin-owned document and can carry an older caller's
-      // appearance fields. Loading that tab must never repaint the signed-in
-      // user's app. Only the caller-scoped Appearance route owns live theme
-      // preview.
-      if (section === 'appearance') applyColorScheme(loaded.settings.colorScheme);
+      applyColorScheme(loaded.settings.colorScheme);
       setState('ready');
       return { ok: true };
     } catch (caught) {
@@ -308,7 +304,7 @@ export function RuntimeSettingsPanel({
       revision.current = saved.revision;
       setCanReset(section === 'appearance' && saved.canReset);
       setSettings(saved.settings);
-      if (section === 'appearance') adoptRuntimeEntityStyles(saved.settings);
+      adoptRuntimeEntityStyles(saved.settings);
       setState('saved');
       onDirtyChange(0);
       onSaveState({ kind: 'saved', count: changed });

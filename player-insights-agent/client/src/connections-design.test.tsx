@@ -138,7 +138,7 @@ describe('the sections the rows are grouped into', () => {
     expect(text(rows)).not.toContain('Not checked');
   });
 
-  it('keeps resources without a completed check in the main list', () => {
+  it('shows resources without a completed check as disconnected', () => {
     const groups = groupsFor(
       [
         row('sql-warehouse', { configured: 'wh-0001' }),
@@ -147,15 +147,40 @@ describe('the sections the rows are grouped into', () => {
       ],
       [check('sql-warehouse', 'ok')]
     );
-    expect(groups.map((group) => group.key)).toEqual(['reachable']);
-    expect(groups[0].readings).toHaveLength(3);
+    expect(groups.map((group) => group.key)).toEqual(['blocked', 'reachable']);
+    expect(groups[0].readings).toHaveLength(2);
     expect(groups[0].aside).toBe('');
   });
 
   it('does not emit a separate unchecked section or dependency count', () => {
     const groups = groupsFor([row('genie-data', { configured: 'space-data' })], []);
     expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ key: 'reachable', title: 'Connections', aside: '' });
+    expect(groups[0]).toMatchObject({ key: 'blocked', title: 'Disconnected', aside: '' });
+  });
+
+  it('keeps drift detail inside the connected row instead of creating a third state', () => {
+    const groups = groupConnections(
+      readConnections(
+        payload({
+          resources: [row('sql-warehouse', { configured: 'wh-0001' })],
+          checks: [check('sql-warehouse', 'ok')],
+          drift: [
+            {
+              id: 'mismatch-sql-warehouse',
+              severity: 'blocking',
+              resourceId: 'sql-warehouse',
+              headline: 'Different value',
+              detail: 'The observed value differs.',
+              remedy: 'Redeploy.',
+            },
+          ],
+        }),
+        []
+      )
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ key: 'reachable', title: 'Connected' });
+    expect(groups.map((group) => group.title)).not.toContain('Drifted');
   });
 });
 
@@ -171,7 +196,7 @@ describe('the sections the rows are grouped into', () => {
 describe('the headers that say what a section is', () => {
   it('names the reachable list for what its rows are, not for what the probe did', () => {
     const groups = groupsFor([row('sql-warehouse', { configured: 'wh-0001' })], [check('sql-warehouse', 'ok')]);
-    expect(groups[0]?.title).toBe('Connections');
+    expect(groups[0]?.title).toBe('Connected');
     expect(groups[0]?.title).not.toMatch(/checked/i);
   });
 

@@ -15,7 +15,6 @@ import {
   extractAnalysisPlan,
   extractAttachmentText,
   extractClarification,
-  extractDashboardRenderable,
   extractLiveText,
   extractReport,
   extractStructuredAnswer,
@@ -238,52 +237,6 @@ describe('extractClarification', () => {
     } finally {
       warn.mockRestore();
     }
-  });
-});
-
-describe('extractDashboardRenderable', () => {
-  const html = ' \n<!doctype html><html><body><script>draw()</script><main>Revenue</main></body></html>\n ';
-
-  it('returns backend HTML byte-for-byte without interpreting the document', () => {
-    expect(
-      extractDashboardRenderable({
-        custom_outputs: { type: 'dashboard', renderable: { format: 'html', content: html } },
-      })
-    ).toEqual({ format: 'html', content: html });
-    expect(
-      extractDashboardRenderable({
-        data: { custom_outputs: { type: 'dashboard', renderable: { format: 'html', content: html } } },
-      })
-    ).toEqual({ format: 'html', content: html });
-  });
-
-  it('rejects only an invalid envelope, an empty document, or an endpoint error', () => {
-    expect(
-      extractDashboardRenderable({
-        custom_outputs: { type: 'report', renderable: { format: 'html', content: html } },
-      })
-    ).toBeNull();
-    expect(
-      extractDashboardRenderable({
-        custom_outputs: { type: 'dashboard', renderable: { format: 'html', content: '  ' } },
-      })
-    ).toBeNull();
-    expect(
-      extractDashboardRenderable({
-        error_code: 'ENDPOINT_NOT_FOUND',
-        custom_outputs: { type: 'dashboard', renderable: { format: 'html', content: html } },
-      })
-    ).toBeNull();
-  });
-
-  it('preserves backend JSON values without deriving app-owned fields', () => {
-    const content = { layout: { title: 'Revenue' }, rows: [1, 2] };
-    const renderable = extractDashboardRenderable({
-      custom_outputs: { type: 'dashboard', renderable: { format: 'json', content } },
-    });
-
-    expect(renderable).toEqual({ format: 'json', content });
-    expect(renderable?.content).toBe(content);
   });
 });
 
@@ -569,25 +522,6 @@ describe('plan and conversation contracts', () => {
     expect(history[0]?.content).toContain('Hoops | 122.5M');
     expect(history[0]?.content).toContain('Sources: catalog.schema.play_by_title');
     expect(history[0]?.content).toContain('Caveats: All-time overlap.');
-  });
-
-  it('does not reinterpret dashboard HTML as serving-history prose', () => {
-    const history = buildServingHistory([
-      {
-        role: 'assistant',
-        content: 'Dashboard',
-        response_json: {
-          type: 'dashboard',
-          renderable: {
-            format: 'html',
-            content: '<html><body><h1>Secret derived title</h1></body></html>',
-          },
-        },
-      },
-    ]);
-
-    expect(history).toEqual([{ role: 'assistant', content: 'The assistant returned a dashboard.' }]);
-    expect(JSON.stringify(history)).not.toContain('Secret derived title');
   });
 
   it('drops rows that are not usable conversation turns', () => {
@@ -1629,26 +1563,6 @@ describe('serving request body', () => {
           },
         },
         { role: 'user', content: 'plot the answer that produced this report' },
-      ];
-
-      expect(priorEvidenceFromHistory(rows)).toEqual(['row-a', 'row-b']);
-    });
-
-    it('skips a dashboard generated between the data answer and a chart follow-up', () => {
-      const rows = [
-        answerRow(['row-a', 'row-b']),
-        {
-          role: 'assistant',
-          content: 'Dashboard',
-          response_json: {
-            type: 'dashboard',
-            renderable: {
-              format: 'html',
-              content: '<html><body>Opaque dashboard</body></html>',
-            },
-          },
-        },
-        { role: 'user', content: 'plot the answer that produced this dashboard' },
       ];
 
       expect(priorEvidenceFromHistory(rows)).toEqual(['row-a', 'row-b']);

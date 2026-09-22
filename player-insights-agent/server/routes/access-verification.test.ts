@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { Request } from 'express';
-import { qualifyDataContractTables } from '../../shared/data-contract';
 import { auditGuidance } from '../../shared/stated-cause';
 import {
   BLOCKED_STATUS,
@@ -1837,11 +1836,11 @@ describe('served configuration as the source of what to probe', () => {
     expect(deps.genieSpaces.map((space) => space.id)).toEqual(['from-env-data', 'from-env-dict']);
   });
 
-  it('qualifies the committed data contract when catalog and schema are set', () => {
+  it('does not turn catalog and schema names into a table declaration', () => {
     const deps = accessDependenciesFrom({
       env: { PLAYER_INSIGHTS_CATALOG: 'cat', PLAYER_INSIGHTS_SCHEMA: 'sch' },
     });
-    expect(deps.tables).toEqual(qualifyDataContractTables('cat', 'sch'));
+    expect(deps.tables).toEqual([]);
   });
 
   it('reads configuration from a retired preflight response', () => {
