@@ -1455,9 +1455,12 @@ async function readRangeCostBreakdown(input: RangeCostBreakdownInput): Promise<R
     input.ids.genieSpaces,
     genieActivity
   );
-  const foundationStatement = interactiveComplete
-    ? buildFoundationCostStatement(input.ids, effectiveRange, runs)
-    : null;
+  // The Ask denominator intentionally includes failed and unfinished attempts.
+  // Foundation billing can still produce a measured lower bound from the
+  // evidence that was retained, even when the 1,000-row ledger cap means that
+  // evidence is incomplete. Do not turn a large Ask population into a blank
+  // Foundation tile.
+  const foundationStatement = buildFoundationCostStatement(input.ids, effectiveRange, runs);
   const [queryAttribution, genieOutcome, foundationOutcome] = await Promise.all([
     warehouseQueryAttribution({
       host: input.workspace,
@@ -2121,7 +2124,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
       try {
         const genieStatement = buildGenieAccountingStatement(ids.workspaceId, range, ids.genieSpaces, genieAppActivity);
-        const foundationStatement = interactiveComplete
+        const foundationStatement = questionRunsRead.available
           ? buildFoundationCostStatement(ids, range, questionRunsRead.runs)
           : null;
         const recentMonthlyKey = [

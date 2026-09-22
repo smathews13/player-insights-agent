@@ -423,6 +423,9 @@ describe('foundation billing query contract', () => {
     expect(built?.statement).toContain("TRY_CAST(NULLIF(run.completed_at, '') AS TIMESTAMP)");
     expect(built?.statement).toContain('run.started_at_ts + INTERVAL 11 MINUTES');
     expect(built?.statement).not.toContain('CAST(run.completed_at AS TIMESTAMP)');
+    expect(built?.statement).toContain('FROM request_totals\nCROSS JOIN run_totals\nLEFT JOIN weighted ON TRUE');
+    expect(built?.statement).toContain("WHEN COUNT(record_id) = 0 THEN 'none'");
+    expect(built?.statement).toContain('COUNT(record_id) AS billing_rows');
     expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).toContain(
       '"completed_at":""'
     );

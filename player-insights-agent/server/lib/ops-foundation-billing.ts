@@ -345,7 +345,7 @@ SELECT
     ELSE COALESCE(SUM(usage_quantity * COALESCE(ask_weight / NULLIF(all_weight, 0), 0)), 0)
   END AS dbus,
   CASE
-    WHEN COUNT(*) = 0 THEN 'none'
+    WHEN COUNT(record_id) = 0 THEN 'none'
     WHEN COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND price_match_count > 1) > 0 THEN 'duplicate'
     WHEN COUNT(DISTINCT currency_code) FILTER (WHERE COALESCE(ask_weight, 0) > 0) > 1
       THEN 'mixed-currency'
@@ -378,8 +378,8 @@ SELECT
   COUNT(*) FILTER (WHERE COALESCE(ask_weight, 0) > 0 AND price_match_count > 1) AS duplicate_matches,
   COUNT(*) FILTER (WHERE record_type ILIKE '%CORRECT%' OR usage_quantity < 0) AS correction_rows,
   MAX(price_start_time) AS price_effective_at,
-  COUNT(*) AS billing_rows,
-  COUNT(*) FILTER (WHERE COALESCE(all_weight, 0) = 0) AS unmapped_billing_rows,
+  COUNT(record_id) AS billing_rows,
+  COUNT(record_id) FILTER (WHERE COALESCE(all_weight, 0) = 0) AS unmapped_billing_rows,
   MAX(request_totals.requests) AS requests,
   MAX(request_totals.covered_requests) AS covered_requests,
   MAX(request_totals.input_tokens) AS input_tokens,
@@ -390,9 +390,9 @@ SELECT
   MAX(request_totals.missing_evidence_requests) AS missing_evidence_requests,
   MAX(request_totals.ambiguous_requests) AS ambiguous_requests,
   MAX(request_totals.excluded_requests) AS excluded_requests
-FROM weighted
-CROSS JOIN request_totals
-CROSS JOIN run_totals`;
+FROM request_totals
+CROSS JOIN run_totals
+LEFT JOIN weighted ON TRUE`;
   return {
     statement,
     covered: [],
