@@ -7,7 +7,6 @@ import {
   FileDown,
   FileImage,
   FileText,
-  LayoutDashboard,
   MoreHorizontal,
   Presentation,
   TrendingUp,
@@ -20,6 +19,7 @@ import type { Chart } from './AnswerCharts';
 import type { ConversationMessage } from './app-types';
 import { PiaBusyButtonContent } from './PiaLoader';
 import type { Report } from '../../shared/report-contract';
+import type { Dashboard } from '../../shared/dashboard-contract';
 
 const loadExportActions = () => import('./export-actions');
 
@@ -147,70 +147,50 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
   );
 }
 
-/**
- * The two distinct exports at the end of an answer card.
- *
- * Dashboard export deliberately enters through its own callback rather than
- * reusing the answer serializers. The backend dashboard handover is a separate
- * contract and must retain the renderable format it supplies; until that
- * contract is wired, the control stays visible but unavailable instead of
- * inventing a dashboard from answer prose.
- */
-export function AnswerExportControls({
-  question,
-  answer,
-  onExportDashboard,
-}: {
-  question: string;
-  answer: NormalizedAnswer;
-  onExportDashboard?: () => Promise<void>;
-}) {
-  const [dashboardBusy, setDashboardBusy] = useState(false);
-  const [dashboardOutcome, setDashboardOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+/** Download the exact backend-authored dashboard document without reserializing it. */
+export function DashboardExportButton({ dashboard }: { dashboard: Dashboard }) {
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const exportDashboard = async () => {
-    if (!onExportDashboard) return;
-    setDashboardBusy(true);
-    setDashboardOutcome(null);
+    setBusy(true);
+    setOutcome(null);
     try {
-      await onExportDashboard();
-      setDashboardOutcome({ tone: 'success', text: 'Dashboard exported.' });
+      (await loadExportActions()).downloadDashboardHtml(dashboard);
+      setOutcome({ tone: 'success', text: 'Dashboard downloaded.' });
     } catch (error) {
-      setDashboardOutcome({
+      setOutcome({
         tone: 'error',
-        text: error instanceof Error && error.message ? error.message : 'Dashboard export failed. Try again.',
+        text: error instanceof Error && error.message ? error.message : 'Dashboard download failed. Try again.',
       });
     } finally {
-      setDashboardBusy(false);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="answer-export-controls">
+    <div className="export-menu dashboard-export">
       <Button
         type="button"
-        variant="ghost"
+        variant="default"
         size="sm"
-        disabled={!onExportDashboard || dashboardBusy}
-        aria-disabled={!onExportDashboard || undefined}
-        aria-busy={dashboardBusy || undefined}
-        title={onExportDashboard ? 'Export the dashboard handover' : 'Dashboard handover is not available yet'}
+        disabled={busy}
+        aria-busy={busy || undefined}
         onClick={() => void exportDashboard()}
       >
         <PiaBusyButtonContent
-          busy={dashboardBusy}
-          label="Export dashboard"
-          busyLabel="Exporting dashboard…"
-          icon={<LayoutDashboard aria-hidden="true" />}
+          busy={busy}
+          label="Download HTML Dashboard"
+          busyLabel="Downloading dashboard…"
+          icon={<Download aria-hidden="true" />}
         />
       </Button>
-      <AnswerExportMenu question={question} answer={answer} />
-      {dashboardOutcome ? (
+      {outcome ? (
         <span
-          className={`export-outcome export-outcome--${dashboardOutcome.tone}`}
-          role={dashboardOutcome.tone === 'error' ? 'alert' : 'status'}
-          aria-live={dashboardOutcome.tone === 'error' ? 'assertive' : 'polite'}
+          className={`export-outcome export-outcome--${outcome.tone}`}
+          role={outcome.tone === 'error' ? 'alert' : 'status'}
+          aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
         >
-          {dashboardOutcome.text}
+          {outcome.text}
         </span>
       ) : null}
     </div>

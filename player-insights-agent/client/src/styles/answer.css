@@ -924,14 +924,6 @@ ol.answer-list {
   display: inline-flex;
   align-items: center;
 }
-.answer-export-controls {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-left: auto;
-}
 .export-menu [data-slot='button'] svg {
   width: 14px;
   height: 14px;

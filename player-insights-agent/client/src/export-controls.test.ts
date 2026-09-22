@@ -7,8 +7,10 @@ describe('export controls contract', () => {
   const actionSource = readFileSync(new URL('./export-actions.ts', import.meta.url), 'utf8');
   const answerCard = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
   const reportCard = readFileSync(new URL('./ReportCard.tsx', import.meta.url), 'utf8');
+  const dashboardCard = readFileSync(new URL('./DashboardCard.tsx', import.meta.url), 'utf8');
   const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
   const answerCss = readFileSync(new URL('./styles/answer.css', import.meta.url), 'utf8');
+  const answerBodyCss = readFileSync(new URL('./styles/answer-body.css', import.meta.url), 'utf8');
 
   it('offers the supported export formats on answers, reports, and conversations', () => {
     // Copy/Download Markdown: answer, report, and conversation.
@@ -59,27 +61,32 @@ describe('export controls contract', () => {
   });
 
   it('keeps export controls at the bottom of answer and report cards', () => {
-    expect(answerCard.indexOf('<AnswerExportControls')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
+    expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
     expect(reportCard).toContain('<ReportExportMenu report={report} />');
     expect(home).not.toContain('<ConversationExportMenu');
     expect(home).not.toContain('conversation-export-toolbar');
   });
 
-  it('right-aligns separate dashboard and answer exports without a trailing dots icon', () => {
+  it('right-aligns answer export without a trailing dots icon', () => {
     const answerMenu = source.slice(
       source.indexOf('export function AnswerExportMenu'),
-      source.indexOf('export function AnswerExportControls')
-    );
-    const answerControls = source.slice(
-      source.indexOf('export function AnswerExportControls'),
       source.indexOf('export function ReportExportMenu')
     );
     expect(answerMenu).toContain('triggerLabel="Export answer"');
     expect(answerMenu).toContain('showMoreIcon={false}');
-    expect(answerControls.indexOf('label="Export dashboard"')).toBeLessThan(
-      answerControls.indexOf('<AnswerExportMenu')
+    expect(answerBodyCss).toMatch(/\.feedback > \.export-menu\s*\{[^}]*margin-left:\s*auto/s);
+  });
+
+  it('keeps dashboard download structural and outside the answer export dropdown', () => {
+    const dashboardButton = source.slice(
+      source.indexOf('export function DashboardExportButton'),
+      source.indexOf('export function ReportExportMenu')
     );
-    expect(answerCss).toMatch(/\.answer-export-controls\s*\{[^}]*margin-left:\s*auto/s);
+    expect(dashboardButton).toContain('label="Download HTML Dashboard"');
+    expect(dashboardCard).toContain('<DashboardExportButton dashboard={dashboard} />');
+    expect(answerCard).not.toContain('DashboardExportButton');
+    expect(actionSource).toContain('downloadDashboardHtml');
+    expect(actionSource).toContain('dashboard.html');
   });
 
   it('exports each table directly as CSV without opening an options menu', () => {

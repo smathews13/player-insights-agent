@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { terminalSettlementForResponse } from './ask-terminal-state';
-import type { ClarificationResponse, PlanResponse, ReportResponse } from './app-types';
+import type { ClarificationResponse, DashboardResponse, PlanResponse, ReportResponse } from './app-types';
 
 describe('SSE terminal response projection', () => {
   it('parks an approval response without leaving it Live', () => {
@@ -57,6 +57,31 @@ describe('SSE terminal response projection', () => {
       state: 'SUCCEEDED',
       terminalMessageId: 'msg-report-1',
       summary: { runId: 'msg-report-1', status: 'Complete', durationMs: null },
+    });
+  });
+
+  it('settles a dashboard as a complete persisted response', () => {
+    const dashboard: DashboardResponse = {
+      type: 'dashboard',
+      mode: 'live',
+      id: 'msg-dashboard-1',
+      dashboard: {
+        schemaVersion: 'pia.dashboard/1',
+        title: 'Player dashboard',
+        html: '<!DOCTYPE html><html><body>Players</body></html>',
+      },
+    };
+    expect(terminalSettlementForResponse(dashboard, { runStored: true })).toEqual({
+      state: 'SUCCEEDED',
+      terminalMessageId: 'msg-dashboard-1',
+      summary: {
+        runId: 'msg-dashboard-1',
+        status: 'Complete',
+        tone: 'ast-pill--pos',
+        durationMs: null,
+        feedback: null,
+        truncated: false,
+      },
     });
   });
 });

@@ -982,3 +982,19 @@ describe('there is one set of breakpoints, and this is it', () => {
     expect(layout).not.toMatch(/\b(md|lg|xl|2xl):(hidden|flex|block)/);
   });
 });
+
+describe('dashboard response integration', () => {
+  it('normalizes, persists, and renders dashboards as their own response type', () => {
+    expect(HOME_PAGE).toContain("if (response.type === 'dashboard')");
+    expect(HOME_PAGE).toContain('normalizeDashboard(response.dashboard)');
+    expect(HOME_PAGE).toContain("type: 'dashboard', mode: 'live'");
+    expect(HOME_PAGE).toContain('<DashboardCard dashboard={response.dashboard} />');
+    expect(HOME_PAGE).toContain('? result.dashboard.title');
+  });
+
+  it('never routes a dashboard through answer-only feedback, sources, or trace rendering', () => {
+    expect(HOME_PAGE).toMatch(/response\.type !== 'dashboard'[\s\S]*?feedback\[response\.id\]/);
+    expect(HOME_PAGE).toMatch(/approvalResponse\.type !== 'dashboard'[\s\S]*?approvalResponse\.sources/);
+    expect(HOME_PAGE).toMatch(/response\.type !== 'dashboard'[\s\S]*?response\.trace\.stages/);
+  });
+});
