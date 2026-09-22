@@ -144,22 +144,41 @@ export async function downloadReportJson(report: Report): Promise<void> {
 
 /* ── Cost brief export ───────────────────────────────────────────────────────── */
 
+async function readCostBrief(): Promise<CostBriefPayload> {
+  const response = await fetch('/api/ops/cost/brief', { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error('The cost brief could not be read.');
+  return (await response.json()) as CostBriefPayload;
+}
+
 /**
- * Fetch the trailing-31-day cost breakdown and save it as a PDF.
+ * Fetch the trailing-31-day cost breakdown and save the styled observed-spend PDF.
  *
  * The brief is its own on-demand read (`GET /api/ops/cost/brief`), separate from
  * the month-locked Cost block, so the button pays for the 31-day query only when
- * clicked. The Markdown serialiser and the dependency-free PDF writer are the same
- * ones every other PDF export uses; the writer loads lazily like the other PDF
- * paths so the chunk is not in the initial bundle.
+ * clicked. Its dedicated vector renderer stays behind the existing lazy binary
+ * boundary and uses the same reader-facing attribution as the page.
  */
 export async function downloadCostBriefPdf(): Promise<void> {
-  const response = await fetch('/api/ops/cost/brief', { headers: { accept: 'application/json' } });
-  if (!response.ok) throw new Error('The cost brief could not be read.');
-  const brief = (await response.json()) as CostBriefPayload;
-  const { serializeCostBriefMarkdown } = await import('./cost-brief-serializer');
-  const { markdownPdf } = await import('./export-binary');
-  downloadExportBlob(markdownPdf(serializeCostBriefMarkdown(brief)), safeExportFilename('cost-breakdown-31d', 'pdf'));
+  const brief = await readCostBrief();
+  const { costBriefPdf } = await import('./export-binary');
+  downloadExportBlob(costBriefPdf(brief), safeExportFilename('cost-breakdown-31d', 'pdf'));
+}
+
+/**
+ * Save the planning-only view that adds a lightly used second Prod deployment.
+ *
+ * Projection math lives with the cost serializer and is disclosed in the PDF:
+ * fixed standing cost is duplicated, while question-driven usage is modeled at
+ * the lower factor chosen for intermittent Prod testers. It never calls this
+ * scenario actual spend.
+ */
+export async function downloadDevProdCostProjectionPdf(): Promise<void> {
+  const brief = await readCostBrief();
+  const { costBriefPdf } = await import('./export-binary');
+  downloadExportBlob(
+    costBriefPdf(brief, 'dev-prod-projection'),
+    safeExportFilename('cost-dev-prod-projection-31d', 'pdf')
+  );
 }
 
 export async function copyTableTsv(table: ExportTable): Promise<void> {

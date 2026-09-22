@@ -1070,6 +1070,40 @@ describe('resolving the experiment id', () => {
     });
   });
 
+  it('falls back to the served model run experiment without overriding app runtime settings', () => {
+    const modelReport = report({
+      configuration: [
+        configured({
+          key: 'experiment_id',
+          value: 'from-served-model-run',
+          source: 'served-model-version',
+          baked: false,
+        }),
+      ],
+    });
+    const fallback = states({
+      report: modelReport,
+      environment: {},
+      stored: stored(),
+      resolved: new Map([['experiment-id', { value: '', source: 'unconfigured' }]]),
+    });
+    expect(state(fallback, 'experiment-id')).toMatchObject({
+      configured: 'from-served-model-run',
+      configuredFrom: 'served-model-version',
+    });
+
+    const savedWins = states({
+      report: modelReport,
+      environment: { PLAYER_INSIGHTS_EXPERIMENT_ID: 'from-env' },
+      stored: stored(),
+      resolved: new Map([['experiment-id', { value: 'from-saved-or-path', source: 'app-saved' }]]),
+    });
+    expect(state(savedWins, 'experiment-id')).toMatchObject({
+      configured: 'from-saved-or-path',
+      configuredFrom: 'app-saved',
+    });
+  });
+
   it('resolves a path once and reuses the answer', async () => {
     process.env[PATH] = '/Shared/player-insights-agent';
     const { calls, resolve } = spyResolver('987654');

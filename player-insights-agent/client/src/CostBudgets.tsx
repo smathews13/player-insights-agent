@@ -713,7 +713,6 @@ export function resourceBudgetLabel(tile: Pick<CostTile, 'id' | 'label'>): strin
       'sql-warehouse': 'Ask SQL budget',
       'genie:data': 'Data Genie budget',
       'genie:dictionary': 'Dictionary Genie budget',
-      'vector-search': 'Vector Search budget',
       'app-compute': 'App compute budget',
     }[tile.id] ?? `${tile.label} budget`
   );

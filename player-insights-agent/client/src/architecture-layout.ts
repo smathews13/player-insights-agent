@@ -636,10 +636,8 @@ const NODE_PLACEMENTS: Readonly<Record<string, Omit<NodeBox, 'height'>>> = {
   'llm-endpoint': { left: 754, top: 36, width: 218, accent: 'agent' },
   'genie-dictionary': { left: 754, top: 206, width: 218, accent: 'genie' },
   'genie-data': { left: 754, top: 396, width: 218, accent: 'genie' },
-  'semantic-index': { left: 754, top: 566, width: 218, accent: 'search' },
   'sql-warehouse': { left: 1054, top: 260, width: 198, accent: 'governed' },
   catalog: { left: 1054, top: 452, width: 198, accent: 'governed' },
-  'semantic-index-endpoint': { left: 1054, top: 644, width: 198, accent: 'search' },
 };
 
 /**
@@ -998,19 +996,6 @@ const EDGE_GEOMETRY: Readonly<
     duration: 2.8,
     delay: 1.4,
   },
-  'data-source-finder->semantic-index': {
-    id: 'pe8',
-    label: 'search',
-    from: { side: 'right', along: 86 },
-    to: { side: 'left', along: ENTRY_DROP },
-    route: { kind: 'curve' },
-    labelX: 713,
-    labelY: 527,
-    labelAnchor: 'middle',
-    accent: 'search',
-    duration: 2.8,
-    delay: 1.8,
-  },
   // The skip. It arrives 104 down the warehouse -- not the usual 50 -- because
   // the arrival y IS the channel: the run across the Genie column is level, and
   // the channel is the middle of the 64px gap those two cards are spaced by.
@@ -1028,21 +1013,6 @@ const EDGE_GEOMETRY: Readonly<
     accent: 'governed',
     duration: 3,
     delay: 1.8,
-  },
-  // A static topology connector: the endpoint hosts the index, but no request or
-  // result travels from the endpoint to the index along this line.
-  'semantic-index-endpoint->semantic-index': {
-    id: 'pe11',
-    label: 'hosts',
-    from: { side: 'left', along: ENTRY_DROP },
-    to: { side: 'right', along: 94 },
-    route: { kind: 'curve' },
-    labelX: 1013,
-    labelY: 645,
-    labelAnchor: 'middle',
-    accent: 'search',
-    duration: 2.8,
-    delay: 1.1,
   },
   'genie-data->sql-warehouse': {
     id: 'pe9',

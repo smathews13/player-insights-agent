@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
-import { runtimeSettingsDocumentFromResponse, runtimeSettingsFromResponse } from './runtime-settings-api';
+import {
+  RuntimeSettingsDraftConflict,
+  runtimeSettingsDocumentFromResponse,
+  runtimeSettingsFromResponse,
+  saveRuntimeSettingsDraft,
+} from './runtime-settings-api';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -55,5 +60,63 @@ describe('runtime settings API responses', () => {
     await expect(runtimeSettingsFromResponse(response, 'loaded')).rejects.toThrow(
       'answered 404 without an error message'
     );
+  });
+
+  it('sends the edited loop values and rebases a disjoint stale revision', async () => {
+    const baseline = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      loop: { maxSteps: 20, maxToolCalls: 40, maxRunSeconds: 200 },
+    };
+    const latest = { ...baseline, colorScheme: 'light' as const };
+    const saved = { ...latest, loop: DEFAULT_RUNTIME_SETTINGS.loop };
+    const fetcher = vi
+      .fn<(input: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(json({ detail: 'stale revision' }, 409))
+      .mockResolvedValueOnce(json({ settings: latest, revision: 2 }))
+      .mockResolvedValueOnce(json({ settings: saved, revision: 3 }));
+
+    await expect(
+      saveRuntimeSettingsDraft('/api/admin/runtime-settings', baseline, DEFAULT_RUNTIME_SETTINGS, 1, fetcher)
+    ).resolves.toMatchObject({ settings: saved, revision: 3 });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    const firstBody = fetcher.mock.calls[0]?.[1]?.body;
+    const retryBody = fetcher.mock.calls[2]?.[1]?.body;
+    if (typeof firstBody !== 'string' || typeof retryBody !== 'string') throw new Error('expected JSON request bodies');
+    expect(JSON.parse(firstBody) as unknown).toEqual({
+      revision: 1,
+      patch: {
+        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+      },
+    });
+    expect(JSON.parse(retryBody) as unknown).toEqual({
+      revision: 2,
+      patch: {
+        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+      },
+    });
+  });
+
+  it('keeps a same-field conflicted draft for an explicit second save', async () => {
+    const baseline = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      loop: { maxSteps: 20, maxToolCalls: 40, maxRunSeconds: 200 },
+    };
+    const latest = { ...baseline, loop: { ...baseline.loop, maxSteps: 25 } };
+    const fetcher = vi
+      .fn<(input: string, init?: RequestInit) => Promise<Response>>()
+      .mockResolvedValueOnce(json({ detail: 'stale revision' }, 409))
+      .mockResolvedValueOnce(json({ settings: latest, revision: 2 }));
+
+    const conflict = await saveRuntimeSettingsDraft(
+      '/api/admin/runtime-settings',
+      baseline,
+      DEFAULT_RUNTIME_SETTINGS,
+      1,
+      fetcher
+    ).catch((error: unknown) => error);
+    expect(conflict).toBeInstanceOf(RuntimeSettingsDraftConflict);
+    if (!(conflict instanceof RuntimeSettingsDraftConflict)) throw conflict;
+    expect(conflict.latest).toMatchObject({ settings: latest, revision: 2 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });

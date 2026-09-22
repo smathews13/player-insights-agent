@@ -39,7 +39,7 @@ describe('runtime and appearance modal sections', () => {
   it('keeps Runtime on the admin route and Appearance on the caller-scoped route', () => {
     expect(source).toContain("section === 'appearance' ? '/api/runtime-settings' : '/api/admin/runtime-settings'");
     expect(source).toContain("runtimeSettingsDocumentFromResponse(response, 'loaded')");
-    expect(source).toContain("runtimeSettingsDocumentFromResponse(response, 'saved')");
+    expect(source).toContain('saveRuntimeSettingsDraft(');
     expect(source).toContain("failure?.operation === 'load'");
     expect(source).toContain('failure.message');
   });
@@ -87,6 +87,9 @@ describe('runtime and appearance modal sections', () => {
       expect(input).toMatch(/\bvalue="\d+"/);
       expect(input).not.toContain('placeholder=');
     }
+    expect(markup).toMatch(/aria-label="Max DSF steps"[^>]*value="40"/);
+    expect(markup).toMatch(/aria-label="Max tool calls"[^>]*value="80"/);
+    expect(markup).toMatch(/aria-label="Run budget \(s\)"[^>]*value="600"/);
   });
 
   it('renders Narrative cap as a compact peer field without a competing heading or explanation', () => {

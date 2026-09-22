@@ -19,9 +19,9 @@ describe('runtime settings contract', () => {
   it('keeps the current agent behavior as its defaults', () => {
     expect(RuntimeSettingsSchema.parse(DEFAULT_RUNTIME_SETTINGS)).toEqual(DEFAULT_RUNTIME_SETTINGS);
     expect(DEFAULT_RUNTIME_SETTINGS.loop).toEqual({
-      maxSteps: 12,
-      maxToolCalls: 12,
-      maxRunSeconds: 150,
+      maxSteps: 40,
+      maxToolCalls: 80,
+      maxRunSeconds: 600,
     });
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(6);
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
@@ -163,7 +163,7 @@ describe('runtime settings contract', () => {
     expect(() =>
       RuntimeSettingsSchema.parse({
         ...DEFAULT_RUNTIME_SETTINGS,
-        loop: { ...DEFAULT_RUNTIME_SETTINGS.loop, maxSteps: 100 },
+        loop: { ...DEFAULT_RUNTIME_SETTINGS.loop, maxSteps: 41 },
       })
     ).toThrow();
     expect(() =>

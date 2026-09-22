@@ -152,8 +152,6 @@ export type AddableBrowse =
   | 'sql-warehouse'
   | 'serving-endpoint'
   | 'genie-space'
-  | 'vector-search-endpoint'
-  | 'vector-search-index'
   | 'volume';
 
 /** The kinds a reader may choose from, with the words the tab uses for them. */
@@ -169,18 +167,6 @@ export const ADDABLE_KINDS: ReadonlyArray<{
   { id: 'sql-warehouse', kind: 'sql-warehouse', label: 'SQL warehouse', browse: 'sql-warehouse' },
   { id: 'serving-endpoint', kind: 'model', label: 'Serving endpoint', browse: 'serving-endpoint' },
   { id: 'genie-space', kind: 'genie-space', label: 'Genie space', browse: 'genie-space' },
-  {
-    id: 'vector-search-endpoint',
-    kind: 'vector-search',
-    label: 'Vector Search endpoint',
-    browse: 'vector-search-endpoint',
-  },
-  {
-    id: 'vector-search-index',
-    kind: 'vector-search',
-    label: 'Vector Search index',
-    browse: 'vector-search-index',
-  },
   { id: 'volume', kind: 'volume', label: 'Volume', browse: 'volume' },
 ];
 
@@ -279,24 +265,6 @@ export const ADD_CONNECTION_PICKERS: Record<AddableBrowse, AssetPickerSpec> = {
     multi: false,
     title: 'Volumes your sign-in can see',
     typeLabel: 'Or type a volume name',
-    typeNote: '',
-  },
-  'vector-search-endpoint': {
-    field: 'add-vector-search-endpoint',
-    levels: ['vector-search-endpoints'],
-    pickAt: 'last',
-    multi: false,
-    title: 'Vector Search endpoints your sign-in can see',
-    typeLabel: 'Or type an endpoint name',
-    typeNote: '',
-  },
-  'vector-search-index': {
-    field: 'add-vector-search',
-    levels: ['vector-search-endpoints', 'vector-search-indexes'],
-    pickAt: 'last',
-    multi: false,
-    title: 'Vector Search indexes your sign-in can see',
-    typeLabel: 'Or type a three-part index name',
     typeNote: '',
   },
   'serving-endpoint': {

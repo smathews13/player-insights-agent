@@ -35,8 +35,6 @@ const RESOURCES = [
   ['schema', 'Schema'],
   ['declared-manifest', 'Tables'],
   ['lakebase', 'Database'],
-  ['semantic-index', 'Index'],
-  ['semantic-index-endpoint', 'Hosted index'],
   ['experiment-id', 'MLflow experiment'],
 ] as const;
 
@@ -132,7 +130,6 @@ function renderRow(id: string, state: State): string {
               ]
             : undefined
         }
-        hostedIndex="catalog.schema.semantic_index"
         checkedAt="2026-08-31T22:00:00.000Z"
         onSave={() => Promise.resolve(true)}
         onClear={() => Promise.resolve()}
@@ -148,7 +145,6 @@ describe('canonical Connections resource views', () => {
       checkedAt: '2026-08-31T22:00:00.000Z',
       declaredNames: id === 'declared-manifest' ? ['catalog.schema.one', 'catalog.schema.two'] : undefined,
       tableChecks: [],
-      hostedIndex: 'catalog.schema.semantic_index',
       now: new Date('2026-08-31T22:00:00.000Z').getTime(),
     });
     expect(
@@ -196,7 +192,6 @@ describe('canonical Connections resource views', () => {
 
     const view = connectionResourceView(fixture(id, state), {
       declaredNames: id === 'declared-manifest' ? ['catalog.schema.one', 'catalog.schema.two'] : undefined,
-      hostedIndex: 'catalog.schema.semantic_index',
     });
     expect(markup).toContain(`title="${view.displayIdentity}`);
     if (view.identity && id !== 'declared-manifest') {

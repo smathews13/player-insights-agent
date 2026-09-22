@@ -410,7 +410,6 @@ describe('every card on the drawing reports the live reading and not a literal',
       'genie-dictionary',
       'genie-data',
       'sql-warehouse',
-      'semantic-index',
     ]);
   });
 
@@ -425,11 +424,6 @@ describe('every card on the drawing reports the live reading and not a literal',
       ['genie-dictionary', 'Defines business terms and fields.'],
       ['sql-warehouse', 'Runs read-only SQL under the reader\u2019s grants.'],
       ['catalog', 'Applies governance to every table read.'],
-      [
-        'semantic-index',
-        'The agent queries this searchable index by name for field and metric descriptions during source discovery.',
-      ],
-      ['semantic-index-endpoint', 'Hosts the Vector Search index and provides its serving compute.'],
       ['lakebase', 'Stores conversations, uploads, feedback, and benchmark runs.'],
       ['experiment-id', 'Stores run traces, tool calls, SQL, and token usage.'],
     ]);
@@ -474,7 +468,7 @@ describe('every card on the drawing reports the live reading and not a literal',
  * separately, so the proof has to be two cards on one drawing carrying two
  * different verdicts at the same moment.
  */
-describe('the semantic lane draws the index and the endpoint separately', () => {
+describe.skip('removed Vector Search architecture lane', () => {
   function lane(index: PreflightCheck['status'], endpoint?: PreflightCheck['status']) {
     const payload: SettingsPayload = {
       resources: [
@@ -576,7 +570,7 @@ describe('the semantic lane draws the index and the endpoint separately', () => 
  * reachability was the only thing being drawn. These assertions are about what
  * a reader now sees at a glance in exactly that situation.
  */
-describe('the index card says how old its content is', () => {
+describe.skip('removed Vector Search freshness card', () => {
   const NOW = Date.parse('2026-08-15T09:00:00Z');
   const HOUR = 3_600_000;
 

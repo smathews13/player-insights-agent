@@ -216,25 +216,6 @@ export const ARCHITECTURE_NODES: readonly ArchitectureNode[] = [
     product: 'unity-catalog',
   },
   {
-    id: 'semantic-index',
-    label: 'Vector Search index',
-    resourceId: 'semantic-index',
-    presence: 'connection',
-    lane: 'semantic',
-    role: 'The agent queries this searchable index by name for field and metric descriptions during source discovery.',
-    rebuilt: true,
-    product: 'mosaic-ai',
-  },
-  {
-    id: 'semantic-index-endpoint',
-    label: 'Vector Search endpoint',
-    resourceId: 'semantic-index-endpoint',
-    presence: 'connection',
-    lane: 'semantic',
-    role: 'Hosts the Vector Search index and provides its serving compute.',
-    product: 'mosaic-ai',
-  },
-  {
     id: 'lakebase',
     label: 'Lakebase (Postgres)',
     resourceId: 'lakebase',
@@ -323,19 +304,6 @@ export const ARCHITECTURE_EDGES: readonly ArchitectureEdge[] = [
     to: 'catalog',
     relationship: 'flow',
     meaning: 'The warehouse reads Unity Catalog, which applies that reader\u2019s row filters and column masks.',
-  },
-  {
-    from: 'data-source-finder',
-    to: 'semantic-index',
-    relationship: 'flow',
-    meaning:
-      'During source discovery, the agent queries the Vector Search index by name for field and metric descriptions.',
-  },
-  {
-    from: 'semantic-index-endpoint',
-    to: 'semantic-index',
-    relationship: 'hosting',
-    meaning: 'The Vector Search endpoint hosts the index and provides its serving compute. This is not query flow.',
   },
   {
     from: 'app',
@@ -446,8 +414,7 @@ export const SEMANTIC_ENDPOINT_UNNAMED =
 export function nodeReport(
   node: ArchitectureNode,
   reading: ConnectionReading | undefined,
-  /** The index's reading, which the endpoint card cannot be read without. */
-  indexReading?: ConnectionReading
+  _indexReading?: ConnectionReading
 ): NodeReport {
   if (node.presence === 'local') {
     return { label: '', tone: 'local', note: LOCAL_NOTE };
@@ -458,29 +425,6 @@ export function nodeReport(
       tone: 'local',
       note: 'This is a separately invoked agent boundary inside the Orchestrator process, not another endpoint.',
     };
-  }
-  if (node.id === 'semantic-index') {
-    if (reading && !reading.summary.value) {
-      const reported = reading.row.configuredFrom !== '';
-      return {
-        label: reported ? 'Not configured' : 'Unknown',
-        tone: 'neutral',
-        note: reported ? SEMANTIC_INDEX_ABSENT : SEMANTIC_INDEX_UNREPORTED,
-      };
-    }
-  }
-  if (node.id === 'semantic-index-endpoint') {
-    if (indexReading && !indexReading.summary.value) {
-      const reported = indexReading.row.configuredFrom !== '';
-      return {
-        label: reported ? 'Not configured' : 'Unknown',
-        tone: 'neutral',
-        note: reported ? SEMANTIC_ENDPOINT_NO_INDEX : SEMANTIC_ENDPOINT_UNREPORTED,
-      };
-    }
-    if (!reading?.check && indexReading?.check && indexReading.status !== 'reachable') {
-      return { label: 'Unavailable', tone: 'neutral', note: SEMANTIC_ENDPOINT_UNNAMED };
-    }
   }
   return connectionReport(reading);
 }

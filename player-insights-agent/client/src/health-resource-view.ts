@@ -27,7 +27,7 @@ function aggregateResult(counts: { failed: number; unverified: number }): Depend
  * table rows and manifest rollup with one honest aggregate for this one list.
  */
 export function healthRowsForDisplay(payload: HealthRowsPayload): HealthRow[] {
-  const rows = healthRows(payload);
+  const rows = healthRows(payload).filter((row) => row.kind !== 'vector-index' && row.kind !== 'vector-endpoint');
   const dependencies = payload?.dependencies ?? [];
   const tables = dependencies.filter((row) => row.kind === 'table');
   if (tables.length === 0) return rows;

@@ -498,6 +498,12 @@ export function resourceStates(input: {
 
   return CONNECTED_RESOURCES.map((resource) => {
     const entry = resource.agentKey ? configuration.get(resource.agentKey) : undefined;
+    // MLflow remains app-runtime editable, so its registry entry intentionally
+    // has no agentKey. The app can still recover a LAST-RESORT experiment id
+    // from the served model version's own MLflow run. Saved/env/path values
+    // below retain precedence; this fallback cannot steal ownership from them.
+    const servedExperiment =
+      resource.id === 'experiment-id' ? configuration.get('experiment_id') : undefined;
     const check = resource.actualFromCheck ? byCheck.get(resource.actualFromCheck) : undefined;
     const saved = stored.get(resource.id);
 
@@ -536,6 +542,10 @@ export function resourceStates(input: {
     if (runtime?.value) {
       configured = runtime.value;
       configuredFrom = runtime.source;
+    }
+    if (!configured && servedExperiment) {
+      configured = displayValue(servedExperiment.value);
+      configuredFrom = text(servedExperiment.source) ?? '';
     }
 
     // A check whose name is a table's full name, or the endpoint's own name, is
@@ -579,7 +589,15 @@ const ARTIFACT = 'artifact';
  * the app, not resolved from a shell, so crying "this did not come from the
  * model artifact" over it turns a healthy Git deploy into a blocked page.
  */
-const TRUSTED_PROVENANCE = new Set([ARTIFACT, 'app-environment', 'data-contract']);
+const TRUSTED_PROVENANCE = new Set([
+  ARTIFACT,
+  'app-environment',
+  'data-contract',
+  // Read from the exact model version currently receiving endpoint traffic.
+  // This is stronger evidence than a generic app path and remains available
+  // when the app cannot download that version's MLmodel artifact.
+  'served-model-version',
+]);
 
 /**
  * The healthiest state this page has, written so a reader can tell.

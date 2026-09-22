@@ -359,7 +359,9 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
   }
 
   const oauthVerified = session.signedIn === true;
-  const declared = Array.isArray(session.declaredScopes) ? session.declaredScopes : null;
+  const visibleScope = (scope: unknown): scope is string =>
+    typeof scope === 'string' && !scope.startsWith('vectorsearch.');
+  const declared = Array.isArray(session.declaredScopes) ? session.declaredScopes.filter(visibleScope) : null;
   const tokenScopes = Array.isArray(session.tokenScopes) ? session.tokenScopes : null;
   const unchecked = (lead: string): FirstOpenReport => ({
     ...base,
@@ -373,7 +375,7 @@ export function firstOpenReport(identity: Identity | null | undefined): FirstOpe
   if (session.state === 'undetermined') return unchecked(declared?.length ? NOT_CHECKED : NOTHING_DECLARED);
   if (!declared || declared.length === 0) return unchecked(NOTHING_DECLARED);
 
-  const allMissing = Array.isArray(session.missingScopes) ? session.missingScopes : [];
+  const allMissing = Array.isArray(session.missingScopes) ? session.missingScopes.filter(visibleScope) : [];
   const scopes = scopeRows(declared, allMissing, true, tokenScopes);
   // Catalog (optional) shortfalls do not fail the gate. Asks do not need them.
   const missing = requiredMissingScopes(allMissing);

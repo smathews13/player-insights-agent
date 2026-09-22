@@ -8,10 +8,11 @@ from runtime_settings import RuntimeSettings, activate, current, prompt_fragment
 
 def test_absent_settings_preserve_compiled_behavior():
     assert activate({}) == RuntimeSettings()
-    assert current().loop.max_steps == 12
+    assert current().loop.max_steps == 40
+    assert current().loop.max_tool_calls == 80
     assert current().answer.max_charts == 1
     assert current().answer.max_figures == 6
-    assert current().loop.max_run_seconds == 150
+    assert current().loop.max_run_seconds == 600
 
 
 def test_prompt_fragment_always_names_todays_date():
@@ -35,7 +36,7 @@ def test_request_settings_control_loop_and_answer_contract():
     settings = activate(
         {
             "runtime_settings": {
-                "loop": {"maxSteps": 10, "maxToolCalls": 20, "maxRunSeconds": 120},
+                "loop": {"maxSteps": 40, "maxToolCalls": 80, "maxRunSeconds": 600},
                 "answer": {
                     "takeaway": False,
                     "narrative": True,
@@ -60,7 +61,9 @@ def test_request_settings_control_loop_and_answer_contract():
             }
         }
     )
-    assert settings.loop.max_steps == 10
+    assert settings.loop.max_steps == 40
+    assert settings.loop.max_tool_calls == 80
+    assert settings.loop.max_run_seconds == 600
     assert settings.answer.max_figures == 4
     assert settings.answer.charts is False
     fragment = prompt_fragment()
@@ -89,8 +92,8 @@ def test_integral_direct_caller_values_clamp_to_the_supported_range():
             }
         }
     )
-    assert settings.loop.max_steps == 20
-    assert settings.loop.max_tool_calls == 12
+    assert settings.loop.max_steps == 40
+    assert settings.loop.max_tool_calls == 80
     assert settings.loop.max_run_seconds == 30
     assert settings.behavior.timezone == ""
     assert settings.answer.takeaway_guidance == ""
@@ -99,34 +102,31 @@ def test_integral_direct_caller_values_clamp_to_the_supported_range():
 
 
 def test_max_run_seconds_above_the_ceiling_clamps_instead_of_dropping_to_default():
-    settings = activate({"runtime_settings": {"loop": {"maxRunSeconds": 300}}})
+    settings = activate({"runtime_settings": {"loop": {"maxRunSeconds": 601}}})
 
-    assert settings.loop.max_run_seconds == 200
-    assert settings.loop.max_run_seconds != 150
+    assert settings.loop.max_run_seconds == 600
 
 
-@pytest.mark.parametrize("value", [199.5, "200", True, None])
+@pytest.mark.parametrize("value", [599.5, "600", True, None])
 def test_fractional_and_invalid_max_run_seconds_still_use_the_default(value):
     settings = activate({"runtime_settings": {"loop": {"maxRunSeconds": value}}})
 
-    assert settings.loop.max_run_seconds == 150
+    assert settings.loop.max_run_seconds == 600
 
 
 def test_the_answer_reserve_scales_and_is_zero_at_the_floor():
     """A flat 35s hold-back against a 30s minimum left the loop unable to run."""
 
     from runtime_settings import (
-        ANSWER_RESERVE_AT_DEFAULT,
+        ANSWER_RESERVE_SECONDS,
         answer_reserve_seconds,
     )
 
     activate({})
-    assert answer_reserve_seconds() == ANSWER_RESERVE_AT_DEFAULT
+    assert answer_reserve_seconds() == ANSWER_RESERVE_SECONDS
     activate({"runtime_settings": {"loop": {"maxRunSeconds": 30}}})
     assert answer_reserve_seconds() == 0
     activate({"runtime_settings": {"loop": {"maxRunSeconds": 150}}})
     assert answer_reserve_seconds() == 25
-    activate({"runtime_settings": {"loop": {"maxRunSeconds": 180}}})
-    assert answer_reserve_seconds() == pytest.approx(30)
-    activate({"runtime_settings": {"loop": {"maxRunSeconds": 200}}})
-    assert answer_reserve_seconds() == pytest.approx(25 * 200 / 150)
+    activate({"runtime_settings": {"loop": {"maxRunSeconds": 600}}})
+    assert answer_reserve_seconds() == 25

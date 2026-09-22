@@ -31,6 +31,11 @@ export const RUNTIME_SETTINGS_KEYS = [
   'density',
 ] as const;
 export const RUNTIME_LOOP_KEYS = ['maxSteps', 'maxToolCalls', 'maxRunSeconds'] as const;
+export const RUNTIME_LOOP_LIMITS = {
+  maxSteps: { min: 1, max: 40 },
+  maxToolCalls: { min: 1, max: 80 },
+  maxRunSeconds: { min: 30, max: 600 },
+} as const;
 export const RUNTIME_ANSWER_KEYS = [
   'takeaway',
   'narrative',
@@ -195,7 +200,7 @@ export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEn
 
 /** Current behavior. An empty store therefore changes no existing deployment. */
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
-  loop: { maxSteps: 12, maxToolCalls: 12, maxRunSeconds: 150 },
+  loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
   answer: {
     takeaway: true,
     narrative: true,
@@ -321,9 +326,17 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
     return null;
   }
 
-  const maxSteps = integer(loop.maxSteps, 1, 20);
-  const maxToolCalls = integer(loop.maxToolCalls, 1, 40);
-  const maxRunSeconds = integer(loop.maxRunSeconds, 30, 200);
+  const maxSteps = integer(loop.maxSteps, RUNTIME_LOOP_LIMITS.maxSteps.min, RUNTIME_LOOP_LIMITS.maxSteps.max);
+  const maxToolCalls = integer(
+    loop.maxToolCalls,
+    RUNTIME_LOOP_LIMITS.maxToolCalls.min,
+    RUNTIME_LOOP_LIMITS.maxToolCalls.max
+  );
+  const maxRunSeconds = integer(
+    loop.maxRunSeconds,
+    RUNTIME_LOOP_LIMITS.maxRunSeconds.min,
+    RUNTIME_LOOP_LIMITS.maxRunSeconds.max
+  );
   const maxCharts = integer(answer.maxCharts, 0, 6);
   const maxFigures = integer(answer.maxFigures, 0, 12);
   const maxCaveats = integer(answer.maxCaveats, 0, 20);

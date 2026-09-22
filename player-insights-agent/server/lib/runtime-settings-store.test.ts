@@ -108,13 +108,20 @@ describe('versioned runtime and Appearance settings persistence', () => {
 
   it('survives a process restart and a different build SHA', async () => {
     const db = new MemorySettingsDb();
-    const saved = await writeRuntimeSettingsPatch(db as never, { answer: { takeaway: false } }, 0, 'admin');
+    const saved = await writeRuntimeSettingsPatch(
+      db as never,
+      { loop: { maxSteps: 37, maxToolCalls: 75, maxRunSeconds: 580 }, answer: { takeaway: false } },
+      0,
+      'admin'
+    );
     expect(saved.settings.answer.takeaway).toBe(false);
+    expect(saved.settings.loop).toEqual({ maxSteps: 37, maxToolCalls: 75, maxRunSeconds: 580 });
 
     process.env.PLAYER_INSIGHTS_BUILD_SHA = 'new-build';
     forgetRuntimeSettings();
     const restarted = await readRuntimeSettingsDocument(db as never, { maxAgeMs: 0 });
     expect(restarted.settings.answer.takeaway).toBe(false);
+    expect(restarted.settings.loop).toEqual({ maxSteps: 37, maxToolCalls: 75, maxRunSeconds: 580 });
     expect(restarted.revision).toBe(1);
   });
 

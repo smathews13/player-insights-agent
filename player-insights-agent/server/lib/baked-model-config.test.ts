@@ -147,6 +147,69 @@ describe('reading the served version as the app', () => {
     expect(byKey.declared_manifest.value).toHaveLength(12);
   });
 
+  it('recovers the exact MLflow experiment from the served model run', async () => {
+    const base = transport();
+    const entries = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(serving()),
+      transport: {
+        ...base,
+        getJson: (path, query = {}) => {
+          if (path === '/api/2.0/mlflow/runs/get') {
+            expect(query.run_id).toBe('run-abc');
+            return Promise.resolve({ run: { info: { experiment_id: 'customer-experiment' } } });
+          }
+          return base.getJson(path, query);
+        },
+      },
+    });
+
+    expect(entries.find((entry) => entry.key === 'experiment_id')).toMatchObject({
+      value: 'customer-experiment',
+      source: 'served-model-version',
+      baked: false,
+    });
+  });
+
+  it('reuses last-good rich config only while the exact served model version is unchanged', async () => {
+    const base = transport();
+    let artifactOutage = false;
+    const flaky: BakedConfigTransport = {
+      ...base,
+      getJson: (path, query = {}) => {
+        if (artifactOutage && path.includes('/mlflow/artifacts/get')) {
+          return Promise.reject(new Error('temporary artifact outage'));
+        }
+        return base.getJson(path, query);
+      },
+    };
+    const first = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(serving('39')),
+      transport: flaky,
+      now: 0,
+    });
+    expect(first.find((entry) => entry.key === 'llm_endpoint')?.value).toBe('databricks-claude-sonnet-4-6');
+
+    artifactOutage = true;
+    const sameVersion = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(serving('39')),
+      transport: flaky,
+      now: 60_000,
+    });
+    expect(sameVersion.find((entry) => entry.key === 'llm_endpoint')?.value).toBe('databricks-claude-sonnet-4-6');
+
+    const newVersion = await readBakedModelConfig({
+      endpointName: 'an-endpoint',
+      readEndpoint: () => Promise.resolve(serving('40')),
+      transport: flaky,
+      now: 60_001,
+    });
+    expect(newVersion.find((entry) => entry.key === 'llm_endpoint')).toBeUndefined();
+    expect(newVersion.find((entry) => entry.key === 'catalog')?.value).toBe('a_catalog');
+  });
+
   it('reads an MLflow 3 Logged Model behind the production implicit traffic shape', async () => {
     const paths: string[] = [];
     const entries = await readBakedModelConfig({

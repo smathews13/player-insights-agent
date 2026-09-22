@@ -403,14 +403,13 @@ def _is_grant_timing_note(text: str) -> bool:
 # which beats spinning until the endpoint times out and returns nothing.
 # ---------------------------------------------------------------------------
 
-#: Model turns that may request tools. Twelve covers the deepest useful path (
-#: definition lookup, discovery, describe, query, quality check) with slack for
-#: several recoveries, while capping a loop at thirteen model calls.
-MAX_TOOL_STEPS = 12
+#: Compiled defaults exported for diagnostics and legacy callers. Request-time
+#: execution reads the validated values from `runtime_settings.current()`.
+MAX_TOOL_STEPS = runtime_settings.DEFAULT_MAX_STEPS
 
 #: Tool executions across the whole run, counted separately because one turn can
 #: request several calls at once and a step cap alone would not bound them.
-MAX_TOOL_CALLS = 12
+MAX_TOOL_CALLS = runtime_settings.DEFAULT_MAX_TOOL_CALLS
 
 #: Wall clock after which no NEW tool call starts. A Genie call takes roughly
 #: eighteen seconds, so the step and call caps alone permit a run far longer than

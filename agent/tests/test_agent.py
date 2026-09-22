@@ -1636,14 +1636,18 @@ def test_the_tool_call_budget_bounds_one_turn_that_asks_for_everything_at_once()
     """A step cap alone would not bound this: the calls are all in one turn."""
 
     tools = FakeTools()
+    requested_calls = MAX_TOOL_CALLS + 10
     llm = ScriptedLlm(
-        [Call("data_genie", {"question": f"q{index}"}, f"call-{index}") for index in range(30)],
+        [
+            Call("data_genie", {"question": f"q{index}"}, f"call-{index}")
+            for index in range(requested_calls)
+        ],
         "Enough was gathered.",
     )
 
     response = ask(build(llm, tools))
 
-    assert len(tools.named("data_genie")) < 30
+    assert len(tools.named("data_genie")) < requested_calls
     assert len(tools.named("data_genie")) <= MAX_TOOL_CALLS
     assert response.custom_outputs["type"] == "answer"
     assert any(

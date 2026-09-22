@@ -62,29 +62,24 @@ describe('the experiment is read as the application', () => {
     ];
     for (const read of reads) {
       const check = experimentVerdict({ experimentId: 'e1', read });
-      expect(check?.detail, JSON.stringify(read.kind)).toContain('as the application, not as you');
+      expect(check?.detail, JSON.stringify(read.kind)).toMatch(/application|app service principal/);
     }
     expect(experimentVerdict({ experimentId: 'e1', read: reads[0] })?.checked_with).toContain(
       'Read as the application, not as you'
     );
   });
 
-  /**
-   * A refusal OF THE APP is a fact about the deployment, not about anybody's
-   * permissions: the identity that was refused is the one that writes the traces,
-   * so the trace has nowhere to land. That is why it is `failed` rather than the
-   * `unverified` a user-token refusal earns.
-   */
-  it('fails, with the workspace\u2019s own code and message, when the app is refused', () => {
+  it('does not call MLflow disconnected when only the app service principal is refused', () => {
     const check = experimentVerdict({
       experimentId: 'e1',
       read: { kind: 'refused', status: 403, code: 'PERMISSION_DENIED', message: 'cannot read experiment e1' },
     });
 
-    expect(check?.status).toBe('failed');
+    expect(check?.status).toBe('unverified');
     expect(check?.display_name).toBeUndefined();
     expect(check?.detail).toContain('HTTP 403 PERMISSION_DENIED');
     expect(check?.detail).toContain('cannot read experiment e1');
+    expect(check?.detail).toContain('served model uses a separate execution identity');
   });
 
   it('fails on a missing experiment, which is what a dead link on the card means', () => {

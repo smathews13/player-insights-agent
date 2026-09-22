@@ -62,9 +62,9 @@ describe('browser runtime settings cache parser', () => {
 
   it('accepts every numeric boundary and refuses out-of-range, fractional, and non-finite numbers', () => {
     const bounds = [
-      [['loop', 'maxSteps'], 1, 20],
-      [['loop', 'maxToolCalls'], 1, 40],
-      [['loop', 'maxRunSeconds'], 30, 200],
+      [['loop', 'maxSteps'], 1, 40],
+      [['loop', 'maxToolCalls'], 1, 80],
+      [['loop', 'maxRunSeconds'], 30, 600],
       [['answer', 'maxCharts'], 0, 6],
       [['answer', 'maxFigures'], 0, 12],
       [['answer', 'maxCaveats'], 0, 20],

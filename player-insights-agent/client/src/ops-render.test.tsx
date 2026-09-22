@@ -417,8 +417,6 @@ describe('the health block', () => {
       ['serving-endpoint', 'Orchestrator serving endpoint'],
       ['serving-endpoint', 'Foundation model'],
       ['serving-endpoint', 'Benchmark judge model'],
-      ['vector-index', 'Vector Search index'],
-      ['vector-endpoint', 'Vector Search endpoint'],
     ] as const;
     const tables = Array.from({ length: 12 }, (_, index) => ({
       id: `table:${index}`,
@@ -459,7 +457,7 @@ describe('the health block', () => {
     const visible = text(markup);
     for (const [, label] of resources) expect(visible, label).toContain(label);
     for (const label of ['Declared tables · 12 tables', 'App', 'Lakebase']) expect(visible, label).toContain(label);
-    expect(markup.match(/ops-platform-pill-state">Connected/g)).toHaveLength(13);
+    expect(markup.match(/ops-platform-pill-state">Connected/g)).toHaveLength(11);
     expect(markup).not.toMatch(/ops-platform-pill-state">(Reachable|Unreachable|Ready|Running|Not checked)/);
   });
 
@@ -512,7 +510,7 @@ describe('the health block', () => {
     // And nowhere else. The band's own pill cluster is gone.
     expect(markup).not.toContain('class="ops-platform"');
     expect([...markup.matchAll(/>Connected</g)]).toHaveLength(4);
-    expect([...markup.matchAll(/>Disconnected</g)]).toHaveLength(2);
+    expect([...markup.matchAll(/>Disconnected</g)]).toHaveLength(1);
     expect(markup).not.toMatch(/>(Reachable|Unreachable|Ready|Running|Not checked)</);
   });
 
@@ -602,10 +600,9 @@ describe('the health block', () => {
     expect(markup).toContain('permission denied for schema player_insights');
   });
 
-  it('renders a resolved check that did not run as disconnected', () => {
+  it('omits Vector Search health checks from the frontend', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
-    expect(markup).toContain('aria-label="Vector search index connection status: Disconnected"');
-    expect(text(markup)).not.toContain('Vector search index Did not answer');
+    expect(text(markup)).not.toContain('Vector search index');
   });
 
   it("shows the probe's own reason rather than a rewritten one", () => {
@@ -624,7 +621,6 @@ describe('the health block', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
     expect(markup).toContain('aria-label="SQL warehouse connection status: Connected"');
     expect(markup).toContain('aria-label="Genie space connection status: Disconnected"');
-    expect(markup).toContain('aria-label="Vector search index connection status: Disconnected"');
     expect(markup).toContain('aria-label="App connection status: Connected"');
     expect(text(markup)).not.toMatch(/\b(Reachable|Unreachable|Ready|Running|Not checked)\b/);
   });
@@ -824,10 +820,8 @@ describe('the health block', () => {
     expect(markup).not.toContain('Reason, when it did not answer');
   });
 
-  it('says a check that did not run is neither, rather than leaving the cell blank', () => {
-    // A blank beside "Not checked" reads as a result somebody has not written
-    // down yet. It is a third state, and the row says so in words.
-    expect(render(<HealthBody block={block(health())} />)).toContain('Semantic vector index · not checked');
+  it('does not expose the removed Vector Search health row', () => {
+    expect(render(<HealthBody block={block(health())} />)).not.toContain('Semantic vector index');
   });
 
   /**
@@ -893,10 +887,10 @@ describe('the health block', () => {
     const markup = markupOf(<HealthBody block={block(health())} />);
     expect(markup).toContain('ops-dependency-mark');
     expect(markup).toContain('--brand-icon-size:16px');
-    // Six rows, six marks, and none of them speaking. Four probes and the two
+    // Five rows, five marks, and none of them speaking. Three probes and the two
     // readings that are rows in their own right: the app and its store carry a
     // mark like their neighbours rather than sitting on the list unnamed.
-    expect([...markup.matchAll(/ops-dependency-mark/g)]).toHaveLength(6);
+    expect([...markup.matchAll(/ops-dependency-mark/g)]).toHaveLength(5);
     expect(markup).not.toContain('title="Databricks SQL"');
   });
 
@@ -945,7 +939,7 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect(markup.match(/>Estimated</g)).toHaveLength(6);
+    expect(markup.match(/>Estimated</g)).toHaveLength(5);
     expect(markup).not.toContain('>Partial<');
     expect(markup).not.toContain('Per token');
   });
@@ -1016,7 +1010,6 @@ describe('the cost block', () => {
   it('leaves range totals unlabelled and keeps daily rates explicit', () => {
     const markup = render(<CostBody block={block(cost())} />);
     expect(markup).not.toContain('selected period total');
-    expect(markup).toContain('per day');
   });
 
   it('keeps attribution methodology out of the simplified tile area', () => {
@@ -1277,18 +1270,18 @@ describe('the cost block', () => {
     expect(markup).toContain('Foundation model tokens');
     expect(markup).toContain('Ask SQL');
     expect(markup).toContain('Genie');
-    expect(markup).toContain('Vector search');
+    expect(markup).not.toContain('Vector search');
     expect(markup).toContain('App compute');
     expect(markup).toContain('Average cost / question');
     expect(markup).not.toContain('Index rebuild job');
     expect(markup).toContain('No billing rows');
     expect(markup).toContain('No billing rows matched an exact tracked resource');
     expect(markup).not.toContain('system_billing');
-    expect((markup.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(8);
+    expect((markup.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(7);
     expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
-  it('draws one box per connected Genie space and Vector Search when billing is empty', () => {
+  it('draws one box per connected Genie space and omits Vector Search when billing is empty', () => {
     const empty = {
       amount: null as number | null,
       quality: 'unknown' as const,
@@ -1348,11 +1341,11 @@ describe('the cost block', () => {
     );
     expect(markup).toContain('Player data');
     expect(markup).toContain('Dictionary');
-    expect(markup).toContain('Vector search');
+    expect(markup).not.toContain('Vector search');
     expect(markup).not.toContain('identifier unavailable');
     expect(markup).toContain('No billing rows');
     expect(markup).not.toContain('Index rebuild');
-    expect((markup.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(8);
+    expect((markup.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(7);
     expect((markup.match(/ops-genie-card/g) ?? []).length).toBe(2);
   });
 
@@ -1383,7 +1376,7 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(payload)} />);
     expect([...markup.matchAll(/experimental-pane-badge/g)]).toHaveLength(1);
     const heads = markup.match(/<div class="ops-tile-head">[\s\S]*?<\/div>/g) ?? [];
-    expect(heads).toHaveLength(6);
+    expect(heads).toHaveLength(5);
     expect(heads.every((head) => !head.includes('experimental-pane-badge'))).toBe(true);
   });
 
@@ -1401,11 +1394,12 @@ describe('the cost block', () => {
       ],
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
-    expect([...markup.matchAll(/ops-tile-mark/g)]).toHaveLength(5);
+    expect([...markup.matchAll(/ops-tile-mark/g)]).toHaveLength(4);
     expect(markup).toContain('--brand-icon-size:14px');
-    for (const id of ['serving-endpoint', 'foundation-model', 'sql-warehouse', 'vector-search', 'app-compute']) {
+    for (const id of ['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute']) {
       expect(markup).toContain(`data-cost-component="${id}"`);
     }
+    expect(markup).not.toContain('data-cost-component="vector-search"');
   });
 
   it.each([
@@ -1422,7 +1416,7 @@ describe('the cost block', () => {
     expect(BRAND_THEME_MARKS.dark[product]).toContain('<svg');
   });
 
-  it('renders Data Genie, Dictionary Genie, Serving, and Vector Search separately with scoped counts', () => {
+  it('renders Data Genie, Dictionary Genie, and Serving while omitting Vector Search', () => {
     const payload = cost({
       tiles: [
         {
@@ -1487,16 +1481,15 @@ describe('the cost block', () => {
     expect(visible).not.toContain('space-data');
     expect(visible).toContain('Dictionary Genie Estimated Free $0.00 Charged Unavailable');
     expect(visible).not.toContain('space-dictionary');
-    expect(visible).toContain('Vector Search Estimated No measured amount');
-    expect(visible).toContain('catalog.schema.index · vs-endpoint');
-    expect(markup).toContain('title="Vector Search dollars unavailable"');
+    expect(visible).not.toContain('Vector Search');
+    expect(visible).not.toContain('catalog.schema.index · vs-endpoint');
     expect(visible).not.toMatch(/Astrolabe (?:requests|queries)/);
     expect(visible).not.toContain('carry resource identity');
     expect(visible).toContain('Foundation model tokens');
     expect(visible).not.toContain('withheld');
   });
 
-  it('keeps internal Vector Search activity out of the visible cost tile', () => {
+  it('keeps the Vector Search tile out of the frontend entirely', () => {
     const tile = {
       ...cost().tiles[0],
       id: 'vector-search',
@@ -1515,8 +1508,8 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(cost({ tiles: [tile] }))} />);
     const visible = text(markup);
 
-    expect(markup).toContain('title="Vector Search dollars unavailable"');
-    expect(visible).not.toContain('Astrolabe query');
+    expect(markup).not.toContain('Vector Search dollars unavailable');
+    expect(visible).not.toContain('Vector search');
   });
 
   it('removes query-history filler from a SQL estimate', () => {
@@ -1583,7 +1576,7 @@ describe('the cost block', () => {
     const markup = markupOf(<CostBody block={block(cost())} />);
     expect(markup).not.toContain('ops-question-average');
     const tiles = markup.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? [];
-    expect(tiles.length).toBe(6);
+    expect(tiles.length).toBe(5);
     expect(markup).not.toContain('Total app cost');
   });
 
@@ -1611,7 +1604,6 @@ describe('the cost block', () => {
         ['sql-warehouse', 'Ask SQL'],
         ['genie:data', 'Data Genie'],
         ['genie:dictionary', 'Dictionary Genie'],
-        ['vector-search', 'Vector Search'],
         ['app-compute', 'App compute'],
       ].map(([id, label]) => resourceBudgetLabel({ id, label }))
     ).toEqual([
@@ -1620,7 +1612,6 @@ describe('the cost block', () => {
       'Ask SQL budget',
       'Data Genie budget',
       'Dictionary Genie budget',
-      'Vector Search budget',
       'App compute budget',
     ]);
     const baseTiles = cost().tiles;
@@ -1655,16 +1646,15 @@ describe('the cost block', () => {
     expect(text(appControlRow)).not.toContain('Month to date');
     expect(appEditor).not.toContain('ops-ticker-assumption-helper');
     expect(markup).toContain('aria-label="Serving endpoint monthly budget in USD"');
-    expect(markup).toContain('aria-label="Vector Search monthly budget in USD"');
-    expect(editor).toContain('data-columns="6"');
-    expect(editor.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(6);
+    expect(markup).not.toContain('aria-label="Vector Search monthly budget in USD"');
+    expect(editor).toContain('data-columns="5"');
+    expect(editor.match(/ops-number-ticker ops-forecast-number-control/g)).toHaveLength(5);
     expect(markup).toContain('Resource budgets (monthly)');
     for (const label of [
       'Agent serving budget',
       'Ask SQL budget',
       'Data Genie budget',
       'Dictionary Genie budget',
-      'Vector Search budget',
       'App compute budget',
     ]) {
       expect(editor).toContain(`>${label}</label>`);
@@ -1682,7 +1672,7 @@ describe('the cost block', () => {
     expect(markup).toMatch(
       /aria-label="Serving endpoint monthly budget in USD"[^>]*placeholder="6\.43"[^>]*value="40"/
     );
-    expect(markup).toContain('placeholder="120"');
+    expect(markup).not.toContain('aria-label="Vector Search monthly budget in USD"');
     expect(text(markup)).toContain('30-day run rate: 6.43 USD');
     expect(markup).not.toContain('class="ops-budget-unit"');
     expect(markup).not.toContain('<select');
@@ -1694,11 +1684,12 @@ describe('the cost block', () => {
     expect(UNIT_CONTROL_SOURCE).toContain('onKeyDown={move}');
     expect(UNIT_CONTROL_SOURCE).toContain('adjacentUnit');
     expect(markup).toContain('unit-segmented-options');
-    expect(markup.match(/data-prefix="true"/g)).toHaveLength(payload.tiles.length + 1);
+    const visibleBudgetControls = payload.tiles.filter((tile) => tile.id !== 'vector-search').length + 1;
+    expect(markup.match(/data-prefix="true"/g)).toHaveLength(visibleBudgetControls);
     expect(markup.match(/class="ops-number-ticker-prefix" aria-hidden="true">\$<\/span>/g)).toHaveLength(
-      payload.tiles.length + 1
+      visibleBudgetControls
     );
-    expect(markup).toMatch(/aria-label="Vector Search monthly budget in USD"[^>]*value=""/);
+    expect(markup).not.toContain('aria-label="Vector Search monthly budget in USD"');
     expect(editor).not.toContain('budget per day');
     expect(markup).not.toContain('Same window as the tiles');
     expect(text(markup)).toMatch(/monthly/i);
@@ -1926,7 +1917,7 @@ describe('the cost block', () => {
     );
   });
 
-  it('renders measured Vector Search USD and DBUs from the same corrected tile', () => {
+  it('does not render measured Vector Search USD or DBUs', () => {
     const vector = {
       ...cost().tiles[1],
       id: 'vector-search',
@@ -1940,8 +1931,8 @@ describe('the cost block', () => {
       evidence: { billingRows: 2, astrolabeQueries: null },
     };
     const payload = cost({ tiles: [vector] });
-    expect(render(<CostBody block={block(payload)} unit="USD" />)).toContain('7.00 USD');
-    expect(render(<CostBody block={block(payload)} unit="DBU" />)).toContain('3.00 DBU');
+    expect(render(<CostBody block={block(payload)} unit="USD" />)).not.toContain('7.00 USD');
+    expect(render(<CostBody block={block(payload)} unit="DBU" />)).not.toContain('3.00 DBU');
   });
 
   it('keeps resource budget inputs when spend is measured or missing', () => {
@@ -2291,7 +2282,7 @@ describe('the cost block', () => {
     });
     const markup = markupOf(<CostBody block={block(payload)} />);
     const primaryGrid = markup.slice(markup.indexOf('cost-primary-grid'), markup.indexOf('ops-cost-method'));
-    expect((primaryGrid.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(8);
+    expect((primaryGrid.match(/class="ops-tile ops-primary-cost-card(?:\s|")/g) ?? []).length).toBe(7);
     expect((primaryGrid.match(/ops-tile ops-primary-cost-card ops-genie-card/g) ?? []).length).toBe(2);
     expect(primaryGrid).not.toContain('ops-genie-section');
     expect(primaryGrid).not.toMatch(/<h4[^>]*>Genie<\/h4>/);
@@ -2315,7 +2306,7 @@ describe('the cost block', () => {
       /Interactive Ask tokens|Ask model calls|input|output|Cache|missing evidence/
     );
     expect(primaryGrid).not.toContain('Partial');
-    expect(primaryGrid.match(/>Estimated</g)).toHaveLength(8);
+    expect(primaryGrid.match(/>Estimated</g)).toHaveLength(7);
     expect(primaryGrid).not.toContain('Unattributed Genie');
     expect(primaryGrid).not.toContain('7,552');
     expect(primaryGrid).not.toContain('production-identifier</span></h4>');

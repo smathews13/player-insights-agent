@@ -2073,9 +2073,9 @@ def on_the_clock(monkeypatch, per_poll: float, *statuses, **kwargs) -> tuple[Clo
     return clock, genie
 
 
-#: What the wait allows on the default 150 second turn, which is what these run
+#: What the wait allows on the default 600 second turn, which is what these run
 #: on: `remaining_seconds()` with no request deadline set returns `max_run_seconds`.
-WARMUP_ALLOWED = 150.0 - tools_module.GENIE_BUDGET_RESERVE_SECONDS
+WARMUP_ALLOWED = 600.0 - tools_module.GENIE_BUDGET_RESERVE_SECONDS
 
 
 def test_a_starting_warehouse_is_waited_out_well_past_the_answer_deadline(monkeypatch):

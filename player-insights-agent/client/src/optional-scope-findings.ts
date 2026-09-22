@@ -90,6 +90,13 @@ export function splitOptionalScopeFindings(checks: readonly PreflightCheck[]): F
   const optionalChecks: PreflightCheck[] = [];
   const scopes: string[] = [];
   for (const check of checks) {
+    if (
+      check.id === 'semantic-index' ||
+      check.id === 'semantic-index-endpoint' ||
+      (check.scope ?? '').startsWith('vectorsearch.')
+    ) {
+      continue;
+    }
     if (!isOptionalScopeShortfall(check)) {
       required.push(check);
       continue;

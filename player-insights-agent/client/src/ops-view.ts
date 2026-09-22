@@ -323,7 +323,6 @@ function kindFromCostTileId(id: string): CostTile['resourceKind'] {
   if (id === 'sql-warehouse') return 'sql-warehouse';
   if (id === 'app-compute') return 'app';
   if (id.startsWith('genie:')) return 'genie-space';
-  if (id === 'vector-search') return 'vector-index';
   return '';
 }
 
@@ -364,7 +363,6 @@ const PRIMARY_COST_TITLES: Readonly<Record<string, string>> = {
   'serving-endpoint': 'Agent serving',
   'foundation-model': 'Foundation model tokens',
   'sql-warehouse': 'Ask SQL',
-  'vector-search': 'Vector Search',
   'app-compute': 'App compute',
 };
 
@@ -374,13 +372,7 @@ export function costComponentLabel(id: string, fallback: string): string {
   return PRIMARY_COST_TITLES[id] ?? fallback;
 }
 
-const PRIMARY_COST_ORDER = [
-  'serving-endpoint',
-  'foundation-model',
-  'sql-warehouse',
-  'vector-search',
-  'app-compute',
-] as const;
+const PRIMARY_COST_ORDER = ['serving-endpoint', 'foundation-model', 'sql-warehouse', 'app-compute'] as const;
 
 function primaryBasis(tile: CostTile): string {
   return BASIS_LABEL[tile.basis];
@@ -668,7 +660,7 @@ export function costAbsenceReplacesGrid(payload: OpsCostPayload): boolean {
  */
 export function costTilesForDisplay(tiles: readonly CostTile[]): CostTile[] {
   if (tiles.length === 0) return EMPTY_COST_TILES.map((tile) => ({ ...tile }));
-  return tiles.filter((tile) => tile.id !== 'genie:unattributed');
+  return tiles.filter((tile) => tile.id !== 'genie:unattributed' && tile.id !== 'vector-search');
 }
 
 const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
@@ -690,7 +682,6 @@ const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'Ask SQL', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie:data', label: 'Data Genie', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'genie:dictionary', label: 'Dictionary Genie', resourceKind: '' },
-  { ...EMPTY_COST_TILE, id: 'vector-search', label: 'Vector search', resourceKind: 'vector-index' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
 ];
 
@@ -762,8 +753,6 @@ const KIND_LABEL: Record<string, string> = {
   'serving-endpoint': 'Serving endpoint',
   'sql-warehouse': 'SQL warehouse',
   'genie-space': 'Genie space',
-  'vector-index': 'Vector Search index',
-  'vector-endpoint': 'Vector Search endpoint',
   catalog: 'Catalog',
   schema: 'Schema',
   table: 'Table',
@@ -847,8 +836,6 @@ const RESOURCE_NOTES: Readonly<Record<string, string>> = {
   'sql-warehouse': 'SQL query execution',
   'genie-space': 'Natural-language data space',
   'serving-endpoint': 'Model inference endpoint',
-  'vector-endpoint': 'Vector Search compute',
-  'vector-index': 'Semantic vector index',
   catalog: 'Unity Catalog container',
   schema: 'Unity Catalog namespace',
   table: 'Governed table',
@@ -968,6 +955,8 @@ export function productForCostTile(id: string): BrandProduct | null {
 const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
   'serving-endpoint': 'mosaic-ai',
   'foundation-model': 'mosaic-ai',
+  // Kept for backward-compatible payload decoding; costTilesForDisplay removes
+  // this component before any frontend card or budget is rendered.
   'vector-search': 'mosaic-ai',
   'sql-warehouse': 'databricks-sql',
   'app-compute': 'apps',
@@ -984,7 +973,6 @@ const COST_TILE_PRODUCTS: Record<string, BrandProduct> = {
 const COST_COVERAGE_PRODUCT: Readonly<Record<string, string>> = {
   'serving-endpoint': 'MODEL_SERVING',
   'sql-warehouse': 'SQL',
-  'vector-search': 'VECTOR_SEARCH',
   'app-compute': 'APPS',
   genie: 'GENIE',
 };

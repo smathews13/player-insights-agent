@@ -702,7 +702,6 @@ describe('every addable kind browses', () => {
     ['catalog', 'catalogs'],
     ['sql-warehouse', 'warehouses'],
     ['volume', 'volumes'],
-    ['vector-search-index', 'vector-search-indexes'],
     ['serving-endpoint', 'serving-endpoints'],
   ])('opens the %s picker on the %s list', (kindId, leaf) => {
     const spec = pickerForAddKind(kindId);

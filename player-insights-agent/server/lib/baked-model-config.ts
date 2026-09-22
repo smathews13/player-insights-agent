@@ -23,6 +23,7 @@ const EXTRA_ENV: Record<string, string> = {
   tables: 'PLAYER_INSIGHTS_TABLES',
   semantic_index: 'PLAYER_INSIGHTS_SEMANTIC_INDEX',
   manifest_source: 'PLAYER_INSIGHTS_MANIFEST_SOURCE',
+  experiment_id: 'PLAYER_INSIGHTS_EXPERIMENT_ID',
 };
 
 const LIST_KEYS = new Set(['catalog_allowlist', 'catalog_denylist', 'declared_manifest', 'tables']);
@@ -320,6 +321,22 @@ async function readModelConfigText(transport: BakedConfigTransport, runId: strin
 interface ServedModelArtifacts {
   runId: string;
   modelId: string;
+  experimentId: string;
+}
+
+function experimentIdOf(body: unknown): string {
+  const record = asRecord(body);
+  const modelVersion = asRecord(record.model_version ?? record.modelVersion);
+  const run = asRecord(record.run);
+  const info = asRecord(run.info ?? record.info);
+  return text(
+    modelVersion.experiment_id ??
+      modelVersion.experimentId ??
+      info.experiment_id ??
+      info.experimentId ??
+      record.experiment_id ??
+      record.experimentId
+  );
 }
 
 async function artifactsForServedModel(
@@ -348,13 +365,49 @@ async function artifactsForServedModel(
   for (const attempt of attempts) {
     try {
       const body = await transport.getJson(attempt.path, attempt.query);
-      const reference = { runId: runIdOf(body), modelId: modelIdOf(body) };
-      if (reference.runId || reference.modelId) return reference;
+      const reference = {
+        runId: runIdOf(body),
+        modelId: modelIdOf(body),
+        experimentId: experimentIdOf(body),
+      };
+      if (reference.runId || reference.modelId || reference.experimentId) return reference;
     } catch {
       // The model may be UC or workspace-registry; try the next spelling.
     }
   }
-  return { runId: '', modelId: '' };
+  return { runId: '', modelId: '', experimentId: '' };
+}
+
+async function experimentIdForServedModel(
+  transport: BakedConfigTransport,
+  artifacts: ServedModelArtifacts
+): Promise<string> {
+  if (artifacts.experimentId) return artifacts.experimentId;
+  if (artifacts.runId) {
+    try {
+      const run = await transport.getJson('/api/2.0/mlflow/runs/get', { run_id: artifacts.runId });
+      const experimentId = experimentIdOf(run);
+      if (experimentId) return experimentId;
+    } catch {
+      // MLflow 3 may expose only the Logged Model, handled below.
+    }
+  }
+  if (artifacts.modelId) {
+    try {
+      const body = asRecord(
+        await transport.getJson(`/api/2.0/mlflow/logged-models/${encodeURIComponent(artifacts.modelId)}`)
+      );
+      const model = asRecord(body.model);
+      const info = asRecord(model.info ?? body.info);
+      const direct = experimentIdOf(info);
+      if (direct) return direct;
+      const artifactUri = text(info.artifact_uri ?? info.artifactUri);
+      return /databricks\/mlflow-tracking\/([^/]+)\/logged_models\//.exec(artifactUri)?.[1] ?? '';
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 /**
@@ -376,7 +429,13 @@ async function readLoggedModelConfigText(transport: BakedConfigTransport, modelI
   return transport.downloadText(`${root}/MLmodel`);
 }
 
-let cache: { at: number; endpoint: string; entries: PreflightConfiguration[] } | null = null;
+let cache: {
+  at: number;
+  endpoint: string;
+  entityName: string;
+  version: string;
+  entries: PreflightConfiguration[];
+} | null = null;
 
 /** Forget the cached baked config. Exported for tests. */
 export function forgetBakedModelConfig(): void {
@@ -387,8 +446,10 @@ export function forgetBakedModelConfig(): void {
  * The served model version's baked configuration, or nothing.
  *
  * Cached briefly so a Connections refresh is not three MLflow round trips.
- * A failed read is never cached, matching stored settings: one outage must not
- * become 45 seconds of a blank Foundation model row.
+ * After expiry, a failed artifact read may reuse the last good entries only
+ * when the endpoint still reports the exact same model entity and version.
+ * That keeps one transient files outage from blanking Genie/Foundation Model
+ * without carrying configuration across a real model rollout.
  */
 export async function readBakedModelConfig(
   input: {
@@ -419,8 +480,37 @@ export async function readBakedModelConfig(
     const document =
       (artifacts.modelId ? await readLoggedModelConfigText(transport, artifacts.modelId).catch(() => '') : '') ||
       (artifacts.runId ? await readModelConfigText(transport, artifacts.runId) : '');
-    const derived = catalogSchemaFromServedModel(served.entityName);
+    const experimentId = await experimentIdForServedModel(transport, artifacts);
+    const derived = [
+      ...catalogSchemaFromServedModel(served.entityName),
+      ...(experimentId
+        ? [
+            {
+              key: 'experiment_id',
+              env_var: envVarFor('experiment_id'),
+              value: experimentId,
+              source: 'served-model-version',
+              mutability: 'model-version',
+              baked: false,
+              required: false,
+            } satisfies PreflightConfiguration,
+          ]
+        : []),
+    ];
     if (!document) {
+      if (
+        cache &&
+        cache.endpoint === endpointName &&
+        cache.entityName === served.entityName &&
+        cache.version === served.version
+      ) {
+        const entries = cache.entries.map((entry) => ({ ...entry }));
+        const present = new Set(entries.map((entry) => entry.key));
+        for (const entry of derived) if (!present.has(entry.key)) entries.push(entry);
+        // Do not refresh `at`: the next request retries the artifact immediately
+        // rather than extending stale data into a new cache window.
+        return entries;
+      }
       // The artifact could not be read (or the version held no config), but the
       // served model's name is authoritative for catalog and schema. Return
       // those so App catalog, App schema and the declared table list stay
@@ -436,7 +526,13 @@ export async function readBakedModelConfig(
     // carry them; a value read out of the artifact always wins.
     const present = new Set(entries.map((entry) => entry.key));
     for (const entry of derived) if (!present.has(entry.key)) entries.push(entry);
-    cache = { at: now, endpoint: endpointName, entries };
+    cache = {
+      at: now,
+      endpoint: endpointName,
+      entityName: served.entityName,
+      version: served.version,
+      entries,
+    };
     return entries;
   } catch (error) {
     console.warn(
