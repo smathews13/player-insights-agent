@@ -390,6 +390,7 @@ function label(kind: string, key: string): string {
   if (key === 'UNKNOWN_REFUSAL_CAUSE') return 'Unknown refusal cause';
   if (key === 'UNKNOWN_STORED_ANSWER_FAILURE') return 'Legacy failure \u00b7 cause unavailable';
   if (key === 'REASONING_ENDPOINT_TIMEOUT') return 'Reasoning endpoint timed out';
+  if (key === 'SQL_UNKNOWN_COLUMN') return 'SQL column typo caught before the query ran';
   if (key === 'SQL_UNRESOLVED_COLUMN') return 'SQL referenced a missing column';
   if (key === 'SQL_TOOL_FAILURE') return 'SQL query failed';
   if (key === 'ANSWER_SYNTHESIS_FAILED') return 'Answer synthesis failed';

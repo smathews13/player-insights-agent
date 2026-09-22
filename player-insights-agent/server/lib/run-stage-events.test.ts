@@ -82,6 +82,32 @@ describe('what a stage may leave in the table', () => {
     expect(JSON.stringify(payload)).not.toContain('private_catalog');
   });
 
+  it('records an unknown-column guard refusal without storing its SQL evidence', () => {
+    const payload = stageEventPayload(
+      stage({
+        id: 'step-2-1-run_sql',
+        kind: 'sql',
+        status: 'partial',
+        output:
+          "REFUSED: 'secret_field' is not a column on private_catalog.private_schema.private_table. Describe the table first.",
+      })
+    );
+
+    expect(payload.outcome_code).toBe('SQL_UNKNOWN_COLUMN');
+    expect(payload).not.toHaveProperty('output');
+    expect(JSON.stringify(payload)).not.toContain('secret_field');
+    expect(JSON.stringify(payload)).not.toContain('private_catalog');
+  });
+
+  it('keeps other guard refusals distinct from ordinary partial stages', () => {
+    expect(
+      stageEventPayload(stage({ status: 'partial', output: 'REFUSED: query uses a forbidden join.' })).outcome_code
+    ).toBe('TOOL_REFUSED');
+    expect(stageEventPayload(stage({ status: 'partial', output: 'Dependency is still starting.' }))).not.toHaveProperty(
+      'outcome_code'
+    );
+  });
+
   it('keeps an explicit bounded error code and rejects message-shaped codes', () => {
     expect(stageEventPayload(stage({ status: 'failed', error_code: 'WAREHOUSE_UNAVAILABLE' })).outcome_code).toBe(
       'WAREHOUSE_UNAVAILABLE'
