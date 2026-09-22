@@ -982,6 +982,17 @@ describe('the question list', () => {
     expect(text(markup)).toContain('Tools 5');
   });
 
+  it('marks the MLflow question group in both desktop and compact lists', () => {
+    const grouped = question({ traceSessionId: 'plan-a0edd9f880c22577' });
+    const desktop = render(<QuestionList questions={[grouped]} selectedId="" now={NOW} onOpen={() => {}} />);
+    const compact = render(<QuestionList questions={[grouped]} selectedId="" now={NOW} onOpen={() => {}} compact />);
+
+    for (const markup of [desktop, compact]) {
+      expect(text(markup)).toContain('Grouped traces');
+      expect(markup).toContain('class="monitoring-trace-group"');
+    }
+  });
+
   it('keeps the selected row identifiable while its dialog is open', () => {
     const desktop = render(
       <QuestionList questions={[question()]} selectedId="q1" now={NOW} onOpen={() => {}} onOpenPerson={() => {}} />
@@ -1186,6 +1197,18 @@ describe('the detail modal', () => {
     expect(runs).toBeLessThan(markup.indexOf('Run process'));
     expect(runs).toBeLessThan(markup.indexOf('1,200 tokens recorded on this run.'));
     expect(runs).toBeLessThan(markup.indexOf('Not helpful'));
+  });
+
+  it('opens a question session as grouped traces when Monitoring has its session id', () => {
+    const rendered = text(
+      render(
+        <QuestionDrawer detail={detail({ traceSessionId: 'plan-a0edd9f880c22577' })} onClose={() => {}} canOpenUser />
+      )
+    );
+
+    expect(rendered).toContain('Grouped traces');
+    expect(rendered).toContain('Open grouped MLflow traces');
+    expect(rendered).not.toContain('Open the MLflow trace');
   });
 
   it('keeps the links above the answer on a run that recorded no trace id', () => {
@@ -1578,6 +1601,20 @@ function panel(overrides: Partial<PersonPanelPayload> = {}): PersonPanelPayload 
 }
 
 describe('the per-user panel', () => {
+  it('marks grouped trace sessions in the person question history too', () => {
+    const markup = render(
+      <PersonPanel
+        panel={panel({ questions: [question({ traceSessionId: 'plan-a0edd9f880c22577' })] })}
+        now={NOW}
+        rangeLabel="last 7 days"
+        onClose={() => {}}
+        onOpenQuestion={() => {}}
+      />
+    );
+
+    expect(text(markup)).toContain('Grouped traces');
+  });
+
   it('uses one dedicated question table that CSS turns into mobile cards', () => {
     const markup = render(
       <PersonPanel

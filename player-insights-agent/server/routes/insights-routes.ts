@@ -24,6 +24,7 @@ import {
   type IdleTimeoutConfig,
 } from '../lib/app-session';
 import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
+import { questionTraceSessionId } from '../lib/trace-session';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import {
@@ -656,6 +657,9 @@ const LiveAnswerSchema = z.looseObject({
   // The route's snapshot of the runtime this Ask sent. Declared so storing it
   // is not reported as the agent shipping a field the app cannot read.
   runtime_settings: z.looseObject({}).optional(),
+  // Also route-owned: the question fingerprint MLflow uses to group the plan
+  // and execution traces. Monitoring reads it from the stored answer.
+  trace_session_id: z.string().optional(),
 });
 type LiveAnswer = z.infer<typeof LiveAnswerSchema>;
 
@@ -1210,14 +1214,14 @@ async function cancelTaggedWarehouseQueries(input: {
   }
 }
 
-export function mlflowReference(traceId: string, experimentId: string) {
+export function mlflowReference(traceId: string, experimentId: string, options: { groupBySession?: boolean } = {}) {
   if (!isMlflowTraceId(traceId)) return null;
   const named = experimentId.trim();
   const host = workspaceHost();
   const url =
     named && host
       ? `${host}/ml/experiments/${encodeURIComponent(named)}/traces` +
-        `?selectedEvaluationId=${encodeURIComponent(traceId)}`
+        `?${options.groupBySession ? 'groupBy=session&' : ''}selectedEvaluationId=${encodeURIComponent(traceId)}`
       : null;
   return { traceId, experimentId: named || null, url };
 }
@@ -1314,9 +1318,17 @@ function runWithoutTrace(
   };
 }
 
-/** Stamps the runtime this Ask sent onto whatever we persist for the run. */
-function withAskRuntime<T extends Record<string, unknown>>(body: T, runtimeSettings: RuntimeSettings | undefined): T {
-  return runtimeSettings ? { ...body, runtime_settings: runtimeSettings } : body;
+/** Stamps the runtime and MLflow question group onto the stored run. */
+function withAskRuntime<T extends Record<string, unknown>>(
+  body: T,
+  runtimeSettings: RuntimeSettings | undefined,
+  traceSessionId: string
+): T {
+  return {
+    ...body,
+    ...(runtimeSettings ? { runtime_settings: runtimeSettings } : {}),
+    trace_session_id: traceSessionId,
+  };
 }
 
 /**
@@ -4904,6 +4916,11 @@ export function setupInsightsRoutes(
         .map((row) => `## ${String(row.filename)}\n${String(row.extracted_text)}`)
         .join('\n\n')
         .slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
+      // Exactly the fingerprint the Python agent writes to
+      // `mlflow.trace.session`. An approved turn names its already-issued plan,
+      // while a direct turn derives the same id from the prompt and attachment
+      // text the endpoint receives.
+      const traceSessionId = approvedPlanId ?? questionTraceSessionId(prompt, attachmentText);
 
       /**
        * The run ledger. Shadow by default, which records the run and changes
@@ -5329,7 +5346,7 @@ export function setupInsightsRoutes(
                 conversationId,
                 'assistant',
                 plan.summary,
-                JSON.stringify(withAskRuntime(planResponse, askRuntime)),
+                JSON.stringify(withAskRuntime(planResponse, askRuntime, plan.id)),
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
               ]
@@ -5371,7 +5388,7 @@ export function setupInsightsRoutes(
                 conversationId,
                 'assistant',
                 clarification.question,
-                JSON.stringify(withAskRuntime(clarificationResponse, askRuntime)),
+                JSON.stringify(withAskRuntime(clarificationResponse, askRuntime, traceSessionId)),
                 honestClarification.trace.id,
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
@@ -5409,7 +5426,7 @@ export function setupInsightsRoutes(
                 conversationId,
                 'assistant',
                 report.title,
-                JSON.stringify(withAskRuntime(reportResponse, askRuntime)),
+                JSON.stringify(withAskRuntime(reportResponse, askRuntime, traceSessionId)),
                 platformTraceId,
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
@@ -5717,7 +5734,7 @@ export function setupInsightsRoutes(
             conversationId,
             'assistant',
             disclosed.narrative,
-            JSON.stringify(withAskRuntime(disclosed, askRuntime)),
+            JSON.stringify(withAskRuntime(disclosed, askRuntime, traceSessionId)),
             disclosed.trace.id,
             // Recorded on the answer rather than on the question, because these
             // name the authority something RAN under and a question runs nothing.

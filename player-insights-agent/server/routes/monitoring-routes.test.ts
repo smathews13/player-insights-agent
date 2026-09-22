@@ -283,6 +283,14 @@ describe('the query reads questions rather than answers', () => {
     expect(MONITORING_QUESTIONS_QUERY).not.toMatch(/mlflow|trace-token/i);
   });
 
+  it('carries the stored MLflow question session and falls back to a historical plan id', () => {
+    for (const query of [MONITORING_QUESTIONS_QUERY, MONITORING_DETAIL_QUERY]) {
+      expect(query).toContain("a.response_json->>'trace_session_id'");
+      expect(query).toContain("m.response_json->'plan'->>'id' AS trace_session_id");
+      expect(query).toContain("m.response_json->>'type' = 'plan'");
+    }
+  });
+
   /**
    * One literal, from the module that writes it. A second copy that drifted would
    * start counting approvals as questions and pairing answers to the approval.
@@ -406,6 +414,13 @@ describe('one row, from what the stores recorded', () => {
     expect(question.durationMs).toBeNull();
     expect(question.toolCalls).toBeNull();
     expect(question.totalTokens).toBeNull();
+  });
+
+  it('carries the question session used to group its MLflow traces', () => {
+    expect(questionFromRow(row({ trace_session_id: 'plan-a0edd9f880c22577' }), ledger()).traceSessionId).toBe(
+      'plan-a0edd9f880c22577'
+    );
+    expect(questionFromRow(row({ trace_session_id: null }), ledger()).traceSessionId).toBeNull();
   });
 
   it('preserves an explicitly recorded zero and a large canonical token total', () => {

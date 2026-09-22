@@ -308,6 +308,7 @@ export const MONITORING_QUESTIONS_QUERY = `
   SELECT t.asked_total, t.thread_total, t.people_list,
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
          a.id AS answer_id, a.trace_id,
+         COALESCE(a.response_json->>'trace_session_id', p.trace_session_id) AS trace_session_id,
          a.execution_mode, a.execution_identity_verified, a.access_mode,
          a.response_json->'trace'->>'totalMs' AS total_ms,
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
@@ -355,6 +356,21 @@ export const MONITORING_QUESTIONS_QUERY = `
     LIMIT 1
   ) a ON TRUE
   LEFT JOIN LATERAL (
+    SELECT m.response_json->'plan'->>'id' AS trace_session_id
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = q.conversation_id
+      AND m.role = 'assistant'
+      AND m.response_json->>'type' = 'plan'
+      AND m.created_at >= q.asked_at
+      AND m.created_at < COALESCE(
+            (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
+              WHERE u.conversation_id = q.conversation_id AND u.role = 'user'
+                AND u.content <> $1 AND u.created_at > q.asked_at),
+            'infinity'::timestamptz)
+    ORDER BY m.created_at DESC
+    LIMIT 1
+  ) p ON TRUE
+  LEFT JOIN LATERAL (
     SELECT fb.sentiment, fb.usefulness, fb.comment
     FROM ${APP_SCHEMA}.feedback fb
     WHERE fb.message_id = a.id AND fb.user_email = q.user_email
@@ -390,6 +406,7 @@ export const MONITORING_DETAIL_QUERY = `
   SELECT q.id AS question_id, q.conversation_id, q.content AS question,
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
+         COALESCE(a.response_json->>'trace_session_id', p.trace_session_id) AS trace_session_id,
          jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
          jsonb_path_exists(
            a.response_json->'trace',
@@ -426,6 +443,20 @@ export const MONITORING_DETAIL_QUERY = `
              m.created_at DESC
     LIMIT 1
   ) a ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT m.response_json->'plan'->>'id' AS trace_session_id
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.conversation_id = q.conversation_id
+      AND m.role = 'assistant'
+      AND m.response_json->>'type' = 'plan'
+      AND m.created_at >= q.created_at
+      AND (SELECT u.id FROM ${APP_SCHEMA}.messages u
+            WHERE u.conversation_id = m.conversation_id AND u.role = 'user'
+              AND u.content <> $2 AND u.created_at <= m.created_at
+            ORDER BY u.created_at DESC LIMIT 1) = q.id
+    ORDER BY m.created_at DESC
+    LIMIT 1
+  ) p ON TRUE
   LEFT JOIN LATERAL (
     SELECT fb.sentiment, fb.usefulness, fb.comment
     FROM ${APP_SCHEMA}.feedback fb
@@ -830,6 +861,7 @@ export function questionFromRow(row: Record<string, unknown>, ledger: Map<string
     totalTokens: tokenCount(row.total_tokens),
     feedback: applyAdminFeedback(feedbackDirection(row.sentiment, row.usefulness), text(row.overlay_rating)),
     tables: tableList(row.sources),
+    traceSessionId: text(row.trace_session_id) || null,
   };
 }
 
@@ -1284,7 +1316,12 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
           ? await deps.traceTokenEvidenceReader(traceId, stageIds, tokenCount(storedTrace?.total_tokens) ?? undefined)
           : null;
       const enrichedResponse = responseWithTokenAttribution(row.response_json, attribution);
-      const mlflow = traceId ? mlflowReference(traceId, await resolveExperimentId(appkit)) : null;
+      const traceSessionId = text(row.trace_session_id) || null;
+      const mlflow = traceId
+        ? mlflowReference(traceId, await resolveExperimentId(appkit), {
+            groupBySession: Boolean(traceSessionId),
+          })
+        : null;
       const executionMode = text(row.execution_mode);
       const detail: MonitoringDetail = {
         id: text(row.question_id),
@@ -1332,6 +1369,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         // workspace links off. Withheld HERE rather than in the drawer: a URL
         // suppressed in the browser is a URL that was already delivered.
         mlflowUrl: (await workspaceLinksAllowed(appkit)) ? (mlflow?.url ?? null) : null,
+        traceSessionId,
         runId: answerId || null,
         // Always sent, even when the answer body is withheld: the budget is a
         // record of the agent, not of anybody's data.
