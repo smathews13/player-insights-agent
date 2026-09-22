@@ -962,6 +962,31 @@ ol.answer-list {
   height: 16px;
   flex: none;
 }
+
+/* The document inside owns its complete visual system. This frame supplies only
+ * the transcript geometry and isolation boundary; it does not restyle the HTML. */
+.dashboard-html-frame {
+  display: block;
+  width: 100%;
+  min-height: 720px;
+  border: 0;
+  border-radius: var(--ast-radius-card);
+  background: transparent;
+}
+
+.dashboard-json-document {
+  width: 100%;
+  max-height: 720px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--ast-radius-card);
+  background: var(--card);
+  color: var(--foreground);
+  font: 12px/1.55 var(--font-mono);
+  white-space: pre;
+}
 .export-menu-content [role='menuitem']:hover,
 .export-menu-content [role='menuitem']:focus-visible {
   background: var(--ast-neutral-fill);
