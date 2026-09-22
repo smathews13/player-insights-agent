@@ -6,6 +6,7 @@ import type { ExportTable } from './export-serializers';
 import type { Chart } from './AnswerCharts';
 import type { ConversationMessage } from './app-types';
 import { PiaBusyButtonContent } from './PiaLoader';
+import type { Report } from '../../shared/report-contract';
 
 const loadExportActions = () => import('./export-actions');
 
@@ -100,6 +101,36 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
         {
           label: 'Download PDF',
           run: async () => (await loadExportActions()).downloadAnswerPdf(answer, question),
+        },
+      ]}
+    />
+  );
+}
+
+export function ReportExportMenu({ report }: { report: Report }) {
+  return (
+    <ActionsMenu
+      label="Export this report"
+      actions={[
+        {
+          label: 'Copy Markdown',
+          run: async () => (await loadExportActions()).copyReportMarkdown(report),
+        },
+        {
+          label: 'Download Markdown',
+          run: async () => (await loadExportActions()).downloadReportMarkdown(report),
+        },
+        {
+          label: 'Download HTML',
+          run: async () => (await loadExportActions()).downloadReportHtml(report, 'page'),
+        },
+        {
+          label: 'Download HTML for slides',
+          run: async () => (await loadExportActions()).downloadReportHtml(report, 'presentation'),
+        },
+        {
+          label: 'Download JSON',
+          run: async () => (await loadExportActions()).downloadReportJson(report),
         },
       ]}
     />

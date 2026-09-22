@@ -13,8 +13,8 @@
  * `unavailable`, in a body that is otherwise a perfectly ordinary response.
  *
  * WHAT HAPPENED WITHOUT THIS, and it is worse than the fallback the workstream
- * set out to delete. The ask route reads four shapes: plan, clarification,
- * structured answer, and prose. A refusal is none of them, but it is not
+ * set out to delete. The ask route reads five shapes: plan, clarification,
+ * report, structured answer, and prose. A refusal is none of them, but it is not
  * nothing either: the agent puts its refusal sentence in a text output item, and
  * `extractLiveText` walks `output[].text` and finds it. So the refusal matched
  * the PROSE branch, which is the branch that keeps the agent's words and fills
@@ -23,16 +23,12 @@
  * `type: 'answer'` and `mode: 'live'`, with "The request could not be executed
  * with your permissions" written above it as the takeaway.
  *
- * So this is read BEFORE any of the four, and it is read off `custom_outputs`
+ * So this is read BEFORE any of the five, and it is read off `custom_outputs`
  * rather than off the prose, because the prose is what made the bug.
  */
 
 import { isFailureCode, type FailureCode } from '../../shared/failure-taxonomy';
-import {
-  unavailableResult,
-  type ExecutionIdentityClaim,
-  type UnavailableResult,
-} from '../../shared/terminal-response';
+import { unavailableResult, type ExecutionIdentityClaim, type UnavailableResult } from '../../shared/terminal-response';
 
 /** The `custom_outputs.type` the agent sets when it refused the turn. */
 export const UNAVAILABLE_TYPE = 'unavailable';
@@ -63,13 +59,10 @@ export interface RefusalContext {
  * Read the agent's refusal out of an endpoint response, or `null`.
  *
  * `null` means the response was not a refusal, and the caller carries on to the
- * four ordinary shapes. It is deliberately the only way to carry on: anything
+ * five ordinary shapes. It is deliberately the only way to carry on: anything
  * that looks like a refusal and cannot be parsed is still returned as one.
  */
-export function readAgentRefusal(
-  payload: unknown,
-  context: RefusalContext
-): UnavailableResult | null {
+export function readAgentRefusal(payload: unknown, context: RefusalContext): UnavailableResult | null {
   const outputs = customOutputs(payload);
   if (!outputs || outputs.type !== UNAVAILABLE_TYPE) return null;
 

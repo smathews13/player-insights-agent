@@ -6,22 +6,23 @@ describe('export controls contract', () => {
   const source = readFileSync(new URL('./ExportMenu.tsx', import.meta.url), 'utf8');
   const actionSource = readFileSync(new URL('./export-actions.ts', import.meta.url), 'utf8');
   const answerCard = readFileSync(new URL('./AnswerCard.tsx', import.meta.url), 'utf8');
+  const reportCard = readFileSync(new URL('./ReportCard.tsx', import.meta.url), 'utf8');
   const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
 
-  it('offers the four export formats on both the answer and the whole conversation', () => {
-    // Copy/Download Markdown: one on the answer menu, one on the conversation menu.
-    expect(source.match(/label: 'Copy Markdown'/g)).toHaveLength(2);
-    expect(source.match(/label: 'Download Markdown'/g)).toHaveLength(2);
+  it('offers the supported export formats on answers, reports, and conversations', () => {
+    // Copy/Download Markdown: answer, report, and conversation.
+    expect(source.match(/label: 'Copy Markdown'/g)).toHaveLength(3);
+    expect(source.match(/label: 'Download Markdown'/g)).toHaveLength(3);
     // Download PDF: answer, conversation, and the standalone table.
     expect(source.match(/label: 'Download PDF'/g)).toHaveLength(3);
     expect(source.match(/label: 'Copy TSV'/g)).toHaveLength(1);
     // Two PNG downloads: the table image and the standalone chart image.
     expect(source.match(/label: 'Download PNG'/g)).toHaveLength(2);
-    // Self-contained HTML (page and slide) for both the answer and the conversation.
-    expect(source.match(/label: 'Download HTML'/g)).toHaveLength(2);
-    expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(2);
-    // Canonical JSON for the whole answer, the whole conversation, and a single chart.
-    expect(source.match(/label: 'Download JSON'/g)).toHaveLength(3);
+    // Self-contained HTML (page and slide) for answers, reports, and conversations.
+    expect(source.match(/label: 'Download HTML'/g)).toHaveLength(3);
+    expect(source.match(/label: 'Download HTML for slides'/g)).toHaveLength(3);
+    // Canonical JSON for an answer, report, conversation, and single chart.
+    expect(source.match(/label: 'Download JSON'/g)).toHaveLength(4);
   });
 
   it('uses accessible menus and live success/error feedback', () => {
@@ -46,6 +47,7 @@ describe('export controls contract', () => {
 
   it('exports a single answer from its card and the whole conversation from the transcript toolbar', () => {
     expect(answerCard.indexOf('<AnswerExportMenu')).toBeGreaterThan(answerCard.indexOf('className="feedback"'));
+    expect(reportCard).toContain('<ReportExportMenu report={report} />');
     // The whole-conversation menu is mounted once, above the transcript, and reads
     // the complete paginated thread rather than only the newest mounted page.
     expect(home).toContain('<ConversationExportMenu');
