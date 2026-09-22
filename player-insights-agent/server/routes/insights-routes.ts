@@ -41,6 +41,9 @@ import { isReportPayload, normalizeReport, type Report } from '../../shared/repo
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
+import { readBakedModelConfig } from '../lib/baked-model-config';
+import { configurationForSettings } from '../lib/release-configuration';
+import { requestServedConfiguration } from '../lib/served-configuration-recovery';
 import { credentialLifetime } from '../lib/benchmark-identity';
 import { BENCHMARK_CASE_CATALOG, CANONICAL_SUITE, canonicalSuite, resolveSuiteCases } from '../lib/benchmark-suite';
 import { HELD_OUT_CASES, HELD_OUT_SUITE_ID, HELD_OUT_SUITE_NAME } from '../../shared/held-out-suite';
@@ -1803,6 +1806,42 @@ export function extractConfigurationReport(value: unknown): PreflightConfigurati
     }
   }
   return [];
+}
+
+/**
+ * The dependencies the access gate must check for this exact served release.
+ *
+ * Git deployments do not run the bundle release script, so their app
+ * environment may contain no declared manifest. Read the baked artifact first;
+ * when the app principal cannot read it, ask the already-running model for the
+ * same baked configuration through its cheap compatibility response. This is
+ * configuration recovery only: the table and Genie probes still run below as
+ * the signed-in user.
+ */
+async function accessDependenciesForRelease(appkit: InsightsAppKit) {
+  const baked = await readBakedModelConfig();
+  const initialConfiguration = configurationForSettings(process.env, baked);
+  const initial = accessDependenciesFrom({
+    configuration: initialConfiguration,
+    env: process.env,
+  });
+  if (initial.tables.length > 0 && initial.genieSpaces.length > 0) return initial;
+  if (!(process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim()) return initial;
+
+  try {
+    const served = await requestServedConfiguration(
+      (payload, timeoutMs) => invokeServing(appkit, payload, undefined, timeoutMs),
+      extractConfigurationReport
+    );
+    if (served.length === 0) return initial;
+    return accessDependenciesFrom({
+      configuration: configurationForSettings(process.env, [...served, ...baked]),
+      env: process.env,
+    });
+  } catch (error) {
+    console.warn('[access] The served release configuration could not be recovered:', (error as Error).message);
+    return initial;
+  }
 }
 
 /** The app's own service principal, as the `permissions update` CLI names it. */
@@ -3950,13 +3989,12 @@ export function setupInsightsRoutes(
         return;
       }
 
-      // The app's own warehouse, from its app resource. Tables and Genie spaces
-      // come from this release's environment (filled at app-release) and, when
-      // catalog+schema are present, from the committed data contract. Nothing
-      // here asks the live agent a question. When the list is empty the gate
-      // still checks the warehouse and names what it could not establish.
+      // The app's own warehouse comes from its app resource. Tables and Genie
+      // spaces come from this release's environment or baked model
+      // configuration; a Git deployment whose app cannot read the artifact
+      // recovers that exact configuration from the served model.
       const warehouseId = appWarehouseId();
-      const { tables, genieSpaces } = accessDependenciesFrom({ env: process.env });
+      const { tables, genieSpaces } = await accessDependenciesForRelease(appkit);
       const servingChecked: readonly { object: string; label: string; status: string }[] = [];
       const host = workspaceHost();
       // Two different missing things, and two different people to go and see.

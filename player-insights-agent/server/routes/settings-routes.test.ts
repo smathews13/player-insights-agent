@@ -294,20 +294,16 @@ describe('what /api/settings makes of this release, without asking the agent', (
   it('recovers the model declaration from the running endpoint when the artifact is unreadable', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'recovery-endpoint';
     process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH = '/Shared/player-insights-agent';
-    const transport = vi
-      .fn()
-      .mockResolvedValue(
-        {
-          ...retiredPreflight([
-            entry('catalog', 'customer_data'),
-            entry('schema', 'players'),
-            entry('declared_manifest', ['customer_data.players.matches', 'customer_data.players.players']),
-          ]),
-          databricks_output: {
-            databricks_request_id: 'tr-0123456789abcdef0123456789abcdef',
-          },
-        }
-      );
+    const transport = vi.fn().mockResolvedValue({
+      ...retiredPreflight([
+        entry('catalog', 'customer_data'),
+        entry('schema', 'players'),
+        entry('declared_manifest', ['customer_data.players.matches', 'customer_data.players.players']),
+      ]),
+      databricks_output: {
+        databricks_request_id: 'tr-0123456789abcdef0123456789abcdef',
+      },
+    });
     const read = await readOrchestratorReport(appkit(transport));
     expect(transport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -322,10 +318,38 @@ describe('what /api/settings makes of this release, without asking the agent', (
       'customer_data.players.matches',
       'customer_data.players.players',
     ]);
-    expect(read.report?.checks.find((check) => check.id === 'experiment-id')).toMatchObject({
-      status: 'ok',
-      name: '/Shared/player-insights-agent',
-    });
+    // The serving request id proves only that the compatibility call answered.
+    // MLflow's experiment is checked separately by the settings reachability
+    // path, so recovery itself must not manufacture a green experiment check.
+    expect(read.report?.checks.find((check) => check.id === 'experiment-id')).toBeUndefined();
+  });
+
+  it('retries after a trace-only response instead of caching empty configuration', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'trace-only-then-configuration';
+    const transport = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...retiredPreflight([]),
+        databricks_output: {
+          databricks_request_id: 'tr-11111111111111111111111111111111',
+        },
+      })
+      .mockResolvedValueOnce(
+        retiredPreflight([
+          entry('catalog', 'customer_data'),
+          entry('schema', 'players'),
+          entry('declared_manifest', ['customer_data.players.matches']),
+        ])
+      );
+
+    const first = await readOrchestratorReport(appkit(transport));
+    const second = await readOrchestratorReport(appkit(transport));
+
+    expect(first.report?.configuration.find((item) => item.key === 'declared_manifest')).toBeUndefined();
+    expect(second.report?.configuration.find((item) => item.key === 'declared_manifest')?.value).toEqual([
+      'customer_data.players.matches',
+    ]);
+    expect(transport).toHaveBeenCalledTimes(2);
   });
 
   it('does not let the page claim agreement it never measured', async () => {

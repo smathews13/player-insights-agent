@@ -2,23 +2,9 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  setupInsightsRoutes,
-  type InsightsAppKit,
-  type ServingTransport,
-} from './insights-routes';
-import type {
-  Blocked,
-  GenieVerdict,
-  NotChecked,
-  Remedy,
-  TableVerdict,
-} from './access-verification';
-import {
-  forgetAccessDecisions,
-  forgetServingPrincipal,
-  type AccessDecision,
-} from './execution-identity';
+import { setupInsightsRoutes, type InsightsAppKit, type ServingTransport } from './insights-routes';
+import type { Blocked, GenieVerdict, NotChecked, Remedy, TableVerdict } from './access-verification';
+import { forgetAccessDecisions, forgetServingPrincipal, type AccessDecision } from './execution-identity';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
 import { MANAGER_GRANT_USER_API_SCOPES } from '../lib/app-user-api-scopes';
 
@@ -229,9 +215,7 @@ interface GenieCall {
 }
 
 /** What the Genie space endpoint says back, in the two shapes that matter. */
-type GenieAnswer =
-  | { status: 200; body: Record<string, unknown> }
-  | { status: number; body: Record<string, unknown> };
+type GenieAnswer = { status: 200; body: Record<string, unknown> } | { status: number; body: Record<string, unknown> };
 
 /** Every space resolves, which is the case the other stubs should not perturb. */
 const genieResolves = (spaceId: string): GenieAnswer => ({ status: 200, body: { space_id: spaceId } });
@@ -277,7 +261,8 @@ function statementBodyOn(init: RequestInit | undefined): {
  * the probe would leave the machine, and a DNS failure reads as a space that
  * did not answer, which is a true verdict about the wrong thing.
  */
-function stubStatements(answer: (statement: string) => {
+function stubStatements(
+  answer: (statement: string) => {
     ok: boolean;
     state?: string;
     message?: string;
@@ -301,7 +286,8 @@ function stubStatements(answer: (statement: string) => {
       const spaceId = url.slice(GENIE.length);
       genieCalls.push({ spaceId, authorization: authorizationOn(init) });
       const reply = genieAnswer(spaceId);
-      return Promise.resolve(new Response(JSON.stringify(reply.body), {
+      return Promise.resolve(
+        new Response(JSON.stringify(reply.body), {
           status: reply.status,
           headers: { 'content-type': 'application/json' },
         })
@@ -316,13 +302,17 @@ function stubStatements(answer: (statement: string) => {
     });
     const verdict = answer(body.statement);
     if (verdict.http) {
-      return Promise.resolve(new Response(JSON.stringify(verdict.message ? { message: verdict.message } : {}), {
+      return Promise.resolve(
+        new Response(JSON.stringify(verdict.message ? { message: verdict.message } : {}), {
           status: verdict.http,
           headers: { 'content-type': 'application/json' },
         })
       );
     }
-    return Promise.resolve(new Response(JSON.stringify(verdict.ok
+    return Promise.resolve(
+      new Response(
+        JSON.stringify(
+          verdict.ok
             ? { status: { state: 'SUCCEEDED' } }
             : { status: { state: verdict.state ?? 'FAILED', error: { message: verdict.message } } }
         ),
@@ -417,7 +407,7 @@ describe('POST /api/app-user-api-scopes', () => {
       return Promise.resolve(
         calls.length === 1
           ? new Response(JSON.stringify({ user_api_scopes: ['catalog.tables:read'] }))
-          : new Response('{}'),
+          : new Response('{}')
       );
     });
     const app = await startApp(retiredWithoutConfiguration());
@@ -429,10 +419,7 @@ describe('POST /api/app-user-api-scopes', () => {
     }
 
     expect(response.status).toBe(200);
-    expect(calls.map((call) => call.authorization)).toEqual([
-      'Bearer user-token',
-      'Bearer user-token',
-    ]);
+    expect(calls.map((call) => call.authorization)).toEqual(['Bearer user-token', 'Bearer user-token']);
     expect(calls[1].body).toEqual({
       user_api_scopes: [...new Set(['catalog.tables:read', ...MANAGER_GRANT_USER_API_SCOPES])],
     });
@@ -459,13 +446,7 @@ describe('POST /api/app-user-api-scopes', () => {
     }
 
     expect(calls[1]).toEqual({
-      user_api_scopes: [
-        'serving.serving-endpoints',
-        'model-serving',
-        'sql',
-        'dashboards.genie',
-        'postgres',
-      ],
+      user_api_scopes: ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie', 'postgres'],
     });
   });
 
@@ -495,9 +476,9 @@ describe('POST /api/app-user-api-scopes', () => {
             new Response(JSON.stringify({ message: 'No CAN MANAGE' }), {
               status: 403,
               headers: { 'content-type': 'application/json' },
-            }),
+            })
           )
-        : real(input, init),
+        : real(input, init)
     );
     const app = await startApp(retiredWithoutConfiguration());
     let response: Response;
@@ -605,7 +586,7 @@ describe('POST /api/access-verification with a token', () => {
     expect(decisionOn(body).detail).not.toMatch(/SELECT on \d+ tables?/);
     const limits = JSON.stringify(body.notChecked);
     expect(limits).toMatch(/row filter or a column mask/);
-    expect(limits).toMatch(/could not learn which tables this release may read/);
+    expect(limits).toMatch(/did not provide a declared table manifest/);
     expect(limits).toMatch(/Genie/);
   });
 
@@ -630,7 +611,7 @@ describe('POST /api/access-verification with a token', () => {
     expect(body.ok).toBe(0);
     expect(body.genie ?? []).toHaveLength(0);
     const limits = JSON.stringify(body.notChecked);
-    expect(limits).toMatch(/could not learn which tables this release may read/);
+    expect(limits).toMatch(/did not provide a declared table manifest/);
     expect(limits).toMatch(/Genie/);
   });
 
@@ -665,6 +646,47 @@ describe('POST /api/access-verification with a token', () => {
     expect(JSON.stringify(body.notChecked)).not.toMatch(/could not learn which tables/);
   });
 
+  it('recovers and probes the served release tables when Git deployment environment is empty', async () => {
+    const calls = stubStatements(() => ({ ok: true }));
+    const transport = vi.fn<ServingTransport>().mockResolvedValue({
+      custom_outputs: {
+        type: 'preflight_retired',
+        configuration: [
+          { key: 'declared_manifest', value: [...TABLES] },
+          { key: 'data_genie_space_id', value: SPACES[0] },
+          { key: 'dictionary_genie_space_id', value: SPACES[1] },
+          { key: 'data_genie_space_title', value: 'Player Insights Data' },
+          { key: 'dictionary_genie_space_title', value: 'Player Insights Dictionary' },
+        ],
+      },
+    });
+    const app = await startApp(transport);
+    let body: VerificationBody;
+    try {
+      const response = await fetch(app.url('/api/access-verification'), asUser(FULL_SCOPES));
+      body = await verificationBody(response);
+    } finally {
+      await app.close();
+    }
+
+    expect(transport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: {
+          input: [{ role: 'user', content: 'preflight' }],
+          custom_inputs: { preflight: true },
+        },
+      })
+    );
+    expect(calls.map((call) => call.statement)[0]).toBe('SELECT 1');
+    for (const table of TABLES) {
+      expect(calls.some((call) => call.statement.includes(table))).toBe(true);
+    }
+    expect(genieCalls.map((call) => call.spaceId).sort()).toEqual([...SPACES].sort());
+    expect(body.verified).toBe(true);
+    expect(body.ok).toBe(TABLES.length);
+    expect(body.genie).toHaveLength(2);
+  });
+
   /**
    * A token carrying `sql` and not `dashboards.genie`, which is what a
    * deployment that declared the Genie scope and was redeployed rather than
@@ -691,9 +713,7 @@ describe('POST /api/access-verification with a token', () => {
       const refused = await fetch(app.url('/api/access-verification'), asUser(SQL_ONLY));
       shortStatus = refused.status;
       short = await verificationBody(refused);
-      full = await verificationBody(
-        await fetch(app.url('/api/access-verification'), asUser(FULL_SCOPES))
-      );
+      full = await verificationBody(await fetch(app.url('/api/access-verification'), asUser(FULL_SCOPES)));
     } finally {
       await app.close();
     }
@@ -748,8 +768,7 @@ describe('POST /api/access-verification with a token', () => {
       permission: 'CAN_USE',
       objectKind: 'sql-warehouse',
     });
-    expect(remedyOn(body).statement).toContain(`databricks permissions update warehouses ${WAREHOUSE}`
-    );
+    expect(remedyOn(body).statement).toContain(`databricks permissions update warehouses ${WAREHOUSE}`);
     expect(body.verdicts).toEqual([]);
     // It stopped, rather than asking two more questions it already knew the
     // answer to and reporting them as table verdicts.
@@ -792,8 +811,7 @@ describe('POST /api/access-verification with a token', () => {
     // A warehouse is not a Unity Catalog securable, so the remedy is the
     // permissions API and never the GRANT the message's wording invites.
     expect(remedyOn(body).kind).toBe('cli');
-    expect(remedyOn(body).statement).toContain(`databricks permissions update warehouses ${WAREHOUSE}`
-    );
+    expect(remedyOn(body).statement).toContain(`databricks permissions update warehouses ${WAREHOUSE}`);
     // Verbatim, so the classification above can be checked rather than taken
     // on trust...
     expect(blockedOn(body).apiMessage).toBe(REAL_INSUFFICIENT);
@@ -835,12 +853,7 @@ describe('POST /api/access-verification with a token', () => {
    */
   it.each([
     ['a token Databricks itself refused', { ok: false as const, http: 401 }, 'token-rejected', 401],
-    [
-      'a warehouse id that resolves to nothing',
-      { ok: false as const, http: 404 },
-      'warehouse-missing',
-      503,
-    ],
+    ['a warehouse id that resolves to nothing', { ok: false as const, http: 404 }, 'warehouse-missing', 503],
     [
       'a warehouse that did not answer',
       { ok: false as const, state: 'CANCELED', message: 'Statement was canceled.' },

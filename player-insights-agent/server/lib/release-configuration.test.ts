@@ -137,6 +137,7 @@ describe('the only preflight request is configuration recovery', () => {
     }
     const settings = readFileSync(path.join(root, 'server/routes/settings-routes.ts'), 'utf8');
     expect(settings).toContain('recoverServedConfiguration');
-    expect(settings).toMatch(/custom_inputs:\s*\{\s*preflight:\s*true\s*\}/);
+    const recovery = readFileSync(path.join(root, 'server/lib/served-configuration-recovery.ts'), 'utf8');
+    expect(recovery).toMatch(/custom_inputs:\s*\{\s*preflight:\s*true\s*\}/);
   });
 });
