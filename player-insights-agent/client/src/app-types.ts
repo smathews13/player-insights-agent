@@ -18,6 +18,7 @@ import type { RunRuntimeUsed } from '../../shared/run-runtime-used';
 import type { SpIdentitySummary } from '../../shared/sp-identity';
 import type { ControlPlaneIdentityMetadata } from '../../shared/identity-metadata';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
+import type { Report } from '../../shared/report-contract';
 
 /**
  * What the components are allowed to render: every field present, because it came
@@ -72,7 +73,14 @@ export interface ClarificationResponse {
   mode: 'live';
   clarification: Clarification;
 }
-export type AgentResponse = Answer | PlanResponse | ClarificationResponse;
+/** A multi-section document authored by the agent. */
+export interface ReportResponse {
+  type: 'report';
+  mode: 'live';
+  id: string;
+  report: Report;
+}
+export type AgentResponse = Answer | PlanResponse | ClarificationResponse | ReportResponse;
 export interface Identity {
   /** Proxy-authenticated value used by server authorization and tenancy checks. */
   signedInAs: string;

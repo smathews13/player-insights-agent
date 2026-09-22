@@ -46,6 +46,13 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
       terminalCode: 'PERSISTENCE_UNAVAILABLE',
     };
   }
+  if (response.type === 'report') {
+    return {
+      state: 'SUCCEEDED',
+      terminalMessageId: response.id,
+      summary: summary(response.id, 'Complete', 'ast-pill--pos', null),
+    };
+  }
 
   const verdict = answerRunVerdict({
     stages: response.trace.stages,

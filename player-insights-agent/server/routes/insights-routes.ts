@@ -36,6 +36,7 @@ import {
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
+import { isReportPayload, normalizeReport, type Report } from '../../shared/report-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -2465,6 +2466,35 @@ export function extractClarification(value: unknown): Clarification | null {
   for (const key of ['data', 'response', 'result', 'body']) {
     if (record[key]) {
       const nested = extractClarification(record[key]);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+/**
+ * A report from `custom_outputs`, or null.
+ *
+ * Checked before the answer contract, just like `extractClarification`: a
+ * report has no `takeaway`, `sql`, or answer-shaped `trace`. Without this
+ * branch the route reads only the report summary as plain prose and discards
+ * the complete document the agent already built.
+ */
+export function extractReport(value: unknown): Report | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (isEndpointError(record)) return null;
+  const custom = record.custom_outputs;
+  if (custom && typeof custom === 'object') {
+    const customRecord = custom as Record<string, unknown>;
+    if (isReportPayload(customRecord)) {
+      const report = normalizeReport(customRecord.report ?? customRecord);
+      if (report) return report;
+    }
+  }
+  for (const key of ['data', 'response', 'result', 'body']) {
+    if (record[key]) {
+      const nested = extractReport(record[key]);
       if (nested) return nested;
     }
   }
@@ -5178,7 +5208,7 @@ export function setupInsightsRoutes(
           clearTimeout(deadlineTimer);
           ranAsSignedInUser = Boolean(identity.token);
           /**
-           * Before all four shapes, because a refusal is none of them and looks
+           * Before all five shapes, because a refusal is none of them and looks
            * like one of them.
            *
            * `invokeServingAsUser` raises `AuthorizationRefused` when the ENDPOINT
@@ -5330,9 +5360,50 @@ export function setupInsightsRoutes(
             reply.json(clarificationResponse);
             return;
           }
+          const platformTraceId = servingMlflowTraceId(endpointResult);
+          // Reports are a first-class endpoint result. Recognize and persist
+          // them before the answer/prose paths can flatten them into a degraded
+          // summary and discard their sections.
+          const report = extractReport(endpointResult);
+          if (report) {
+            const messageId = `msg-${crypto.randomUUID()}`;
+            const reportResponse = { type: 'report' as const, mode: 'live' as const, id: messageId, report };
+            const persisted = await readStored(
+              appkit,
+              'POST /api/insights/ask (report)',
+              `INSERT INTO ${APP_SCHEMA}.messages
+             (id, conversation_id, role, content, response_json, trace_id,
+              app_principal, serving_principal, serving_principal_observed_at, access_mode,
+              execution_mode, execution_identity_verified)
+             SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+              WHERE ${outputFenceSql(13, 14)}
+             RETURNING id`,
+              [
+                messageId,
+                conversationId,
+                'assistant',
+                report.title,
+                JSON.stringify(withAskRuntime(reportResponse, askRuntime)),
+                platformTraceId,
+                ...executionIdentityColumns(email, executionIdentityClaim(identity)),
+                ...outputFenceParams,
+              ]
+            );
+            const runStored =
+              persisted.available && conversationAddressable && (!hasOutputFence || persisted.rows.length > 0);
+            if (replyIfCancelled()) return;
+            await settleRun(
+              appkit,
+              admission,
+              runStored
+                ? { to: 'SUCCEEDED', traceId: platformTraceId, messageId }
+                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: platformTraceId }
+            );
+            reply.json({ ...reportResponse, runStored, execution_identity: executionIdentityClaim(identity) });
+            return;
+          }
           const structuredAnswer = extractStructuredAnswer(endpointResult);
           const liveText = extractLiveText(endpointResult);
-          const platformTraceId = servingMlflowTraceId(endpointResult);
           if (structuredAnswer) {
             // Everything a reader will see came back from this run:
             // `LiveAnswerSchema` requires the figures, sources, SQL and trace, so
@@ -5386,8 +5457,8 @@ export function setupInsightsRoutes(
             // this line is the only record of which shape actually arrived.
             const shape = describePayloadShape(endpointResult);
             console.error(
-              '[serving] The endpoint answered, but with none of the four shapes this app can read ' +
-                `(plan, clarification, structured answer, live text). ${shape}. Payload: ` +
+              '[serving] The endpoint answered, but with none of the five shapes this app can read ' +
+                `(plan, clarification, report, structured answer, live text). ${shape}. Payload: ` +
                 JSON.stringify(endpointResult).slice(0, 1200)
             );
             await settleRun(appkit, admission, {

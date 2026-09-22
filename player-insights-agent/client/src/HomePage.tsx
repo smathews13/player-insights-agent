@@ -194,7 +194,9 @@ import type {
   ConversationMessage,
   FeedbackEntry,
   PlanResponse,
+  ReportResponse,
 } from './app-types';
+import { normalizeReport } from '../../shared/report-contract';
 import { answeredQuestion } from './answered-question';
 
 /** What Approve posts: the plan id, the transcript label, and the plan itself. */
@@ -209,6 +211,7 @@ const ConversationFilters = lazy(() =>
   import('./ConversationFilters').then(({ ConversationFilters: filters }) => ({ default: filters }))
 );
 const RunRatingBadge = lazy(() => import('./RunRatingBadge').then(({ RunRatingBadge: badge }) => ({ default: badge })));
+const ReportCard = lazy(() => import('./ReportCard').then(({ ReportCard: card }) => ({ default: card })));
 
 /** Formats the customer confirmed: PDF, Markdown, JSON, TXT, CSV. */
 const ATTACHMENT_ACCEPT = '.pdf,.md,.json,.txt,.csv';
@@ -266,6 +269,11 @@ function normalizeResponse(raw: unknown, executionIdentity?: unknown): AgentResp
   if (response.type === 'plan') return response as unknown as PlanResponse;
   if (response.type === 'clarification') {
     return { type: 'clarification', mode: 'live', clarification: normalizeClarification(response.clarification) };
+  }
+  if (response.type === 'report') {
+    const report = normalizeReport(response.report);
+    const id = typeof response.id === 'string' && response.id ? response.id : `msg-${crypto.randomUUID()}`;
+    return report ? ({ type: 'report', mode: 'live', id, report } satisfies ReportResponse) : null;
   }
   const wire = response as WireAnswer;
   return normalizeAnswer(
@@ -665,9 +673,14 @@ export function HomePage() {
     .filter((response): response is AgentResponse => response !== undefined);
   const latestResponse = responses.at(-1);
   // `type` is absent on answers stored before it was added, so an answer is what
-  // is left after the two types that name themselves, not what carries 'answer'.
+  // is left after the three types that name themselves, not what carries 'answer'.
   const answer =
-    latestResponse && latestResponse.type !== 'plan' && latestResponse.type !== 'clarification' ? latestResponse : null;
+    latestResponse &&
+    latestResponse.type !== 'plan' &&
+    latestResponse.type !== 'clarification' &&
+    latestResponse.type !== 'report'
+      ? latestResponse
+      : null;
   const asked = latestResponse?.type === 'clarification' ? latestResponse.clarification : null;
   const lastAssistantIndex = messages.map((message) => message.role).lastIndexOf('assistant');
   const parsing = attachments.some((attachment) => attachment.status === 'parsing');
@@ -974,7 +987,9 @@ export function HomePage() {
         const last = [...stored].reverse().find((message) => message.role === 'assistant');
         const parsed = responseFromMessage(last);
         const storedStages =
-          parsed && parsed.type !== 'plan' && parsed.type !== 'clarification' ? parsed.trace.stages : [];
+          parsed && parsed.type !== 'plan' && parsed.type !== 'clarification' && parsed.type !== 'report'
+            ? parsed.trace.stages
+            : [];
         if (storedStages.length === 0) {
           const question = [...stored].reverse().find((message) => message.role === 'user')?.content ?? '';
           const started = Date.parse(durableRun.created_at);
@@ -1569,7 +1584,9 @@ export function HomePage() {
               ? result.plan.summary
               : result.type === 'clarification'
                 ? result.clarification.question
-                : result.narrative,
+                : result.type === 'report'
+                  ? result.report.title
+                  : result.narrative,
           response_json: result,
         },
       ]);
@@ -2631,10 +2648,10 @@ export function HomePage() {
               // This answer's own feedback, looked up by the ANSWER's id rather
               // than the message's -- they are not always the same value -- so no
               // other answer's rating, comment or saved flag can appear here.
-              // Only an answer has one: a plan and a clarification are not turns
-              // anybody rates, and the two carry no id to rate them by.
+              // Only an answer has feedback. Reports carry a persistence id,
+              // but they are document artifacts rather than rateable answer turns.
               const rated =
-                response && response.type !== 'plan' && response.type !== 'clarification'
+                response && response.type !== 'plan' && response.type !== 'clarification' && response.type !== 'report'
                   ? feedback[response.id]
                   : undefined;
               const entry = rated ?? emptyFeedback;
@@ -2646,7 +2663,10 @@ export function HomePage() {
               // the one first suggested. Only 'reading' sources: a reference
               // table is a definition lookup, not the source the plan chose.
               const approvalReadingSources =
-                approvalResponse && approvalResponse.type !== 'plan' && approvalResponse.type !== 'clarification'
+                approvalResponse &&
+                approvalResponse.type !== 'plan' &&
+                approvalResponse.type !== 'clarification' &&
+                approvalResponse.type !== 'report'
                   ? approvalResponse.sources.filter((source) => source.role === 'reading').map((source) => source.name)
                   : [];
               return (
@@ -2698,6 +2718,7 @@ export function HomePage() {
                       response &&
                       response.type !== 'plan' &&
                       response.type !== 'clarification' &&
+                      response.type !== 'report' &&
                       response.trace.stages.length === 0
                         ? liveStages
                         : undefined
@@ -3279,6 +3300,21 @@ const MessageItem = memo(function MessageItem({
         // card now; see PlanCard and plan-revision.ts.
         onRevise={(request) => onAsk(request)}
       />
+    );
+  }
+  if (response.type === 'report') {
+    return (
+      <Suspense
+        fallback={
+          <Card className="answer-card">
+            <CardContent className="pt-6">
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+        }
+      >
+        <ReportCard report={response.report} />
+      </Suspense>
     );
   }
   return (

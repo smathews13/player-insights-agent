@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { terminalSettlementForResponse } from './ask-terminal-state';
-import type { ClarificationResponse, PlanResponse } from './app-types';
+import type { ClarificationResponse, PlanResponse, ReportResponse } from './app-types';
 
 describe('SSE terminal response projection', () => {
   it('parks an approval response without leaving it Live', () => {
@@ -38,6 +38,25 @@ describe('SSE terminal response projection', () => {
       state: 'CLARIFICATION_REQUIRED',
       terminalMessageId: 'msg-clarification-1',
       summary: { runId: 'msg-clarification-1', status: 'Partial' },
+    });
+  });
+
+  it('settles a report as a complete persisted response', () => {
+    const report: ReportResponse = {
+      type: 'report',
+      mode: 'live',
+      id: 'msg-report-1',
+      report: {
+        schema_version: 'pia.report/1',
+        title: 'Player report',
+        sections: [{ body: 'A complete report.' }],
+      },
+    };
+
+    expect(terminalSettlementForResponse(report, report)).toMatchObject({
+      state: 'SUCCEEDED',
+      terminalMessageId: 'msg-report-1',
+      summary: { runId: 'msg-report-1', status: 'Complete', durationMs: null },
     });
   });
 });

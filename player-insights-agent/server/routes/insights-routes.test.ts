@@ -15,6 +15,7 @@ import {
   extractAttachmentText,
   extractClarification,
   extractLiveText,
+  extractReport,
   extractStructuredAnswer,
   identityPayload,
   invokeServing,
@@ -235,6 +236,61 @@ describe('extractClarification', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('extractReport', () => {
+  function reportResponse(overrides: Record<string, unknown> = {}) {
+    return {
+      custom_outputs: {
+        type: 'report',
+        report: {
+          schema_version: 'pia.report/1',
+          title: 'Contoso Franchise Cross-Play Analysis',
+          subtitle: 'Share of players who have also played another T2 / Northwind / Contoso franchise',
+          summary: 'Across the 7 major Contoso franchises analysed, 200M unique players have been identified.',
+          sections: [
+            {
+              heading: 'Cross-Franchise Overlap by Contoso Franchise',
+              table: {
+                columns: ['Franchise', 'Total Players', '% Played Another T2 Title'],
+                rows: [['Hoops', '122.5M', '63%']],
+              },
+            },
+          ],
+          ...overrides,
+        },
+      },
+    };
+  }
+
+  it('reads a report the answer contract would refuse', () => {
+    const result = extractReport(reportResponse());
+
+    expect(result?.title).toBe('Contoso Franchise Cross-Play Analysis');
+    expect(result?.sections).toHaveLength(1);
+    expect(result?.sections[0].table?.rows).toEqual([['Hoops', '122.5M', '63%']]);
+  });
+
+  it('reads one wrapped by AppKit, as the other extractors do', () => {
+    expect(extractReport({ data: reportResponse() })?.title).toBe('Contoso Franchise Cross-Play Analysis');
+  });
+
+  it('is null for an answer, a plan, a clarification, and an endpoint error', () => {
+    expect(extractReport(liveAnswerResponse)).toBeNull();
+    expect(extractReport(livePlanResponse)).toBeNull();
+    expect(extractReport(clarificationResponse())).toBeNull();
+    expect(
+      extractReport({
+        error_code: 'ENDPOINT_NOT_FOUND',
+        custom_outputs: { type: 'report', report: { title: 'x', sections: [] } },
+      })
+    ).toBeNull();
+  });
+
+  it('is null for a report with no title or no usable section', () => {
+    expect(extractReport(reportResponse({ title: '' }))).toBeNull();
+    expect(extractReport(reportResponse({ sections: [] }))).toBeNull();
   });
 });
 
@@ -3922,6 +3978,64 @@ describe('a canned answer discloses that no live query produced it', () => {
   });
 });
 
+describe('a report answer is served, not degraded', () => {
+  const savedEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+
+  afterEach(() => {
+    if (savedEndpoint === undefined) delete process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+    else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
+  });
+
+  it('returns the complete agent report contract instead of prose-only fallback', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const app = await startInsightsApp(
+      () =>
+        Promise.resolve({
+          output: [
+            {
+              type: 'message',
+              content: [{ type: 'output_text', text: 'Across the 7 major Contoso franchises analysed...' }],
+            },
+          ],
+          custom_outputs: {
+            type: 'report',
+            report: {
+              schema_version: 'pia.report/1',
+              title: 'Contoso Franchise Cross-Play Analysis',
+              summary: 'Across the 7 major Contoso franchises analysed, 200M unique players have been identified.',
+              sections: [
+                {
+                  heading: 'Cross-Franchise Overlap by Contoso Franchise',
+                  table: {
+                    columns: ['Franchise', 'Total Players', '% Played Another T2 Title'],
+                    rows: [['Hoops', '122.5M', '63%']],
+                  },
+                },
+              ],
+            },
+          },
+        }),
+      memoryLakebase()
+    );
+
+    try {
+      const answered = await app.ask({
+        conversationId: 'conv-report-contract',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: true,
+      });
+
+      expect(answered.type).toBe('report');
+      const report = answered.report as { title?: string; sections?: unknown[] };
+      expect(report.title).toBe('Contoso Franchise Cross-Play Analysis');
+      expect(report.sections).toHaveLength(1);
+      expect(JSON.stringify(answered)).not.toContain(DEGRADED_ANSWER_MARKER);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 /**
  * A failed question is reported as one.
  *
@@ -4062,7 +4176,7 @@ describe('a failed run is answered with nothing', () => {
     expect(status).toBe(502);
     expect((body as { code?: string }).code).toBe('OUTPUT_SCHEMA_VIOLATION');
     expect(body.figures).toBeUndefined();
-    expect(errors.join('\n')).toContain('none of the four shapes');
+    expect(errors.join('\n')).toContain('none of the five shapes');
   });
 
   /**

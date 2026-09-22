@@ -201,7 +201,7 @@ describe('PDF text reaches the agent', () => {
       body: JSON.stringify({ conversationId: 'conv-flow', prompt: 'Summarise the attached report.' }),
     });
     // Not `asked.ok`. The transport above answers `{}`, which matches none of
-    // the four shapes the app reads, and that is now reported as unavailable
+    // the five shapes the app reads, and that is now reported as unavailable
     // rather than answered with the stored demo response. What this test is
     // about is what went OUT, and the request reaching the transport at all is
     // what proves the attachment text was carried.
