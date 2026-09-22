@@ -679,6 +679,19 @@ export function serializeTableTsv(table: ExportTable): string {
   return `${body}${attribution}\n`;
 }
 
+function csvCell(value: string): string {
+  const normalized = value.replace(/\r\n?/g, '\n');
+  return /[",\n]/.test(normalized) ? `"${normalized.replaceAll('"', '""')}"` : normalized;
+}
+
+/** A standalone answer table as interoperable CSV, with no UI-only source footer rows. */
+export function serializeTableCsv(table: ExportTable): string {
+  const rows = [table.block.header, ...table.block.rows].filter((row): row is TableRow => Boolean(row));
+  return (
+    rows.map((row) => row.cells.map((cell) => csvCell(inlinePlainText(cell.children))).join(',')).join('\n') + '\n'
+  );
+}
+
 export function safeExportFilename(value: string, extension: string): string {
   const stem = value
     .normalize('NFKD')

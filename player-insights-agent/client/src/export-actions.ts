@@ -13,6 +13,7 @@ import {
   serializeConversationHtml,
   serializeConversationJson,
   serializeConversationMarkdown,
+  serializeTableCsv,
   serializeTableTsv,
   type ConversationChartImages,
   type ExportHtmlTheme,
@@ -183,6 +184,10 @@ export async function downloadDevProdCostProjectionPdf(): Promise<void> {
 
 export async function copyTableTsv(table: ExportTable): Promise<void> {
   await copyExportText(serializeTableTsv(table));
+}
+
+export function downloadTableCsv(table: ExportTable, name: string): void {
+  downloadExportText(serializeTableCsv(table), safeExportFilename(name, 'csv'), 'text/csv;charset=utf-8');
 }
 
 export async function downloadTablePng(table: ExportTable, name: string): Promise<void> {

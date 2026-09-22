@@ -7,6 +7,7 @@ import {
   FileDown,
   FileImage,
   FileText,
+  LayoutDashboard,
   MoreHorizontal,
   Presentation,
   TrendingUp,
@@ -28,7 +29,17 @@ interface ExportAction {
   run: () => Promise<void>;
 }
 
-function ActionsMenu({ label, actions }: { label: string; actions: readonly ExportAction[] }) {
+function ActionsMenu({
+  label,
+  actions,
+  triggerLabel = 'Export',
+  showMoreIcon = true,
+}: {
+  label: string;
+  actions: readonly ExportAction[];
+  triggerLabel?: string;
+  showMoreIcon?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [outcome, setOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -54,8 +65,8 @@ function ActionsMenu({ label, actions }: { label: string; actions: readonly Expo
         <PopoverTrigger asChild>
           <Button type="button" variant="ghost" size="sm" aria-label={label} aria-haspopup="menu">
             <Download aria-hidden="true" />
-            <span className="export-menu-label">Export</span>
-            <MoreHorizontal aria-hidden="true" />
+            <span className="export-menu-label">{triggerLabel}</span>
+            {showMoreIcon ? <MoreHorizontal aria-hidden="true" /> : null}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="export-menu-content" align="end" role="menu" aria-label={label}>
@@ -98,6 +109,8 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
   return (
     <ActionsMenu
       label="Export this question and answer"
+      triggerLabel="Export answer"
+      showMoreIcon={false}
       actions={[
         {
           label: 'Copy Markdown',
@@ -131,6 +144,76 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
         },
       ]}
     />
+  );
+}
+
+/**
+ * The two distinct exports at the end of an answer card.
+ *
+ * Dashboard export deliberately enters through its own callback rather than
+ * reusing the answer serializers. The backend dashboard handover is a separate
+ * contract and must retain the renderable format it supplies; until that
+ * contract is wired, the control stays visible but unavailable instead of
+ * inventing a dashboard from answer prose.
+ */
+export function AnswerExportControls({
+  question,
+  answer,
+  onExportDashboard,
+}: {
+  question: string;
+  answer: NormalizedAnswer;
+  onExportDashboard?: () => Promise<void>;
+}) {
+  const [dashboardBusy, setDashboardBusy] = useState(false);
+  const [dashboardOutcome, setDashboardOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const exportDashboard = async () => {
+    if (!onExportDashboard) return;
+    setDashboardBusy(true);
+    setDashboardOutcome(null);
+    try {
+      await onExportDashboard();
+      setDashboardOutcome({ tone: 'success', text: 'Dashboard exported.' });
+    } catch (error) {
+      setDashboardOutcome({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'Dashboard export failed. Try again.',
+      });
+    } finally {
+      setDashboardBusy(false);
+    }
+  };
+
+  return (
+    <div className="answer-export-controls">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!onExportDashboard || dashboardBusy}
+        aria-disabled={!onExportDashboard || undefined}
+        aria-busy={dashboardBusy || undefined}
+        title={onExportDashboard ? 'Export the dashboard handover' : 'Dashboard handover is not available yet'}
+        onClick={() => void exportDashboard()}
+      >
+        <PiaBusyButtonContent
+          busy={dashboardBusy}
+          label="Export dashboard"
+          busyLabel="Exporting dashboard…"
+          icon={<LayoutDashboard aria-hidden="true" />}
+        />
+      </Button>
+      <AnswerExportMenu question={question} answer={answer} />
+      {dashboardOutcome ? (
+        <span
+          className={`export-outcome export-outcome--${dashboardOutcome.tone}`}
+          role={dashboardOutcome.tone === 'error' ? 'alert' : 'status'}
+          aria-live={dashboardOutcome.tone === 'error' ? 'assertive' : 'polite'}
+        >
+          {dashboardOutcome.text}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -170,27 +253,52 @@ export function ReportExportMenu({ report }: { report: Report }) {
 }
 
 export function TableExportMenu({ table, name = 'answer-table' }: { table: ExportTable; name?: string }) {
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const exportCsv = async () => {
+    setBusy(true);
+    setOutcome(null);
+    try {
+      (await loadExportActions()).downloadTableCsv(table, name);
+      setOutcome({ tone: 'success', text: 'CSV exported.' });
+    } catch (error) {
+      setOutcome({
+        tone: 'error',
+        text: error instanceof Error && error.message ? error.message : 'CSV export failed. Try again.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <ActionsMenu
-      label="Export this table"
-      actions={[
-        {
-          label: 'Copy TSV',
-          icon: Copy,
-          run: async () => (await loadExportActions()).copyTableTsv(table),
-        },
-        {
-          label: 'Download PNG',
-          icon: FileImage,
-          run: async () => (await loadExportActions()).downloadTablePng(table, name),
-        },
-        {
-          label: 'Download PDF',
-          icon: FileText,
-          run: async () => (await loadExportActions()).downloadTablePdf(table, name),
-        },
-      ]}
-    />
+    <div className="export-menu table-export">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        aria-busy={busy || undefined}
+        aria-label="Export this table as CSV"
+        onClick={() => void exportCsv()}
+      >
+        <PiaBusyButtonContent
+          busy={busy}
+          label="Export CSV"
+          busyLabel="Exporting CSV…"
+          icon={<Download aria-hidden="true" />}
+        />
+      </Button>
+      {outcome ? (
+        <span
+          className={`export-outcome export-outcome--${outcome.tone}`}
+          role={outcome.tone === 'error' ? 'alert' : 'status'}
+          aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
+        >
+          {outcome.text}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

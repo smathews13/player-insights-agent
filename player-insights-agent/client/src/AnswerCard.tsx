@@ -56,7 +56,7 @@ import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import { answerHasGeneratedSql } from './answer-sql';
 import { RunOverviewKpis } from './RunOverviewKpis';
 import { toolStageDurationMs } from './run-explorer-state';
-import { AnswerExportMenu } from './ExportMenu';
+import { AnswerExportControls } from './ExportMenu';
 
 /** Shared by Ask and Monitoring, which mounts this same answer card. */
 export function AnswerSql({ sql }: { sql: string }) {
@@ -86,6 +86,7 @@ export function AnswerCard({
   processStages,
   runProcessVariant = 'default',
   afterEvidence,
+  onExportDashboard,
 }: {
   answer: Answer;
   /**
@@ -148,6 +149,13 @@ export function AnswerCard({
    * modal's height-capped column. Ask does not pass one.
    */
   afterEvidence?: ReactNode;
+  /**
+   * Exports the backend-provided dashboard handover for this answer.
+   *
+   * Optional until that backend contract is wired. The control remains visible
+   * but unavailable so answer export cannot be mistaken for dashboard export.
+   */
+  onExportDashboard?: () => Promise<void>;
 }) {
   const readerAnswer = normalizeReaderAnswer(answer);
   const hasGeneratedSql = answerHasGeneratedSql(readerAnswer.sql);
@@ -360,9 +368,7 @@ export function AnswerCard({
                 <article className="answer-kpi" key={key}>
                   <span className="answer-kpi-label">{figure.label}</span>
                   <strong className="answer-kpi-value ast-num">{figure.display ?? figure.value}</strong>
-                  {figure.comparison ? (
-                    <span className="answer-kpi-comparison">{figure.comparison}</span>
-                  ) : null}
+                  {figure.comparison ? <span className="answer-kpi-comparison">{figure.comparison}</span> : null}
                 </article>
               ))}
             </div>
@@ -533,7 +539,6 @@ export function AnswerCard({
             >
               <ThumbsDown aria-hidden="true" />
             </Button>
-            <AnswerExportMenu question={question} answer={readerAnswer} />
             {feedback.open && (
               <div className="feedback-comment">
                 <Input
@@ -563,10 +568,11 @@ export function AnswerCard({
                 {feedback.error}
               </span>
             )}
+            <AnswerExportControls question={question} answer={readerAnswer} onExportDashboard={onExportDashboard} />
           </div>
         ) : (
           <div className="feedback answer-export-only">
-            <AnswerExportMenu question={question} answer={readerAnswer} />
+            <AnswerExportControls question={question} answer={readerAnswer} onExportDashboard={onExportDashboard} />
           </div>
         )}
       </CardContent>
