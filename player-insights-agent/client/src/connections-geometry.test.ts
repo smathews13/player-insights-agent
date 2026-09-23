@@ -213,7 +213,9 @@ describe('the parts a reader has to be able to use', () => {
     // The repeated catalog and schema are context; the table is the scanning
     // anchor and is the only segment that should carry the full weight.
     expect(rule('.connections-table-name')).toMatch(/font-weight:\s*400/);
-    expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(/font-weight:\s*700/);
+    expect(rule(".connections-entity-name [data-entity-part='table']")).toMatch(
+      /font-weight:\s*var\(--ast-entity-table-weight\)/
+    );
     // The UC toolbar owns its search geometry so unrelated run-search rules
     // cannot lift the icon out of the field.
     expect(rule('.connections-table-toolbar')).toMatch(/display:\s*flex/);
@@ -426,14 +428,16 @@ describe('a long value truncates rather than being cut off', () => {
   });
 });
 
-describe('two radii, and no third', () => {
-  it('writes every corner as one of the two tokens', () => {
+describe('approved component radii', () => {
+  it('writes every corner as a control, card, or entity-pill token', () => {
     const radii = [...CSS.matchAll(/border-radius:\s*([^;]+);/g)].map((match) => match[1].trim());
     expect(radii.length).toBeGreaterThan(4);
     // Either spelling of the same two corners: astrolabe-tokens.test.ts holds
     // --ast-radius-control equal to --radius-sm and --ast-radius-card equal to
     // --radius-md, so a rule in the rebuild's spelling is not a third radius.
-    const stray = radii.filter((value) => !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/.test(value));
+    const stray = radii.filter(
+      (value) => !/^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card|pill))\)$/.test(value)
+    );
     expect(stray).toEqual([]);
   });
 });

@@ -20,6 +20,8 @@ import type { SourceRef } from './answer-shape';
 import { databricksLink, type DatabricksObject } from '../../shared/databricks-links';
 import { useRequestedEntity, useTrackedTables, useWorkspaceHost } from './data-entity-state';
 import { TableExportMenu } from './ExportMenu';
+import { Entity, EntityParts } from './Entity';
+export { EntityParts } from './Entity';
 
 /**
  * The rendering half of "an answer names a table, the reader can go and see it".
@@ -89,53 +91,10 @@ export function EntityLink({ entity, children }: { entity: string; children: Rea
  * came out at 700, and neither would be a decision anyone made.
  */
 export function EntityMark({ children }: { children: ReactNode }) {
-  return <span className="entity-mark entity-column font-semibold">{children}</span>;
-}
-
-export function EntityParts({
-  text,
-  entity,
-  sourceName = false,
-}: {
-  text: string;
-  entity: string;
-  /**
-   * Source rows keep the qualifier/short-name hooks they have always exposed,
-   * while using the same entity tokens as names inside answer prose.
-   */
-  sourceName?: boolean;
-}) {
-  const full = entity.split('.');
-  const shown = text.split('.');
-  const offset = Math.max(0, full.length - shown.length);
   return (
-    <>
-      {shown.map((part, index) => {
-        const fullIndex = offset + index;
-        const kind =
-          fullIndex === 0 && full.length >= 3
-            ? 'catalog'
-            : fullIndex === full.length - 2 && full.length >= 2
-              ? 'schema'
-              : 'table';
-        return (
-          <Fragment key={shown.slice(0, index + 1).join('.')}>
-            {index > 0 ? '.' : null}
-            <span
-              className={[
-                `entity-token entity-${kind}`,
-                sourceName ? (index === shown.length - 1 ? 'source-name-short' : 'source-name-qualifier') : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              data-entity-part={kind}
-            >
-              {part}
-            </span>
-          </Fragment>
-        );
-      })}
-    </>
+    <Entity kind="column" className="entity-mark">
+      {children}
+    </Entity>
   );
 }
 
@@ -283,9 +242,13 @@ function ProseRuns({
           <Fragment key={run.start}>
             {cut.map((part) =>
               part.badge ? (
-                <span className={`answer-badge answer-badge--${part.badge}`} key={part.start}>
+                <Entity
+                  kind={part.badge === 'date' ? 'quote' : 'tag'}
+                  className={`answer-badge answer-badge--${part.badge}`}
+                  key={part.start}
+                >
                   {part.text}
-                </span>
+                </Entity>
               ) : (
                 <PlainTextRun
                   key={part.start}
@@ -500,9 +463,9 @@ function InlineNodes({
           }
           case 'code':
             return (
-              <code className="answer-code entity-quote" key={node.start}>
+              <Entity kind="quote" className="answer-code" as="code" key={node.start}>
                 <ProseRuns runs={node.runs} />
-              </code>
+              </Entity>
             );
           case 'strong':
             return (

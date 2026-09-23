@@ -457,18 +457,20 @@ describe('dark mode covers the shipped surfaces', () => {
     /*
      * The entity chips are already answered by the `--ast-entity-*-bg` fallbacks
      * further down this file, and those must keep their `var(--entity-*, …)`
-     * chain so a colour chosen in Appearance still wins. The two chips below are
-     * the ones that rung does not reach: a source's table name, drawn in the 12%
-     * neutral fill, and the GET method chip, which is still a light literal.
+     * chain so a colour chosen in Appearance still wins. Source table entity
+     * tokens stay on that chain; only a non-entity source name and the GET method
+     * chip need a local night-sky tint.
      */
-    for (const selector of [
-      "html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short",
-      "html[data-theme='dark'] .ops-lat-chip-get",
-    ]) {
-      expect(bodyFor(DARK, selector), `${selector} is not on the entity rung`).toMatch(
-        /background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/
-      );
-    }
+    expect(bodyFor(DARK, "html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short")).toBe('');
+    expect(
+      bodyFor(
+        DARK,
+        "html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short:not(.entity-token)"
+      )
+    ).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
+    expect(bodyFor(DARK, "html[data-theme='dark'] .ops-lat-chip-get")).toMatch(
+      /background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/
+    );
     // The runtime chain, which a blanket `.entity-token` fill would have cut.
     // Fallbacks are the night-sky hexes Settings ships — not paper washes.
     for (const kind of ['catalog', 'schema', 'table', 'column'] as const) {

@@ -831,8 +831,10 @@ describe('the stars are the products that ran (§4)', () => {
     const before = band(path(prior, prior.length - 1, 7_000));
     const after = band(path(atSynthesis, atSynthesis.length - 1, 7_000));
     expect(atSynthesis).toHaveLength(15);
-    expect(before.match(/<image /g)).toHaveLength(7);
-    expect(after.match(/<image /g)).toHaveLength(7);
+    expect(before.match(/class="ast-star-product ast-star-product--dark"/g)).toHaveLength(7);
+    expect(before.match(/class="ast-star-product ast-star-product--light"/g)).toHaveLength(7);
+    expect(after.match(/class="ast-star-product ast-star-product--dark"/g)).toHaveLength(7);
+    expect(after.match(/class="ast-star-product ast-star-product--light"/g)).toHaveLength(7);
     expect(after.match(/aria-label="Select step /g)).toHaveLength(15);
   });
 });

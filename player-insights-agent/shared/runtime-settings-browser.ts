@@ -93,6 +93,16 @@ export const DARK_ENTITY_STYLES: RuntimeEntityStyles = {
 
 /** Daylight provenance chips: governed identifiers use one measured family. */
 export const LIGHT_ENTITY_STYLES: RuntimeEntityStyles = {
+  catalog: { foreground: '#1a5b8f', background: '#e8f1fa' },
+  schema: { foreground: '#4c5c68', background: '#eef2f5' },
+  table: { foreground: '#0e1720', background: '#e2e8ed' },
+  column: { foreground: '#4c5c68', background: '#f2f5f8' },
+  quote: { foreground: '#4c5c68', background: '#f2f5f8' },
+  tag: { foreground: '#0e1720', background: '#e8f1fa' },
+};
+
+/** Defaults shipped by the first light-mode release; migrate as defaults, not custom choices. */
+export const LEGACY_LIGHT_ENTITY_STYLES: RuntimeEntityStyles = {
   catalog: { foreground: '#7a5a11', background: '#fbf5e6' },
   schema: { foreground: '#7a5a11', background: '#fbf5e6' },
   table: { foreground: '#7a5a11', background: '#fbf5e6' },
@@ -213,14 +223,26 @@ export function upgradeEntityStylesForScheme(
 ): RuntimeEntityStyles {
   const target = scheme === 'dark' ? DARK_ENTITY_STYLES : LIGHT_ENTITY_STYLES;
   return Object.fromEntries(
-    RUNTIME_ENTITY_KINDS.map((kind) => [
-      kind,
-      sameHexStyle(styles[kind], PAPER_ENTITY_STYLES[kind]) ||
-      sameHexStyle(styles[kind], DARK_ENTITY_STYLES[kind]) ||
-      sameHexStyle(styles[kind], LIGHT_ENTITY_STYLES[kind])
-        ? target[kind]
-        : styles[kind],
-    ])
+    RUNTIME_ENTITY_KINDS.map((kind) => {
+      const style = styles[kind];
+      const opposite = scheme === 'light' ? DARK_ENTITY_STYLES[kind] : LIGHT_ENTITY_STYLES[kind];
+      const currentDefaults = [target[kind], LEGACY_LIGHT_ENTITY_STYLES[kind], PAPER_ENTITY_STYLES[kind]];
+      const carriesOppositeDefault =
+        (sameHex(style.foreground, opposite.foreground) &&
+          currentDefaults.some((candidate) => sameHex(style.background, candidate.background))) ||
+        (sameHex(style.background, opposite.background) &&
+          currentDefaults.some((candidate) => sameHex(style.foreground, candidate.foreground)));
+      return [
+        kind,
+        sameHexStyle(style, PAPER_ENTITY_STYLES[kind]) ||
+        sameHexStyle(style, LEGACY_LIGHT_ENTITY_STYLES[kind]) ||
+        sameHexStyle(style, DARK_ENTITY_STYLES[kind]) ||
+        sameHexStyle(style, LIGHT_ENTITY_STYLES[kind]) ||
+        carriesOppositeDefault
+          ? target[kind]
+          : style,
+      ];
+    })
   ) as RuntimeEntityStyles;
 }
 
@@ -481,12 +503,35 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
 
 export type RuntimeEntityCssVariables = Record<`--entity-${RuntimeEntityKind}-${'fg' | 'bg'}`, string>;
 
+const warnedEntityPairs = new Set<string>();
+
+export function resolveEntityStylesForRender(
+  settings: Pick<RuntimeSettings, 'colorScheme' | 'entityStyles'>,
+  warn: (message: string) => void = (message) => console.warn(message)
+): RuntimeEntityStyles {
+  const upgraded = upgradeEntityStylesForScheme(settings.entityStyles, settings.colorScheme);
+  const defaults = settings.colorScheme === 'dark' ? DARK_ENTITY_STYLES : LIGHT_ENTITY_STYLES;
+  return Object.fromEntries(
+    RUNTIME_ENTITY_KINDS.map((kind) => {
+      const style = upgraded[kind];
+      if (contrastRatio(style.foreground, style.background) >= MINIMUM_TEXT_CONTRAST) return [kind, style];
+      const warningKey = `${settings.colorScheme}:${kind}:${style.foreground}:${style.background}`;
+      if (!warnedEntityPairs.has(warningKey)) {
+        warnedEntityPairs.add(warningKey);
+        warn(`Unreadable ${kind} entity colors were replaced with the ${settings.colorScheme} defaults.`);
+      }
+      return [kind, defaults[kind]];
+    })
+  ) as RuntimeEntityStyles;
+}
+
 /** Shared Ask/Run Explorer rendering tokens derived from the saved settings. */
 export function runtimeEntityCssVariables(settings: RuntimeSettings): RuntimeEntityCssVariables {
+  const styles = resolveEntityStylesForRender(settings);
   return Object.fromEntries(
     RUNTIME_ENTITY_KINDS.flatMap((kind) => [
-      [`--entity-${kind}-fg`, settings.entityStyles[kind].foreground],
-      [`--entity-${kind}-bg`, settings.entityStyles[kind].background],
+      [`--entity-${kind}-fg`, styles[kind].foreground],
+      [`--entity-${kind}-bg`, styles[kind].background],
     ])
   ) as RuntimeEntityCssVariables;
 }

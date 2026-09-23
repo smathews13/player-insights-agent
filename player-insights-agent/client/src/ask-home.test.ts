@@ -113,11 +113,15 @@ describe('dark transcript surfaces do not stack frosted panes', () => {
     expect(withoutComments(dark)).not.toMatch(/\.run-process \.trace-(?:timeline|gantt|kpi)/);
   });
 
-  it('draws a source table name as a tint rather than a white box', () => {
-    // The neutral fill is white at 12% here, which around one word in a sentence
-    // reads as a slab. The entity chips beside it are on 7%.
+  it('leaves source table names on the shared entity pair', () => {
+    expect(groupedBody("html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short", dark)).toBe(
+      ''
+    );
     expect(
-      groupedBody("html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short", dark)
+      groupedBody(
+        "html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short:not(.entity-token)",
+        dark
+      )
     ).toMatch(/background:\s*rgba\(255,\s*255,\s*255,\s*0\.07\)/);
   });
 });

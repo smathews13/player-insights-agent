@@ -685,10 +685,13 @@ html[data-theme='dark'] {
      paint the same chips. A custom --entity-* set in Appearance still wins. */
   --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-dark-entity-catalog-fg));
   --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-dark-entity-catalog-bg));
+  --ast-entity-catalog-border: var(--ast-action-edge);
   --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-dark-entity-schema-fg));
   --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-dark-entity-schema-bg));
+  --ast-entity-schema-border: var(--ast-border-input);
   --ast-entity-table-fg: var(--entity-table-fg, var(--ast-dark-entity-table-fg));
   --ast-entity-table-bg: var(--entity-table-bg, var(--ast-dark-entity-table-bg));
+  --ast-entity-table-border: var(--ast-border-input);
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-ghost-text));
   --ast-entity-column-bg: var(--entity-column-bg, var(--ast-dark-entity-column-bg));
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));
@@ -705,7 +708,7 @@ html[data-theme='dark'] {
  * Light mode is untouched. Every entity line keeps the `var(--entity-*, …)`
  * chain, so a colour set in Settings > Appearance still wins.
  */
-html[data-theme='dark'] .answer-code {
+html[data-theme='dark'] .answer-code:not(.entity-quote) {
   background: rgba(143, 193, 232, 0.1);
   color: var(--ast-ice-accent);
 }
@@ -721,7 +724,7 @@ html[data-theme='dark'] .answer-code {
  * The GET chip is the last light literal in the stylesheet, #E8ECF0 on #445461,
  * which is a daylight recipe painted straight onto the night sky.
  */
-html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short {
+html[data-theme='dark'] .source-name-pill[data-tone='neutral'] .source-name-short:not(.entity-token) {
   background: rgba(255, 255, 255, 0.07);
 }
 

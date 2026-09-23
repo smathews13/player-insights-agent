@@ -81,7 +81,7 @@ describe('canonical describe-table schema results', () => {
     expect(markup).toContain('data-entity-part="schema"');
     expect(markup).toContain('data-entity-part="table"');
     expect(markup).toContain('<th scope="col">Column</th><th scope="col">Type</th>');
-    expect(markup.match(/class="dag-schema-column-token"/g)).toHaveLength(23);
+    expect(markup.match(/class="entity-token entity-column dag-schema-column-token"/g)).toHaveLength(23);
     expect(markup).toContain('>list_price_usd</code>');
     expect(markup).toContain('>decimal(12,2)</code>');
     expect(markup.indexOf('</header>')).toBeLessThan(markup.indexOf('class="dag-schema-comment"'));
@@ -97,7 +97,7 @@ describe('canonical describe-table schema results', () => {
 
     expect(markup).toContain('silver_player_profiles');
     expect(markup).toContain('Table comment</strong><p>Validated player profiles');
-    expect(markup.match(/class="dag-schema-column-token"/g)).toHaveLength(20);
+    expect(markup.match(/class="entity-token entity-column dag-schema-column-token"/g)).toHaveLength(20);
     expect(markup).toContain('>identity_confidence</code>');
     expect(markup).toContain('>decimal(5,4)</code>');
   });

@@ -118,7 +118,9 @@ describe('a table the agent wrote is drawn as a table', () => {
       'Stable identifier \u2014 not a display name',
       '14,421,932',
     ]);
-    expect(markup).toContain('<code class="answer-code entity-quote">player_profiles</code>');
+    expect(markup).toContain(
+      '<code class="entity-token entity-quote answer-code" data-entity-part="quote">player_profiles</code>'
+    );
     expect(readable(markup)).not.toContain('|---|');
   });
 
@@ -237,7 +239,7 @@ describe('a table the agent wrote is drawn as a table', () => {
     expect(markup).toContain('<h4 class="answer-heading answer-subheading">');
     expect([...markup.matchAll(/<li>/g)]).toHaveLength(2);
     expect(markup).toContain('<ul class="answer-list">');
-    expect(markup).toContain('<code class="answer-code entity-quote">');
+    expect(markup).toContain('<code class="entity-token entity-quote answer-code" data-entity-part="quote">');
     // And nothing in the bullets became a cell: three body rows of six.
     expect(cells(markup, 'td')).toHaveLength(18);
   });

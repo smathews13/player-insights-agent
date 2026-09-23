@@ -16,21 +16,14 @@
  * with each step's name and figures set opposite the line flow and the selected
  * star ringed and tinted.
  *
- * THE LIVE PATH SHIPS TWICE, AND THE THEME DECIDES WHICH ONE IS ON SCREEN.
- * `#18a`'s night sky is the dark theme's account of a run. Light mode is daylight
- * all the way through -- no sky behind the answers, so no sky in the harness
- * either -- and a navy band with sparkle stars in it is the one thing on that page
- * that would still be night. `StepRail` below is the same run drawn as a list on
- * white: the same stages, the same numbers, the same selection, the same press.
+ * THE LIVE PATH SHIPS ON BOTH THEMES. Dark mode draws the original night-sky
+ * palette; light mode keeps the same stars, links, numbers, selection, and
+ * keyboard controls on a daylight surface with light-theme paints. `StepRail`
+ * remains a hidden semantic fallback built from the same run data.
  *
- * BOTH ARE ALWAYS IN THE MARKUP AND constellation.css SHOWS EXACTLY ONE. The
- * alternative was reading `data-theme` in JavaScript and mounting one of them,
- * which is a first render made against whatever the root said before the theme
- * had been applied -- a frame of the wrong variant on every open, and a second
- * frame of it every time Appearance previews a switch. A CSS selector has no
- * first render to be wrong on, and `display: none` keeps the hidden view out of
- * the accessibility tree, so neither variant's live region or step buttons can be
- * announced while the other one is the view.
+ * BOTH ARE ALWAYS IN THE MARKUP, but the star path is the visible account in
+ * every theme. CSS keeps the list fallback out of layout and the accessibility
+ * tree so its second live region and step buttons are never announced.
  *
  * Every coordinate comes out of `agent-constellation.ts` and none is written here.
  * That is the same split the rest of this page uses -- vitest runs on `node`, so a
@@ -145,7 +138,30 @@ function sparkle(x: number, y: number, reach: number): string {
  * lookalike as one and is then wrong about which product ran, which is the defect
  * `brand-icons.ts` was written to end.
  */
-function Star({ star, tone, path = false }: { star: ConstellationStar; tone: BrandTone; path?: boolean }) {
+function ProductStar({ product, x, y, size }: { product: BrandProduct; x: number; y: number; size: number }) {
+  return (
+    <>
+      <image
+        className="ast-star-product ast-star-product--dark"
+        href={markUrl('dark', product)}
+        x={x}
+        y={y}
+        width={size}
+        height={size}
+      />
+      <image
+        className="ast-star-product ast-star-product--light"
+        href={markUrl('light', product)}
+        x={x}
+        y={y}
+        width={size}
+        height={size}
+      />
+    </>
+  );
+}
+
+function Star({ star, path = false }: { star: ConstellationStar; path?: boolean }) {
   if (star.decision) {
     return <path className="ast-star-decision" d={sparkle(star.x, star.y, path ? 11 : 7)} />;
   }
@@ -154,12 +170,12 @@ function Star({ star, tone, path = false }: { star: ConstellationStar; tone: Bra
     return <circle className="ast-star-plain" cx={star.x} cy={star.y} r="4" />;
   }
   if (!path) {
-    return <image href={markUrl(tone, product)} x={star.x - 8} y={star.y - 8} width="16" height="16" />;
+    return <ProductStar product={product} x={star.x - 8} y={star.y - 8} size={16} />;
   }
   return (
     <>
       <circle className="ast-star-tool-halo" cx={star.x} cy={star.y} r="16" />
-      <image href={markUrl(tone, product)} x={star.x - 11} y={star.y - 11} width="22" height="22" />
+      <ProductStar product={product} x={star.x - 11} y={star.y - 11} size={22} />
     </>
   );
 }
@@ -295,8 +311,8 @@ function AgentActivityMarks({ busy, tone }: { busy: boolean; tone: BrandTone }) 
 }
 
 /**
- * The run as a list of steps on white, which is what light mode draws instead of
- * the sky.
+ * The run as a hidden semantic fallback. The visible star map is operable in
+ * both themes.
  *
  * NOT A SECOND SOURCE OF TRUTH. Every value here comes off the same `stages` and
  * the same `PathConstellation` the band above is drawn from -- the step numbers
@@ -305,12 +321,8 @@ function AgentActivityMarks({ busy, tone }: { busy: boolean; tone: BrandTone }) 
  * is the same `pin`. A list that recomputed any of that could disagree with the
  * drawing about which step a reader had opened.
  *
- * NOTHING HERE IS A STAR. No sparkle, no dot, no navy, no connector: the step's
- * place in the run is a number in a box, the product behind it is that product's
- * own mark, and the step being worked on is a blue edge and a tint rather than a
- * glyph that beats. That is the requirement rather than a preference -- light mode
- * has no night sky for a star to be a star ON, so a sparkle there is a decoration
- * that has lost its subject.
+ * Nothing here is a star. It remains a complete text rendering so the fallback
+ * cannot silently lose run data if it is used again.
  *
  * AND NOTHING IS HIDDEN BY LOSING THEM. Every stage gets a row, the state words a
  * star could only carry as a colour are printed, and each row is a real `button`
@@ -707,7 +719,7 @@ export function AgentPathConstellation({
                 className={beating && activeIndex === index ? 'ast-anim-center-pulse' : undefined}
                 style={beating && activeIndex === index ? { transformOrigin: `${star.x}px ${star.y}px` } : undefined}
               >
-                <Star star={star} tone="dark" path />
+                <Star star={star} path />
               </g>
             </g>
           ))}
@@ -769,9 +781,7 @@ export function AgentPathConstellation({
           )}
         </p>
       </div>
-      {/* The same run, as daylight. A sibling rather than a child of the band, so
-        the two are alternatives rather than one nested in the other, and the
-        column they sit in lays out exactly one of them. */}
+      {/* The same run as a hidden text fallback. */}
       <StepRail
         stages={stages}
         path={path}
@@ -841,7 +851,7 @@ export function AgentMapConstellation({ stages, selectedId }: { stages: TraceSta
             kind of step. */}
         {selected && <circle className="ast-star-selected" cx={selected.x} cy={selected.y} r={SELECTED_RING} />}
         {map.stars.map((star) => (
-          <Star key={star.id} star={star} tone="dark" />
+          <Star key={star.id} star={star} />
         ))}
         {map.labels.map((label, index) => (
           <Label key={label.step} label={label} selected={selected?.id === map.stars[index].id} />
@@ -857,7 +867,7 @@ export function AgentMapConstellation({ stages, selectedId }: { stages: TraceSta
           </text>
           {legend.map((entry, index) => (
             <g key={entry.product} transform={`translate(${96 + index * 68} 0)`}>
-              <image href={markUrl('dark', entry.product)} x="0" y="-2" width="13" height="13" />
+              <ProductStar product={entry.product} x={0} y={-2} size={13} />
               <text x="18" y="9">
                 {entry.name}
               </text>

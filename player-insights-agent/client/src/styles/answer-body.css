@@ -147,14 +147,14 @@
 }
 /* The segment a reader recognises the table by, tinted in the chip's own fill so
    the eye can find it without reading the catalog and schema first. */
-.source-name-pill .source-name-short {
+.source-name-pill .source-name-short:not(.entity-token) {
   border-radius: 3px;
   padding: 1px 5px;
 }
-.source-name-pill[data-tone='queried'] .source-name-short {
+.source-name-pill[data-tone='queried'] .source-name-short:not(.entity-token) {
   background: var(--ast-info-fill);
 }
-.source-name-pill[data-tone='neutral'] .source-name-short {
+.source-name-pill[data-tone='neutral'] .source-name-short:not(.entity-token) {
   background: var(--ast-neutral-fill);
 }
 /*
@@ -736,8 +736,8 @@
   font-size: var(--ast-fs-14);
   font-weight: 500;
 }
-.source-list-name .source-name-short,
-.source-list-derivation .derivation-source .source-name-short {
+.source-list-name .source-name-short:not(.entity-token),
+.source-list-derivation .derivation-source .source-name-short:not(.entity-token) {
   padding: 0;
   background: transparent;
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 
 import { entityHref, linkifyEntities } from './data-entities';
 import { useTrackedTables } from './data-entity-state';
+import { Entity, EntityParts } from './Entity';
 
 // A standalone figure only: a date, or a signed/currency number. The boundary
 // guards keep it from reaching into a digit that is fused into an identifier --
@@ -26,33 +27,6 @@ const KNOWN_TOOLS = [
   'request_clarification',
   'new_plot',
 ];
-
-function EntityParts({ text, entity }: { text: string; entity: string }) {
-  const full = entity.split('.');
-  const shown = text.split('.');
-  const offset = Math.max(0, full.length - shown.length);
-  return (
-    <>
-      {shown.map((part, index) => {
-        const fullIndex = offset + index;
-        const kind =
-          fullIndex === 0 && full.length >= 3
-            ? 'catalog'
-            : fullIndex === full.length - 2 && full.length >= 2
-              ? 'schema'
-              : 'table';
-        return (
-          <Fragment key={shown.slice(0, index + 1).join('.')}>
-            {index > 0 ? '.' : null}
-            <span className={`entity-token entity-${kind}`} data-entity-part={kind}>
-              {part}
-            </span>
-          </Fragment>
-        );
-      })}
-    </>
-  );
-}
 
 function plainRuns(text: string, start: number, tools: readonly string[], numbers: boolean): ReactNode[] {
   const candidates = [...new Set([...KNOWN_TOOLS, ...tools])]
@@ -129,9 +103,9 @@ function EntityRuns({
             <EntityParts text={run.text} entity={run.declaredTable} />
           </span>
         ) : run.emphasis ? (
-          <span className="entity-mark entity-column font-semibold" key={run.start}>
+          <Entity kind="column" className="entity-mark" key={run.start}>
             {run.text}
-          </span>
+          </Entity>
         ) : (
           <Fragment key={run.start}>{plainRuns(run.text, run.start, tools, numbers)}</Fragment>
         )

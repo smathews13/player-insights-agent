@@ -31,6 +31,7 @@ import { ChevronRight } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { parseAnswerMarkdown, type Block, type Inline } from './answer-markdown';
 import { EntityParts, EntityText, TableEntityList } from './DataEntityLinks';
+import { Entity } from './Entity';
 import {
   chipRuns,
   fieldDefinition,
@@ -296,7 +297,9 @@ export function SchemaResultView({ result }: { result: SchemaResult }) {
           {result.columns.map((column) => (
             <tr key={column.name}>
               <td data-label="Column">
-                <code className="dag-schema-column-token">{column.name}</code>
+                <Entity kind="column" className="dag-schema-column-token" as="code">
+                  {column.name}
+                </Entity>
               </td>
               <td data-label="Type">
                 <code className="dag-schema-type">{column.type}</code>
@@ -492,7 +495,9 @@ function SemanticRow({ entry, open }: { entry: SemanticEntry; open: boolean }) {
               {shown.map((column) => (
                 <span className="dag-col-chip" key={column.name}>
                   <strong className="dag-col-name">
-                    <code className="dag-schema-column-token">{column.name}</code>
+                    <Entity kind="column" className="dag-schema-column-token" as="code">
+                      {column.name}
+                    </Entity>
                   </strong>
                   {column.type && <span className="dag-col-type">{column.type}</span>}
                 </span>
