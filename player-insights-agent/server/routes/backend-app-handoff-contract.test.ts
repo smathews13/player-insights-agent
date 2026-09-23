@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { consumeServingStream } from '../lib/serving-stream';
-import { buildAskServingBody, extractAnalysisPlan, extractStructuredAnswer } from './insights-routes';
+import {
+  ApprovedPlanBodySchema,
+  buildAskServingBody,
+  extractAnalysisPlan,
+  extractStructuredAnswer,
+} from './insights-routes';
 import planRequestFixture from './__fixtures__/backend-app-handoff/example-request-plan.json';
 import executeRequestFixture from './__fixtures__/backend-app-handoff/example-request-execute.json';
 import planResponseFixture from './__fixtures__/backend-app-handoff/example-plan-response.json';
@@ -89,6 +94,17 @@ describe('sanitized backend/app handoff fixtures', () => {
     expect(plan?.candidates).toHaveLength(3);
   });
 
+  it('echoes approved plans without stripping future fields and accepts legacy empty candidates', () => {
+    const plan = structuredClone((planResponse.events[0].custom_outputs as { plan: Record<string, unknown> }).plan);
+    plan.future_contract = { keep: true };
+    const steps = plan.steps as Record<string, unknown>[];
+    steps[0].future_step = 'kept';
+    const parsed = ApprovedPlanBodySchema.parse(plan);
+    expect(parsed.future_contract).toEqual({ keep: true });
+    expect(parsed.steps[0].future_step).toBe('kept');
+    expect(ApprovedPlanBodySchema.parse({ ...plan, candidates: [] }).candidates).toEqual([]);
+  });
+
   it('consumes stage and flush events before returning the complete answer envelope', async () => {
     const seen: Record<string, unknown>[] = [];
     const result = await consumeServingStream(eventStream(answerResponse.events), (stage) => seen.push(stage));
@@ -126,6 +142,23 @@ describe('sanitized backend/app handoff fixtures', () => {
       expect(warning).toHaveBeenCalledWith(
         '[serving] Structured answer failed validation:',
         expect.stringContaining('trace')
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('logs malformed plans and never turns an empty plan into an approval card', () => {
+    const invalid = structuredClone(planResponse.events[0]) as {
+      custom_outputs: { plan: Record<string, unknown> };
+    };
+    invalid.custom_outputs.plan.steps = [];
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(extractAnalysisPlan(invalid)).toBeNull();
+      expect(warning).toHaveBeenCalledWith(
+        '[serving] Endpoint proposed a plan in a shape the app cannot approve:',
+        expect.stringContaining('steps')
       );
     } finally {
       warning.mockRestore();
