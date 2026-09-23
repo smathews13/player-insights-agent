@@ -38,7 +38,7 @@ import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/
 import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { isReportPayload, normalizeReport, type Report } from '../../shared/report-contract';
-import { normalizeDashboard, type Dashboard } from '../../shared/dashboard-contract';
+import { isDashboardPayload, normalizeDashboard, type Dashboard } from '../../shared/dashboard-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -2539,8 +2539,8 @@ export function extractDashboard(value: unknown): Dashboard | null {
   const custom = record.custom_outputs;
   if (custom && typeof custom === 'object') {
     const customRecord = custom as Record<string, unknown>;
-    if (customRecord.type === 'dashboard') {
-      return normalizeDashboard(customRecord.dashboard);
+    if (isDashboardPayload(customRecord)) {
+      return normalizeDashboard(customRecord.dashboard ?? customRecord);
     }
   }
   for (const key of ['data', 'response', 'result', 'body']) {
