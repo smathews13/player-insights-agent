@@ -35,14 +35,14 @@ const MONO = "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
 /** The paints `tokens.css` resolves to at `:root`. */
 const LIGHT: ChartTheme = {
-  ink: '#161616',
-  muted: '#6f6f6f',
-  grid: '#ebebeb',
+  ink: '#0e1720',
+  muted: '#6b7a87',
+  grid: '#edf1f4',
   surface: '#ffffff',
-  accent: '#2272b4',
-  second: '#04867d',
-  third: '#4299e0',
-  fourth: '#445461',
+  accent: '#1a62a8',
+  second: '#0f6257',
+  third: '#8a5a00',
+  fourth: '#4c5c68',
   mono: MONO,
 };
 
@@ -394,7 +394,7 @@ describe('the line treatment, and the two things it is allowed to add', () => {
     expect(at(dark.data[0]).fillcolor).toBe('rgba(143, 193, 232, 0.12)');
 
     const light = themedFigure(lineSpec(), LIGHT);
-    expect(at(light.data[0]).fillcolor).toBe('rgba(34, 114, 180, 0.12)');
+    expect(at(light.data[0]).fillcolor).toBe('rgba(26, 98, 168, 0.12)');
   });
 
   it('does not fill one when the spec has said not to', () => {
@@ -561,14 +561,14 @@ describe('the theme is read off the document, and re-read when it changes', () =
 
   it('reads the light tokens as the light theme paints them', () => {
     stubDocument({
-      '--foreground': ' #161616',
-      '--muted-foreground': '#6f6f6f',
-      '--border': '#ebebeb',
-      '--background': '#ffffff',
-      '--chart-1': '#2272b4',
-      '--chart-2': '#04867d',
-      '--chart-3': '#4299e0',
-      '--chart-4': '#445461',
+      '--foreground': ' #0e1720',
+      '--muted-foreground': '#6b7a87',
+      '--ast-chart-gridline': '#edf1f4',
+      '--card': '#ffffff',
+      '--chart-1': '#1a62a8',
+      '--chart-2': '#0f6257',
+      '--chart-3': '#8a5a00',
+      '--chart-4': '#4c5c68',
       '--font-mono': MONO,
     });
     expect(readChartTheme()).toEqual(LIGHT);
@@ -578,8 +578,8 @@ describe('the theme is read off the document, and re-read when it changes', () =
     stubDocument({
       '--foreground': '#f2f6fa',
       '--muted-foreground': 'rgba(232, 237, 242, 0.68)',
-      '--border': 'rgba(255, 255, 255, 0.12)',
-      '--background': '#11171c',
+      '--ast-chart-gridline': 'rgba(255, 255, 255, 0.12)',
+      '--card': '#11171c',
       '--chart-1': '#8fc1e8',
       '--chart-2': '#04867d',
       '--chart-3': '#6faedd',

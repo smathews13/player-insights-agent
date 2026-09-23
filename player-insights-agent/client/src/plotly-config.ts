@@ -88,8 +88,8 @@ export interface ChartTheme {
 const THEME_TOKENS: Record<keyof ChartTheme, string> = {
   ink: '--foreground',
   muted: '--muted-foreground',
-  grid: '--border',
-  surface: '--background',
+  grid: '--ast-chart-gridline',
+  surface: '--card',
   accent: '--chart-1',
   second: '--chart-2',
   third: '--chart-3',
@@ -106,14 +106,14 @@ const THEME_TOKENS: Record<keyof ChartTheme, string> = {
  * document looks exactly as it did before this file existed.
  */
 const FALLBACK_THEME: ChartTheme = {
-  ink: '#161616',
-  muted: '#6f6f6f',
-  grid: '#ebebeb',
+  ink: '#0e1720',
+  muted: '#6b7a87',
+  grid: '#edf1f4',
   surface: '#ffffff',
-  accent: '#2272b4',
-  second: '#04867d',
-  third: '#4299e0',
-  fourth: '#445461',
+  accent: '#1a62a8',
+  second: '#0f6257',
+  third: '#8a5a00',
+  fourth: '#4c5c68',
   mono: "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 

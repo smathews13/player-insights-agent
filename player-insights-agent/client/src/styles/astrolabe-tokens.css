@@ -77,22 +77,35 @@
    * login gate's logo. Those are the only non-palette pixels the design permits, and a
    * token would make it reachable from anywhere.
    */
+  color-scheme: light;
+  --ast-canvas: #f4f7f9;
+  --ast-surface: #ffffff;
+  --ast-surface-sunken: #f0f4f7;
+  --ast-surface-raised: #ffffff;
+  --ast-surface-selected: #edf3f9;
   --ast-white: #ffffff;
   --ast-navy: #11171c; /* ink structure, dark bands, wordmark */
-  --ast-blue: #2272b4; /* action, identity, agent-at-work. Same value as --db-blue-600 */
+  --ast-blue: #1a62a8; /* action, identity, focus and primary series */
+  --ast-action: #1a62a8;
+  --ast-action-hover: #14507f;
+  --ast-action-ink-on-fill: #ffffff;
+  --ast-action-tint: #e8f1fa;
+  --ast-action-edge: #bbd6f0;
+  --ast-action-press-tint: color-mix(in srgb, var(--ast-action) 16%, var(--ast-surface));
+  --ast-focus-halo: rgba(26, 98, 168, 0.28);
   --ast-blue-on-dark: #6faedd; /* blue's form on navy surfaces */
   /*
    * A dark primary control is a raised piece of the night surface, not a slab of
    * the action hue. #1B3049 stays close enough to the sky to preserve that
    * hierarchy while giving --ast-ink-on-dark 12.35:1 contrast for its label.
    */
-  --ast-primary-control-fill: #1b3049;
+  --ast-primary-control-fill: var(--ast-action);
   /*
    * The blue belongs on the control's one-pixel edge. #4A8CBF remains visibly
    * distinct from both the fill and the surrounding navy without spending the
    * brighter ice accent on the whole control.
    */
-  --ast-primary-control-border: #4a8cbf;
+  --ast-primary-control-border: var(--ast-action);
   /*
    * The Rendered | Raw pressed fill, and the numbered circles on a proposed
    * plan. `--ast-blue` remaps to ice on the night sky, which is correct for a
@@ -104,7 +117,7 @@
    */
   --ast-seg-pressed: var(--ast-blue);
   --ast-seg-pressed-ink: var(--ast-white);
-  --ast-ice: #f0f6fb; /* AI-context surface. Replaces oat --db-warm #F9F7F4 everywhere */
+  --ast-ice: var(--ast-action-tint);
   --ast-ice-accent: #8fc1e8; /* active tab, links, bars on the night sky */
   --ast-ink-on-dark: #f2f6fa;
   --ast-ghost-text: #e8f2fa;
@@ -128,15 +141,19 @@
    * glyph. This is alpha occlusion only; no backdrop blur is used.
    */
   --ast-surface-solid: #181e23;
-  --ast-surface-opaque: var(--ast-white);
-  --ast-surface-muted: color-mix(in srgb, var(--ast-white) 96%, transparent);
-  --ast-surface-primary: color-mix(in srgb, var(--ast-white) 98.5%, transparent);
-  --ast-surface-elevated: color-mix(in srgb, var(--ast-white) 99.5%, transparent);
-  --ast-surface-menu: color-mix(in srgb, var(--ast-white) 100%, transparent);
-  --ast-surface-chrome: color-mix(in srgb, var(--ast-white) 100%, transparent);
-  --ast-surface-table-head: color-mix(in srgb, var(--ast-white) 100%, transparent);
-  --ast-overlay-occlusion: color-mix(in srgb, var(--ast-scrim) 86%, transparent);
-  --ast-scrim: #090e14; /* Settings overlay on the night sky */
+  --ast-surface-opaque: var(--ast-surface);
+  --ast-surface-muted: var(--ast-surface-sunken);
+  --ast-surface-primary: var(--ast-surface);
+  --ast-surface-elevated: var(--ast-surface);
+  --ast-surface-menu: var(--ast-surface-raised);
+  --ast-surface-chrome: var(--ast-surface-raised);
+  --ast-surface-table-head: var(--ast-surface-sunken);
+  --ast-overlay-occlusion: var(--ast-scrim);
+  --ast-scrim-ink: #17222c;
+  --ast-scrim: color-mix(in srgb, var(--ast-scrim-ink) 45%, transparent);
+  --ast-shadow-flat: none;
+  --ast-shadow-chrome: 0 1px 2px rgba(14, 23, 32, 0.06);
+  --ast-shadow-overlay: 0 16px 40px rgba(14, 23, 32, 0.18);
   --ast-icon-tint: #b7d6ee; /* the light tint inside the recoloured product icons */
 
   /* One explicit layer ladder. Local component z-indices may order children,
@@ -174,7 +191,7 @@
    * It resolves to the same high-alpha semantic paper as --card. Nested bands
    * may use the quieter role because this parent already attenuates the sky.
    */
-  --ast-sky-fill: #16202e; /* the dark surfaces: Ask, the harness, the bands, the login canvas */
+  --ast-sky-fill: var(--ast-canvas);
   --ast-pane: var(--ast-surface-primary);
 
   /*
@@ -185,16 +202,23 @@
    * navy, which the app has never needed because it has never had a navy surface with
    * prose on it.
    */
-  --ast-text: #161616; /* body */
-  --ast-text-long: #3a3838; /* long-form copy */
-  --ast-text-secondary: #6f6f6f; /* secondary, placeholders, eyebrows */
+  --ast-ink: #0e1720;
+  --ast-ink-secondary: #4c5c68;
+  --ast-ink-tertiary: #6b7a87;
+  --ast-ink-disabled: #9aa7b2;
+  --ast-text: var(--ast-ink);
+  --ast-text-long: var(--ast-ink-secondary);
+  --ast-text-secondary: var(--ast-ink-tertiary);
+  --ast-text-disabled: var(--ast-ink-disabled);
   --ast-caption: var(--ast-text-secondary); /* 11–12px explanatory copy */
   --ast-text-on-dark-secondary: #8a9aa3; /* secondary, on a navy surface */
 
   /* ---- Borders and fills (§2) ---- */
-  --ast-hairline: #ebebeb; /* cards, separators. The only thin border */
-  --ast-border-input: #cbcbcb; /* inputs and outline buttons */
-  --ast-fill-band: #f7f7f7; /* card header bands */
+  --ast-hairline: #e2e8ed;
+  --ast-hairline-strong: #cfd9e0;
+  --ast-border-input: #c9d3db;
+  --ast-border-dashed: #b8c6d1;
+  --ast-fill-band: var(--ast-surface-sunken);
 
   /*
    * ---- Status, five families ----
@@ -207,31 +231,39 @@
    * to any state", because a bordered pill at 4px radius is what this app's buttons
    * look like. --ast-pill--neutral-outline is the outlined alternative §2 offers.
    */
-  --ast-pos-text: #35706b;
-  --ast-pos-border: #c5ddd9;
-  --ast-pos-fill: #f4f9f8;
+  --ast-pos-text: #0f6257;
+  --ast-pos-border: #a8d5cd;
+  --ast-pos-fill: #eaf6f3;
 
-  --ast-neg-text: #a04a62;
-  --ast-neg-border: #e3c4cc;
-  --ast-neg-fill: #faf3f5;
+  --ast-neg-text: #a21f35;
+  --ast-neg-border: #edbfc8;
+  --ast-neg-fill: #fcf1f3;
 
-  --ast-warn-text: #8a6a38;
-  --ast-warn-border: #e0d3b8;
-  --ast-warn-fill: #f9f6ef;
+  --ast-warn-text: #8a5a00;
+  --ast-warn-border: #e6ce9a;
+  --ast-warn-fill: #fdf6e8;
   /* The rung the warning family uses at smaller or heavier type, and the fill behind a
      mono tag inside a warning context. 122, 94, 50 is #7A5E32, so the tag follows the
      deep rung if it ever moves. */
-  --ast-warn-deep: #7a5e32;
-  --ast-warn-mono-fill: rgba(122, 94, 50, 0.08);
+  --ast-warn-deep: #7a5a11;
+  --ast-warn-mono-fill: color-mix(in srgb, var(--ast-provenance-text) 8%, transparent);
 
-  --ast-neutral-text: #46596b;
-  --ast-neutral-fill: #f2f6f9;
+  --ast-neutral-text: #4c5c68;
+  --ast-neutral-border: #dce3e9;
+  --ast-neutral-fill: #f2f5f8;
 
   /* Info also carries role badges and table chips. Same value as --db-blue-700, which
      is the blue's hover rung; one hex, two jobs, and they do not collide because one is
      a state and the other is a foreground on its own tint. */
-  --ast-info-text: #0e538b;
-  --ast-info-fill: #ddeaf4;
+  --ast-info-text: #1a5b8f;
+  --ast-info-border: #bbd6f0;
+  --ast-info-fill: #e8f1fa;
+  --ast-provenance-text: #7a5a11;
+  --ast-provenance-border: #e4d3a6;
+  --ast-provenance-fill: #fbf5e6;
+  --ast-danger-fill: #c2263f;
+  --ast-danger-hover: #a61e34;
+  --ast-danger-ink: #ffffff;
 
   /*
    * Entity marks use the same five palette roles as the rest of the answer.
@@ -252,20 +284,28 @@
      default agree. A custom --entity-* set in Appearance still wins. The two saturated
      fills are declared as their own tokens so the palette guard sees them declared
      rather than written by hand; the neutral fills below stay literal. */
-  --ast-entity-catalog-fill: #242a4e;
-  --ast-entity-schema-fill: #372f66;
-  --ast-entity-catalog-fg: var(--entity-catalog-fg, #a9b4ff);
+  --ast-entity-catalog-fill: var(--ast-provenance-fill);
+  --ast-entity-schema-fill: var(--ast-provenance-fill);
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-provenance-text));
   --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-entity-catalog-fill));
-  --ast-entity-schema-fg: var(--entity-schema-fg, #d7d2ff);
+  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-provenance-text));
   --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-entity-schema-fill));
-  --ast-entity-table-fg: var(--entity-table-fg, #f4f6fb);
-  --ast-entity-table-bg: var(--entity-table-bg, #262a38);
+  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-provenance-text));
+  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-provenance-fill));
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-text-long));
   --ast-entity-column-bg: var(--entity-column-bg, var(--ast-neutral-fill));
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-neutral-text));
   --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-fill-band));
-  --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-white));
-  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-navy));
+  --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-text));
+  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-action-tint));
+  --ast-dark-entity-catalog-fg: #a9b4ff;
+  --ast-dark-entity-catalog-bg: #242a4e;
+  --ast-dark-entity-schema-fg: #d7d2ff;
+  --ast-dark-entity-schema-bg: #372f66;
+  --ast-dark-entity-table-fg: #f4f6fb;
+  --ast-dark-entity-table-bg: #262a38;
+  --ast-dark-entity-column-bg: #1e2830;
+  --ast-dark-entity-tag-bg: #243746;
 
   /*
    * Explorer timeline kind colours. These match the notebook span viz the
@@ -282,6 +322,13 @@
   --ast-trace-plot-bar: #c49ad4;
   --ast-trace-clarify-ink: #8a4b1a;
   --ast-trace-clarify-bar: #d9a06c;
+  --ast-star: #c3d0da;
+  --ast-constellation-line: #dde5eb;
+  --ast-chart-1: var(--ast-action);
+  --ast-chart-2: var(--ast-pos-text);
+  --ast-chart-3: var(--ast-warn-text);
+  --ast-chart-track: #e7ecf0;
+  --ast-chart-gridline: #edf1f4;
 
   /* ---- Type scale (§3) ---- */
   --ast-fs-11: 11px;
@@ -309,11 +356,12 @@
    * separates clauses and recorded lines; each such block states that exception
    * beside the rule that needs it.
    */
-  --ast-lh-body: 1.15;
+  --ast-lh-body: 1.5;
 
   /* ---- Radii ---- */
-  --ast-radius-control: 4px; /* buttons, pills, inputs */
-  --ast-radius-card: 8px; /* cards, rows, bands */
+  --ast-radius-pill: 6px;
+  --ast-radius-control: 8px;
+  --ast-radius-card: 10px;
 
   /*
    * ---- Tracking and the separator ----
@@ -334,6 +382,25 @@
 }
 
 html[data-theme='dark'] {
+  color-scheme: dark;
+  --ast-canvas: #0b1014;
+  --ast-surface: var(--ast-surface-solid);
+  --ast-surface-sunken: rgba(255, 255, 255, 0.03);
+  --ast-surface-raised: var(--ast-navy);
+  --ast-surface-selected: #16232b;
+  --ast-scrim: #090e14;
+  --ast-shadow-flat: none;
+  --ast-shadow-chrome: none;
+  --ast-shadow-overlay: none;
+  --ast-action: var(--ast-ice-accent);
+  --ast-action-hover: #a9d2f0;
+  --ast-action-ink-on-fill: #e9f3fb;
+  --ast-action-tint: rgba(143, 193, 232, 0.12);
+  --ast-action-edge: rgba(143, 193, 232, 0.35);
+  --ast-action-press-tint: rgba(143, 193, 232, 0.22);
+  --ast-focus-halo: rgba(143, 193, 232, 0.3);
+  --ast-primary-control-fill: #1b3049;
+  --ast-primary-control-border: #4a8cbf;
   --ast-surface-opaque: var(--ast-surface-solid);
   --ast-surface-muted: color-mix(in srgb, var(--ast-surface-solid) 96%, transparent);
   --ast-surface-primary: color-mix(in srgb, var(--ast-surface-solid) 98.5%, transparent);
@@ -366,6 +433,14 @@ html[data-theme='dark'] {
   --ast-info-text: var(--ast-ice-accent);
   --ast-info-fill: rgba(143, 193, 232, 0.16);
   --ast-blue: var(--ast-ice-accent);
+  --ast-star: rgba(255, 255, 255, 0.55);
+  --ast-constellation-line: rgba(255, 255, 255, 0.12);
+  --ast-chart-1: var(--ast-ice-accent);
+  --ast-chart-2: #04867d;
+  --ast-chart-3: #8a5a00;
+  --ast-chart-track: rgba(255, 255, 255, 0.08);
+  --ast-chart-gridline: rgba(255, 255, 255, 0.12);
+  --ast-lh-body: 1.15;
   --ast-seg-pressed: var(--db-blue-700);
   --ast-seg-pressed-ink: var(--ast-ink-on-dark);
   --ast-entity-tag-on-navy: #243746;
@@ -413,11 +488,11 @@ html:not([data-theme='dark']) {
 .ast-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 8px;
+  gap: 6px;
+  padding: 3px 10px;
   border: 1px solid transparent;
-  border-radius: var(--ast-radius-control);
-  font-size: var(--ast-fs-11);
+  border-radius: var(--ast-radius-pill);
+  font-size: var(--ast-fs-13);
   font-weight: 500;
 }
 
@@ -442,6 +517,7 @@ html:not([data-theme='dark']) {
 .ast-pill--neutral {
   color: var(--ast-neutral-text);
   background: var(--ast-neutral-fill);
+  border-color: var(--ast-neutral-border);
 }
 
 /* No fill, a real edge. For a chip that has to sit on a tinted surface, where a tint on
@@ -454,6 +530,14 @@ html:not([data-theme='dark']) {
 .ast-pill--info {
   color: var(--ast-info-text);
   background: var(--ast-info-fill);
+  border-color: var(--ast-info-border);
+}
+
+.ast-pill--provenance {
+  color: var(--ast-provenance-text);
+  background: var(--ast-provenance-fill);
+  border-color: var(--ast-provenance-border);
+  font-family: var(--font-mono);
 }
 
 /*
@@ -465,7 +549,7 @@ html:not([data-theme='dark']) {
  * off centre.
  */
 .ast-btn-primary {
-  height: 32px;
+  height: 38px;
   padding: 0 14px;
   background: var(--ast-blue);
   border: 1px solid var(--ast-blue);
@@ -475,7 +559,7 @@ html:not([data-theme='dark']) {
 }
 
 .ast-btn-secondary {
-  height: 32px;
+  height: 38px;
   padding: 0 12px;
   background: transparent;
   border: 1px solid var(--ast-border-input);

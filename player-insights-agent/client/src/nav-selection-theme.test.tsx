@@ -73,7 +73,7 @@ describe('global navigation selection', () => {
   });
 
   it('inherits accessible light and dark blue without theme-specific active overrides', () => {
-    expect(TOKENS).toMatch(/--primary:\s*var\(--db-blue-600\)/);
+    expect(TOKENS).toMatch(/--primary:\s*var\(--ast-action\)/);
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--primary:\s*var\(--ast-ice-accent\)/);
     expect(DARK).not.toMatch(/app-nav-tab(?:\.active|\[aria-current)/);
     expect(DARK_SETTINGS).not.toMatch(/environment-tabs button\.active/);

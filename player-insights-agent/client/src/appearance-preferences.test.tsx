@@ -57,7 +57,7 @@ describe('Appearance preferences', () => {
     const text = markup.slice(markup.indexOf('appearance-text-panel'), markup.indexOf('appearance-palette-section'));
 
     expect(display).toContain('>Display</h4>');
-    expect(display).toContain('>Dark mode</span>');
+    expect(display).toContain('>Light mode</span>');
     expect(display).toContain('>Background graphics</span>');
     expect(display).toContain('>Animations</span>');
     expect(display).toContain('>Density</span>');
@@ -72,7 +72,7 @@ describe('Appearance preferences', () => {
     expect(display).not.toContain('>Font</span>');
     expect(display).not.toContain('>Size</span>');
 
-    const labels = ['Dark mode', 'Background graphics', 'Animations', 'Density'];
+    const labels = ['Light mode', 'Background graphics', 'Animations', 'Density'];
     for (let index = 1; index < labels.length; index += 1) {
       expect(display.indexOf(labels[index - 1])).toBeLessThan(display.indexOf(labels[index]));
     }
@@ -166,7 +166,7 @@ describe('Appearance preferences', () => {
     const markup = renderToStaticMarkup(<RuntimeSettingsPanel section="appearance" initialSettings={draft} />);
     const text = markup.slice(markup.indexOf('appearance-text-panel'), markup.indexOf('appearance-palette-section'));
 
-    expect(markup).toContain('aria-label="Dark mode"');
+    expect(markup).toContain('aria-label="Light mode"');
     expect(markup).toContain('aria-label="Background graphics"');
     expect(markup).toContain('aria-label="Animations"');
     expect(markup).toContain('>Compact</button>');
@@ -212,11 +212,11 @@ describe('Appearance preferences', () => {
       '--font-sans': FONT_FAMILY_STACKS['dm-mono'],
       '--text-base': '15px',
     });
-    expect(themeColor.setAttribute).toHaveBeenLastCalledWith('content', '#ffffff');
+    expect(themeColor.setAttribute).toHaveBeenLastCalledWith('content', '#f4f7f9');
 
     previewRuntimeAppearance(DEFAULT_RUNTIME_SETTINGS, root.style);
     expect(Object.fromEntries(attributes)).toMatchObject({
-      'data-theme': 'dark',
+      'data-theme': 'light',
       'data-background-graphics': 'on',
       'data-animations': 'on',
       'data-density': 'comfortable',
@@ -255,6 +255,11 @@ describe('Appearance preferences', () => {
     expect(PANEL).toContain('previewRuntimeAppearance(savedSettings.current)');
     expect(PANEL).toContain('savedSettings.current = saved');
     expect(PANEL).toContain('adoptRuntimeEntityStyles(saved.settings)');
+  });
+
+  it('never lets the Runtime section repaint the Appearance-owned theme', () => {
+    expect(PANEL).toContain("if (section === 'appearance') applyColorScheme(loaded.settings.colorScheme)");
+    expect(PANEL).not.toMatch(/setSettings\(loaded\.settings\);\s*applyColorScheme/);
   });
 
   it('Background graphics Off hides only the decorative sky target', () => {

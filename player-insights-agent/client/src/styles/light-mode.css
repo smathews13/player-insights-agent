@@ -1,0 +1,159 @@
+/*
+ * Daylight paint.
+ *
+ * Layout and copy remain owned by their surface partials. This file supplies
+ * the shared light treatment so a route cannot quietly keep a night-sky fill
+ * when light is the default.
+ */
+
+html:not([data-theme='dark']) {
+  color-scheme: light;
+}
+
+html:not([data-theme='dark']) .app-sky-line,
+html:not([data-theme='dark']) .star-motion-draw {
+  stroke: var(--ast-constellation-line);
+}
+
+html:not([data-theme='dark']) .app-topology-node {
+  color: var(--ast-star);
+}
+
+html:not([data-theme='dark']) :is(.app-frame, .ask-layout, .page-shell, .run-explorer) {
+  background-color: var(--ast-canvas);
+}
+
+html:not([data-theme='dark']) .app-header {
+  background: var(--ast-surface-raised);
+  border-bottom: 1px solid var(--ast-hairline);
+  box-shadow: var(--ast-shadow-chrome);
+}
+
+html:not([data-theme='dark'])
+  :is(
+    [data-slot='card'],
+    .answer-card,
+    .plan-card,
+    .monitoring-tile,
+    .ops-block,
+    .connection-row,
+    .arch-node,
+    .summary-grid > *,
+    .conversation-rail,
+    .trace-inspector
+  ) {
+  background: var(--ast-surface);
+  border-color: var(--ast-hairline);
+  box-shadow: var(--ast-shadow-flat);
+}
+
+html:not([data-theme='dark'])
+  :is(
+    [data-slot='popover-content'],
+    [data-slot='select-content'],
+    [data-slot='dropdown-menu-content'],
+    .account-menu,
+    .settings-page.settings-modal
+  ) {
+  background: var(--ast-surface-raised);
+  border-color: var(--ast-hairline);
+  box-shadow: var(--ast-shadow-overlay);
+}
+
+html:not([data-theme='dark']) :is(input, textarea, select, .app-select-trigger, .composer, [data-slot='input']) {
+  background: var(--ast-surface);
+  border-color: var(--ast-border-input);
+  color: var(--ast-text);
+}
+
+html:not([data-theme='dark']) :is(input, textarea)::placeholder {
+  color: var(--ast-text-disabled);
+}
+
+html:not([data-theme='dark'])
+  :is(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    [role='button'],
+    [role='tab'],
+    [role='radio'],
+    [data-slot='switch']
+  ):focus-visible,
+html:not([data-theme='dark']) .composer:focus-within {
+  outline: 2px solid var(--ast-action);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
+}
+
+html:not([data-theme='dark'])
+  :is(
+    [data-slot='button'].bg-primary,
+    [data-slot='button'][data-variant='default'],
+    [data-slot='button'][data-variant='primary'],
+    .ast-btn-primary
+  ) {
+  background: var(--ast-action);
+  border-color: var(--ast-action);
+  color: var(--ast-action-ink-on-fill);
+}
+
+html:not([data-theme='dark'])
+  :is(
+    [data-slot='button'].bg-primary,
+    [data-slot='button'][data-variant='default'],
+    [data-slot='button'][data-variant='primary'],
+    .ast-btn-primary
+  ):hover:not(:disabled) {
+  background: var(--ast-action-hover);
+  border-color: var(--ast-action-hover);
+}
+
+html:not([data-theme='dark']) [data-slot='button']:disabled {
+  background: var(--ast-surface-sunken);
+  border-color: var(--ast-hairline);
+  color: var(--ast-text-disabled);
+  opacity: 1;
+  cursor: default;
+}
+
+html:not([data-theme='dark']) :is(thead, [data-slot='table-header']) {
+  background: var(--ast-surface-sunken);
+  box-shadow: var(--ast-shadow-chrome);
+}
+
+html:not([data-theme='dark']) :is(th, [data-slot='table-head']) {
+  color: var(--ast-ink-tertiary);
+  border-color: var(--ast-hairline-strong);
+}
+
+html:not([data-theme='dark']) :is(tbody tr, [data-slot='table-row']) {
+  border-color: var(--ast-hairline);
+}
+
+html:not([data-theme='dark']) :is(tbody tr, [data-slot='table-row']):hover {
+  background: var(--ast-surface-sunken);
+}
+
+html:not([data-theme='dark']) .settings-overlay {
+  background: var(--ast-scrim);
+}
+
+html:not([data-theme='dark']) .settings-rail button.active {
+  background: var(--ast-surface-selected);
+  color: var(--ast-text);
+  font-weight: 600;
+}
+
+html:not([data-theme='dark']) :is(.unit-segmented-options, .trace-dag.map .dag-seg) {
+  border-color: var(--ast-border-input);
+  background: transparent;
+}
+
+html:not([data-theme='dark'])
+  :is(.unit-segmented-option[aria-pressed='true'], .trace-dag.map .dag-seg button[aria-pressed='true']) {
+  background: var(--ast-action);
+  color: var(--ast-action-ink-on-fill);
+}

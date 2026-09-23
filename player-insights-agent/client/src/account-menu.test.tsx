@@ -248,7 +248,7 @@ describe('account menu', () => {
     expect(PANEL_SOURCE).toContain('onMouseLeave={scheduleFeedbackClose}');
   });
 
-  it('matches the selected conversation blue without borrowing ADAPT green', () => {
+  it('matches the selected conversation blue without introducing another brand colour', () => {
     expect(MENU_SOURCE).toContain('type="button"');
     expect(MENU_SOURCE).toContain('aria-expanded={open}');
     expect(MENU_SOURCE).toContain('aria-controls={menuId}');

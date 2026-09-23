@@ -186,7 +186,7 @@ describe('runtime and appearance modal sections', () => {
     expect(source).toContain('appearance-sample');
     expect(source).toContain('entityStyles');
     expect(source).toContain('colorScheme');
-    expect(source).toContain('aria-label="Dark mode"');
+    expect(source).toContain('aria-label="Light mode"');
     expect(source).not.toContain('previewColorScheme(on)');
     expect(source).toContain('appearance-sample-plaque');
     expect(source).toContain('fontBodyColor');
@@ -207,14 +207,14 @@ describe('runtime and appearance modal sections', () => {
     expect(markup).not.toMatch(/<h4[^>]*>Interface<\/h4>/);
     expect(display).toContain('<h4 class="runtime-section-label">Display</h4>');
     expect(display).toContain('appearance-display-rows');
-    expect(display).toContain('>Dark mode</span>');
-    expect(display).toContain('aria-label="Dark mode"');
+    expect(display).toContain('>Light mode</span>');
+    expect(display).toContain('aria-label="Light mode"');
     expect(display).toContain('>Background graphics</span>');
     expect(display).toContain('>Animations</span>');
     expect(display).toContain('>Density</span>');
     expect(display).not.toContain('>Body text</span>');
     expect(display).not.toContain('>Secondary</span>');
-    const labels = ['Dark mode', 'Background graphics', 'Animations', 'Density'];
+    const labels = ['Light mode', 'Background graphics', 'Animations', 'Density'];
     for (let index = 1; index < labels.length; index += 1) {
       expect(display.indexOf(labels[index - 1])).toBeLessThan(display.indexOf(labels[index]));
     }

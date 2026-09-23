@@ -730,7 +730,7 @@
   border-color: var(--border);
   border-radius: var(--radius-md);
   background: var(--roster-panel-surface);
-  box-shadow: 0 1px 2px color-mix(in oklab, var(--db-ink-deep) 10%, transparent);
+  box-shadow: var(--ast-shadow-chrome);
 }
 
 .settings-table-frame::-webkit-scrollbar {
@@ -1221,7 +1221,7 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   display: grid;
   place-items: center;
   padding: 16px;
-  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
+  background: var(--ast-scrim);
 }
 
 .settings-page.settings-modal {
@@ -1234,9 +1234,10 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   margin: 0;
   padding: 0;
   overflow: hidden;
-  border-radius: 8px;
-  background: var(--card);
-  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  border: 1px solid var(--ast-hairline);
+  border-radius: 14px;
+  background: var(--ast-surface);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -1250,7 +1251,7 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   display: grid;
   place-items: center;
   padding: 16px;
-  background: color-mix(in oklab, var(--db-ink-deep) 60%, transparent);
+  background: var(--ast-scrim);
 }
 
 .settings-discard {
@@ -1259,9 +1260,9 @@ html[data-theme='dark'] .settings-page [data-slot='button'].settings-destructive
   gap: 12px;
   padding: 20px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  border-radius: var(--ast-radius-card);
+  background: var(--ast-surface);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 .settings-discard h3,

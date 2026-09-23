@@ -39,11 +39,11 @@ describe('saved Appearance colors', () => {
       getAttribute: (name: string) => attrs.get(name) ?? null,
     };
     vi.stubGlobal('document', { documentElement: root, querySelector: () => null });
-    adoptRuntimeEntityStyles({ ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' }, root.style);
-    expect(root.getAttribute('data-theme')).toBe('light');
+    adoptRuntimeEntityStyles({ ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'dark' }, root.style);
+    expect(root.getAttribute('data-theme')).toBe('dark');
     expect(root.classList.contains('light')).toBe(true);
     adoptRuntimeEntityStyles(DEFAULT_RUNTIME_SETTINGS, root.style);
-    expect(root.getAttribute('data-theme')).toBe('dark');
+    expect(root.getAttribute('data-theme')).toBe('light');
     vi.unstubAllGlobals();
   });
 

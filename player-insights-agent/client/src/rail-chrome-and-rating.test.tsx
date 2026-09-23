@@ -263,11 +263,12 @@ describe('the settings pane uses elevated semantic glass', () => {
     expect(frost).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.03\)/);
   });
 
-  it('stays glass rather than becoming a slab', () => {
-    expect(ASTROLABE).toMatch(
-      /--ast-surface-elevated:\s*color-mix\(in srgb,\s*var\(--ast-white\) 99\.5%,\s*transparent\)/
+  it('uses opaque paper in light and confines glass to dark mode', () => {
+    expect(ASTROLABE).toMatch(/--ast-surface-elevated:\s*var\(--ast-surface\)/);
+    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*var\(--ast-surface-raised\)/);
+    expect(rule(ASTROLABE, "html[data-theme='dark']")).toMatch(
+      /--ast-surface-elevated:\s*color-mix\(in srgb,\s*var\(--ast-surface-solid\) 99\.5%,\s*transparent\)/
     );
-    expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\(in srgb,\s*var\(--ast-white\) 100%,\s*transparent\)/);
   });
 
   it('gives none of that glass to a reader who asked for less transparency', () => {

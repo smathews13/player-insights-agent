@@ -151,8 +151,8 @@ function attrs(markup: string, name: string): string[] {
   return [...markup.matchAll(new RegExp(`${name}="([^"]*)"`, 'g'))].map((found) => found[1]);
 }
 
-describe('the night sky belongs to dark mode alone', () => {
-  it('bans the app-wide starfield outside dark, positively and in the app stylesheet', () => {
+describe('the constellation becomes a quiet daylight graticule', () => {
+  it('keeps the app-wide field in both themes with daylight paint outside dark', () => {
     /*
      * dark-mode.css declares `.app-sky { display: none }` and then turns it on
      * under its own theme, which is where the layer's geometry belongs. As a
@@ -161,7 +161,9 @@ describe('the night sky belongs to dark mode alone', () => {
      * dark theme. base.css states the ban itself, so anything switching the sky on
      * outside dark has to out-specify a rule that names the condition.
      */
-    expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/display:\s*none/);
+    expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/display:\s*block/);
+    expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/color:\s*var\(--ast-star\)/);
+    expect(rule(BASE, `html${NOT_DARK} .app-sky`)).toMatch(/opacity:\s*0\.4/);
     expect(rule(DARK, "html[data-theme='dark'] .app-sky")).toMatch(/display:\s*block/);
     expect(STAR).not.toContain('gate-star-motion');
   });
@@ -285,9 +287,7 @@ describe('the light answer sits on high-alpha semantic glass', () => {
     expect(rule(TOKENS, `html${NOT_DARK}`)).toMatch(/--ast-sky-fill:\s*var\(--ast-ice\)/);
     expect(TOKENS).not.toContain('--ast-sky-spackle');
     expect(rule(TOKENS, ':root')).toMatch(/--ast-pane:\s*var\(--ast-surface-primary\)/);
-    expect(rule(TOKENS, ':root')).toMatch(
-      /--ast-surface-primary:\s*color-mix\(in srgb,\s*var\(--ast-white\) 98\.5%,\s*transparent\)/
-    );
+    expect(rule(TOKENS, ':root')).toMatch(/--ast-surface-primary:\s*var\(--ast-surface\)/);
     /* The card keeps reading the token -- answer.css is not ours to edit, and the
        point of doing this in a token is that it does not need to be. */
     expect(rule(ANSWER, '.answer-card')).toMatch(/background:\s*var\(--ast-pane\)/);
@@ -345,10 +345,11 @@ describe('one account of the run per theme, chosen in CSS', () => {
     expect(source('TraceDag.tsx')).toContain('className="agent-path"');
   });
 
-  it('drops the login sky in daylight', () => {
-    expect(rule(LOADERS, `html${NOT_DARK} .first-open.on-sky`)).toMatch(/background:\s*var\(--ast-ice\)/);
+  it('inverts the login sky into a quiet daylight field', () => {
+    expect(rule(LOADERS, `html${NOT_DARK} .first-open.on-sky`)).toMatch(/background:\s*var\(--ast-canvas\)/);
     expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-wordmark`)).toMatch(/color:\s*var\(--ast-text\)/);
-    expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-sky`)).toMatch(/display:\s*none/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-sky`)).toMatch(/display:\s*block/);
+    expect(rule(LOADERS, `html${NOT_DARK} .ast-opening-sky`)).toMatch(/opacity:\s*0\.4/);
   });
 
   it('writes every light rule in tokens rather than in colour', () => {

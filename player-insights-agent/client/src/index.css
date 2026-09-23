@@ -100,6 +100,7 @@
 @import './styles/pia-brand.css';
 @import './styles/pia-loader.css';
 @import './styles/dark-mode.css';
+@import './styles/light-mode.css';
 @import './styles/star-motion.css';
 /* High-alpha semantic surfaces and dialog occlusion sit after theme paint so
    ambient sky stays bright in gutters but becomes a faint trace under UI. */

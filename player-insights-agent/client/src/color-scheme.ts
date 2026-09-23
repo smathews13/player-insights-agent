@@ -3,15 +3,16 @@
  *
  * `class="light"` stays on <html> forever: AppKit's stylesheet flips every token
  * under `@media (prefers-color-scheme: dark) { :root:not(.light) }`, and that is
- * not this theme. `data-theme` is ours. Dark is the default so the first paint
- * is the night sky rather than a white flash while settings load.
+ * not this theme. `data-theme` is ours. Light is the default first paint; a
+ * cached or server-saved preference may replace it without AppKit consulting
+ * the operating-system media query.
  */
 
 export type ColorScheme = 'dark' | 'light';
 
-export const DEFAULT_COLOR_SCHEME: ColorScheme = 'dark';
+export const DEFAULT_COLOR_SCHEME: ColorScheme = 'light';
 export const DARK_THEME_COLOR = '#11171c';
-export const LIGHT_THEME_COLOR = '#ffffff';
+export const LIGHT_THEME_COLOR = '#f4f7f9';
 
 type ThemeRoot = {
   classList: Pick<DOMTokenList, 'add'>;

@@ -13,8 +13,6 @@ import {
   upgradePaperEntityStyles,
 } from './runtime-settings';
 
-const PAPER_FILLS = ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7'] as const;
-
 describe('runtime settings contract', () => {
   it('keeps the current agent behavior as its defaults', () => {
     expect(RuntimeSettingsSchema.parse(DEFAULT_RUNTIME_SETTINGS)).toEqual(DEFAULT_RUNTIME_SETTINGS);
@@ -27,33 +25,25 @@ describe('runtime settings contract', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
   });
 
-  it('ships the violet/indigo identifier chips, not paper fills', () => {
+  it('ships the daylight provenance palette as the default entity styles', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.entityStyles).toEqual(DEFAULT_ENTITY_STYLES);
     expect(DEFAULT_ENTITY_STYLES).toEqual({
-      catalog: { foreground: '#a9b4ff', background: '#242a4e' },
-      schema: { foreground: '#d7d2ff', background: '#372f66' },
-      table: { foreground: '#f4f6fb', background: '#262a38' },
-      column: { foreground: '#e8f2fa', background: '#1e2830' },
-      quote: { foreground: '#b7d6ee', background: '#181e23' },
-      tag: { foreground: '#f2f6fa', background: '#243746' },
+      catalog: { foreground: '#7a5a11', background: '#fbf5e6' },
+      schema: { foreground: '#7a5a11', background: '#fbf5e6' },
+      table: { foreground: '#7a5a11', background: '#fbf5e6' },
+      column: { foreground: '#4c5c68', background: '#f2f5f8' },
+      quote: { foreground: '#4c5c68', background: '#f2f5f8' },
+      tag: { foreground: '#0e1720', background: '#e8f1fa' },
     });
 
-    const backgrounds = Object.values(DEFAULT_ENTITY_STYLES).map((style) => style.background.toLowerCase());
-    const foregrounds = Object.values(DEFAULT_ENTITY_STYLES).map((style) => style.foreground.toLowerCase());
-    for (const fill of PAPER_FILLS) {
-      expect(backgrounds, `${fill} is a paper highlight`).not.toContain(fill);
-    }
-    expect(new Set(backgrounds).size, 'kinds share a highlight').toBe(backgrounds.length);
-    expect(foregrounds.every((hex) => !['#16324f', '#3a3838', '#46596b'].includes(hex))).toBe(true);
-
     expect(runtimeEntityCssVariables(DEFAULT_RUNTIME_SETTINGS)).toMatchObject({
-      '--entity-catalog-fg': '#a9b4ff',
-      '--entity-catalog-bg': '#242a4e',
-      '--entity-schema-bg': '#372f66',
-      '--entity-table-bg': '#262a38',
-      '--entity-column-bg': '#1e2830',
-      '--entity-quote-bg': '#181e23',
-      '--entity-tag-bg': '#243746',
+      '--entity-catalog-fg': '#7a5a11',
+      '--entity-catalog-bg': '#fbf5e6',
+      '--entity-schema-bg': '#fbf5e6',
+      '--entity-table-bg': '#fbf5e6',
+      '--entity-column-bg': '#f2f5f8',
+      '--entity-quote-bg': '#f2f5f8',
+      '--entity-tag-bg': '#e8f1fa',
     });
   });
 
@@ -84,28 +74,28 @@ describe('runtime settings contract', () => {
     ).toEqual(customTable);
   });
 
-  it('defaults missing colorScheme to dark so older rows stay parseable', () => {
+  it('defaults missing colorScheme to light so older rows adopt the new default', () => {
     const { colorScheme: _ignored, ...withoutTheme } = DEFAULT_RUNTIME_SETTINGS;
-    expect(RuntimeSettingsSchema.parse(withoutTheme).colorScheme).toBe('dark');
-    expect(DEFAULT_RUNTIME_SETTINGS.colorScheme).toBe('dark');
+    expect(RuntimeSettingsSchema.parse(withoutTheme).colorScheme).toBe('light');
+    expect(DEFAULT_RUNTIME_SETTINGS.colorScheme).toBe('light');
   });
 
   it('fills type settings from the row theme when an older store omitted them', () => {
     const { fontBodyColor: _b, fontMutedColor: _m, fontFamily: _f, fontSize: _s, ...legacy } = DEFAULT_RUNTIME_SETTINGS;
     expect(RuntimeSettingsSchema.parse(legacy)).toMatchObject({
-      fontBodyColor: THEME_FONT_COLORS.dark.body,
-      fontMutedColor: THEME_FONT_COLORS.dark.muted,
+      fontBodyColor: THEME_FONT_COLORS.light.body,
+      fontMutedColor: THEME_FONT_COLORS.light.muted,
       fontFamily: 'dm-sans',
       fontSize: 'm',
     });
     expect(
       RuntimeSettingsSchema.parse({
         ...legacy,
-        colorScheme: 'light',
+        colorScheme: 'dark',
       })
     ).toMatchObject({
-      fontBodyColor: THEME_FONT_COLORS.light.body,
-      fontMutedColor: THEME_FONT_COLORS.light.muted,
+      fontBodyColor: THEME_FONT_COLORS.dark.body,
+      fontMutedColor: THEME_FONT_COLORS.dark.muted,
     });
   });
 

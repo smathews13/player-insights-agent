@@ -180,15 +180,15 @@ describe('the row is the run card, not a third style', () => {
   });
 
   it('seats the app’s one status recipe rather than restating it', () => {
-    // §2 allows the app ONE status chip: 1px border, tint, 4px radius, 11px/500,
+    // The app has one status chip: 1px border, tint, 6px radius, 13px/500,
     // never colour alone. The rail used to keep its own copy of that rule against
     // the retired db- washes, which is how one screen ends up a shade off the rest
     // the day somebody restyles the other.
     expect(RAIL_STATUS).toContain('ast-pill conversation-status');
     expect(RAIL_STATUS).toContain('summary.tone');
     const recipe = body('.ast-pill', partial('astrolabe-tokens.css'));
-    expect(recipe).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
-    expect(recipe).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
+    expect(recipe).toMatch(/border-radius:\s*var\(--ast-radius-pill\)/);
+    expect(recipe).toMatch(/font-size:\s*var\(--ast-fs-13\)/);
     // And the retired recipe is gone rather than left defined and unseated. A rule
     // nothing draws is the next reader's example of how this rail does a pill.
     expect(withoutComments(RAIL_CSS)).not.toMatch(/\.conversation-pill/);

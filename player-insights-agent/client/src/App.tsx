@@ -6,7 +6,7 @@ import { HomePage } from './HomePage';
 import { Layout } from './Layout';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
 import { kickWarehouseWarmup } from './warehouse-warmup';
-import { applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
+import { appliedColorScheme, applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 import { useRuntimeEntityStyles } from './runtime-entity-styles';
 import { startActivityHeartbeat } from './activity-heartbeat';
 import { RouteFallback } from './RouteFallback';
@@ -77,7 +77,10 @@ function ReadyRoute({ children }: { children: ReactNode }) {
 // AppKit flips its palette under `@media (prefers-color-scheme: dark)` via
 // `:root:not(.light)`. That is not this app's theme: `.light` stays on so OS
 // Dark Mode cannot repaint AppKit, and `data-theme` is what we paint from.
-applyColorScheme(DEFAULT_COLOR_SCHEME);
+// index.html paints the light default or the last successful cached
+// preference before CSS arrives. Do not overwrite that cached choice while
+// this module loads; only supply the default if another host omitted it.
+if (!appliedColorScheme()) applyColorScheme(DEFAULT_COLOR_SCHEME);
 
 /**
  * A moved page, without losing what the URL was asking for.
@@ -213,8 +216,8 @@ const router = createBrowserRouter([
 
 export default function App() {
   // Adopt the saved Appearance settings at the shell, not only after an answer
-  // mounts an entity link. This preserves the dark first paint while allowing a
-  // saved Light choice to take over on every route.
+  // mounts an entity link. The light first paint remains until a saved Dark
+  // choice says otherwise.
   useRuntimeEntityStyles();
 
   // After the first paint, while the opening concepts and login gate occupy the

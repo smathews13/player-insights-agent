@@ -30,7 +30,7 @@ export function assertNeutralLoginPanelCss(css) {
   if (!/outline:none/.test(chrome)) {
     throw new Error('The compiled login panel can still receive an outer outline');
   }
-  if (!/box-shadow:[^;}]*var\(--db-ink-deep\)/.test(chrome)) {
+  if (!/box-shadow:var\(--ast-shadow-overlay\)/.test(chrome)) {
     throw new Error('The compiled login panel is missing its neutral modal shadow');
   }
 

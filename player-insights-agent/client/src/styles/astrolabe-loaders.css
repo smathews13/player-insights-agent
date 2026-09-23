@@ -318,11 +318,26 @@
  * assembling underneath the card. Ice is the designed daylight login surface.
  */
 html:not([data-theme='dark']) .first-open.on-sky {
-  background: var(--ast-ice);
+  background: var(--ast-canvas);
 }
 
 html:not([data-theme='dark']) .ast-opening-sky {
-  display: none;
+  display: block;
+  opacity: 0.4;
+}
+
+html:not([data-theme='dark']) .ast-opening-sky .ast-constellation-lines path {
+  stroke: var(--ast-constellation-line);
+}
+
+html:not([data-theme='dark']) .ast-opening-sky :is(.ast-star-ink, .ast-star-ink-stroke) {
+  color: var(--ast-star);
+  fill: var(--ast-star);
+  stroke: var(--ast-star);
+}
+
+html:not([data-theme='dark']) .ast-opening-sky .ast-star-accent {
+  stroke: var(--ast-action);
 }
 
 html:not([data-theme='dark']) .ast-opening-wordmark {

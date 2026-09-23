@@ -260,7 +260,7 @@
    * component's (see LOCKUP_SIZES in AstrolabeMark.tsx) because a 22px mark
    * beside a 17px wordmark is neither of the two lockups the design has.
    */
-  --app-header-content-h: 52px;
+  --app-header-content-h: 56px;
   --app-header-safe-top: env(safe-area-inset-top, 0px);
   --app-header-h: calc(var(--app-header-content-h) + var(--app-header-safe-top));
   /*
@@ -354,14 +354,12 @@
   --conversation-measure: 1280px;
 
   /* ---- appkit-ui / shadcn semantic mapping ---- */
-  --background: #ffffff;
-  --foreground: var(--db-ink);
-  /* Reading surfaces retain five percent glass so exposed background remains
-     branded while geometry behind a card is reduced to a faint trace. */
-  --card: var(--ast-surface-primary);
-  --card-foreground: var(--db-ink);
-  --popover: var(--ast-surface-menu);
-  --popover-foreground: var(--db-ink);
+  --background: var(--ast-canvas);
+  --foreground: var(--ast-text);
+  --card: var(--ast-surface);
+  --card-foreground: var(--ast-text);
+  --popover: var(--ast-surface-raised);
+  --popover-foreground: var(--ast-text);
   /*
    * --primary is the app's action colour and it is now blue rather than the same
    * black as the type. One line here repaints every affordance that already
@@ -374,17 +372,17 @@
    * reader's own question look like a button. It states its own near-opaque
    * light fill in ask.css now.
    */
-  --primary: var(--db-blue-600);
-  --primary-foreground: #ffffff;
-  --secondary: var(--db-chip);
-  --secondary-foreground: var(--db-ink-deep);
-  --muted: var(--db-wash);
-  --muted-foreground: var(--db-slate);
-  --accent: var(--db-wash);
-  --accent-foreground: var(--db-ink);
-  --border: var(--db-line);
-  --input: var(--db-line-strong);
-  --ring: var(--db-blue-600);
+  --primary: var(--ast-action);
+  --primary-foreground: var(--ast-action-ink-on-fill);
+  --secondary: var(--ast-neutral-fill);
+  --secondary-foreground: var(--ast-text);
+  --muted: var(--ast-surface-sunken);
+  --muted-foreground: var(--ast-text-secondary);
+  --accent: var(--ast-action-tint);
+  --accent-foreground: var(--ast-action);
+  --border: var(--ast-hairline);
+  --input: var(--ast-border-input);
+  --ring: var(--ast-action);
   /*
    * Four series and an emphasis, rather than the two weights of black this used
    * to be. --chart-1 is the primary series and is the same blue as every other
@@ -403,10 +401,10 @@
    * view is gone and the figure has a column of its own, so the rule holds
    * everywhere without an exception to keep.
    */
-  --chart-1: var(--db-blue-600);
-  --chart-2: var(--db-teal-600);
-  --chart-3: var(--db-blue-500);
-  --chart-4: var(--db-grey-blue);
+  --chart-1: var(--ast-chart-1);
+  --chart-2: var(--ast-chart-2);
+  --chart-3: var(--ast-chart-3);
+  --chart-4: var(--ast-neutral-text);
   --chart-emphasis: var(--db-orange);
   /*
    * Status colours are pinned because AppKit's dark variants are lighter and
@@ -415,13 +413,13 @@
    * would blur the line between amber-the-evaluation and amber-the-warning,
    * which is the confusion the old palette was rebuilt to remove.
    */
-  --warning: var(--db-warn-600);
+  --warning: var(--ast-warn-text);
   --warning-foreground: #ffffff;
-  --success: var(--db-green-600);
+  --success: var(--ast-pos-text);
   --success-foreground: #ffffff;
   /* The app's one red. Nothing else routes through this family. */
-  --destructive: var(--db-red-600);
-  --destructive-foreground: #ffffff;
+  --destructive: var(--ast-danger-fill);
+  --destructive-foreground: var(--ast-danger-ink);
 
   /*
    * ---- Type and shape ----
@@ -440,8 +438,8 @@
    */
   --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --radius-sm: 4px; /* buttons, inputs, badges, alerts, code panels */
-  --radius-md: 8px; /* cards, rows, panels — there is no third radius */
+  --radius-sm: var(--ast-radius-control);
+  --radius-md: var(--ast-radius-card);
   --text-base: 13px; /* app body */
   --text-sm: 12px; /* dense body, captions */
   --text-xs: 11px; /* eyebrows (700, +0.06em, uppercase), pill labels */
