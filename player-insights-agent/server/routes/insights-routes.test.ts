@@ -4303,13 +4303,15 @@ describe('a failed run is answered with nothing', () => {
   });
 
   /** Captures console.error so the loudness of the log is asserted, not assumed. */
-  async function askThrough(transport: ServingTransport, conversationId: string) {
+  async function askThrough(transport: ServingTransport, conversationId: string, withLedger = false) {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const errors: string[] = [];
     const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(' '));
     });
-    const app = await startInsightsApp(transport, memoryLakebase());
+    const store = memoryLakebase();
+    const lakebase = withLedger ? lakebaseWithLedger(store).lakebase : store;
+    const app = await startInsightsApp(transport, lakebase);
     try {
       const { status, body } = await app.askRaw({
         conversationId,
@@ -4407,7 +4409,8 @@ describe('a failed run is answered with nothing', () => {
   it('reports a payload it cannot read, without answering from the fixture', async () => {
     const { status, body, errors } = await askThrough(
       () => Promise.resolve({ custom_outputs: { insight_bundle: { headline: 42 } } }),
-      'conv-honest-contract'
+      'conv-honest-contract',
+      true
     );
 
     // A different code from the one above, because the remedies differ: this
@@ -4415,6 +4418,7 @@ describe('a failed run is answered with nothing', () => {
     // operator the endpoint is down would send them to look at a healthy one.
     expect(status).toBe(502);
     expect((body as { code?: string }).code).toBe('OUTPUT_SCHEMA_VIOLATION');
+    expect((body as { run_id?: unknown }).run_id).toEqual(expect.any(String));
     expect(body.figures).toBeUndefined();
     expect(errors.join('\n')).toContain('none of the six result shapes');
   });
