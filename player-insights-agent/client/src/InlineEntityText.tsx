@@ -142,7 +142,15 @@ export function EntityText({
   );
 }
 
-export function PlanText({ text, columns }: { text: string; columns: readonly string[] }) {
+export function PlanText({
+  text,
+  columns,
+  entities = [],
+}: {
+  text: string;
+  columns: readonly string[];
+  entities?: readonly string[];
+}) {
   const tracked = useTrackedTables();
   // `numbers={false}` on purpose. A plan's summary, field, definition and why
   // are prose ABOUT a source, not the answer's figures, and the only digits
@@ -153,7 +161,8 @@ export function PlanText({ text, columns }: { text: string; columns: readonly st
   // on its own line, and read as a fourth labelled row of the candidate. There
   // is no real count to highlight here, so the badge is turned off rather than
   // taught the difference between a version number and a measurement.
-  return <EntityText text={text} sources={tracked.map((name) => ({ name }))} columns={columns} numbers={false} />;
+  const candidates = [...new Set([...tracked, ...entities])];
+  return <EntityText text={text} sources={candidates.map((name) => ({ name }))} columns={columns} numbers={false} />;
 }
 
 export function TableEntityList({

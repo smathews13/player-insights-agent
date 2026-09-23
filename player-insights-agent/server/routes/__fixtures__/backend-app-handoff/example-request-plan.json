@@ -1,0 +1,84 @@
+{
+  "_source": "Real wire SHAPE from MLflow trace tr-985bc824ddfccc91acd2beeb011b753b (experiment 1321085950225033, build 07f6ad75, endpoint astrolabe v31). SANITIZED: every key, list length, type, id, timing and token count is real; every string carrying query content (question, table and column names, figures, SQL, caveats, stage input/output) is fictional. MLflow pads unused Responses API fields with null; they are omitted.",
+  "body": {
+    "input": [
+      {
+        "role": "user",
+        "content": "How many distinct players have ever held Membership X, played Title A, and pre-ordered Title B (is_pre_order)?"
+      }
+    ],
+    "custom_inputs": {
+      "conversation_id": "conv-8b7b0c70-5e43-461e-80d3-19446ba8d8af",
+      "execute_plan": false,
+      "request_id": "req-20183fb7-9116-45a9-99e8-ac686942c6b0",
+      "run_id": "req-e5651da8-91ef-40c4-9abb-0ac40c9734bb",
+      "deadline_at": "2026-09-23T00:17:38.714Z",
+      "runtime_settings": {
+        "loop": {
+          "maxSteps": 40,
+          "maxToolCalls": 80,
+          "maxRunSeconds": 550
+        },
+        "answer": {
+          "takeaway": true,
+          "narrative": false,
+          "charts": true,
+          "figures": true,
+          "caveats": true,
+          "maxCharts": 3,
+          "maxFigures": 4,
+          "maxCaveats": 4,
+          "narrativeMaxCharacters": 0,
+          "sources": "standard",
+          "takeawayGuidance": "Focus on readability.  Bullet points and lists are encouraged.  Formatting for specific object Keep types like \"table\" should be properly enforced.",
+          "narrativeGuidance": "Give a 1 to 2 sentence overview to the user for required context.  Judge if more than that is really needed.",
+          "figuresOrder": "as-ranked",
+          "chartsTypes": "auto"
+        },
+        "behavior": {
+          "clarification": "balanced",
+          "timezone": "",
+          "injectCurrentDate": false
+        },
+        "colorScheme": "dark",
+        "entityStyles": {
+          "catalog": {
+            "foreground": "#ffffff",
+            "background": "#463b7d"
+          },
+          "schema": {
+            "foreground": "#ffffff",
+            "background": "#313ab9"
+          },
+          "table": {
+            "foreground": "#ffffff",
+            "background": "#3c92c8"
+          },
+          "column": {
+            "foreground": "#ffffff",
+            "background": "#5f676d"
+          },
+          "quote": {
+            "foreground": "#ffffff",
+            "background": "#181e23"
+          },
+          "tag": {
+            "foreground": "#f2f6fa",
+            "background": "#243746"
+          }
+        },
+        "fontBodyColor": "#ffffff",
+        "fontMutedColor": "#c5ccd4",
+        "fontFamily": "system",
+        "fontSize": "l",
+        "backgroundGraphics": true,
+        "animations": true,
+        "density": "comfortable"
+      },
+      "llm_route": "direct",
+      "identity_mode": "signed_in_user",
+      "expected_user": "signed-in-user@example.com"
+    },
+    "stream": true
+  }
+}

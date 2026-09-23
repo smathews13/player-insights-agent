@@ -1,0 +1,460 @@
+{
+  "_source": "Real wire SHAPE from MLflow trace tr-3ec6d1c0bd80fc70c384701d26eca547 (experiment 1321085950225033, build 07f6ad75, endpoint astrolabe v31). SANITIZED: every key, list length, type, id, timing and token count is real; every string carrying query content (question, table and column names, figures, SQL, caveats, stage input/output) is fictional. The execute turn streamed 85 events. Shown: the first two stage events, the flush event after each, and the final answer event.",
+  "events": [
+    {
+      "type": "response.output_item.done",
+      "custom_outputs": {
+        "type": "stage",
+        "stage": {
+          "id": "orchestrator",
+          "name": "Orchestrator",
+          "kind": "agent",
+          "start": 285.1748830000247,
+          "duration": 0.0,
+          "status": "running",
+          "calls": 1,
+          "input": "[sanitized: agent stage input, 196 chars on the wire]",
+          "output": "",
+          "depth": 0,
+          "parent_id": ""
+        }
+      },
+      "item": {
+        "id": "stage-orchestrator",
+        "content": [
+          {
+            "text": "Orchestrator",
+            "type": "output_text",
+            "annotations": []
+          }
+        ],
+        "role": "assistant",
+        "type": "message"
+      }
+    },
+    {
+      "type": "response.in_progress",
+      "custom_outputs": null
+    },
+    {
+      "type": "response.output_item.done",
+      "custom_outputs": {
+        "type": "stage",
+        "stage": {
+          "id": "data_source_finder",
+          "name": "Data Source Finder",
+          "kind": "agent",
+          "start": 286.67238000002726,
+          "duration": 0.0,
+          "status": "running",
+          "calls": 1,
+          "input": "[sanitized: agent stage input, 1647 chars on the wire]",
+          "output": "",
+          "depth": 1,
+          "parent_id": "orchestrator"
+        }
+      },
+      "item": {
+        "id": "stage-data_source_finder",
+        "content": [
+          {
+            "text": "Data Source Finder",
+            "type": "output_text",
+            "annotations": []
+          }
+        ],
+        "role": "assistant",
+        "type": "message"
+      }
+    },
+    {
+      "type": "response.in_progress",
+      "custom_outputs": null
+    },
+    {
+      "type": "response.output_item.done",
+      "custom_outputs": {
+        "type": "answer",
+        "answer": {
+          "id": "msg-993b6be3b92148e99e151deaea67fa14",
+          "takeaway": "**120 players** sit in all three groups: ever held Membership X, played Title A, and pre-ordered Title B. Pairwise overlaps range from **450** (Title A ∩ Title B pre-order) to **31,000** (Membership X ∩ Title B pre-order).",
+          "narrative": "",
+          "content": "",
+          "figures": [
+            {
+              "label": "Membership X ever-members",
+              "value": 100.0,
+              "display": "1,000,000",
+              "comparison": "Largest base group"
+            },
+            {
+              "label": "Title A players",
+              "value": 40.0,
+              "display": "400,000",
+              "comparison": "40% the size of the Membership X base"
+            },
+            {
+              "label": "Title B pre-orders",
+              "value": 25.0,
+              "display": "250,000",
+              "comparison": "25% the size of the Membership X base"
+            },
+            {
+              "label": "All three",
+              "value": 1.0,
+              "display": "120",
+              "comparison": "0.012% of the Membership X base"
+            }
+          ],
+          "charts": [],
+          "chart_evidence": [
+            "run_sql({\"sql\": \"\\nWITH members AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.membership_history WHERE player_id IS NOT NULL\\n),\\ntitle_a AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.play_by_title WHERE played_title_a = 'True' AND player_id IS NOT NULL\\n),\\ntitle_b_preorder AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.title_b_summary WHERE is_pre_order = TRUE AND player_id IS NOT NULL\\n)\\nSELECT\\n  (SELECT COUNT(*) FROM members) AS members,\\n  (SELECT COUNT(*) FROM title_a) AS title_a_players,\\n  (SELECT COUNT(*) FROM title_b_preorder) AS title_b_preorders,\\n  (SELECT COUNT(*) FROM members m JOIN title_a a USING (player_id)\\n                                  JOIN title_b_preorder b USING (player_id)) AS all_three\\n\"})",
+            "run_sql({\"sql\": \"\\nWITH members AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.membership_history WHERE player_id IS NOT NULL\\n),\\ntitle_a AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.play_by_title WHERE played_title_a = 'True' AND player_id IS NOT NULL\\n),\\ntitle_b_preorder AS (\\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.title_b_summary WHERE is_pre_order = TRUE AND player_id IS NOT NULL\\n)\\nSELECT\\n  (SELECT COUNT(*) FROM members) AS members,\\n  (SELECT COUNT(*) FROM title_a) AS title_a_players,\\n  (SELECT COUNT(*) FROM title_b_preorder) AS title_b_preorders,\\n  (SELECT COUNT(*) FROM members m JOIN title_a a USING (player_id)\\n                                  JOIN title_b_preorder b USING (player_id)) AS all_three_check\\n\"})"
+          ],
+          "sources": [
+            {
+              "name": "example_catalog.example_schema.membership_history",
+              "freshness": "Read during this run",
+              "role": "reading"
+            },
+            {
+              "name": "example_catalog.example_schema.title_b_summary",
+              "freshness": "Read during this run",
+              "role": "reading"
+            },
+            {
+              "name": "example_catalog.example_schema.play_by_title",
+              "freshness": "Read during this run",
+              "role": "reading"
+            },
+            {
+              "name": "example_catalog.example_schema.title_registry",
+              "freshness": "Read during this run",
+              "role": "reference"
+            }
+          ],
+          "document_snippets": [],
+          "caveats": [
+            "This answer was produced as signed-in-user@example.com and covers only the data that identity is granted. Unity Catalog row filters and column masks apply without reporting themselves, so figures here may be computed from a subset of the rows another reader would see.",
+            "The all-three group of 120 is small. Do not break it down by country, platform or any other dimension.",
+            "is_pre_order has no column comment, so how completely it is populated is unknown.",
+            "played_title_a has no date column, so 'played Title A' means ever, not within a window.",
+            "'Ever held Membership X' counts any row in membership_history, with no active filter applied."
+          ],
+          "derivation": [
+            {
+              "source": "example_catalog.example_schema.membership_history",
+              "metric": "members, title_a_players, title_b_preorders, +1",
+              "window": "",
+              "filter": ""
+            },
+            {
+              "source": "example_catalog.example_schema.membership_history",
+              "metric": "members_AND_title_a, members_AND_title_b_preorder, title_a_AND_title_b_preorder",
+              "window": "",
+              "filter": ""
+            }
+          ],
+          "sql": "\nWITH members AS (\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.membership_history WHERE player_id IS NOT NULL\n),\ntitle_a AS (\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.play_by_title WHERE played_title_a = 'True' AND player_id IS NOT NULL\n),\ntitle_b_preorder AS (\n  SELECT DISTINCT player_id FROM example_catalog.example_schema.title_b_summary WHERE is_pre_order = TRUE AND player_id IS NOT NULL\n)\nSELECT\n  (SELECT COUNT(*) FROM members) AS members,\n  (SELECT COUNT(*) FROM title_a) AS title_a_players,\n  (SELECT COUNT(*) FROM title_b_preorder) AS title_b_preorders,\n  (SELECT COUNT(*) FROM members m JOIN title_a a USING (player_id)\n                                  JOIN title_b_preorder b USING (player_id)) AS all_three\n",
+          "trace": {
+            "id": "tr-3ec6d1c0bd80fc70c384701d26eca547",
+            "totalMs": 87981.19511200002,
+            "toolCalls": 19,
+            "stages": [
+              {
+                "id": "orchestrator",
+                "name": "Orchestrator",
+                "kind": "agent",
+                "start": 285.1748830000247,
+                "duration": 87691.20300499997,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 196 chars on the wire]",
+                "output": "[sanitized: agent stage output, 287 chars on the wire]",
+                "depth": 0,
+                "parent_id": ""
+              },
+              {
+                "id": "data_source_finder",
+                "name": "Data Source Finder",
+                "kind": "agent",
+                "start": 286.67238000002726,
+                "duration": 73487.91316000001,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 1647 chars on the wire]",
+                "output": "[sanitized: agent stage output, 2475 chars on the wire]",
+                "depth": 1,
+                "parent_id": "orchestrator"
+              },
+              {
+                "id": "step-1",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 916.912807000017,
+                "duration": 2964.442461000033,
+                "status": "complete",
+                "calls": 2,
+                "input": "[sanitized: agent stage input, 99 chars on the wire]",
+                "output": "[sanitized: agent stage output, 29 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-1-1-describe_table",
+                "name": "Read a table's columns",
+                "kind": "discovery",
+                "start": 3881.858189000013,
+                "duration": 1749.5689369999923,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 65 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 2104 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-1"
+              },
+              {
+                "id": "step-1-2-resolve_table",
+                "name": "Located the named table",
+                "kind": "discovery",
+                "start": 3881.870784,
+                "duration": 1750.0144530000057,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 27 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 146 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-1"
+              },
+              {
+                "id": "step-2",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 5632.130055000005,
+                "duration": 2694.0265430000068,
+                "status": "complete",
+                "calls": 2,
+                "input": "[sanitized: agent stage input, 99 chars on the wire]",
+                "output": "[sanitized: agent stage output, 36 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-2-1-describe_table",
+                "name": "Read a table's columns",
+                "kind": "discovery",
+                "start": 8326.712709000049,
+                "duration": 2638.9023399999587,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 104 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 633 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-2"
+              },
+              {
+                "id": "step-2-2-search_tagged_assets",
+                "name": "Searched catalog tags",
+                "kind": "discovery",
+                "start": 8326.72208400004,
+                "duration": 2639.3479939999906,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 36 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 410 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-2"
+              },
+              {
+                "id": "step-3",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 10966.30632700004,
+                "duration": 3113.468227999988,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 224 chars on the wire]",
+                "output": "[sanitized: agent stage output, 16 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-3-1-list_data_assets",
+                "name": "Listed available tables",
+                "kind": "discovery",
+                "start": 14080.226564000042,
+                "duration": 0.27182399998082474,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 32 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 48 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-3"
+              },
+              {
+                "id": "step-4",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 14080.690463000054,
+                "duration": 1747.3886159999665,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 1647 chars on the wire]",
+                "output": "[sanitized: agent stage output, 16 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-4-1-list_data_assets",
+                "name": "Listed available tables",
+                "kind": "discovery",
+                "start": 15828.518751000047,
+                "duration": 0.29524499996114173,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 53 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 886 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-4"
+              },
+              {
+                "id": "step-5",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 15829.076021000048,
+                "duration": 2711.0225419999665,
+                "status": "complete",
+                "calls": 2,
+                "input": "[sanitized: agent stage input, 117 chars on the wire]",
+                "output": "[sanitized: agent stage output, 30 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-5-1-describe_table",
+                "name": "Read a table's columns",
+                "kind": "discovery",
+                "start": 18540.533199000038,
+                "duration": 1047.5975289999724,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 102 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 1168 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-5"
+              },
+              {
+                "id": "step-5-2-describe_table",
+                "name": "Read a table's columns",
+                "kind": "discovery",
+                "start": 18540.543481000044,
+                "duration": 1048.0277460000025,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: discovery stage input, 61 chars on the wire]",
+                "output": "[sanitized: discovery stage output, 408 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-5"
+              },
+              {
+                "id": "step-6",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 19588.829052000052,
+                "duration": 5076.967706999994,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 170 chars on the wire]",
+                "output": "[sanitized: agent stage output, 7 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-6-1-run_sql",
+                "name": "Ran a governed read-only query",
+                "kind": "sql",
+                "start": 24686.03586200004,
+                "duration": 18439.18023599997,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: sql stage input, 1016 chars on the wire]",
+                "output": "[sanitized: sql stage output, 110 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-6"
+              },
+              {
+                "id": "step-7",
+                "name": "Chose the next step",
+                "kind": "agent",
+                "start": 43125.673087000054,
+                "duration": 3556.076012999995,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 60 chars on the wire]",
+                "output": "[sanitized: agent stage output, 7 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "step-7-1-run_sql",
+                "name": "Ran a governed read-only query",
+                "kind": "sql",
+                "start": 46684.22505300003,
+                "duration": 11597.370352999973,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: sql stage input, 956 chars on the wire]",
+                "output": "[sanitized: sql stage output, 92 chars on the wire]",
+                "depth": 3,
+                "parent_id": "step-7"
+              },
+              {
+                "id": "step-8",
+                "name": "Prepared the findings",
+                "kind": "agent",
+                "start": 58282.09853800001,
+                "duration": 15491.946025000005,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 24 chars on the wire]",
+                "output": "[sanitized: agent stage output, 2918 chars on the wire]",
+                "depth": 2,
+                "parent_id": "data_source_finder"
+              },
+              {
+                "id": "synthesis",
+                "name": "Prepared the answer",
+                "kind": "agent",
+                "start": 73775.13600200001,
+                "duration": 14200.822514000038,
+                "status": "complete",
+                "calls": 1,
+                "input": "[sanitized: agent stage input, 2475 chars on the wire]",
+                "output": "[sanitized: agent stage output, 287 chars on the wire]",
+                "depth": 1,
+                "parent_id": "orchestrator"
+              }
+            ],
+            "genie_spaces": [],
+            "resource_calls": [],
+            "prompt_tokens": 102854,
+            "completion_tokens": 3527,
+            "total_tokens": 106381
+          }
+        }
+      },
+      "item": {
+        "type": "message",
+        "id": "response-993b6be3b92148e99e151deaea67fa14",
+        "content": [
+          {
+            "text": "**120 players** sit in all three groups: ever held Membership X, played Title A, and pre-ordered Title B. Pairwise overlaps range from **450** (Title A ∩ Title B pre-order) to **31,000** (Membership X ∩ Title B pre-order).",
+            "type": "output_text",
+            "annotations": []
+          }
+        ],
+        "role": "assistant"
+      }
+    }
+  ]
+}

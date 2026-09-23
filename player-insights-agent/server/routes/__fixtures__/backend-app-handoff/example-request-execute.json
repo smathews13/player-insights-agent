@@ -1,0 +1,132 @@
+{
+  "_source": "Real wire SHAPE from MLflow trace tr-3ec6d1c0bd80fc70c384701d26eca547 (experiment 1321085950225033, build 07f6ad75, endpoint astrolabe v31). SANITIZED: every key, list length, type, id, timing and token count is real; every string carrying query content (question, table and column names, figures, SQL, caveats, stage input/output) is fictional. Execute turn: adds approved_plan_id, approved_plan and execute_plan.",
+  "body": {
+    "input": [
+      {
+        "role": "user",
+        "content": "How many distinct players have ever held Membership X, played Title A, and pre-ordered Title B (is_pre_order)?"
+      },
+      {
+        "role": "assistant",
+        "content": "Count of distinct player_id values that appear in all three sets: ever held Membership X, played Title A, and pre-ordered Title B\n\nReview and approve this plan to run the analysis."
+      },
+      {
+        "role": "user",
+        "content": "How many distinct players have ever held Membership X, played Title A, and pre-ordered Title B (is_pre_order)?"
+      }
+    ],
+    "custom_inputs": {
+      "conversation_id": "conv-8b7b0c70-5e43-461e-80d3-19446ba8d8af",
+      "approved_plan_id": "plan-b89925d339d0f590",
+      "approved_plan": {
+        "id": "plan-b89925d339d0f590",
+        "question": "How many distinct players have ever held Membership X, played Title A, and pre-ordered Title B (is_pre_order)?",
+        "summary": "Count of distinct player_id values that appear in all three sets: ever held Membership X, played Title A, and pre-ordered Title B",
+        "steps": [
+          {
+            "id": "source-1",
+            "title": "example_catalog.example_schema.membership_history | example_catalog.example_schema.play_by_title | example_catalog.example_schema.title_b_summary (recommended)",
+            "description": "player_id · Player id, present on all three tables — why: join key | played_title_a · 'True' when the player has played Title A — why: Title A flag | is_pre_order · Pre-order flag on the Title B summary — why: Title B pre-order flag",
+            "kind": "data"
+          }
+        ],
+        "candidates": [
+          {
+            "table": "example_catalog.example_schema.membership_history",
+            "field": "player_id",
+            "definition": "Player id",
+            "why": "source of Membership X history",
+            "recommended": true
+          },
+          {
+            "table": "example_catalog.example_schema.play_by_title",
+            "field": "played_title_a",
+            "definition": "'True' when the player has played Title A",
+            "why": "source of the Title A flag",
+            "recommended": true
+          },
+          {
+            "table": "example_catalog.example_schema.title_b_summary",
+            "field": "is_pre_order",
+            "definition": "Pre-order flag for Title B",
+            "why": "source of the Title B pre-order flag",
+            "recommended": true
+          }
+        ],
+        "requires_approval": true,
+        "uses_conversation_context": false,
+        "uses_attachment_context": false
+      },
+      "execute_plan": true,
+      "request_id": "req-fec82ee1-45e3-4f14-b2da-0f92c59052a0",
+      "run_id": "req-c04b0f71-dcd7-4ca8-a501-30feffa4308c",
+      "deadline_at": "2026-09-23T00:18:54.756Z",
+      "runtime_settings": {
+        "loop": {
+          "maxSteps": 40,
+          "maxToolCalls": 80,
+          "maxRunSeconds": 550
+        },
+        "answer": {
+          "takeaway": true,
+          "narrative": false,
+          "charts": true,
+          "figures": true,
+          "caveats": true,
+          "maxCharts": 3,
+          "maxFigures": 4,
+          "maxCaveats": 4,
+          "narrativeMaxCharacters": 0,
+          "sources": "standard",
+          "takeawayGuidance": "Focus on readability.  Bullet points and lists are encouraged.  Formatting for specific object Keep types like \"table\" should be properly enforced.",
+          "narrativeGuidance": "Give a 1 to 2 sentence overview to the user for required context.  Judge if more than that is really needed.",
+          "figuresOrder": "as-ranked",
+          "chartsTypes": "auto"
+        },
+        "behavior": {
+          "clarification": "balanced",
+          "timezone": "",
+          "injectCurrentDate": false
+        },
+        "colorScheme": "dark",
+        "entityStyles": {
+          "catalog": {
+            "foreground": "#ffffff",
+            "background": "#463b7d"
+          },
+          "schema": {
+            "foreground": "#ffffff",
+            "background": "#313ab9"
+          },
+          "table": {
+            "foreground": "#ffffff",
+            "background": "#3c92c8"
+          },
+          "column": {
+            "foreground": "#ffffff",
+            "background": "#5f676d"
+          },
+          "quote": {
+            "foreground": "#ffffff",
+            "background": "#181e23"
+          },
+          "tag": {
+            "foreground": "#f2f6fa",
+            "background": "#243746"
+          }
+        },
+        "fontBodyColor": "#ffffff",
+        "fontMutedColor": "#c5ccd4",
+        "fontFamily": "system",
+        "fontSize": "l",
+        "backgroundGraphics": true,
+        "animations": true,
+        "density": "comfortable"
+      },
+      "llm_route": "direct",
+      "identity_mode": "signed_in_user",
+      "expected_user": "signed-in-user@example.com"
+    },
+    "stream": true
+  }
+}

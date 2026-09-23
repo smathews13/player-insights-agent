@@ -47,6 +47,8 @@ export interface TraceSummary {
   total_tokens?: number;
   token_invocations?: TokenInvocationUsage[];
   token_reconciliation?: TokenReconciliation;
+  genie_spaces?: { id: string; title: string }[];
+  resource_calls?: { kind: string; id: string; tool: string; calls: number }[];
 }
 
 export interface Figure {
@@ -281,6 +283,29 @@ export function normalizeTrace(raw: unknown): TraceSummary {
   if (invocations.length > 0) normalized.token_invocations = invocations;
   if (trace.token_reconciliation && typeof trace.token_reconciliation === 'object') {
     normalized.token_reconciliation = trace.token_reconciliation as TokenReconciliation;
+  }
+  if (Array.isArray(trace.genie_spaces)) {
+    normalized.genie_spaces = trace.genie_spaces.flatMap((value) => {
+      const item = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+      if (!item || typeof item.id !== 'string' || typeof item.title !== 'string') return [];
+      return [{ id: item.id, title: item.title }];
+    });
+  }
+  if (Array.isArray(trace.resource_calls)) {
+    normalized.resource_calls = trace.resource_calls.flatMap((value) => {
+      const item = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+      if (
+        !item ||
+        typeof item.kind !== 'string' ||
+        typeof item.id !== 'string' ||
+        typeof item.tool !== 'string' ||
+        typeof item.calls !== 'number' ||
+        !Number.isFinite(item.calls)
+      ) {
+        return [];
+      }
+      return [{ kind: item.kind, id: item.id, tool: item.tool, calls: item.calls }];
+    });
   }
   return normalized;
 }

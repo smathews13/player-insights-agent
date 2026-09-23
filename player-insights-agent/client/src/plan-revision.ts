@@ -42,10 +42,15 @@ export function displaySourceTitle(title: string): string {
   return stripped.length > 0 ? stripped : title.trim();
 }
 
+/** Stable UI id for a candidate even when the backend groups several into one step. */
+export function planSourceId(plan: AnalysisPlan, index: number): string {
+  return plan.steps[index]?.id ?? `candidate-${index + 1}`;
+}
+
 /** The step the picker starts on: the recommended source, else the first. */
 export function recommendedSourceId(plan: AnalysisPlan): string {
   const candidateIndex = plan.candidates?.findIndex((candidate) => candidate.recommended) ?? -1;
-  if (candidateIndex >= 0) return plan.steps[candidateIndex]?.id ?? '';
+  if (candidateIndex >= 0) return planSourceId(plan, candidateIndex);
   const marked = plan.steps.find((step) => isRecommendedSourceTitle(step.title));
   return marked?.id ?? plan.steps[0]?.id ?? '';
 }
@@ -146,7 +151,7 @@ export function ranSourceStepId(plan: AnalysisPlan, readingSourceNames: readonly
     .map((candidate, index) => ({ candidate, index }))
     .filter(({ candidate }) => reading.has(candidate.table.trim()));
   if (matches.length !== 1) return '';
-  return plan.steps[matches[0].index]?.id ?? '';
+  return planSourceId(plan, matches[0].index);
 }
 
 /** Whether the picker is pointing at a source other than the recommended one. */
