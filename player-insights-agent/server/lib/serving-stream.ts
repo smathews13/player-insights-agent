@@ -57,10 +57,10 @@ export type StageSink = (stage: Record<string, unknown>) => void;
  *
  * Its own class because the two deserve opposite responses and the message is
  * not a safe thing to branch on. This one says nothing about the endpoint's
- * health: the run it belongs to has been observed finishing normally and
- * recording an OK trace while the app saw the stream stop after two stages. So
- * it is worth asking again on the blocking transport, where an endpoint that
- * genuinely cannot be reached is not.
+ * health: the run it belongs to can finish normally and record an OK trace
+ * while the app sees the stream stop. It is never retried automatically:
+ * stage-less plan turns can still have completed work, so a blocking retry
+ * would risk executing the same turn twice.
  */
 export class TruncatedStreamError extends Error {
   /**
@@ -70,10 +70,8 @@ export class TruncatedStreamError extends Error {
    * on when it decides whether asking again would run the stack twice. A
    * `running` announcement says a step has started and nothing else: no tool
    * has returned, nothing has been read, and there is no result a second
-   * attempt could duplicate. Counting those made a stream that died after two
-   * early pings look like a run worth keeping, so the blocking fallback -- the
-   * one path that still produces an answer at that point -- was skipped and the
-   * reader got STREAM_INTERRUPTED instead.
+   * attempt could duplicate. The distinction is retained for diagnostics and
+   * partial-stage persistence even though neither shape is retried.
    */
   readonly stages: number;
 

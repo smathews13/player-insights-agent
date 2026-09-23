@@ -4,6 +4,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+ANSWER_SCHEMA_VERSION = "pia.answer/1"
+PLAN_SCHEMA_VERSION = "pia.plan/1"
+CLARIFICATION_SCHEMA_VERSION = "pia.clarification/1"
+
 
 class Figure(BaseModel):
     label: str
@@ -210,6 +214,7 @@ class PlanCandidate(BaseModel):
 
 
 class AnalysisPlan(BaseModel):
+    schema_version: Literal["pia.plan/1"] = PLAN_SCHEMA_VERSION
     id: str
     question: str
     summary: str
@@ -222,6 +227,11 @@ class AnalysisPlan(BaseModel):
     @model_validator(mode="after")
     def candidates_match_steps(self) -> AnalysisPlan:
         if not self.candidates:
+            return self
+        # A grouped data step can require several governed tables together.
+        # In that shape every candidate is in scope, so there is no single
+        # primary source for the approval UI to select.
+        if len(self.steps) == 1 and all(candidate.recommended for candidate in self.candidates):
             return self
         if len(self.candidates) != len(self.steps):
             raise ValueError("plan candidates must be index-aligned with steps")
@@ -241,6 +251,7 @@ class Clarification(BaseModel):
     the figures, and there are none worth using here.
     """
 
+    schema_version: Literal["pia.clarification/1"] = CLARIFICATION_SCHEMA_VERSION
     id: str
     #: One short, specific question. What the user has to supply, not an apology.
     question: str
@@ -255,6 +266,7 @@ class Clarification(BaseModel):
 
 
 class AnswerContract(BaseModel):
+    schema_version: Literal["pia.answer/1"] = ANSWER_SCHEMA_VERSION
     id: str
     takeaway: str
     narrative: str

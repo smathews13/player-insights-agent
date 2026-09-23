@@ -196,8 +196,9 @@ export interface BenchmarkRunnerDeps {
 }
 
 // Benchmark turns execute the same agent and runtime settings as interactive
-// Ask. Allow the full 600-second loop budget plus final-synthesis delivery.
-export const DEFAULT_TURN_TIMEOUT_MS = 660_000;
+// Ask. Allow the full 550-second loop budget plus final-synthesis delivery,
+// while still ending before Model Serving's roughly 597-second hard stop.
+export const DEFAULT_TURN_TIMEOUT_MS = 590_000;
 export const DEFAULT_SUITE_BUDGET_MS = 20 * 60_000;
 
 /**

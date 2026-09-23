@@ -109,6 +109,7 @@ type WireStage = Partial<Record<keyof TraceStage, unknown>>;
  */
 export interface WireAnswer {
   type?: 'answer';
+  schema_version?: unknown;
   id?: unknown;
   mode?: unknown;
   provenance?: unknown;
@@ -449,6 +450,7 @@ function normalizeCaveats(raw: unknown): string[] {
 
 export interface NormalizedAnswer {
   type?: 'answer';
+  schema_version?: 'pia.answer/1';
   id: string;
   mode: 'live' | 'representative';
   /**
@@ -528,6 +530,7 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
     trace: normalizeTrace(raw.trace),
   };
   if (raw.type === 'answer') normalized.type = 'answer';
+  if (raw.schema_version === 'pia.answer/1') normalized.schema_version = raw.schema_version;
   // Only the three the server can mean. A value this build does not recognise
   // is dropped rather than passed through, so a newer server cannot get an
   // unknown word treated as if it were 'live' by a check written as `!== 'mixed'`.
@@ -552,6 +555,9 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
 export function normalizeClarification(raw: unknown) {
   const clarification = (raw ?? {}) as Record<string, unknown>;
   return {
+    ...(clarification.schema_version === 'pia.clarification/1'
+      ? { schema_version: clarification.schema_version as 'pia.clarification/1' }
+      : {}),
     id: asString(clarification.id),
     question: asString(clarification.question, 'The agent needs more detail before it can answer.'),
     reason: typeof clarification.reason === 'string' ? clarification.reason : undefined,

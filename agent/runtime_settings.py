@@ -19,9 +19,12 @@ DEFAULT_MAX_STEPS = 40
 MAX_STEPS_CEILING = 40
 DEFAULT_MAX_TOOL_CALLS = 80
 MAX_TOOL_CALLS_CEILING = 80
-DEFAULT_MAX_RUN_SECONDS = 600
+DEFAULT_MAX_RUN_SECONDS = 550
 MIN_RUN_SECONDS = 30
-MAX_RUN_SECONDS_CEILING = 600
+# Model Serving terminates requests at roughly 597 seconds. Keep enough margin
+# for serialization and transport so the app never advertises a budget the
+# endpoint cannot actually honor.
+MAX_RUN_SECONDS_CEILING = 550
 
 #: Seconds held back from tools so the write-up can still run. The larger run
 #: ceiling gives tools more time; it must not turn into 100 seconds of forced

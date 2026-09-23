@@ -37,4 +37,20 @@ describe('dashboard contract', () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain('secret');
     warn.mockRestore();
   });
+
+  it('rejects an unknown version instead of rendering it as the current contract', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      normalizeDashboard({
+        schema_version: 'pia.dashboard/2',
+        title: 'Future dashboard',
+        html: '<!DOCTYPE html><html></html>',
+      })
+    ).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      '[dashboard] Unsupported dashboard schema version.',
+      expect.objectContaining({ expected: DASHBOARD_SCHEMA_VERSION, received: 'pia.dashboard/2' })
+    );
+    warn.mockRestore();
+  });
 });

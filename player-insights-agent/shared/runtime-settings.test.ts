@@ -9,6 +9,7 @@ import {
   THEME_FONT_COLORS,
   fontColorsForScheme,
   parseRuntimeSettings,
+  parseStoredRuntimeSettings,
   runtimeAppearanceCssVariables,
   runtimeEntityCssVariables,
   resolveEntityStylesForRender,
@@ -22,10 +23,23 @@ describe('runtime settings contract', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.loop).toEqual({
       maxSteps: 40,
       maxToolCalls: 80,
-      maxRunSeconds: 600,
+      maxRunSeconds: 550,
     });
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(6);
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
+  });
+
+  it('self-heals a stored pre-margin run budget instead of rejecting all settings', () => {
+    expect(
+      parseStoredRuntimeSettings({
+        ...DEFAULT_RUNTIME_SETTINGS,
+        loop: { ...DEFAULT_RUNTIME_SETTINGS.loop, maxRunSeconds: 600 },
+        answer: { ...DEFAULT_RUNTIME_SETTINGS.answer, takeaway: false },
+      })
+    ).toMatchObject({
+      loop: { maxRunSeconds: 550 },
+      answer: { takeaway: false },
+    });
   });
 
   it('ships the approved daylight entity palette as the default styles', () => {

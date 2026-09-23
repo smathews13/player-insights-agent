@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import mlflow
+from mlflow.entities import SpanEvent
 from mlflow.pyfunc import ResponsesAgent
 from mlflow.types.responses import (
     ResponsesAgentRequest,
@@ -6196,7 +6197,8 @@ Tables available to this analysis, with their columns:
         if outcome.capped:
             caveats.insert(
                 0,
-                f"The analysis stopped early because {outcome.capped}, so it may be incomplete.",
+                f"{DEGRADED_ANSWER_MARKER} The analysis stopped early because "
+                f"{outcome.capped}, so it may be incomplete.",
             )
         # NOTHING IS APPENDED HERE ABOUT THE NATURE OF THE DATA. A constant
         # stating that the player records were generated used to be added to
@@ -6207,11 +6209,10 @@ Tables available to this analysis, with their columns:
         # from volunteering the claim in a caveat of its own.
         takeaway = _without_non_action_filler(synthesis.takeaway)
         narrative = _without_non_action_filler(synthesis.narrative)
-        content = (
-            ""
-            if log.no_evidence_survived or not presentation.narrative
-            else _without_non_action_filler(synthesis.content)
-        )
+        # `narrative` controls the explanatory prose only. `content` carries
+        # concrete findings such as result tables and must survive when prose
+        # is hidden; coupling the two silently discarded queried data.
+        content = "" if log.no_evidence_survived else _without_non_action_filler(synthesis.content)
         figures = (
             [
                 figure
@@ -6303,7 +6304,49 @@ Tables available to this analysis, with their columns:
             try:
                 next(turn)
             except StopIteration as complete:
-                return complete.value
+                final: ResponsesAgentResponse = complete.value
+                self._record_contract_output(final)
+                return final
+
+    def _record_contract_output(self, response: ResponsesAgentResponse) -> None:
+        """Put the exact final contract in an obvious MLflow location.
+
+        ResponsesAgent streaming records each yielded chunk as an event, but its
+        default root output contains only text items. That makes the structured
+        payload discoverable only by reconstructing generically named chunk
+        events. Record the complete response on a named child span and add a
+        named root event as well; tracing must never be able to fail a turn.
+        """
+
+        try:
+            payload = response.model_dump()
+            custom = payload.get("custom_outputs")
+            with mlflow.start_span(name="response.contract", span_type="PARSER") as contract_span:
+                contract_span.set_outputs(payload)
+            root = mlflow.get_current_active_span()
+            add_event = getattr(root, "add_event", None)
+            if callable(add_event):
+                add_event(
+                    SpanEvent(
+                        name="pia.final_contract",
+                        attributes={"pia.contract.value": json.dumps(custom, sort_keys=True)},
+                    )
+                )
+            if isinstance(custom, dict):
+                preview = {
+                    "type": custom.get("type"),
+                    "schema_version": next(
+                        (
+                            value.get("schema_version")
+                            for value in custom.values()
+                            if isinstance(value, dict) and value.get("schema_version")
+                        ),
+                        None,
+                    ),
+                }
+                mlflow.update_current_trace(response_preview=json.dumps(preview, sort_keys=True))
+        except Exception as error:  # noqa: BLE001 - observability cannot fail an answer
+            print(f"[mlflow] Could not record the final response contract: {error}")
 
     def predict_stream(self, request: ResponsesAgentRequest) -> Iterator[ResponsesAgentStreamEvent]:
         """The same turn, with each stage emitted as it starts and as it finishes.
@@ -6332,6 +6375,7 @@ Tables available to this analysis, with their columns:
                 stage = next(turn)
             except StopIteration as complete:
                 final: ResponsesAgentResponse = complete.value
+                self._record_contract_output(final)
                 for item in final.output:
                     yield ResponsesAgentStreamEvent(
                         type="response.output_item.done",

@@ -123,4 +123,8 @@ describe('offline frontend handoff examples', () => {
     expect(trace.genie_spaces).toEqual([{ id: 'space-1', title: 'Player data' }]);
     expect(trace.resource_calls).toEqual([{ kind: 'genie-space', id: 'space-1', tool: 'data_genie', calls: 2 }]);
   });
+
+  it('preserves the core answer version through client normalization', () => {
+    expect(answerFromFixture({ schema_version: 'pia.answer/1' }).schema_version).toBe('pia.answer/1');
+  });
 });

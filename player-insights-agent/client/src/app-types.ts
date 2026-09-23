@@ -35,6 +35,7 @@ export interface PlanCandidate {
   recommended: boolean;
 }
 export interface AnalysisPlan {
+  schema_version?: 'pia.plan/1';
   id: string;
   question: string;
   summary: string;
@@ -63,6 +64,7 @@ export interface PlanResponse {
  * because a bare question is still a usable one.
  */
 export interface Clarification {
+  schema_version?: 'pia.clarification/1';
   id: string;
   question: string;
   reason?: string;

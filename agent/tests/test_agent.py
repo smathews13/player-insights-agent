@@ -45,7 +45,7 @@ from agent import (
 )
 from charts import BLUE, MAX_CHARTS, PLOT_INSTRUCTIONS
 from config import Settings
-from contracts import ResourceCall
+from contracts import AnalysisPlan, PlanCandidate, PlanStep, ResourceCall
 from evidence import EvidenceGateway
 from tools import (
     GENIE_WAREHOUSE_STARTING_GUIDANCE,
@@ -1748,6 +1748,7 @@ def test_disabled_narrative_figures_and_analyst_caveats_stay_out():
         {
             "takeaway": "Grounded takeaway.",
             "narrative": "Hidden narrative.",
+            "content": "| Player | Total |\n|---|---:|\n| A | 42 |",
             "figures": [{"label": "hidden", "value": 1, "display": "1"}],
             "caveats": ["hidden analyst caveat"],
         }
@@ -1779,6 +1780,7 @@ def test_disabled_narrative_figures_and_analyst_caveats_stay_out():
 
     assert answer["takeaway"] == "Grounded takeaway."
     assert answer["narrative"] == ""
+    assert answer["content"] == "| Player | Total |\n|---|---:|\n| A | 42 |"
     assert answer["figures"] == []
     assert "hidden analyst caveat" not in answer["caveats"]
 
@@ -2598,6 +2600,7 @@ def test_a_discovered_plan_keeps_the_contract_the_app_reads():
     plan, _, _ = plan_for()
 
     assert set(plan) == {
+        "schema_version",
         "id",
         "question",
         "summary",
@@ -4529,6 +4532,7 @@ def test_a_source_no_verdict_described_is_published_with_no_role_at_all():
 # Neither failure raises anywhere, so drift on either side of this boundary is
 # invisible in production.
 APP_ANSWER_FIELDS = {
+    "schema_version",
     "id",
     "takeaway",
     "narrative",
@@ -4579,7 +4583,7 @@ APP_STAGE_FIELDS = {
     "depth",
     "parent_id",
 }
-APP_CLARIFICATION_FIELDS = {"id", "question", "reason", "options", "trace"}
+APP_CLARIFICATION_FIELDS = {"schema_version", "id", "question", "reason", "options", "trace"}
 
 
 def test_answer_contract_matches_exactly_what_the_app_reads():
@@ -4588,6 +4592,7 @@ def test_answer_contract_matches_exactly_what_the_app_reads():
     answer = ask(build(llm), CHART_QUESTION).custom_outputs["answer"]
 
     assert set(answer) == APP_ANSWER_FIELDS
+    assert answer["schema_version"] == "pia.answer/1"
     assert set(answer["figures"][0]) == APP_FIGURE_FIELDS
     assert set(answer["charts"][0]) == APP_CHART_FIELDS
     assert set(answer["sources"][0]) == APP_SOURCE_FIELDS
@@ -4596,6 +4601,36 @@ def test_answer_contract_matches_exactly_what_the_app_reads():
     assert set(answer["trace"]["stages"][0]) == APP_STAGE_FIELDS
     assert set(answer["trace"]["genie_spaces"][0]) == APP_GENIE_SPACE_FIELDS
     assert set(answer["trace"]["resource_calls"][0]) == APP_RESOURCE_CALL_FIELDS
+
+
+def test_final_contract_is_written_to_named_mlflow_evidence(monkeypatch):
+    response = ask(build(ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")))
+    recorded = {}
+    previews = {}
+    events = []
+
+    class RecordingSpan:
+        def set_outputs(self, value):
+            recorded.update(value)
+
+        def add_event(self, value):
+            events.append(value)
+
+    span = RecordingSpan()
+    monkeypatch.setattr(mlflow, "start_span", lambda **_kwargs: nullcontext(span))
+    monkeypatch.setattr(mlflow, "get_current_active_span", lambda: span)
+    monkeypatch.setattr(mlflow, "update_current_trace", lambda **kwargs: previews.update(kwargs))
+
+    PlayerInsightsResponsesAgent()._record_contract_output(response)
+
+    assert recorded["custom_outputs"]["type"] == "answer"
+    assert recorded["custom_outputs"]["answer"]["schema_version"] == "pia.answer/1"
+    assert json.loads(previews["response_preview"]) == {
+        "schema_version": "pia.answer/1",
+        "type": "answer",
+    }
+    assert events[0].name == "pia.final_contract"
+    assert json.loads(events[0].attributes["pia.contract.value"])["type"] == "answer"
 
 
 # ---------------------------------------------------------------------------
@@ -4708,6 +4743,7 @@ def test_clarification_contract_matches_exactly_what_the_app_reads():
     clarification = ask(build(llm)).custom_outputs["clarification"]
 
     assert set(clarification) == APP_CLARIFICATION_FIELDS
+    assert clarification["schema_version"] == "pia.clarification/1"
     assert set(clarification["trace"]) == APP_TRACE_FIELDS
 
 
@@ -4719,7 +4755,9 @@ def test_plan_contract_matches_exactly_what_the_app_reads():
     )
 
     plan = response.custom_outputs["plan"]
+    assert plan["schema_version"] == "pia.plan/1"
     assert set(plan) == {
+        "schema_version",
         "id",
         "question",
         "summary",
@@ -4730,6 +4768,48 @@ def test_plan_contract_matches_exactly_what_the_app_reads():
         "uses_attachment_context",
     }
     assert set(plan["steps"][0]) == {"id", "title", "description", "kind"}
+
+
+def test_one_grouped_step_can_require_multiple_candidate_tables_together():
+    plan = AnalysisPlan(
+        id="plan-joint",
+        question="How many players overlap all groups?",
+        summary="Join all governed membership tables.",
+        steps=[
+            PlanStep(
+                id="join",
+                title="Join required memberships",
+                description="Read all three sources together.",
+                kind="data",
+            )
+        ],
+        candidates=[
+            PlanCandidate(
+                table=f"{NAMESPACE}.group_a",
+                field="player_id",
+                definition="A",
+                why="Required",
+                recommended=True,
+            ),
+            PlanCandidate(
+                table=f"{NAMESPACE}.group_b",
+                field="player_id",
+                definition="B",
+                why="Required",
+                recommended=True,
+            ),
+            PlanCandidate(
+                table=f"{NAMESPACE}.group_c",
+                field="player_id",
+                definition="C",
+                why="Required",
+                recommended=True,
+            ),
+        ],
+    )
+
+    assert plan.schema_version == "pia.plan/1"
+    assert [candidate.recommended for candidate in plan.candidates] == [True, True, True]
 
 
 # ---------------------------------------------------------------------------

@@ -215,6 +215,14 @@ export function isReportPayload(value: unknown): boolean {
  */
 export function normalizeReport(raw: unknown): Report | null {
   const record = asRecord(raw);
+  const schemaVersion = asString(record.schema_version).trim();
+  if (schemaVersion && schemaVersion !== REPORT_SCHEMA_VERSION) {
+    console.warn('[report] Unsupported report schema version.', {
+      expected: REPORT_SCHEMA_VERSION,
+      received: schemaVersion,
+    });
+    return null;
+  }
   const title = asString(record.title).trim();
   const sections = Array.isArray(record.sections)
     ? record.sections.map(normalizeSection).filter((section): section is ReportSection => section !== null)
@@ -243,7 +251,7 @@ export function normalizeReport(raw: unknown): Report | null {
       usedChartIds.add(id);
     }
   }
-  const report: Report = { schema_version: asString(record.schema_version) || REPORT_SCHEMA_VERSION, title, sections };
+  const report: Report = { schema_version: REPORT_SCHEMA_VERSION, title, sections };
   const subtitle = asOptionalString(record.subtitle);
   if (subtitle) report.subtitle = subtitle;
   if (record.theme === 'presentation' || record.theme === 'page') report.theme = record.theme;

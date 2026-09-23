@@ -148,6 +148,42 @@ describe('sanitized backend/app handoff fixtures', () => {
     }
   });
 
+  it('emits an alertable event when the backend adds an undeclared answer field', () => {
+    const future = structuredClone(answerResponse.events[answerResponse.events.length - 1]) as {
+      custom_outputs: { answer: Record<string, unknown> };
+    };
+    future.custom_outputs.answer.future_contract_field = { keep: true };
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      expect(extractStructuredAnswer(future)?.future_contract_field).toEqual({ keep: true });
+      const driftEvent: unknown = error.mock.calls.find(([message]) => message === '[contract-drift]')?.[1];
+      expect(driftEvent).toMatchObject({
+        event: 'PIA_CONTRACT_DRIFT',
+        payloadType: 'answer',
+        fields: ['future_contract_field'],
+      });
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it('rejects a future core schema version instead of reading it as version one', () => {
+    const future = structuredClone(answerResponse.events[answerResponse.events.length - 1]) as {
+      custom_outputs: { answer: Record<string, unknown> };
+    };
+    future.custom_outputs.answer.schema_version = 'pia.answer/2';
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(extractStructuredAnswer(future)).toBeNull();
+      expect(warning).toHaveBeenCalledWith(
+        '[serving] Structured answer failed validation:',
+        expect.stringContaining('schema_version')
+      );
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it('logs malformed plans and never turns an empty plan into an approval card', () => {
     const invalid = structuredClone(planResponse.events[0]) as {
       custom_outputs: { plan: Record<string, unknown> };

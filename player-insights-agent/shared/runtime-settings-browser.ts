@@ -34,7 +34,9 @@ export const RUNTIME_LOOP_KEYS = ['maxSteps', 'maxToolCalls', 'maxRunSeconds'] a
 export const RUNTIME_LOOP_LIMITS = {
   maxSteps: { min: 1, max: 40 },
   maxToolCalls: { min: 1, max: 80 },
-  maxRunSeconds: { min: 30, max: 600 },
+  // Serving hard-stops near 597 seconds. The supported ceiling leaves time
+  // for the final contract event to serialize and reach the app.
+  maxRunSeconds: { min: 30, max: 550 },
 } as const;
 export const RUNTIME_ANSWER_KEYS = [
   'takeaway',
@@ -253,7 +255,7 @@ export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEn
 
 /** Current behavior. An empty store therefore changes no existing deployment. */
 export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
-  loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+  loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 550 },
   answer: {
     takeaway: true,
     narrative: true,
