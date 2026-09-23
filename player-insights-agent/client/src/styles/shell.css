@@ -204,15 +204,14 @@
  * The brand, and the header's first column.
  *
  * Not just a flex row: the used width is what the first tab sits after. The
- * lockup and the date stay left inside it; the leftover is empty on purpose, so
- * Ask begins on the conversation rail's hairline -- the corner above the
- * divider under it -- rather than over the sidebar.
+ * conversation rail width is the minimum reservation, while the complete
+ * lockup, release chip, and divider may make the column wider.
  *
- * Hugging the contents shoved Ask left of that corner. The reservation puts it
- * back. Super admin leaves the rail when Benchmarking is on, which is the width
- * the seventh tab needs so Built on Databricks stays on screen. Do not shrink
- * this column back to max-content to "close the hole": the hole is the sidebar,
- * and Ask belongs on its right edge.
+ * A fixed rail-width column clipped the release chip after the rail moved to
+ * the approved 290px geometry: the first tab started underneath the chip. A
+ * minimum reservation keeps Ask out of the sidebar, and max-content ensures the
+ * tab row cannot paint over any visible brand chrome. The reference explicitly
+ * allows PIA's wider lockup to move navigation right of true centre.
  *
  * The 24px that used to sit on .app-nav as a stated gap is still gone. A gap
  * AND a column width would be two rules deciding one position.
@@ -231,8 +230,9 @@
   /* §1's gap between the lockup and the divider that follows it. The 8px inside
      the lockup, between mark and wordmark, is the component's own. */
   gap: 14px;
-  width: calc(var(--conversation-width) - var(--app-header-pad-x));
-  max-width: calc(var(--conversation-width) - var(--app-header-pad-x));
+  width: max-content;
+  min-width: calc(var(--conversation-width) - var(--app-header-pad-x));
+  max-width: none;
 }
 /*
  * The lockup inside the header's first column.

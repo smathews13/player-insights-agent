@@ -84,7 +84,7 @@ describe('Player Insights Agent visible brand surfaces', () => {
     expect(brand).toMatch(/\.pia-type--dark \.pia-accent\s*\{[^}]*color:\s*var\(--ast-ice-accent\)/s);
 
     expect(shell).toMatch(
-      /\.brand-lockup\s*\{[^}]*width:\s*calc\(var\(--conversation-width\) - var\(--app-header-pad-x\)\)[^}]*max-width:\s*calc\(var\(--conversation-width\) - var\(--app-header-pad-x\)\)/s
+      /\.brand-lockup\s*\{[^}]*width:\s*max-content[^}]*min-width:\s*calc\(var\(--conversation-width\) - var\(--app-header-pad-x\)\)[^}]*max-width:\s*none/s
     );
     expect(shell).toMatch(/\.brand-home\s*\{[^}]*flex:\s*none/s);
     expect(shell).toMatch(/\.brand-lockup \.pia-lockup--header\s*\{[^}]*min-width:\s*max-content/s);
