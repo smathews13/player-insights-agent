@@ -246,6 +246,21 @@ export function parseStoredRuntimeSettings(value: unknown): RuntimeSettings {
   if (!source) return RuntimeSettingsSchema.parse(value);
   const known = knownStoredKeys(source, RUNTIME_SETTINGS_KEYS) as Record<string, unknown>;
   known.loop = knownStoredKeys(source.loop, RUNTIME_LOOP_KEYS);
+  const storedLoop = storedObject(known.loop);
+  if (
+    storedLoop &&
+    typeof storedLoop.maxRunSeconds === 'number' &&
+    Number.isFinite(storedLoop.maxRunSeconds) &&
+    storedLoop.maxRunSeconds > RUNTIME_LOOP_LIMITS.maxRunSeconds.max
+  ) {
+    // Settings saved before the Serving safety margin used a 600-second
+    // ceiling. Clamp that historical value on read so an existing deployment
+    // self-heals instead of falling back to every default or refusing to start.
+    known.loop = {
+      ...storedLoop,
+      maxRunSeconds: RUNTIME_LOOP_LIMITS.maxRunSeconds.max,
+    };
+  }
   known.answer = knownStoredKeys(source.answer, RUNTIME_ANSWER_KEYS);
   known.behavior = knownStoredKeys(source.behavior, RUNTIME_BEHAVIOR_KEYS);
   const styles = storedObject(source.entityStyles);

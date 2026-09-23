@@ -48,7 +48,7 @@ describe('the runtime a stored run used', () => {
       maxToolCalls: null,
       maxRunSeconds: null,
     });
-    expect(usedLoopDefaults()).toEqual({ maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 });
+    expect(usedLoopDefaults()).toEqual({ maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 550 });
   });
 
   it('names the three bounds the Settings pane names, and Not recorded for a missing number', () => {

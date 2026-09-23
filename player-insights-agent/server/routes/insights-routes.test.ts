@@ -42,7 +42,7 @@ import { managedGenieMcpCapability } from '../lib/genie-mcp-capability';
 import { announceSeedAdmins } from '../lib/admin-roles';
 import servingResponses from './__fixtures__/serving-responses.json';
 import { FakeStore } from '../lib/__fixtures__/fake-run-store';
-import { StreamLimitExceededError } from '../lib/serving-stream';
+import { StreamLimitExceededError, TruncatedStreamError } from '../lib/serving-stream';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import { PROSE_ONLY_ANSWER_CAVEAT } from '../../shared/prose-only-answer';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
@@ -1897,21 +1897,15 @@ describe('the production serving transport', () => {
     expect(seen).toHaveLength(1);
   });
 
-  it('falls back to the blocking call when a truncated stream only announced steps', async () => {
-    // THE REGRESSION THIS PINS. `running` events are a step saying it has
-    // started. A stream that dies after nothing but those has produced no work
-    // to keep, so treating them as "the agent already ran" withheld the one
-    // call that could still answer, and the reader was shown an interrupted run
-    // for a question the endpoint had barely begun.
+  it('does not re-run a turn when a truncated stream only announced steps', async () => {
+    // A stage-less plan turn can finish all of its work before the final event
+    // is lost. Announcements therefore cannot prove a retry is safe.
     const seen: SeenRequest[] = [];
     const transport = createServingTransport(() =>
       Promise.resolve({
         request: (options: SeenRequest) => {
           seen.push(options);
-          if (options.raw) {
-            return Promise.resolve(streamOf(stageEvent('running'), stageEvent('running', 'genie')));
-          }
-          return Promise.resolve(servingResponses.liveAnswerResponse);
+          return Promise.resolve(streamOf(stageEvent('running'), stageEvent('running', 'genie')));
         },
       })
     );
@@ -1922,9 +1916,8 @@ describe('the production serving transport', () => {
         payload: { stream: true },
         onStage: () => undefined,
       })
-    ).resolves.toBe(servingResponses.liveAnswerResponse);
-    expect(seen).toHaveLength(2);
-    expect(seen[1]?.payload.stream).toBe(false);
+    ).rejects.toMatchObject({ name: 'TruncatedStreamError', stages: 0, announced: 2 });
+    expect(seen).toHaveLength(1);
   });
 
   it('does not re-invoke when an announcement was followed by a reported stage', async () => {
@@ -1951,14 +1944,13 @@ describe('the production serving transport', () => {
     expect(seen).toHaveLength(1);
   });
 
-  it('keeps the blocking fallback when a truncated stream reported zero stages', async () => {
+  it('does not re-run a stage-less plan when its final event is lost', async () => {
     const seen: SeenRequest[] = [];
     const transport = createServingTransport(() =>
       Promise.resolve({
         request: (options: SeenRequest) => {
           seen.push(options);
-          if (options.raw) return Promise.resolve(streamOf(''));
-          return Promise.resolve(servingResponses.liveAnswerResponse);
+          return Promise.resolve(streamOf(''));
         },
       })
     );
@@ -1969,9 +1961,8 @@ describe('the production serving transport', () => {
         payload: { stream: true },
         onStage: () => undefined,
       })
-    ).resolves.toBe(servingResponses.liveAnswerResponse);
-    expect(seen).toHaveLength(2);
-    expect(seen[1]?.payload.stream).toBe(false);
+    ).rejects.toMatchObject({ name: 'TruncatedStreamError', stages: 0, announced: 0 });
+    expect(seen).toHaveLength(1);
   });
 });
 
@@ -1988,7 +1979,7 @@ describe('what the route actually puts on the wire', () => {
     const captured: CapturedInvocation[] = [];
     const stored: RuntimeSettings = {
       ...DEFAULT_RUNTIME_SETTINGS,
-      loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+      loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 550 },
       answer: {
         ...DEFAULT_RUNTIME_SETTINGS.answer,
         takeaway: true,
@@ -3883,8 +3874,9 @@ describe('an agent endpoint that never answers', () => {
     else process.env.DATABRICKS_SERVING_ENDPOINT_NAME = savedEndpoint;
   });
 
-  it('allows configured 600-second Ask and benchmark runs to finish synthesis', () => {
-    expect(SERVING_INVOKE_TIMEOUT_MS).toBeGreaterThan(600_000);
+  it('allows configured 550-second runs to finish before the serving hard stop', () => {
+    expect(SERVING_INVOKE_TIMEOUT_MS).toBeGreaterThan(550_000);
+    expect(SERVING_INVOKE_TIMEOUT_MS).toBeLessThan(597_000);
     expect(BENCHMARK_SERVING_INVOKE_TIMEOUT_MS).toBe(SERVING_INVOKE_TIMEOUT_MS);
   });
 
@@ -4425,6 +4417,48 @@ describe('a failed run is answered with nothing', () => {
     expect((body as { code?: string }).code).toBe('OUTPUT_SCHEMA_VIOLATION');
     expect(body.figures).toBeUndefined();
     expect(errors.join('\n')).toContain('none of the six result shapes');
+  });
+
+  it('does not disguise a malformed declared answer as valid prose', async () => {
+    const { status, body, errors } = await askThrough(
+      () =>
+        Promise.resolve({
+          output: [{ content: [{ type: 'output_text', text: 'A plausible but incomplete duplicate.' }] }],
+          custom_outputs: {
+            type: 'answer',
+            answer: {
+              schema_version: 'pia.answer/1',
+              id: 'msg-malformed',
+              takeaway: 'Looks complete',
+            },
+          },
+        }),
+      'conv-malformed-declared-answer'
+    );
+
+    expect(status).toBe(502);
+    expect(body).toMatchObject({ type: 'unavailable', code: 'OUTPUT_SCHEMA_VIOLATION' });
+    expect(body.takeaway).toBeUndefined();
+    expect(errors.join('\n')).toContain('Contract drift');
+    expect(errors.join('\n')).toContain('answer');
+  });
+
+  it('rejects a future declared type even when it includes fallback text', async () => {
+    const { status, body } = await askThrough(
+      () =>
+        Promise.resolve({
+          output: [{ content: [{ type: 'output_text', text: 'Do not flatten this future artifact.' }] }],
+          custom_outputs: {
+            type: 'forecast',
+            forecast: { schema_version: 'pia.forecast/1', values: [1, 2, 3] },
+          },
+        }),
+      'conv-future-declared-type'
+    );
+
+    expect(status).toBe(502);
+    expect(body).toMatchObject({ type: 'unavailable', code: 'OUTPUT_SCHEMA_VIOLATION' });
+    expect(body.narrative).toBeUndefined();
   });
 
   /**
@@ -4978,6 +5012,32 @@ describe('the run ledger under POST /api/insights/ask', () => {
       expect(terminal).toMatchObject({ type: 'unavailable', code: 'STREAM_INTERRUPTED' });
       expect(ledger.runs[0]).toMatchObject({ state: 'FAILED', terminal_code: 'STREAM_INTERRUPTED' });
       expect(ledger.events.filter((event) => event.to === 'FAILED')).toHaveLength(1);
+      expect(store.messages.filter((message) => message.role === 'assistant')).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('settles a stage-less truncated plan once without starting a second run', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const store = memoryLakebase();
+    const { ledger, lakebase } = lakebaseWithLedger(store);
+    let invocations = 0;
+    const app = await startInsightsApp(() => {
+      invocations += 1;
+      return Promise.reject(new TruncatedStreamError(0, 0));
+    }, lakebase);
+
+    try {
+      const terminal = await app.ask({
+        conversationId: 'conv-plan-stream-interrupted',
+        prompt: NONTRIVIAL_QUESTION,
+        executePlan: false,
+      });
+
+      expect(terminal).toMatchObject({ type: 'unavailable', code: 'STREAM_INTERRUPTED' });
+      expect(invocations).toBe(1);
+      expect(ledger.runs[0]).toMatchObject({ state: 'FAILED', terminal_code: 'STREAM_INTERRUPTED' });
       expect(store.messages.filter((message) => message.role === 'assistant')).toHaveLength(0);
     } finally {
       await app.close();

@@ -39,6 +39,11 @@ import { repairTruncatedTitles } from '../lib/repair-conversation-titles';
 import { attachRecordedStages, proseOnlyAnswer } from '../../shared/prose-only-answer';
 import { isReportPayload, normalizeReport, type Report } from '../../shared/report-contract';
 import { isDashboardPayload, normalizeDashboard, type Dashboard } from '../../shared/dashboard-contract';
+import {
+  ANSWER_SCHEMA_VERSION,
+  CLARIFICATION_SCHEMA_VERSION,
+  PLAN_SCHEMA_VERSION,
+} from '../../shared/core-response-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -246,7 +251,7 @@ export interface InsightsAppKit {
   };
   /** Overridable so tests can assert the exact JSON that reaches Model Serving. */
   servingTransport?: ServingTransport;
-  /** Test seam for the interactive deadline; production allows the 600s runtime plus response overhead. */
+  /** Test seam for the interactive deadline; production allows the 550s runtime plus response overhead. */
   servingTimeoutMs?: number;
   /**
    * Overridable endpoint metadata read used by the cheap readiness route.
@@ -366,6 +371,7 @@ const PlanCandidateSchema = z.looseObject({
 });
 
 export const ApprovedPlanBodySchema = z.looseObject({
+  schema_version: z.literal(PLAN_SCHEMA_VERSION).optional(),
   id: z.string().min(1).max(120),
   question: z.string().min(1).max(5000),
   summary: z.string().min(1).max(4000),
@@ -618,6 +624,7 @@ const DocumentSnippetSchema = z.looseObject({
 });
 
 const LiveAnswerSchema = z.looseObject({
+  schema_version: z.literal(ANSWER_SCHEMA_VERSION).optional(),
   id: z.string().min(1),
   // Empty is valid when Appearance disables the takeaway. Figures, sources,
   // content and trace remain structured data and must not be downgraded to the
@@ -678,6 +685,21 @@ function keysOutsideShape(value: unknown, shape: object, prefix: string): string
     .map((key) => `${prefix}${key}`);
 }
 
+/**
+ * Emit a stable, alertable telemetry record without logging payload values.
+ *
+ * Platform telemetry captures console errors in `otel_logs`; the event name
+ * gives operators a durable alert/query key instead of prose that changes with
+ * each new field.
+ */
+export function reportContractDrift(payloadType: string, fields: readonly string[]): void {
+  console.error('[contract-drift]', {
+    event: 'PIA_CONTRACT_DRIFT',
+    payloadType,
+    fields: [...fields],
+  });
+}
+
 /** Names the parts of an answer the app does not know about. */
 export function undeclaredAnswerKeys(answer: LiveAnswer): string[] {
   const found = keysOutsideShape(answer, LiveAnswerSchema.shape, '');
@@ -716,6 +738,7 @@ const PlanStepSchema = z.looseObject({
  * was never shown it.
  */
 const AnalysisPlanSchema = z.looseObject({
+  schema_version: z.literal(PLAN_SCHEMA_VERSION).optional(),
   id: z.string().min(1),
   question: z.string().min(1),
   summary: z.string().min(1),
@@ -748,6 +771,7 @@ export function undeclaredPlanKeys(plan: AnalysisPlan): string[] {
  * still usable and must not fail the parse.
  */
 const ClarificationSchema = z.looseObject({
+  schema_version: z.literal(CLARIFICATION_SCHEMA_VERSION).optional(),
   id: z.string().min(1),
   question: z.string().min(1),
   reason: z.string().default(''),
@@ -2441,6 +2465,28 @@ function isEndpointError(record: Record<string, unknown>) {
   );
 }
 
+/**
+ * The response type the endpoint explicitly declared, if any.
+ *
+ * A declared contract must never fall through to plain text when its payload is
+ * malformed or newer than this app. That fallback looks complete while
+ * silently discarding figures, sources, plans, reports, or dashboards.
+ */
+export function declaredEndpointResultType(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const custom = record.custom_outputs;
+  if (custom && typeof custom === 'object') {
+    const type = (custom as Record<string, unknown>).type;
+    if (typeof type === 'string' && type.trim()) return type.trim();
+  }
+  for (const key of ['data', 'response', 'result', 'body']) {
+    const nested = declaredEndpointResultType(record[key]);
+    if (nested) return nested;
+  }
+  return null;
+}
+
 export function extractLiveText(value: unknown): string | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -2471,13 +2517,18 @@ export function extractStructuredAnswer(value: unknown): LiveAnswer | null {
   if (isEndpointError(record)) return null;
   const custom = record.custom_outputs;
   const explicitAnswers: unknown[] = [];
+  let customMayBeAnswer = true;
   if (custom && typeof custom === 'object') {
     const customRecord = custom as Record<string, unknown>;
-    for (const candidate of [customRecord.answer, customRecord.player_insights_answer]) {
-      if (candidate !== undefined) explicitAnswers.push(candidate);
+    const declaredType = customRecord.type;
+    customMayBeAnswer = declaredType === undefined || declaredType === 'answer';
+    if (customMayBeAnswer) {
+      for (const candidate of [customRecord.answer, customRecord.player_insights_answer]) {
+        if (candidate !== undefined) explicitAnswers.push(candidate);
+      }
     }
   }
-  const candidates: unknown[] = [...explicitAnswers, custom];
+  const candidates: unknown[] = [...explicitAnswers, ...(customMayBeAnswer ? [custom] : [])];
   for (const candidate of candidates) {
     const parsed = LiveAnswerSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -2493,6 +2544,7 @@ export function extractStructuredAnswer(value: unknown): LiveAnswer | null {
     if (undeclared.length > 0) {
       // Forwarded, not dropped, but the app renders nothing for these, so the
       // agent contract has moved ahead of the UI and someone needs to catch up.
+      reportContractDrift('answer', undeclared);
       console.warn('[serving] Answer contains fields the app does not read:', undeclared.join(', '));
     }
     return normalizeReaderAnswer(parsed.data);
@@ -2609,6 +2661,7 @@ export function extractAnalysisPlan(value: unknown): AnalysisPlan | null {
         if (undeclared.length > 0) {
           // Forwarded and stored, but the plan screen renders nothing for these,
           // so the user is approving a plan with a part they cannot see.
+          reportContractDrift('plan', undeclared);
           console.warn('[serving] Plan contains fields the app does not read:', undeclared.join(', '));
         }
         return parsed.data;
@@ -3062,38 +3115,13 @@ export function createServingTransport(
         throw error;
       }
       if (!(error instanceof TruncatedStreamError)) throw error;
-      // Once a stage REPORTED work, the agent stack already ran. A blocking
-      // retry would execute orchestrator → tools → synthesis a second time,
-      // with a second set of governed reads and potentially different results.
-      // Keep the observed stages and let the ask route report the interrupted
-      // run; its ledger/live-ask paths remain the durable account of what
-      // happened.
-      //
-      // `stages` counts reports, not events, and the distinction is the whole
-      // branch: a `running` announcement means a step started, so a stream that
-      // died after nothing but those has produced no work to preserve and no
-      // reason to withhold the one call that can still answer. See
-      // TruncatedStreamError.
-      if (error.stages > 0) {
-        console.warn(`[serving] ${error.message} Keeping the partial run; no second invocation will be started.`);
-        throw error;
-      }
-      // With no reported stage and therefore no resumable work, one blocking
-      // attempt is still the only route to an answer. This preserves the old
-      // recovery for streams that fail before the agent reports doing anything.
-      console.warn(`[serving] ${error.message} No stage reported work; asking once without streaming.`);
-      throwIfRunCancelled(signal);
-      // `stream: true` lives inside the body, so it has to come back out or the
-      // endpoint streams into a caller no longer reading events.
-      const blocking = { ...payload, stream: false };
-      return client.request({
-        path,
-        method: 'POST',
-        headers: new Headers({ 'Content-Type': 'application/json', Accept: 'application/json' }),
-        payload: blocking,
-        raw: false,
-        signal,
-      });
+      // A stream with no completed stage is still not proof that the endpoint
+      // did no work: plan turns emit no stages at all and may finish immediately
+      // before the final event is lost. Retrying on a blocking transport can
+      // therefore run the entire turn twice. Keep one execution per request and
+      // surface the interruption for a deliberate user retry.
+      console.warn(`[serving] ${error.message} No second invocation will be started.`);
+      throw error;
     }
   };
 }
@@ -3265,12 +3293,12 @@ export function buildAskServingBody({
  * by aborting the transport signal and its response reader, rather than merely
  * abandoning the promise. The longest real answer measured against the deployed
  * endpoint is a little over a minute. The extra minute beyond the configurable
- * 600-second agent budget lets final synthesis and the response reach the app
- * without the transport cancelling a valid configured run.
+ * 550-second agent budget lets final synthesis and the response reach the app,
+ * while remaining below Model Serving's roughly 597-second hard stop.
  */
-export const SERVING_INVOKE_TIMEOUT_MS = 660_000;
+export const SERVING_INVOKE_TIMEOUT_MS = 590_000;
 // Keep the endpoint transport and benchmark runner's per-turn watchdog aligned.
-// Either one firing before the 600-second agent budget plus synthesis grace
+// Either one firing before the 550-second agent budget plus synthesis grace
 // would abandon a valid benchmark answer.
 export const BENCHMARK_SERVING_INVOKE_TIMEOUT_MS = DEFAULT_TURN_TIMEOUT_MS;
 
@@ -5601,6 +5629,7 @@ export function setupInsightsRoutes(
           }
           const structuredAnswer = extractStructuredAnswer(endpointResult);
           const liveText = extractLiveText(endpointResult);
+          const declaredResultType = declaredEndpointResultType(endpointResult);
           if (structuredAnswer) {
             // Everything a reader will see came back from this run:
             // `LiveAnswerSchema` requires the figures, sources, SQL and trace, so
@@ -5616,6 +5645,39 @@ export function setupInsightsRoutes(
               platformTraceId
             );
             answer = asServedAnswer(attachRecordedStages(withPlatform, collectedStages));
+          } else if (declaredResultType) {
+            // The endpoint explicitly promised a structured payload. If that
+            // payload is malformed or newer than this app, serving its duplicate
+            // text as an ordinary answer would hide the contract failure and
+            // discard the structured evidence.
+            const shape = describePayloadShape(endpointResult);
+            reportContractDrift(declaredResultType, ['$payload']);
+            console.error(
+              `[serving] Contract drift: declared result type ${JSON.stringify(declaredResultType)} ` +
+                `could not be read by this app. ${shape}. Payload: ` +
+                JSON.stringify(endpointResult).slice(0, 1200)
+            );
+            await settleRun(appkit, admission, {
+              to: terminalStateFor('OUTPUT_SCHEMA_VIOLATION'),
+              code: 'OUTPUT_SCHEMA_VIOLATION',
+            });
+            reply.status(unavailableHttpStatus('OUTPUT_SCHEMA_VIOLATION')).json(
+              unavailableResult({
+                code: 'OUTPUT_SCHEMA_VIOLATION',
+                requestId: identity.correlationId,
+                runId: admission.run?.runId ?? null,
+                persistence: 'not_stored',
+                executionIdentity: executionIdentityClaim(identity),
+                detail: `The endpoint declared ${declaredResultType}, but its payload does not match this app's contract. ${shape}`,
+                evidence: {
+                  dependency: agentEndpointDependency(),
+                  status: 200,
+                  providerMessage: shape,
+                  ...(lastStage ? { stage: lastStage } : {}),
+                },
+              })
+            );
+            return;
           } else if (liveText) {
             // The endpoint replied in prose and sent no result contract. Its
             // words are kept and nothing is put under them -- except the steps
@@ -5653,6 +5715,7 @@ export function setupInsightsRoutes(
             // which is two artifacts released separately and in either order, and
             // this line is the only record of which shape actually arrived.
             const shape = describePayloadShape(endpointResult);
+            reportContractDrift('unknown-result', ['$payload']);
             console.error(
               '[serving] The endpoint answered, but with none of the six result shapes this app can read ' +
                 `(plan, clarification, dashboard, report, structured answer, live text). ${shape}. Payload: ` +
@@ -5760,9 +5823,10 @@ export function setupInsightsRoutes(
             );
             return;
           }
-          if (error instanceof TruncatedStreamError && error.stages > 0) {
+          if (error instanceof TruncatedStreamError) {
             console.error(
-              `[serving] The stream ended after ${error.stages} stage(s). The partial run was kept and no second invocation was started.`
+              `[serving] The stream ended after ${error.stages} completed stage(s) and ` +
+                `${error.announced} announcement(s). No second invocation was started.`
             );
             await settleRun(appkit, admission, {
               to: terminalStateFor('STREAM_INTERRUPTED'),

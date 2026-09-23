@@ -89,7 +89,7 @@ describe('runtime and appearance modal sections', () => {
     }
     expect(markup).toMatch(/aria-label="Max DSF steps"[^>]*value="40"/);
     expect(markup).toMatch(/aria-label="Max tool calls"[^>]*value="80"/);
-    expect(markup).toMatch(/aria-label="Run budget \(s\)"[^>]*value="600"/);
+    expect(markup).toMatch(/aria-label="Run budget \(s\)"[^>]*value="550"/);
   });
 
   it('renders Narrative cap as a compact peer field without a competing heading or explanation', () => {

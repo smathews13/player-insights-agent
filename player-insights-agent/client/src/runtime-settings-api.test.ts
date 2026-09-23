@@ -118,13 +118,13 @@ describe('runtime settings API responses', () => {
     expect(JSON.parse(firstBody) as unknown).toEqual({
       revision: 1,
       patch: {
-        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 550 },
       },
     });
     expect(JSON.parse(retryBody) as unknown).toEqual({
       revision: 2,
       patch: {
-        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 600 },
+        loop: { maxSteps: 40, maxToolCalls: 80, maxRunSeconds: 550 },
       },
     });
   });

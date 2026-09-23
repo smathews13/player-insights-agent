@@ -39,6 +39,14 @@ export function isDashboardPayload(value: Record<string, unknown>): boolean {
  */
 export function normalizeDashboard(value: unknown): Dashboard | null {
   const record = asRecord(value);
+  const schemaVersion = optionalString(record.schemaVersion) ?? optionalString(record.schema_version);
+  if (schemaVersion && schemaVersion !== DASHBOARD_SCHEMA_VERSION) {
+    console.warn('[dashboard] Unsupported dashboard schema version.', {
+      expected: DASHBOARD_SCHEMA_VERSION,
+      received: schemaVersion,
+    });
+    return null;
+  }
   const title = optionalString(record.title);
   const html = typeof record.html === 'string' ? record.html : '';
   if (!title || !html.trim()) {
@@ -50,9 +58,7 @@ export function normalizeDashboard(value: unknown): Dashboard | null {
     return null;
   }
 
-  const dashboard: Dashboard = { title, html };
-  const schemaVersion = optionalString(record.schemaVersion) ?? optionalString(record.schema_version);
-  if (schemaVersion) dashboard.schemaVersion = schemaVersion;
+  const dashboard: Dashboard = { title, html, schemaVersion: DASHBOARD_SCHEMA_VERSION };
   const generatedAt = optionalString(record.generatedAt) ?? optionalString(record.generated_at);
   if (generatedAt) dashboard.generatedAt = generatedAt;
   if (typeof record.truncated === 'boolean') dashboard.truncated = record.truncated;

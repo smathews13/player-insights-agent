@@ -66,7 +66,7 @@ describe('browser runtime settings cache parser', () => {
     const bounds = [
       [['loop', 'maxSteps'], 1, 40],
       [['loop', 'maxToolCalls'], 1, 80],
-      [['loop', 'maxRunSeconds'], 30, 600],
+      [['loop', 'maxRunSeconds'], 30, 550],
       [['answer', 'maxCharts'], 0, 6],
       [['answer', 'maxFigures'], 0, 12],
       [['answer', 'maxCaveats'], 0, 20],
