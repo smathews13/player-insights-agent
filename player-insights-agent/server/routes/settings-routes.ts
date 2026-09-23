@@ -49,6 +49,7 @@ import { browseRequestContext, validateNotebookPath, validateUnityCatalogAsset }
 import { checkExperimentAsApp } from '../lib/experiment-probe';
 import { executionToken } from '../lib/execution-credential';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
+import { servingMlflowTraceId } from '../../shared/mlflow-trace-id';
 import { readPublishedDeclaration, type DeclarationRead } from '../lib/notebook-declaration-read';
 import {
   compareDeclaration,
@@ -216,6 +217,7 @@ interface OrchestratorRead {
 const SERVED_CONFIGURATION_TTL_MS = 45_000;
 interface ServedConfigurationRecovery {
   entries: PreflightConfiguration[];
+  traceId: string;
 }
 let servedConfigurationCache: ({ endpoint: string; at: number } & ServedConfigurationRecovery) | null = null;
 
@@ -229,7 +231,7 @@ function hasDeclaredTables(configuration: readonly PreflightConfiguration[]): bo
 
 async function recoverServedConfiguration(appkit: InsightsAppKit): Promise<ServedConfigurationRecovery> {
   const endpoint = (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
-  if (!endpoint) return { entries: [] };
+  if (!endpoint) return { entries: [], traceId: '' };
   const now = Date.now();
   if (
     servedConfigurationCache &&
@@ -238,24 +240,27 @@ async function recoverServedConfiguration(appkit: InsightsAppKit): Promise<Serve
   ) {
     return {
       entries: servedConfigurationCache.entries,
+      traceId: servedConfigurationCache.traceId,
     };
   }
   try {
-    const entries = await requestServedConfiguration(
-      (payload, timeoutMs) => invokeServing(appkit, payload, undefined, timeoutMs),
-      extractConfigurationReport
-    );
+    let response: unknown;
+    const entries = await requestServedConfiguration(async (payload, timeoutMs) => {
+      response = await invokeServing(appkit, payload, undefined, timeoutMs);
+      return response;
+    }, extractConfigurationReport);
+    const traceId = servingMlflowTraceId(response);
     // A trace id proves that serving answered, not that it returned the
     // configuration this recovery exists to obtain. Caching a trace-only
     // response would suppress the next recovery attempt and leave the tables
     // empty for the whole TTL.
     if (entries.length > 0) {
-      servedConfigurationCache = { endpoint, at: now, entries };
+      servedConfigurationCache = { endpoint, at: now, entries, traceId };
     }
-    return { entries };
+    return { entries, traceId };
   } catch (error) {
     console.warn('[settings] The served configuration recovery could not be read:', (error as Error).message);
-    return { entries: [] };
+    return { entries: [], traceId: '' };
   }
 }
 
@@ -269,8 +274,10 @@ async function recoverServedConfiguration(appkit: InsightsAppKit): Promise<Serve
  *
  * `build_sha` is lifted out of the configuration when the release wrote one.
  */
-function configurationOnlyReport(configuration: PreflightConfiguration[]): PreflightReport {
+function configurationOnlyReport(configuration: PreflightConfiguration[], servingTraceId = ''): PreflightReport {
   const stamped = configuration.find((entry) => entry.key === 'build_sha');
+  const experiment = configuration.find((entry) => entry.key === 'experiment_id');
+  const experimentId = typeof experiment?.value === 'string' ? experiment.value.trim() : '';
   return {
     checked_at: '',
     status: 'unverified',
@@ -279,10 +286,27 @@ function configurationOnlyReport(configuration: PreflightConfiguration[]): Prefl
     table_source: '',
     build_sha: typeof stamped?.value === 'string' ? stamped.value : '',
     configuration,
-    // Configuration recovery proves only what the model was configured with.
-    // MLflow is probed separately in readReachability so a serving request id
-    // can never turn an unvalidated experiment path green.
-    checks: [lakebaseStorageCheck()],
+    checks: [
+      lakebaseStorageCheck(),
+      ...(servingTraceId && experimentId
+        ? [
+            {
+              id: 'experiment-id',
+              kind: 'observability',
+              name: experimentId,
+              label: 'MLflow experiment',
+              status: 'ok' as const,
+              detail:
+                `The served model declared experiment ${experimentId} and recorded this configuration recovery as ` +
+                `${servingTraceId}. The declaration and write came from the same served response.`,
+              checked_with: `Model Serving recorded ${servingTraceId}`,
+              duration_ms: 0,
+              error: '',
+              remedy: null,
+            },
+          ]
+        : []),
+    ],
     assumptions: [],
     counts: { ok: 0, failed: 0, unverified: 0 },
     source: 'configuration',
@@ -313,8 +337,9 @@ export async function readOrchestratorReport(appkit?: InsightsAppKit): Promise<O
   // running model for the exact configuration it baked. This compatibility
   // request is handled before any model call and supplies declarations only.
   const served = await recoverServedConfiguration(appkit);
+  const configuration = configurationForSettings(process.env, [...served.entries, ...baked]);
   return {
-    report: configurationOnlyReport(configurationForSettings(process.env, [...served.entries, ...baked])),
+    report: configurationOnlyReport(configuration, served.traceId),
     answered: served.entries.length > 0,
   };
 }
@@ -1134,6 +1159,17 @@ export function completeReachabilityTables(configured: readonly string[], discov
   return unionTableNames(configured, discovered);
 }
 
+/** Use trace evidence only when it names the exact configured experiment. */
+export function matchingRecoveredExperiment(
+  report: PreflightReport | null,
+  configuredExperiment: string
+): PreflightCheck | undefined {
+  if (!configuredExperiment) return undefined;
+  return report?.checks.find(
+    (check) => check.id === 'experiment-id' && check.status === 'ok' && check.name === configuredExperiment
+  );
+}
+
 /**
  * What the signed-in user can actually reach, asked of the workspace.
  *
@@ -1213,6 +1249,8 @@ async function readReachability(
     // It starts with the user-scoped probes so their shairon frontierline cannot expire
     // before MLflow is even attempted. Both settle into this one canonical check
     // list, which the session cache shares between Connections and Architecture.
+    const configuredExperiment = configured['experiment-id'] ?? '';
+    const recoveredExperiment = matchingRecoveredExperiment(input.report, configuredExperiment);
     const [checks, experiment] = await Promise.all([
       probeConnections({
         configured,
@@ -1221,7 +1259,7 @@ async function readReachability(
         token: executionToken(req),
         principal: req.header('x-forwarded-email')?.trim() ?? '',
       }),
-      checkExperimentAsApp(configured['experiment-id'] ?? ''),
+      recoveredExperiment ? Promise.resolve(recoveredExperiment) : checkExperimentAsApp(configuredExperiment),
     ]);
     return [...checks, experiment];
   } catch (error) {

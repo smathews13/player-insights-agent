@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   completeReachabilityTables,
   configuredNotebookPath,
+  matchingRecoveredExperiment,
   readOrchestratorReport,
   releaseDeclaration,
   setupSettingsRoutes,
@@ -350,6 +351,31 @@ describe('what /api/settings makes of this release, without asking the agent', (
       'customer_data.players.matches',
     ]);
     expect(transport).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts trace connectivity only when the same served response declares the exact experiment id', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'experiment-proof-endpoint';
+    const transport = vi.fn().mockResolvedValue({
+      ...retiredPreflight([
+        entry('declared_manifest', ['customer_data.players.matches']),
+        entry('experiment_id', '987654321'),
+      ]),
+      databricks_output: {
+        databricks_request_id: 'tr-22222222222222222222222222222222',
+      },
+    });
+
+    const read = await readOrchestratorReport(appkit(transport));
+
+    expect(read.report?.configuration.find((item) => item.key === 'experiment_id')?.value).toBe('987654321');
+    expect(read.report?.checks.find((check) => check.id === 'experiment-id')).toMatchObject({
+      name: '987654321',
+      status: 'ok',
+      checked_with: 'Model Serving recorded tr-22222222222222222222222222222222',
+    });
+    expect(matchingRecoveredExperiment(read.report, '987654321')?.status).toBe('ok');
+    expect(matchingRecoveredExperiment(read.report, 'different-experiment')).toBeUndefined();
+    expect(matchingRecoveredExperiment(read.report, '')).toBeUndefined();
   });
 
   it('does not let the page claim agreement it never measured', async () => {
