@@ -280,25 +280,35 @@
    * chain the saved settings landed on variables no stylesheet read, and the
    * panel's swatches were the only place the choice ever showed.
    */
-  /* Catalog, schema and table carry the customer's violet/indigo identifier palette,
-     matching DEFAULT_ENTITY_STYLES so this pre-hydration fallback and the runtime
-     default agree. A custom --entity-* set in Appearance still wins. The two saturated
-     fills are declared as their own tokens so the palette guard sees them declared
-     rather than written by hand; the neutral fills below stay literal. */
-  --ast-entity-catalog-fill: var(--ast-provenance-fill);
-  --ast-entity-schema-fill: var(--ast-provenance-fill);
-  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-provenance-text));
+  /* One opaque daylight triple per kind. Runtime foreground/background choices
+     may override the pair; borders and semantic weights remain kind-owned. */
+  --ast-entity-catalog-fill: var(--ast-info-fill);
+  --ast-entity-schema-fill: #eef2f5;
+  --ast-entity-table-fill: var(--ast-hairline);
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-info-text));
   --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-entity-catalog-fill));
-  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-provenance-text));
+  --ast-entity-catalog-border: var(--ast-info-border);
+  --ast-entity-catalog-weight: 500;
+  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-ink-secondary));
   --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-entity-schema-fill));
-  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-provenance-text));
-  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-provenance-fill));
+  --ast-entity-schema-border: var(--ast-neutral-border);
+  --ast-entity-schema-weight: 400;
+  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-ink));
+  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-entity-table-fill));
+  --ast-entity-table-border: var(--ast-hairline-strong);
+  --ast-entity-table-weight: 600;
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-text-long));
   --ast-entity-column-bg: var(--entity-column-bg, var(--ast-neutral-fill));
+  --ast-entity-column-border: transparent;
+  --ast-entity-column-weight: 400;
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-neutral-text));
   --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-fill-band));
+  --ast-entity-quote-border: transparent;
+  --ast-entity-quote-weight: 400;
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-text));
   --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-action-tint));
+  --ast-entity-tag-border: transparent;
+  --ast-entity-tag-weight: 400;
   --ast-dark-entity-catalog-fg: #a9b4ff;
   --ast-dark-entity-catalog-bg: #242a4e;
   --ast-dark-entity-schema-fg: #d7d2ff;

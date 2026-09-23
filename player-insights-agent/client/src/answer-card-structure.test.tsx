@@ -371,7 +371,9 @@ describe('an identifier chip is one chip, on one line', () => {
 
   it('uses one monospace treatment and bolds the marked table segment', () => {
     expect(css).toMatch(/\.entity-token\s*\{[^}]*font-family:\s*var\(--font-mono\)/s);
-    expect(css).toMatch(/\.entity-token\[data-entity-part='table'\]\s*\{[^}]*font-weight:\s*700/s);
+    expect(css).toMatch(
+      /\.entity-token\[data-entity-part='table'\]\s*\{[^}]*font-weight:\s*var\(--ast-entity-table-weight\)/s
+    );
   });
 
   it('moves a chip down whole instead of tearing it across the break', () => {

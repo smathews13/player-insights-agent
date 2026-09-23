@@ -6,6 +6,7 @@ import {
   FONT_SIZE_IDS,
   FONT_SIZE_SCALE,
   RUNTIME_LOOP_LIMITS,
+  resolveEntityStylesForRender,
   runtimeAppearanceContrastIssues,
   entityStylesForScheme,
   fontColorsForScheme,
@@ -36,6 +37,7 @@ import {
 import { StateSwitch } from './StateSwitch';
 import { Button, Input } from './ui';
 import { PiaBusyButtonContent, PiaLoader } from './PiaLoader';
+import { Entity } from './Entity';
 const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
   { value: 'dm-sans', label: 'DM Sans' },
   { value: 'system', label: 'System' },
@@ -245,6 +247,7 @@ export function RuntimeSettingsPanel({
   const [canReset, setCanReset] = useState(false);
   const contrastIssues = section === 'appearance' ? runtimeAppearanceContrastIssues(settings) : [];
   const contrastIssueByField = new Map(contrastIssues.map((issue) => [issue.field, issue]));
+  const resolvedEntityStyles = resolveEntityStylesForRender(settings, () => {});
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
@@ -870,15 +873,18 @@ export function RuntimeSettingsPanel({
                     })}
                     <span className="appearance-sample-plaque" role="cell">
                       <span className="appearance-mobile-label">Sample</span>
-                      <span
+                      <Entity
+                        kind={kind}
                         className="appearance-sample"
-                        style={{
-                          color: settings.entityStyles[kind].foreground,
-                          background: settings.entityStyles[kind].background,
-                        }}
+                        style={
+                          {
+                            [`--entity-${kind}-fg`]: resolvedEntityStyles[kind].foreground,
+                            [`--entity-${kind}-bg`]: resolvedEntityStyles[kind].background,
+                          } as CSSProperties
+                        }
                       >
                         {ENTITY_SAMPLES[kind]}
-                      </span>
+                      </Entity>
                     </span>
                     {contrastIssue ? (
                       <p className="appearance-contrast-error appearance-grid-contrast-error" id={contrastId}>

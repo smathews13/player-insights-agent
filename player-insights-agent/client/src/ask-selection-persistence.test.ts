@@ -75,9 +75,7 @@ describe('Ask selection persistence', () => {
       'searchParams.get(CONVERSATION_PARAM) ?? readSelectedConversation() ?? `conv-${crypto.randomUUID()}`'
     );
     expect(HOME).toContain('const target = requested ?? readSelectedConversation()');
-    expect(HOME).toContain(
-      'if (!requested) setSearchParams({ [CONVERSATION_PARAM]: target }, { replace: true })'
-    );
+    expect(HOME).toContain('if (!requested) setSearchParams({ [CONVERSATION_PARAM]: target }, { replace: true })');
   });
 
   it('records row clicks and active asks before navigation can unmount the page', () => {
@@ -104,5 +102,24 @@ describe('Ask selection persistence', () => {
       /function focusQuestionInput\(\) \{\s*composerRef\.current\?\.querySelector\('textarea'\)\?\.focus\(\);/
     );
     expect(HOME).toContain('ref={composerRef}');
+  });
+
+  it('deletes an unasked local starter without calling the durable delete route', () => {
+    const start = /function startNewConversation\(\) \{[\s\S]*?return id;\s*\}/.exec(HOME)?.[0] ?? '';
+    const deletion = HOME.slice(
+      HOME.indexOf('async function deleteConversation'),
+      HOME.indexOf('/**', HOME.indexOf('async function deleteConversation') + 1)
+    );
+    expect(start).toContain('localConversationDraftsRef.current.add(id)');
+    expect(deletion.indexOf('localConversationDraftsRef.current.has(id)')).toBeGreaterThan(-1);
+    expect(deletion.indexOf('localConversationDraftsRef.current.has(id)')).toBeLessThan(
+      deletion.indexOf('fetch(`/api/conversations/')
+    );
+    expect(deletion).toMatch(/localConversationDraftsRef\.current\.has\(id\)[\s\S]*?return;[\s\S]*?fetch\(/);
+    const ask = HOME.slice(HOME.indexOf('async function ask('), HOME.indexOf('function startNewConversation()'));
+    expect(ask.indexOf('localConversationDraftsRef.current.delete(runConversationId)')).toBeLessThan(
+      ask.indexOf('askStreaming(')
+    );
+    expect(deletion).toContain('response.status !== 404');
   });
 });

@@ -504,6 +504,8 @@ export function HomePage() {
     feedbackRef.current = feedback;
   }, [feedback]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  /** Browser-only starter rows that have never been written to Lakebase. */
+  const localConversationDraftsRef = useRef(new Set<string>());
   /**
    * What each conversation's latest answered turn recorded: its status, its wall
    * time and the rating the reader gave it, keyed by conversation id.
@@ -1449,6 +1451,10 @@ export function HomePage() {
     // step, an error banner or a URL change landing in the conversation they
     // moved to describes a question that was never asked there.
     const runConversationId = conversationId;
+    // A submitted prompt is no longer an empty browser-only draft. Remove the
+    // local-only marker before the request starts so any concurrent deletion
+    // uses the durable route rather than leaving a server upsert behind.
+    localConversationDraftsRef.current.delete(runConversationId);
     const conversationBefore = conversations.find((conversation) => conversation.id === runConversationId) ?? null;
     // A blank draft becomes a selected conversation the instant it is used.
     // Persist before the request starts, so leaving Ask while the run is active
@@ -1782,6 +1788,8 @@ export function HomePage() {
     clearSelectedConversation();
     const id = `conv-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
+    localConversationDraftsRef.current.clear();
+    localConversationDraftsRef.current.add(id);
     setConversationId(id);
     activeConversationRef.current = id;
     setConversations((items) => [
@@ -1810,6 +1818,7 @@ export function HomePage() {
     // Back should return to the previous conversation, not to a blank one.
     loadedConversationRef.current = id;
     setSearchParams({}, { replace: true });
+    return id;
   }
 
   function focusQuestionInput() {
@@ -2030,13 +2039,27 @@ export function HomePage() {
    * this store has already suffered once.
    */
   async function deleteConversation(id: string) {
+    if (localConversationDraftsRef.current.has(id)) {
+      localConversationDraftsRef.current.delete(id);
+      setConversations((items) => items.filter((item) => item.id !== id));
+      updateActiveConversationRuns((runs) => forgetActiveConversationRun(runs, id));
+      setPendingDelete(null);
+      setError(null);
+      if (id === conversationId) {
+        // Keep Ask on a usable blank composer without replacing the deleted row
+        // with another visible "New conversation" row.
+        const replacementId = startNewConversation();
+        localConversationDraftsRef.current.delete(replacementId);
+        setConversations((items) => items.filter((item) => item.id !== replacementId));
+      }
+      return;
+    }
     setDeletingConversation(id);
     try {
       const response = await fetch(`/api/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      if (!response.ok) {
-        // The route explains itself on 404 and 503, and its wording says
-        // whether anything was removed. Preferring it keeps "nothing was
-        // removed, try again" from being flattened into a generic failure.
+      if (!response.ok && response.status !== 404) {
+        // A 404 already satisfies deletion: there is no durable row left to
+        // preserve. Other refusals keep the row and use the route's wording.
         const payload = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(payload?.message ?? 'This conversation could not be deleted.');
       }
@@ -2382,7 +2405,9 @@ export function HomePage() {
                   >
                     <p className="conversation-confirm-question">Delete this conversation?</p>
                     <p className="conversation-confirm-detail">
-                      Its questions, answers and traces are removed too. This cannot be undone.
+                      {localConversationDraftsRef.current.has(conversation.id)
+                        ? 'Nothing has been asked yet. This removes the empty draft.'
+                        : 'Its questions, answers and traces are removed too. This cannot be undone.'}
                     </p>
                     <div className="conversation-confirm-actions">
                       <button

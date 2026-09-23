@@ -101,8 +101,63 @@
               root.style.setProperty(token, `${Math.round(px * sizeScale)}px`);
             }
           }
+          const lightEntityDefaults = {
+            catalog: { foreground: '#1A5B8F', background: '#E8F1FA' },
+            schema: { foreground: '#4C5C68', background: '#EEF2F5' },
+            table: { foreground: '#0E1720', background: '#E2E8ED' },
+            column: { foreground: '#4C5C68', background: '#F2F5F8' },
+            quote: { foreground: '#4C5C68', background: '#F2F5F8' },
+            tag: { foreground: '#0E1720', background: '#E8F1FA' },
+          };
+          const darkEntityDefaults = {
+            catalog: { foreground: '#A9B4FF', background: '#242A4E' },
+            schema: { foreground: '#D7D2FF', background: '#372F66' },
+            table: { foreground: '#F4F6FB', background: '#262A38' },
+            column: { foreground: '#E8F2FA', background: '#1E2830' },
+            quote: { foreground: '#B7D6EE', background: '#181E23' },
+            tag: { foreground: '#F2F6FA', background: '#243746' },
+          };
+          const legacyLightEntityDefaults = {
+            catalog: { foreground: '#7A5A11', background: '#FBF5E6' },
+            schema: { foreground: '#7A5A11', background: '#FBF5E6' },
+            table: { foreground: '#7A5A11', background: '#FBF5E6' },
+            column: { foreground: '#4C5C68', background: '#F2F5F8' },
+            quote: { foreground: '#4C5C68', background: '#F2F5F8' },
+            tag: { foreground: '#0E1720', background: '#E8F1FA' },
+          };
+          const paperEntityDefaults = {
+            catalog: { foreground: '#FFFFFF', background: '#0E538B' },
+            schema: { foreground: '#16324F', background: '#DDEAF4' },
+            table: { foreground: '#3A3838', background: '#E8E8E8' },
+            column: { foreground: '#3A3838', background: '#F4F4F4' },
+            quote: { foreground: '#46596B', background: '#F7F7F7' },
+            tag: { foreground: '#FFFFFF', background: '#243746' },
+          };
           for (const kind of ['catalog', 'schema', 'table', 'column', 'quote', 'tag']) {
-            const style = saved.entityStyles?.[kind];
+            let style = saved.entityStyles?.[kind];
+            const legacyLightDefault =
+              ['catalog', 'schema', 'table'].includes(kind) &&
+              style?.foreground?.toLowerCase() === '#7a5a11' &&
+              style?.background?.toLowerCase() === '#fbf5e6';
+            const darkDefault = darkEntityDefaults[kind];
+            const currentDefaults = [
+              lightEntityDefaults[kind],
+              legacyLightEntityDefaults[kind],
+              paperEntityDefaults[kind],
+            ];
+            const carriesDarkDefault =
+              colorScheme === 'light' &&
+              ((style?.foreground?.toLowerCase() === darkDefault.foreground.toLowerCase() &&
+                currentDefaults.some(
+                  (candidate) => style?.background?.toLowerCase() === candidate.background.toLowerCase()
+                )) ||
+                (style?.background?.toLowerCase() === darkDefault.background.toLowerCase() &&
+                  currentDefaults.some(
+                    (candidate) => style?.foreground?.toLowerCase() === candidate.foreground.toLowerCase()
+                  )));
+            if (colorScheme === 'light' && (legacyLightDefault || carriesDarkDefault)) {
+              style = lightEntityDefaults[kind];
+            }
             if (
               hex.test(style?.foreground) &&
               hex.test(style?.background) &&

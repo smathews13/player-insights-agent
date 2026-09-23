@@ -1366,23 +1366,6 @@ button.run-context-badge:not(.conversation-context-badge):hover {
 .final-answer .answer-table-wrap {
   width: 100%;
 }
-/*
- * Identifier chips on this card: a quiet night-sky mark, not a white slab.
- * Appearance-saved entity fills can still be a highlighter on paper; on this
- * surface they are not allowed to win.
- */
-html[data-theme='dark'] .final-answer .entity-token,
-html[data-theme='dark'] .final-answer .entity-mark,
-html[data-theme='dark'] .final-answer .answer-code {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ast-ink-on-dark);
-  border-radius: 3px;
-  padding: 0 4px;
-}
-html[data-theme='dark'] .final-answer .entity-catalog {
-  color: var(--ast-ice-accent);
-  background: rgba(143, 193, 232, 0.12);
-}
 .final-answer .keep-in-mind {
   background: color-mix(in srgb, var(--ast-ice) 70%, transparent);
 }

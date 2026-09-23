@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ENTITY_STYLES,
   DEFAULT_RUNTIME_SETTINGS,
+  DARK_ENTITY_STYLES,
   FONT_FAMILY_STACKS,
   PAPER_ENTITY_STYLES,
   RuntimeSettingsSchema,
@@ -10,6 +11,8 @@ import {
   parseRuntimeSettings,
   runtimeAppearanceCssVariables,
   runtimeEntityCssVariables,
+  resolveEntityStylesForRender,
+  upgradeEntityStylesForScheme,
   upgradePaperEntityStyles,
 } from './runtime-settings';
 
@@ -25,22 +28,22 @@ describe('runtime settings contract', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
   });
 
-  it('ships the daylight provenance palette as the default entity styles', () => {
+  it('ships the approved daylight entity palette as the default styles', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.entityStyles).toEqual(DEFAULT_ENTITY_STYLES);
     expect(DEFAULT_ENTITY_STYLES).toEqual({
-      catalog: { foreground: '#7a5a11', background: '#fbf5e6' },
-      schema: { foreground: '#7a5a11', background: '#fbf5e6' },
-      table: { foreground: '#7a5a11', background: '#fbf5e6' },
+      catalog: { foreground: '#1a5b8f', background: '#e8f1fa' },
+      schema: { foreground: '#4c5c68', background: '#eef2f5' },
+      table: { foreground: '#0e1720', background: '#e2e8ed' },
       column: { foreground: '#4c5c68', background: '#f2f5f8' },
       quote: { foreground: '#4c5c68', background: '#f2f5f8' },
       tag: { foreground: '#0e1720', background: '#e8f1fa' },
     });
 
     expect(runtimeEntityCssVariables(DEFAULT_RUNTIME_SETTINGS)).toMatchObject({
-      '--entity-catalog-fg': '#7a5a11',
-      '--entity-catalog-bg': '#fbf5e6',
-      '--entity-schema-bg': '#fbf5e6',
-      '--entity-table-bg': '#fbf5e6',
+      '--entity-catalog-fg': '#1a5b8f',
+      '--entity-catalog-bg': '#e8f1fa',
+      '--entity-schema-bg': '#eef2f5',
+      '--entity-table-bg': '#e2e8ed',
       '--entity-column-bg': '#f2f5f8',
       '--entity-quote-bg': '#f2f5f8',
       '--entity-tag-bg': '#e8f1fa',
@@ -72,6 +75,44 @@ describe('runtime settings contract', () => {
         entityStyles: { ...PAPER_ENTITY_STYLES, table: customTable },
       }).entityStyles.table
     ).toEqual(customTable);
+  });
+
+  it('replaces a half-migrated dark pair as one light-mode pair', () => {
+    const halfMigrated = {
+      ...DEFAULT_ENTITY_STYLES,
+      catalog: {
+        foreground: DARK_ENTITY_STYLES.catalog.foreground,
+        background: DEFAULT_ENTITY_STYLES.catalog.background,
+      },
+    };
+    expect(upgradeEntityStylesForScheme(halfMigrated, 'light').catalog).toEqual(DEFAULT_ENTITY_STYLES.catalog);
+  });
+
+  it('preserves a readable custom pair that deliberately reuses one default hex', () => {
+    const custom = {
+      ...DEFAULT_ENTITY_STYLES,
+      catalog: {
+        foreground: DARK_ENTITY_STYLES.catalog.foreground,
+        background: '#111827',
+      },
+    };
+    expect(upgradeEntityStylesForScheme(custom, 'light').catalog).toEqual(custom.catalog);
+  });
+
+  it('falls back once when a render receives an unreadable pair', () => {
+    const warnings: string[] = [];
+    const resolved = resolveEntityStylesForRender(
+      {
+        colorScheme: 'light',
+        entityStyles: {
+          ...DEFAULT_ENTITY_STYLES,
+          table: { foreground: '#ffffff', background: '#ffffff' },
+        },
+      },
+      (message) => warnings.push(message)
+    );
+    expect(resolved.table).toEqual(DEFAULT_ENTITY_STYLES.table);
+    expect(warnings).toEqual(['Unreadable table entity colors were replaced with the light defaults.']);
   });
 
   it('defaults missing colorScheme to light so older rows adopt the new default', () => {

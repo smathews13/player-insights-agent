@@ -66,9 +66,8 @@
      in astrolabe-tokens.css for why those are two tokens and not one.
      Inside the live harness this whole rule is overridden to `transparent` by
      `.trace-inspector .ast-sky`, which is more specific -- the column paints one
-     sky for the panel and the band sits in it. The agent-map band used to be
-     the one leftover navy on a light page; light mode now hides `.ast-sky-map`
-     so this fill is dark's only. */
+     sky for the panel and the band sits in it. Light mode overrides the paint
+     below while keeping this exact geometry. */
   background-color: var(--ast-sky-fill);
   border-radius: var(--ast-radius-card);
   /* `clip` and not `hidden`: a clip region cannot be scrolled, so the defect the
@@ -222,6 +221,10 @@
   fill: color-mix(in srgb, var(--ast-blue-on-dark) 14%, transparent);
   stroke: color-mix(in srgb, var(--ast-blue-on-dark) 40%, transparent);
   stroke-width: 1;
+}
+
+.ast-star-product--light {
+  display: none;
 }
 
 /*
@@ -407,64 +410,90 @@
   min-width: 0;
 }
 
-/* ---- One run, two views, and the theme picks ---- */
+/* ---- One run, one star map, painted by the theme ---- */
 
 /*
- * THE NIGHT SKY IS THE DARK THEME'S ACCOUNT OF A RUN, AND ONLY ITS OWN.
- *
- * Light mode is daylight the whole way through: no starfield behind the answers,
- * so no starfield in the harness beside them either. `AgentPathConstellation`
- * renders both views on every render and these four rules are the whole of the
- * choice between them -- a CSS selector rather than a `data-theme` read in
- * JavaScript, because a JavaScript read has a first render to be wrong on and a
- * theme preview to be wrong on again.
- *
- * `display: none` and not `visibility` or an opacity: the hidden view has to leave
- * the accessibility tree as well as the page. Each view carries a polite live
- * region and a button per step, and two of each announcing one run is worse than
- * either.
- *
- * THE CONDITION IS `:not([data-theme='dark'])` AND NOT `[data-theme='light']`, so
- * the two views are exhaustive rather than merely different. Every theme is either
- * dark or it is not: dark draws the band and nothing else, anything else draws the
- * list and nothing else, and there is no attribute value -- including none at all,
- * before the applier has run -- that hides both and leaves the column empty. A
- * `[data-theme='light']` pair would have had that third state, and it is the state
- * a reader would report as "the steps are gone".
- *
- * THE FINISHED MAP IS THE SAME NIGHT SKY. It used to stay navy on a white Run
- * Explorer page on the argument that a constellation has no daylight drawing.
- * All-or-nothing forbids that leftover: hide the band in light the same way
- * the live path is hidden. The card grid under it owns selection and stays.
- *
- * `light-mode.test.tsx` reads these rules back rather than trusting the pair to
- * stay that way.
+ * The geometry and interaction are identical in both themes. Light mode changes
+ * only semantic paint: white becomes ink, ice becomes action blue, and product
+ * marks use their paper variant. Keeping the same operable SVG prevents a theme
+ * switch from replacing the run with a different information architecture.
  */
-html:not([data-theme='dark']) .ast-sky-path,
-html:not([data-theme='dark']) .ast-sky-map {
-  display: none;
-}
-
 .step-rail {
   display: none;
 }
 
-html:not([data-theme='dark']) .step-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
+html:not([data-theme='dark']) .ast-sky {
+  background: var(--ast-surface);
+  border: 1px solid var(--ast-hairline);
 }
 
-/*
- * EXCEPT WHERE THE RECORD IS ALREADY A LIST. The Run Explorer's rail draws the
- * band above its own operable stage tiles (`.agent-path` in TraceDag), so in light
- * mode the tiles are the list and this one would be the same run printed twice in
- * a 264px column. Ask's harness has no tiles under the band, which is why it is
- * the seating that needs a light view at all.
- */
-html:not([data-theme='dark']) .agent-path > .step-rail {
+html:not([data-theme='dark']) .trace-inspector .ast-sky {
+  background: transparent;
+  border: 0;
+}
+
+html:not([data-theme='dark']) .ast-star-product--dark {
   display: none;
+}
+
+html:not([data-theme='dark']) .ast-star-product--light {
+  display: inline;
+}
+
+html:not([data-theme='dark']) .ast-links {
+  stroke: var(--ast-action);
+}
+
+html:not([data-theme='dark']) .ast-link {
+  opacity: 0.48;
+}
+
+html:not([data-theme='dark']) .ast-link-live {
+  opacity: 0.8;
+}
+
+html:not([data-theme='dark']) .ast-star-decision,
+html:not([data-theme='dark']) .ast-star-current {
+  fill: var(--ast-ink-secondary);
+  opacity: 0.95;
+}
+
+html:not([data-theme='dark']) .ast-star-plain {
+  fill: var(--ast-ink-tertiary);
+}
+
+html:not([data-theme='dark']) .ast-star-ring {
+  stroke: var(--ast-action);
+  opacity: 0.72;
+}
+
+html:not([data-theme='dark']) .ast-star-tool-halo,
+html:not([data-theme='dark']) .ast-star-selected {
+  fill: var(--ast-action-tint);
+  stroke: var(--ast-action);
+}
+
+html:not([data-theme='dark']) .ast-star-select:is(:hover, :focus-visible, .selected) {
+  filter: drop-shadow(0 0 5px var(--ast-focus-halo));
+}
+
+html:not([data-theme='dark']) :is(.ast-sky-name, .ast-sky-status-text) {
+  color: var(--ast-ink);
+  fill: var(--ast-ink);
+}
+
+html:not([data-theme='dark']) :is(.ast-sky-meta, .ast-sky-num text, .ast-sky-legend text) {
+  fill: var(--ast-ink-tertiary);
+}
+
+html:not([data-theme='dark']) .ast-sky-status-elapsed {
+  color: var(--ast-ink-tertiary);
+}
+
+html:not([data-theme='dark']) .ast-sky-path .pia-loader-mark.pia-mark--dark {
+  --pia-mark-ink: var(--ast-ink);
+  --pia-mark-accent: var(--ast-action);
+  --pia-mark-engraving: var(--ast-surface);
 }
 
 /*

@@ -4,7 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { AnswerProse } from './DataEntityLinks';
 import { layoutFindingBlocks, inlinePlainText } from './answer-findings';
 import { parseAnswerMarkdown } from './answer-markdown';
-import { evidenceLinkedSourceNames, leftoverSources, tableOriginMaps, tableOriginSources } from './answer-table-origins';
+import {
+  evidenceLinkedSourceNames,
+  leftoverSources,
+  tableOriginMaps,
+  tableOriginSources,
+} from './answer-table-origins';
 import { partial } from './styles/stylesheet';
 import type { SourceRef } from './answer-shape';
 
@@ -37,7 +42,9 @@ function labels(markup: string): string[] {
 
 describe('finding layout', () => {
   it('draws a ### label plus bullets as a labeled finding block', () => {
-    const markup = render('### Who\n\n- **12,000** players in `silver_player_profiles`.\n- Grain is 1 row per `player_id`.');
+    const markup = render(
+      '### Who\n\n- **12,000** players in `silver_player_profiles`.\n- Grain is 1 row per `player_id`.'
+    );
     expect(markup).toContain('class="answer-finding"');
     expect(markup).toContain('class="answer-finding-label"');
     expect(markup).toContain('Who');
@@ -58,7 +65,7 @@ describe('finding layout', () => {
     expect(readable(markup)).toContain('0.8365');
     expect(readable(markup)).toContain('0.8905');
     expect(readable(markup)).toContain('108');
-    expect(markup).toContain('<code class="answer-code entity-quote">');
+    expect(markup).toContain('<code class="entity-token entity-quote answer-code" data-entity-part="quote">');
     expect(markup).toContain('silver_player_profiles');
   });
 
@@ -161,10 +168,9 @@ describe('table origin on the table header', () => {
   const TABLE = '| Title | Players |\n| --- | ---: |\n| VLHO | 6044 |';
 
   it('puts the named source on that table’s header band', () => {
-    const markup = render(
-      `Profile base (source: \`${PROFILES}\`).\n\n${TABLE}`,
-      [{ name: PROFILES, freshness: '', role: 'reading' }]
-    );
+    const markup = render(`Profile base (source: \`${PROFILES}\`).\n\n${TABLE}`, [
+      { name: PROFILES, freshness: '', role: 'reading' },
+    ]);
     expect(markup).toContain('answer-table-origin');
     expect(markup).toContain('aria-label="Source table"');
     expect(markup).toContain('silver_player_profiles');
@@ -200,10 +206,15 @@ describe('table origin on the table header', () => {
   });
 
   it('names chart figure-sources as already linked so Sources can drop the duplicate Open', () => {
-    const names = evidenceLinkedSourceNames('Sessions rose.', null, [{ id: 'c1' }], [
-      { name: DAILY, freshness: '', role: 'reading' },
-      { name: 'main.player_insights.data_dictionary', freshness: '', role: 'reference' },
-    ]);
+    const names = evidenceLinkedSourceNames(
+      'Sessions rose.',
+      null,
+      [{ id: 'c1' }],
+      [
+        { name: DAILY, freshness: '', role: 'reading' },
+        { name: 'main.player_insights.data_dictionary', freshness: '', role: 'reference' },
+      ]
+    );
     expect(names).toEqual([DAILY]);
     expect(
       leftoverSources(

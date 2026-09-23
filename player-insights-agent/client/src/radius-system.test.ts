@@ -72,7 +72,7 @@ const SHAPES = new Set(['50%', '999px', '0']);
  * the rebuild uses. Accepting both is what lets a surface be converted a
  * stylesheet at a time without either spelling reading as a stray.
  */
-const TWO_RADII = /^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card))\)$/;
+const APPROVED_RADII = /^var\(--(?:radius-(?:sm|md)|ast-radius-(?:control|card|pill))\)$/;
 
 const EXCEPTIONS: Record<string, { value: string; because: string }[]> = {
   // ask.css had one: the old speech-bubble notch. Question attribution now uses
@@ -87,12 +87,6 @@ const EXCEPTIONS: Record<string, { value: string; because: string }[]> = {
     {
       value: '3px',
       because: 'inline SQL code at body height; 4px would round the one-line mark into a lozenge',
-    },
-  ],
-  'runs.css': [
-    {
-      value: '3px',
-      because: 'inline identifier chips on a stored answer; 4px would round a one-line mark into a lozenge',
     },
   ],
 };
@@ -118,7 +112,9 @@ describe('two radii, and the exceptions say why they are exceptions', () => {
         match[1].trim()
       );
       const allowed = (EXCEPTIONS[name] ?? []).map((exception) => exception.value);
-      const stray = radii.filter((value) => !TWO_RADII.test(value) && !SHAPES.has(value) && !allowed.includes(value));
+      const stray = radii.filter(
+        (value) => !APPROVED_RADII.test(value) && !SHAPES.has(value) && !allowed.includes(value)
+      );
       expect(stray).toEqual([]);
       // And the exception list does not outlive the exceptions: an entry that no
       // longer matches anything is a comment claiming a decision nobody made.

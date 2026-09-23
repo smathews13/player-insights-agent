@@ -53,8 +53,12 @@
 }
 
 .entity-token {
-  padding: 1px 3px;
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ast-radius-pill);
   font-family: var(--font-mono);
+  font-size: var(--ast-fs-13);
   text-decoration: inherit;
 }
 
@@ -65,7 +69,7 @@
  * three different weights for the same table name.
  */
 .entity-token[data-entity-part='table'] {
-  font-weight: 700;
+  font-weight: var(--ast-entity-table-weight);
 }
 
 /*
@@ -92,26 +96,51 @@
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
-.entity-catalog {
+.entity-token.entity-catalog {
   color: var(--ast-entity-catalog-fg);
   background: var(--ast-entity-catalog-bg);
+  border-color: var(--ast-entity-catalog-border);
+  font-weight: var(--ast-entity-catalog-weight);
 }
-.entity-schema {
+.entity-token.entity-schema {
   color: var(--ast-entity-schema-fg);
   background: var(--ast-entity-schema-bg);
+  border-color: var(--ast-entity-schema-border);
+  font-weight: var(--ast-entity-schema-weight);
 }
-.entity-table {
+.entity-token.entity-table {
   color: var(--ast-entity-table-fg);
   background: var(--ast-entity-table-bg);
+  border-color: var(--ast-entity-table-border);
+  font-weight: var(--ast-entity-table-weight);
 }
 .entity-column {
   color: var(--ast-entity-column-fg);
   background: var(--ast-entity-column-bg);
-  padding: 1px 3px;
+  border: 1px solid var(--ast-entity-column-border);
+  border-radius: var(--ast-radius-pill);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--ast-fs-13);
+  font-weight: var(--ast-entity-column-weight);
 }
 .entity-quote {
   color: var(--ast-entity-quote-fg);
   background: var(--ast-entity-quote-bg);
+  border-color: var(--ast-entity-quote-border);
+  border-radius: var(--ast-radius-pill);
+  padding: 2px 8px;
+  font-weight: var(--ast-entity-quote-weight);
+}
+.entity-token.entity-tag {
+  color: var(--ast-entity-tag-fg);
+  background: var(--ast-entity-tag-bg);
+  border-color: var(--ast-entity-tag-border);
+  font-weight: var(--ast-entity-tag-weight);
+}
+.entity-separator {
+  color: var(--ast-ink-tertiary);
+  font-family: var(--font-mono);
 }
 .entity-table-list {
   min-width: 0;
@@ -207,6 +236,8 @@
 .answer-card .provenance-chip {
   color: var(--ast-entity-tag-fg);
   background: var(--ast-entity-tag-bg);
+  border-color: var(--ast-entity-tag-border);
+  font-weight: var(--ast-entity-tag-weight);
 }
 /* The data package's values, in the shape the source table beside them already
    takes: `.answer-code`'s 3px radius and 1px 5px, so a fact is one shape across
@@ -215,9 +246,6 @@
    Tag for a label -- rather than a third vocabulary invented here. */
 .answer-badge {
   display: inline-block;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 0.88em;
   /* A window is one value and must not break across lines: `2026-07-22 –
      2026-08-03` wrapped at the dash reads as two dates. */
   white-space: nowrap;
@@ -796,6 +824,15 @@ ol.answer-list {
      note beside `.entity-token` at the top of this file. */
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+.answer-code.entity-quote {
+  color: var(--ast-entity-quote-fg);
+  background: var(--ast-entity-quote-bg);
+  border: 1px solid var(--ast-entity-quote-border);
+  border-radius: var(--ast-radius-pill);
+  padding: 2px 8px;
+  font-size: var(--ast-fs-13);
+  font-weight: var(--ast-entity-quote-weight);
 }
 .semantic-inline-code {
   display: inline-block;

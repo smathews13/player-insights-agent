@@ -306,18 +306,16 @@ describe('the light answer sits on high-alpha semantic glass', () => {
   });
 });
 
-describe('one account of the run per theme, chosen in CSS', () => {
-  it('shows the band in dark and the list everywhere else, with no third state', () => {
-    /*
-     * The pair has to be EXHAUSTIVE rather than merely disjoint. Written as
-     * `[data-theme='light']` there would be an attribute value -- including none at
-     * all -- that hid the band and never showed the list, and that state is the one
-     * a reader would report as "the steps are gone".
-     */
-    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-sky-path`)).toMatch(/display:\s*none/);
-    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-sky-map`)).toMatch(/display:\s*none/);
+describe('one operable star map in both themes', () => {
+  it('keeps the star map visible and hides the list fallback in every theme', () => {
+    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-sky`)).toMatch(/background:\s*var\(--ast-surface\)/);
+    expect(declarations(CONSTELLATION)).not.toMatch(
+      /html:not\(\[data-theme='dark'\]\) \.ast-sky-(?:path|map)[^{]*\{[^}]*display:\s*none/
+    );
     expect(rule(CONSTELLATION, '.step-rail')).toMatch(/display:\s*none/);
-    expect(rule(CONSTELLATION, `html${NOT_DARK} .step-rail`)).toMatch(/display:\s*flex/);
+    expect(rule(CONSTELLATION, `html${NOT_DARK} .step-rail`)).not.toMatch(/display:\s*flex/);
+    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-star-decision`)).toMatch(/fill:\s*var\(--ast-ink-secondary\)/);
+    expect(rule(CONSTELLATION, `html${NOT_DARK} .ast-links`)).toMatch(/stroke:\s*var\(--ast-action\)/);
     expect(declarations(CONSTELLATION)).not.toContain("[data-theme='light']");
   });
 
@@ -334,14 +332,8 @@ describe('one account of the run per theme, chosen in CSS', () => {
     expect(source('AgentConstellation.tsx')).toContain('<StepRail');
   });
 
-  it('leaves the Run Explorer rail with one list rather than two', () => {
-    /*
-     * TraceDag draws the band above its own operable stage tiles, so in daylight
-     * the tiles ARE the list and this one would be the same run printed twice in a
-     * 264px column. Ask's harness has no tiles under the band, which is why it is
-     * the surface that needed a light view at all.
-     */
-    expect(rule(CONSTELLATION, `html${NOT_DARK} .agent-path > .step-rail`)).toMatch(/display:\s*none/);
+  it('leaves the Run Explorer rail with one operable map rather than two visible lists', () => {
+    expect(rule(CONSTELLATION, '.step-rail')).toMatch(/display:\s*none/);
     expect(source('TraceDag.tsx')).toContain('className="agent-path"');
   });
 
@@ -375,7 +367,7 @@ describe('one account of the run per theme, chosen in CSS', () => {
   });
 });
 
-describe('the daylight list is the whole run, without a star in it', () => {
+describe('the hidden list fallback remains a complete rendering of the run', () => {
   it('gives every stage a row, by the same numbers the band draws', () => {
     const markup = railOf(inFlight, 5, 12_000);
     const labels = attrs(markup, 'aria-label').filter((label) => label.startsWith('Select step '));

@@ -1122,12 +1122,12 @@
 .dag-schema-column-token {
   display: inline-block;
   max-width: 100%;
-  padding: 1px 4px;
-  border-radius: var(--ast-radius-control);
+  padding: 2px 8px;
+  border-radius: var(--ast-radius-pill);
   color: var(--ast-entity-column-fg);
   background: var(--ast-entity-column-bg);
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: var(--ast-entity-column-weight);
   white-space: normal;
   overflow-wrap: anywhere;
   -webkit-box-decoration-break: clone;

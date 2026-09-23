@@ -243,6 +243,10 @@ describe('Appearance preferences', () => {
     expect(INDEX).toContain('if (readableOnSurfaces(saved.fontBodyColor))');
     expect(INDEX).toContain("window.matchMedia?.('(prefers-color-scheme: dark)').matches");
     expect(INDEX).toContain('contrast(style.foreground, style.background) >= 4.5');
+    expect(INDEX).toContain('const lightEntityDefaults =');
+    expect(INDEX).toContain('const darkEntityDefaults =');
+    expect(INDEX).toContain('const currentDefaults = [');
+    expect(INDEX).toContain("if (colorScheme === 'light' && (legacyLightDefault || carriesDarkDefault))");
     expect(INDEX).toContain('if (families[saved.fontFamily])');
     expect(runtimeAppearanceFromCache(JSON.stringify(DEFAULT_RUNTIME_SETTINGS))).toEqual(DEFAULT_RUNTIME_SETTINGS);
     for (const malformed of [null, '{', '{"density":"dense"}', '{"fontBodyColor":"red"}']) {

@@ -1625,10 +1625,10 @@
   line-height: 1.65;
 }
 .connections-entity-name .entity-token {
-  border-radius: var(--radius-sm);
+  border-radius: var(--ast-radius-pill);
 }
 .connections-entity-name [data-entity-part='table'] {
-  font-weight: 700;
+  font-weight: var(--ast-entity-table-weight);
 }
 .connections-entity-separator {
   color: var(--ast-text-secondary);
