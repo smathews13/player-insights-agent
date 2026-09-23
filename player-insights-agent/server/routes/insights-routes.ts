@@ -365,13 +365,13 @@ const PlanCandidateSchema = z.looseObject({
   recommended: z.boolean(),
 });
 
-export const ApprovedPlanBodySchema = z.object({
+export const ApprovedPlanBodySchema = z.looseObject({
   id: z.string().min(1).max(120),
   question: z.string().min(1).max(5000),
   summary: z.string().min(1).max(4000),
   steps: z
     .array(
-      z.object({
+      z.looseObject({
         id: z.string().min(1).max(120),
         title: z.string().min(1).max(500),
         description: z.string().min(1).max(2000),
@@ -380,7 +380,7 @@ export const ApprovedPlanBodySchema = z.object({
     )
     .min(1)
     .max(8),
-  candidates: z.array(PlanCandidateSchema).min(1).max(3).optional(),
+  candidates: z.array(PlanCandidateSchema).max(3).optional(),
   requires_approval: z.boolean().optional(),
   uses_conversation_context: z.boolean().optional(),
   uses_attachment_context: z.boolean().optional(),
@@ -719,7 +719,7 @@ const AnalysisPlanSchema = z.looseObject({
   id: z.string().min(1),
   question: z.string().min(1),
   summary: z.string().min(1),
-  steps: z.array(PlanStepSchema),
+  steps: z.array(PlanStepSchema).min(1).max(8),
   candidates: z.array(PlanCandidateSchema).max(3).default([]),
   requires_approval: z.boolean().default(true),
   uses_conversation_context: z.boolean().default(false),
@@ -2613,6 +2613,10 @@ export function extractAnalysisPlan(value: unknown): AnalysisPlan | null {
         }
         return parsed.data;
       }
+      console.warn(
+        '[serving] Endpoint proposed a plan in a shape the app cannot approve:',
+        parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+      );
     }
   }
   for (const key of ['data', 'response', 'result', 'body']) {
@@ -5355,7 +5359,7 @@ export function setupInsightsRoutes(
           clearTimeout(deadlineTimer);
           ranAsSignedInUser = Boolean(identity.token);
           /**
-           * Before all five shapes, because a refusal is none of them and looks
+           * Before all six result shapes, because a refusal is none of them and looks
            * like one of them.
            *
            * `invokeServingAsUser` raises `AuthorizationRefused` when the ENDPOINT
@@ -5650,8 +5654,8 @@ export function setupInsightsRoutes(
             // this line is the only record of which shape actually arrived.
             const shape = describePayloadShape(endpointResult);
             console.error(
-              '[serving] The endpoint answered, but with none of the five shapes this app can read ' +
-                `(plan, clarification, report, structured answer, live text). ${shape}. Payload: ` +
+              '[serving] The endpoint answered, but with none of the six result shapes this app can read ' +
+                `(plan, clarification, dashboard, report, structured answer, live text). ${shape}. Payload: ` +
                 JSON.stringify(endpointResult).slice(0, 1200)
             );
             await settleRun(appkit, admission, {

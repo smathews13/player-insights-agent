@@ -4424,7 +4424,7 @@ describe('a failed run is answered with nothing', () => {
     expect(status).toBe(502);
     expect((body as { code?: string }).code).toBe('OUTPUT_SCHEMA_VIOLATION');
     expect(body.figures).toBeUndefined();
-    expect(errors.join('\n')).toContain('none of the five shapes');
+    expect(errors.join('\n')).toContain('none of the six result shapes');
   });
 
   /**
