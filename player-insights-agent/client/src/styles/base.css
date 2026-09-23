@@ -332,7 +332,7 @@ html:not([data-theme='dark']) .app-sky {
   line-height: 1.25;
   opacity: 1;
   backdrop-filter: none;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--ast-shadow-overlay);
 }
 .app-select-content {
   /*
@@ -498,7 +498,7 @@ html:not([data-theme='dark']) .app-sky {
  * would use if it were pressed.
  */
 :focus-visible {
-  outline: 2px solid var(--ast-action);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 5px var(--ast-focus-halo);
+  outline: 2px solid var(--ast-action) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo) !important;
 }

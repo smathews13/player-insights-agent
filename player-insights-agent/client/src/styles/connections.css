@@ -1151,7 +1151,7 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   background: var(--ast-surface-elevated);
-  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  box-shadow: var(--ast-shadow-overlay);
 }
 .uc-explorer-frame {
   display: flex;

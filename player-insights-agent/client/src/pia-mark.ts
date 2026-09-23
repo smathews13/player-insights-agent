@@ -32,7 +32,7 @@ export type PiaMarkElement =
     });
 
 export const PIA_MARK_VIEWBOX = 64;
-export const PIA_SIMPLIFIED_CUTOFF = 24;
+export const PIA_SIMPLIFIED_CUTOFF = 16;
 
 export const PIA_DPAD_ARMS: readonly PiaMarkElement[] = [
   { kind: 'rect', x: 25, y: 6, width: 14, height: 52, rx: 7, fill: 'ink', role: 'arm' },
@@ -160,9 +160,9 @@ export const PIA_NAME = 'Player Insights Agent';
 export const PIA_ACRONYM = 'PIA';
 
 export const PIA_LOCKUP_SEATS = {
-  header: { mark: 24, type: 12.5, gap: 7 },
-  hero: { mark: 48, type: 24, gap: 12 },
-  compact: { mark: 40, type: 38, gap: 5 },
+  header: { mark: 21, markWidth: 19, markHeight: 21, type: 17, gap: 5 },
+  hero: { mark: 48, markWidth: 48, markHeight: 48, type: 24, gap: 12 },
+  compact: { mark: 40, markWidth: 40, markHeight: 40, type: 38, gap: 5 },
 } as const;
 
 export type PiaLockupSeat = keyof typeof PIA_LOCKUP_SEATS;

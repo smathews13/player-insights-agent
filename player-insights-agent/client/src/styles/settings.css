@@ -516,6 +516,11 @@
   flex: none;
 }
 
+.settings-page [data-slot='switch'][data-state='unchecked'] {
+  border-color: var(--ast-border-input);
+  background: var(--ast-switch-off);
+}
+
 .settings-page [data-slot='switch-thumb'] {
   width: 14px;
   height: 14px;
@@ -730,7 +735,7 @@
   border-color: var(--border);
   border-radius: var(--radius-md);
   background: var(--roster-panel-surface);
-  box-shadow: var(--ast-shadow-chrome);
+  box-shadow: var(--ast-shadow-flat);
 }
 
 .settings-table-frame::-webkit-scrollbar {
@@ -2142,6 +2147,17 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   font-variant-numeric: tabular-nums;
 }
 
+.appearance-contrast-error {
+  margin: 4px 0 0;
+  color: var(--ast-neg-text);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.appearance-grid-contrast-error {
+  grid-column: 2 / -1;
+}
+
 .appearance-sample-plaque {
   min-width: 0;
   min-height: 32px;
@@ -2962,7 +2978,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--popover);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 .sp-resource-search {

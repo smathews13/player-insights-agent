@@ -15,7 +15,7 @@
   --ask-rail-block-size: calc(100dvh - var(--app-header-h) - env(safe-area-inset-bottom, 0px));
   background-color: var(--ast-sky-fill);
   /*
-   * 264 / fluid / 340, and the asymmetry is the point rather than a slip.
+   * 290 / fluid / 320, and the asymmetry is the point rather than a slip.
    *
    * It was 264 both sides, which is the mockup's own grid, and the argument for it
    * was that two equal columns put the hero and the composer -- both centred in
@@ -28,11 +28,10 @@
    * composer is 38px left of centre here, which is a cost paid in a place nobody
    * measures for a column that is now read rather than glanced at.
    *
-   * 340 is a width somebody chose, like the two below it: it is where the longest
+   * 320 is the reference inspector width and still gives the longest
    * status line this agent writes fits on two lines rather than four, and it
    * leaves the transcript its own measure at every window the inspector is drawn
-   * at (responsive.css hands the rail back its 264px in the tight band, where the
-   * middle column has nothing to spare).
+   * at.
    *
    * ONLY THE INSPECTOR IS RESTATED HERE NOW. The conversation column used to be
    * overridden here too, on the argument that tokens.css is shared and this page
@@ -47,17 +46,12 @@
    * tokens were `clamp(220px, 15vw, 264px)` and `clamp(280px, 21vw, 300px)`, so
    * the columns narrowed continuously with the window and reached the design's
    * widths only past 1760px -- a third breakpoint system, invisible, disagreeing
-   * with the two this document has just been reduced to one of. The rail is 264px
-   * until 1180px and 220px below it, and where it changes is a width somebody
+   * with the two this document has just been reduced to one of. The rail is 290px
+   * until 1320px and 220px below it, and where it changes is a width somebody
    * chose.
    */
-  --trace-width: 340px;
-  /* Same column as the harness, always. The conversation rail used to sit at
-     264px against a 340px inspector, then vanish the inspector at idle, so Ask
-     read as a fat list of chats beside empty sky. Both tracks now read this
-     one width; the header still reads `--conversation-width` from tokens.css,
-     which is the same 340px. */
-  --conversation-width: var(--trace-width);
+  --trace-width: 320px;
+  --conversation-width: 290px;
   /* The slim track a collapsed side rail leaves behind. See the collapse block
      at the foot of this file. */
   --ask-pane-collapsed-width: 44px;
@@ -1163,10 +1157,10 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
 .ask-layout[data-rail-collapsed='true'] {
   --conversation-width: var(--ask-pane-collapsed-width);
 }
-/* Only where the inspector is drawn: above 1180px responsive.css hides the
+/* Only where the inspector is drawn: above 1320px responsive.css hides the
    column and owns a two-column grid, so restating a third track there would
    re-add the column it just removed. */
-@media (min-width: 1181px) {
+@media (min-width: 1321px) {
   .ask-layout[data-inspector-collapsed='true'] {
     grid-template-columns: var(--conversation-width) minmax(0, 1fr) var(--ask-pane-collapsed-width);
   }

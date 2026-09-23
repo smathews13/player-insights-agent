@@ -2,9 +2,11 @@ import { z } from 'zod';
 
 import {
   DEFAULT_ENTITY_STYLES,
+  DARK_ENTITY_STYLES,
   DENSITY_IDS,
   FONT_FAMILY_IDS,
   FONT_SIZE_IDS,
+  LIGHT_ENTITY_STYLES,
   RUNTIME_ANSWER_KEYS,
   RUNTIME_BEHAVIOR_KEYS,
   RUNTIME_ENTITY_KINDS,
@@ -13,6 +15,8 @@ import {
   RUNTIME_LOOP_KEYS,
   RUNTIME_SETTINGS_KEYS,
   THEME_FONT_COLORS,
+  runtimeAppearanceContrastIssues,
+  upgradeFontColorForContrast,
   upgradeEntityStylesForScheme,
 } from './runtime-settings-browser';
 
@@ -39,8 +43,10 @@ export {
   entityStylesForScheme,
   isHexColor,
   runtimeAppearanceCssVariables,
+  runtimeAppearanceContrastIssues,
   runtimeEntityCssVariables,
   runtimeTypographyCssVariables,
+  upgradeFontColorForContrast,
   upgradeEntityStylesForScheme,
   upgradePaperEntityStyles,
 } from './runtime-settings-browser';
@@ -123,8 +129,19 @@ export const RuntimeSettingsSchema = RuntimeSettingsObjectSchema.transform((sett
   ...settings,
   entityStyles: upgradeEntityStylesForScheme(settings.entityStyles, settings.colorScheme),
   fontBodyColor: settings.fontBodyColor ?? THEME_FONT_COLORS[settings.colorScheme].body,
-  fontMutedColor: settings.fontMutedColor ?? THEME_FONT_COLORS[settings.colorScheme].muted,
-}));
+  fontMutedColor: upgradeFontColorForContrast(
+    settings.fontMutedColor ?? THEME_FONT_COLORS[settings.colorScheme].muted,
+    settings.colorScheme
+  ),
+})).superRefine((settings, context) => {
+  for (const issue of runtimeAppearanceContrastIssues(settings)) {
+    context.addIssue({
+      code: 'custom',
+      path: issue.field.split('.'),
+      message: issue.message,
+    });
+  }
+});
 
 export type RuntimeSettings = z.infer<typeof RuntimeSettingsSchema>;
 
@@ -237,5 +254,28 @@ export function parseStoredRuntimeSettings(value: unknown): RuntimeSettings {
       ])
     );
   }
-  return RuntimeSettingsSchema.parse(known);
+  const parsed = RuntimeSettingsSchema.safeParse(known);
+  if (parsed.success) return parsed.data;
+
+  const structural = RuntimeSettingsObjectSchema.parse(known);
+  const scheme = structural.colorScheme;
+  const candidate: RuntimeSettings = {
+    ...structural,
+    entityStyles: upgradeEntityStylesForScheme(structural.entityStyles, scheme),
+    fontBodyColor: structural.fontBodyColor ?? THEME_FONT_COLORS[scheme].body,
+    fontMutedColor: upgradeFontColorForContrast(structural.fontMutedColor ?? THEME_FONT_COLORS[scheme].muted, scheme),
+  };
+  const defaults = scheme === 'dark' ? DARK_ENTITY_STYLES : LIGHT_ENTITY_STYLES;
+  for (const issue of runtimeAppearanceContrastIssues(candidate)) {
+    if (issue.field === 'fontBodyColor') candidate.fontBodyColor = THEME_FONT_COLORS[scheme].body;
+    else if (issue.field === 'fontMutedColor') candidate.fontMutedColor = THEME_FONT_COLORS[scheme].muted;
+    else {
+      const kind = issue.field.split('.')[1] as (typeof RUNTIME_ENTITY_KINDS)[number];
+      candidate.entityStyles = {
+        ...candidate.entityStyles,
+        [kind]: { ...defaults[kind] },
+      };
+    }
+  }
+  return RuntimeSettingsSchema.parse(candidate);
 }

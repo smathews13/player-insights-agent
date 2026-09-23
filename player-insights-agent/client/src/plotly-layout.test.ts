@@ -11,7 +11,7 @@ const LIGHT: ChartTheme = {
   accent: '#2272b4',
   second: '#04867d',
   third: '#4299e0',
-  fourth: '#445461',
+  other: '#445461',
   mono: "'DM Mono', monospace",
 };
 
@@ -23,7 +23,7 @@ const DARK: ChartTheme = {
   accent: '#8fc1e8',
   second: '#04867d',
   third: '#6faedd',
-  fourth: '#8a9aa3',
+  other: '#8a9aa3',
   mono: "'DM Mono', monospace",
 };
 

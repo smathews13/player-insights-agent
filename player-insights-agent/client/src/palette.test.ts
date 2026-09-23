@@ -193,7 +193,7 @@ describe('the palette is the palette, and nothing is painted beside it', () => {
     expect(ASTROLABE_TOKENS).toMatch(/--ast-navy:\s*#11171c/i);
     expect(ASTROLABE_TOKENS).toMatch(/--ast-primary-control-fill:\s*#1b3049/i);
     expect(ASTROLABE_TOKENS).toMatch(/--ast-primary-control-border:\s*#4a8cbf/i);
-    expect(dark).toContain('--background: var(--ast-navy)');
+    expect(dark).toContain('--background: var(--ast-canvas)');
     expect(astDark).toContain('--ast-sky-fill: var(--ast-navy)');
   });
 

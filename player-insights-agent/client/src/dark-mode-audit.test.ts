@@ -102,14 +102,12 @@ describe('dark mode covers the shipped surfaces', () => {
   });
 
   it('keeps the spec paints centralized and exact', () => {
-    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-navy\)/);
+    expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--background:\s*var\(--ast-canvas\)/);
     expect(TOKENS).toMatch(/html\[data-theme='dark'\][\s\S]*--card:\s*var\(--ast-surface-primary\)/);
     expect(ASTROLABE).toMatch(/--ast-surface-primary:\s*color-mix\([^;]*98\.5%,\s*transparent\)/);
     expect(ASTROLABE).toMatch(/--ast-surface-menu:\s*color-mix\([^;]*100%,\s*transparent\)/);
-    expect(ASTROLABE).toMatch(
-      /html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*rgba\(232,\s*237,\s*242,\s*0\.68\)/
-    );
-    expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-caption:\s*rgba\(232,\s*237,\s*242,\s*0\.8\)/);
+    expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-text-secondary:\s*#8b9ca4/);
+    expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-caption:\s*#8b9ca4/);
     expect(DARK).toContain('background: rgba(255, 255, 255, 0.06)');
     expect(DARK).toContain('background: var(--ast-surface-primary)');
     expect(DARK).toContain('background: var(--ast-surface-elevated)');
@@ -207,7 +205,9 @@ describe('dark mode covers the shipped surfaces', () => {
   });
 
   it('matches the interaction, chart, and constellation treatments', () => {
-    expect(DARK).toMatch(/:focus-visible\s*\{[^}]*outline:\s*1px solid var\(--ast-ice-accent\)/);
+    expect(DARK).toMatch(
+      /:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ast-action\)[^}]*box-shadow:\s*0 0 0 5px var\(--ast-focus-halo\)/
+    );
     expect(DARK).toMatch(/\.app-sky-line\s*\{[^}]*opacity:\s*0\.32/);
     expect(source('StarField.tsx')).toContain('data-topology-glyph={node.glyph}');
     expect(DARK).toMatch(/\.ops-lat-bar-track\s*\{[^}]*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
@@ -266,7 +266,10 @@ describe('dark mode covers the shipped surfaces', () => {
       /background:\s*rgba\(143,\s*193,\s*232,\s*0\.28\)/
     );
     expect(bodyFor(DARK, "html[data-theme='dark'] .header-settings:focus-visible")).toMatch(
-      /outline:\s*1px solid var\(--ast-ice-accent\)/
+      /outline:\s*2px solid var\(--ast-action\)/
+    );
+    expect(bodyFor(DARK, "html[data-theme='dark'] .header-settings:focus-visible")).toMatch(
+      /box-shadow:\s*0 0 0 5px var\(--ast-focus-halo\)/
     );
     expect(source('Layout.tsx')).toMatch(
       /variant="ghost"\s+data-variant="ghost"\s+size="icon"\s+className="header-settings/
@@ -605,8 +608,8 @@ describe('dark mode covers the shipped surfaces', () => {
     expect(copy).toMatch(/color:\s*var\(--muted-foreground\)/);
 
     const focus = bodyFor(DARK, "html[data-theme='dark'] .environment-list:focus-visible");
-    expect(focus).toMatch(/outline:\s*1px solid var\(--ast-ice-accent\)/);
-    expect(focus).toMatch(/box-shadow:\s*none/);
+    expect(focus).toMatch(/outline:\s*2px solid var\(--ast-action\)/);
+    expect(focus).toMatch(/box-shadow:\s*0 0 0 5px var\(--ast-focus-halo\)/);
 
     const page = source('SettingsPage.tsx');
     expect(page).toMatch(/data-variant="outline"\s+className="settings-cancel"/);

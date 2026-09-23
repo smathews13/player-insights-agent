@@ -799,7 +799,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   flex-direction: column;
   align-items: stretch;
   gap: 14px;
-  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  box-shadow: var(--ast-shadow-overlay);
 }
 /*
  * Every direct child keeps its content height. The token line used to be a
@@ -852,7 +852,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(17, 23, 28, 0.35);
+  box-shadow: var(--ast-shadow-overlay);
 }
 .user-profile-modal-header,
 .monitoring-users-header {

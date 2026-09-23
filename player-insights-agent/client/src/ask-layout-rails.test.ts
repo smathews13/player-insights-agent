@@ -8,7 +8,7 @@ import type { TraceStage } from './answer-shape';
 import { partial } from './styles/stylesheet';
 
 /**
- * Ask-tab rails: idle Agent path stays on, both side columns share a width,
+ * Ask-tab rails: idle Agent path stays on, both side columns keep their reference widths,
  * the answer card centres in the leftover track, and a live step row carries
  * the same kind mark the constellation draws.
  */
@@ -46,7 +46,7 @@ describe('idle Ask keeps the Agent path pane', () => {
     expect(RAIL).not.toMatch(
       /\.ask-layout\[data-inspector=['"]idle['"]\]\s+\.trace-inspector\s*\{[^}]*display:\s*none/
     );
-    expect(RAIL).toMatch(/--trace-width:\s*340px/);
+    expect(RAIL).toMatch(/--trace-width:\s*320px/);
   });
 
   it('leaves idle Ask on the one app-wide topology', () => {
@@ -127,11 +127,12 @@ describe('idle Ask keeps the Agent path pane', () => {
   });
 });
 
-describe('the two rails share one width and the card sits in the middle', () => {
-  it('makes the conversation rail read the same token as the Agent path', () => {
-    expect(RAIL).toMatch(/--conversation-width:\s*var\(--trace-width\)/);
-    expect(TOKENS).toMatch(/--conversation-width:\s*340px/);
-    expect(TOKENS).toMatch(/--trace-width:\s*340px/);
+describe('the two rails keep their specified widths and the card sits in the middle', () => {
+  it('uses the 290px conversation rail and 320px Agent path', () => {
+    expect(RAIL).toMatch(/--conversation-width:\s*290px/);
+    expect(RAIL).toMatch(/--trace-width:\s*320px/);
+    expect(TOKENS).toMatch(/--conversation-width:\s*290px/);
+    expect(TOKENS).toMatch(/--trace-width:\s*320px/);
   });
 
   it('centres the answer and working cards in the leftover track', () => {

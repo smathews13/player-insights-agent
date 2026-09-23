@@ -196,7 +196,7 @@
   }
 }
 /* Above the width where the nav collapses into the sheet, the hamburger is not
-   drawn at all; responsive.css turns these two around at 1180px. */
+   drawn at all; responsive.css turns these two around at 1320px. */
 .mobile-nav {
   display: none;
 }
@@ -221,7 +221,7 @@
  * and the header's contents from inside that padding. No extra inset: landing
  * a tab past the hairline is the gap this reservation exists to avoid.
  *
- * Below 1180px the nav is not drawn at all and responsive.css relaxes this to
+ * Below 1320px the nav is not drawn at all and responsive.css relaxes this to
  * `flex: 0 1 auto`, which is what lets the wordmark truncate on a phone rather
  * than holding a column open against nothing.
  */

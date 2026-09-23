@@ -102,7 +102,7 @@ describe('Run Explorer filter geometry', () => {
     const narrow = RESPONSIVE.slice(RESPONSIVE.indexOf('@media (max-width: 960px)'));
     expect(narrow).toMatch(/\.run-list-filters\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
     expect(narrow).toMatch(/\.run-filter-field,[\s\S]*?width:\s*100%/);
-    expect(RESPONSIVE).not.toMatch(/@media \(max-width: (?!1365|1180|960|480)\d+px\)/);
+    expect(RESPONSIVE).not.toMatch(/@media \(max-width: (?!1365|1320|960|480)\d+px\)/);
   });
 
   it('clearing one filter leaves the other filter and search in force', () => {

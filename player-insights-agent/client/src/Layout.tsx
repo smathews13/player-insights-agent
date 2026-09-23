@@ -218,7 +218,7 @@ const NAV_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>>
 };
 
 /**
- * The whole navigation, rendered twice: as the header row above 1180px and
+ * The whole navigation, rendered twice: as the header row above 1320px and
  * inside the mobile sheet below it.
  *
  * One component on purpose, and the reason is worth keeping. The two used to be
@@ -346,7 +346,7 @@ export function HeaderBrand({
           onHome?.();
         }}
       >
-        <PiaLockup as="h1" seat="header" name="full" tone="dark" />
+        <PiaLockup as="h1" seat="header" name="full" tone="light" />
       </Link>
       {deployedAt ? <DeploymentTimeChip deployedAt={deployedAt} deployedBy={deployedBy} buildSha={buildSha} /> : null}
       <span className="app-chrome-rule" aria-hidden="true" />
@@ -579,16 +579,16 @@ export function Layout() {
 
             Six tabs do not over-subscribe it, but they leave the chips much less
             room than four did, so responsive.css takes 4px off each side of every
-            tab in the 1180-1365 band -- the same band where the chip already
+            tab in the 1320-1365 band -- the same band where the chip already
             sheds its label because the header is tight. Where the row starts is
             the rail-width of `.brand-lockup`, not a first-tab padding exception.
 
             Which width that is now lives in responsive.css with the other three,
             rather than in a `xl:` utility here. The two systems disagreed: the nav
             collapsed at Tailwind's 1280 while the trace inspector had already gone
-            at the hand-written 1180, so there was a 100px band in which the header
+            at a different hand-written breakpoint, so there was a band in which the header
             was full and the page had lost a column. One set of breakpoints now --
-            480, 800, 1180, 1366 -- and the nav goes at 1180 with the inspector. */}
+            480, 800, 1320, 1366 -- and the nav goes at 1320 with the inspector. */}
           <NavLinks
             className="app-nav"
             linkClass={navLinkClass}

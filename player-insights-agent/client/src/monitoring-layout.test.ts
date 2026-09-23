@@ -100,6 +100,6 @@ describe('Monitoring KPI and secondary-filter geometry', () => {
     expect(MONITORING).not.toContain('.monitoring-period {');
     expect(MONITORING).not.toContain('.monitoring-filters-rule');
     expect(rule('.monitoring-search')).toMatch(/margin-left:\s*auto/);
-    expect(media(1180)).toMatch(/\.monitoring-search\s*\{[^}]*flex:\s*1\s+1\s+100%/);
+    expect(media(1320)).toMatch(/\.monitoring-search\s*\{[^}]*flex:\s*1\s+1\s+100%/);
   });
 });

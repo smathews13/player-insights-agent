@@ -204,7 +204,7 @@
    */
   --ast-ink: #0e1720;
   --ast-ink-secondary: #4c5c68;
-  --ast-ink-tertiary: #6b7a87;
+  --ast-ink-tertiary: #62727f;
   --ast-ink-disabled: #9aa7b2;
   --ast-text: var(--ast-ink);
   --ast-text-long: var(--ast-ink-secondary);
@@ -216,8 +216,9 @@
   /* ---- Borders and fills (§2) ---- */
   --ast-hairline: #e2e8ed;
   --ast-hairline-strong: #cfd9e0;
-  --ast-border-input: #c9d3db;
+  --ast-border-input: #7f8e9a;
   --ast-border-dashed: #b8c6d1;
+  --ast-switch-off: #d3dce3;
   --ast-fill-band: var(--ast-surface-sunken);
 
   /*
@@ -338,7 +339,8 @@
   --ast-fs-16: 16px;
   --ast-fs-18: 18px;
   --ast-fs-22: 22px;
-  --ast-fs-32: 32px;
+  --ast-fs-30: 30px;
+  --ast-fs-40: 40px;
 
   /*
    * Proportional prose, at every body rung.
@@ -372,8 +374,8 @@
    * additions in AS-COMMITTED.md.
    */
   --ast-tracking-eyebrow: 0.06em; /* 11px 700 uppercase */
-  --ast-tracking-tight: -0.01em; /* 18px and 22px headings, and the wordmark */
-  --ast-tracking-hero: -0.015em; /* 32px hero only */
+  --ast-tracking-tight: -0.01em; /* 18px, 22px and 30px headings, and the wordmark */
+  --ast-tracking-hero: -0.015em; /* 40px hero only */
 
   /* §3 and §7 make this a rule rather than a preference: the separator is " · " and
      there are no em dashes. A token means the one place it is written is here, and a
@@ -384,11 +386,13 @@
 html[data-theme='dark'] {
   color-scheme: dark;
   --ast-canvas: #0b1014;
+  --ast-surface-solid: #101820;
   --ast-surface: var(--ast-surface-solid);
   --ast-surface-sunken: rgba(255, 255, 255, 0.03);
-  --ast-surface-raised: var(--ast-navy);
+  --ast-surface-raised: var(--ast-canvas);
   --ast-surface-selected: #16232b;
-  --ast-scrim: #090e14;
+  --ast-scrim-ink: #090e14;
+  --ast-scrim: color-mix(in srgb, var(--ast-scrim-ink) 84%, transparent);
   --ast-shadow-flat: none;
   --ast-shadow-chrome: none;
   --ast-shadow-overlay: none;
@@ -413,13 +417,14 @@ html[data-theme='dark'] {
   --ast-pane: var(--ast-surface-primary);
   --ast-ice: rgba(255, 255, 255, 0.03);
   --ast-text: var(--ast-ink-on-dark);
-  --ast-text-long: var(--ast-ink-on-dark);
-  --ast-text-secondary: rgba(232, 237, 242, 0.68);
-  --ast-caption: rgba(232, 237, 242, 0.8);
-  --ast-hairline: rgba(255, 255, 255, 0.12);
-  --ast-border-input: rgba(255, 255, 255, 0.22);
+  --ast-text-long: #d5e1e5;
+  --ast-text-secondary: #8b9ca4;
+  --ast-caption: #8b9ca4;
+  --ast-text-on-dark-secondary: #8b9ca4;
+  --ast-hairline: rgba(255, 255, 255, 0.1);
+  --ast-border-input: rgba(255, 255, 255, 0.14);
   --ast-fill-band: rgba(255, 255, 255, 0.03);
-  --ast-pos-text: var(--ast-pos-on-dark);
+  --ast-pos-text: #7fe3d3;
   --ast-pos-border: rgba(154, 214, 206, 0.4);
   --ast-pos-fill: rgba(154, 214, 206, 0.1);
   --ast-neg-text: var(--ast-neg-on-dark);
@@ -428,7 +433,7 @@ html[data-theme='dark'] {
   --ast-warn-text: var(--db-amber);
   --ast-warn-border: rgba(255, 171, 0, 0.4);
   --ast-warn-fill: rgba(255, 171, 0, 0.12);
-  --ast-neutral-text: rgba(232, 237, 242, 0.68);
+  --ast-neutral-text: #d5e1e5;
   --ast-neutral-fill: rgba(255, 255, 255, 0.12);
   --ast-info-text: var(--ast-ice-accent);
   --ast-info-fill: rgba(143, 193, 232, 0.16);

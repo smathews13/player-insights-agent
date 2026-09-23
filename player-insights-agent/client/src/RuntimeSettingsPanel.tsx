@@ -6,6 +6,7 @@ import {
   FONT_SIZE_IDS,
   FONT_SIZE_SCALE,
   RUNTIME_LOOP_LIMITS,
+  runtimeAppearanceContrastIssues,
   entityStylesForScheme,
   fontColorsForScheme,
   isHexColor,
@@ -26,6 +27,7 @@ import { RuntimeLoopDiagram } from './RuntimeLoopDiagram';
 import { RuntimeTimezoneField } from './RuntimeTimezoneField';
 import { wholeNumberFrom } from './runtime-number';
 import {
+  SETTINGS_SAVE_IDLE,
   changedSettingKeys,
   saveRetryAfterLoad,
   type SettingsLoadResult,
@@ -224,21 +226,25 @@ export function RuntimeSettingsPanel({
   section,
   onSaveState = () => {},
   onDirtyChange = () => {},
+  onValidityChange = () => {},
   initialSettings = DEFAULT_RUNTIME_SETTINGS,
 }: {
   section: 'runtime' | 'appearance';
   /** Reports Save's progress to the modal footer, which is the part on screen. */
   onSaveState?: (state: SettingsSaveState) => void;
   onDirtyChange?: (count: number) => void;
+  onValidityChange?: (valid: boolean) => void;
   /** Seeds server-rendered and focused test states; live settings replace it after load. */
   initialSettings?: RuntimeSettings;
 }) {
   const [settings, setSettings] = useState<RuntimeSettings>(initialSettings);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'saved' | 'failed'>('loading');
-  const [failure, setFailure] = useState<{ operation: 'load' | 'save'; message: string } | null>(null);
+  const [failure, setFailure] = useState<{ operation: 'load' | 'save' | 'contrast'; message: string } | null>(null);
   const savedSettings = useRef<RuntimeSettings | null>(null);
   const revision = useRef(0);
   const [canReset, setCanReset] = useState(false);
+  const contrastIssues = section === 'appearance' ? runtimeAppearanceContrastIssues(settings) : [];
+  const contrastIssueByField = new Map(contrastIssues.map((issue) => [issue.field, issue]));
 
   const load = useCallback(async (): Promise<SettingsLoadResult> => {
     setState('loading');
@@ -274,6 +280,17 @@ export function RuntimeSettingsPanel({
   }, [onDirtyChange, settings]);
 
   useEffect(() => {
+    onValidityChange(contrastIssues.length === 0);
+  }, [contrastIssues.length, onValidityChange]);
+
+  useEffect(() => {
+    if (contrastIssues.length > 0 || failure?.operation !== 'contrast') return;
+    setFailure(null);
+    setState('ready');
+    onSaveState(SETTINGS_SAVE_IDLE);
+  }, [contrastIssues.length, failure?.operation, onSaveState]);
+
+  useEffect(() => {
     if (section === 'appearance' && state !== 'loading') previewRuntimeAppearance(settings);
   }, [section, settings, state]);
 
@@ -296,6 +313,13 @@ export function RuntimeSettingsPanel({
       onSaveState({ kind: 'saving' });
       const result = await load();
       onSaveState(saveRetryAfterLoad(result));
+      return;
+    }
+    if (contrastIssues.length > 0) {
+      const message = contrastIssues[0].message;
+      setState('failed');
+      setFailure({ operation: 'contrast', message });
+      onSaveState({ kind: 'failed', message });
       return;
     }
     setState('saving');
@@ -727,6 +751,8 @@ export function RuntimeSettingsPanel({
                 ] as const
               ).map(([key, label, aria]) => {
                 const hex = settings[key];
+                const contrastIssue = contrastIssueByField.get(key);
+                const contrastId = `appearance-${key}-contrast`;
                 return (
                   <div className="appearance-choice appearance-color-choice" key={key}>
                     <span className="appearance-choice-label">{label}</span>
@@ -748,6 +774,8 @@ export function RuntimeSettingsPanel({
                       </span>
                       <Input
                         aria-label={aria}
+                        aria-invalid={contrastIssue ? true : undefined}
+                        aria-describedby={contrastIssue ? contrastId : undefined}
                         pattern="#[0-9a-fA-F]{6}"
                         title="Use a six-digit hex color, including #."
                         value={hex}
@@ -759,6 +787,11 @@ export function RuntimeSettingsPanel({
                         }
                       />
                     </div>
+                    {contrastIssue ? (
+                      <p className="appearance-contrast-error" id={contrastId}>
+                        {contrastIssue.message}
+                      </p>
+                    ) : null}
                   </div>
                 );
               })}
@@ -792,58 +825,69 @@ export function RuntimeSettingsPanel({
                 <span role="columnheader">Highlight</span>
                 <span role="columnheader">Sample</span>
               </div>
-              {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => (
-                <div className="appearance-grid-row" role="row" key={kind}>
-                  <strong role="cell">{kind[0].toUpperCase() + kind.slice(1)}</strong>
-                  {(['foreground', 'background'] as const).map((property) => {
-                    const hex = settings.entityStyles[kind][property];
-                    const update = (value: string) =>
-                      setSettings((current) => ({
-                        ...current,
-                        entityStyles: {
-                          ...current.entityStyles,
-                          [kind]: { ...current.entityStyles[kind], [property]: value },
-                        },
-                      }));
-                    return (
-                      <label className="appearance-color" role="cell" key={property}>
-                        <span className="appearance-mobile-label">
-                          {property === 'foreground' ? 'Text' : 'Highlight'}
-                        </span>
-                        <span className="appearance-color-swatch">
-                          <span aria-hidden="true" style={{ background: hex }} />
-                          <input
-                            type="color"
-                            className="appearance-color-picker"
-                            aria-label={`${kind} ${property} picker`}
-                            value={isHexColor(hex) ? hex : '#000000'}
+              {(['catalog', 'schema', 'table', 'column', 'quote', 'tag'] as const).map((kind) => {
+                const contrastIssue = contrastIssueByField.get(`entityStyles.${kind}`);
+                const contrastId = `appearance-${kind}-contrast`;
+                return (
+                  <div className="appearance-grid-row" role="row" key={kind}>
+                    <strong role="cell">{kind[0].toUpperCase() + kind.slice(1)}</strong>
+                    {(['foreground', 'background'] as const).map((property) => {
+                      const hex = settings.entityStyles[kind][property];
+                      const update = (value: string) =>
+                        setSettings((current) => ({
+                          ...current,
+                          entityStyles: {
+                            ...current.entityStyles,
+                            [kind]: { ...current.entityStyles[kind], [property]: value },
+                          },
+                        }));
+                      return (
+                        <label className="appearance-color" role="cell" key={property}>
+                          <span className="appearance-mobile-label">
+                            {property === 'foreground' ? 'Text' : 'Highlight'}
+                          </span>
+                          <span className="appearance-color-swatch">
+                            <span aria-hidden="true" style={{ background: hex }} />
+                            <input
+                              type="color"
+                              className="appearance-color-picker"
+                              aria-label={`${kind} ${property} picker`}
+                              value={isHexColor(hex) ? hex : '#000000'}
+                              onChange={(event) => update(event.target.value)}
+                            />
+                          </span>
+                          <Input
+                            aria-label={`${kind} ${property}`}
+                            aria-invalid={contrastIssue ? true : undefined}
+                            aria-describedby={contrastIssue ? contrastId : undefined}
+                            pattern="#[0-9a-fA-F]{6}"
+                            title="Use a six-digit hex color, including #."
+                            value={hex}
                             onChange={(event) => update(event.target.value)}
                           />
-                        </span>
-                        <Input
-                          aria-label={`${kind} ${property}`}
-                          pattern="#[0-9a-fA-F]{6}"
-                          title="Use a six-digit hex color, including #."
-                          value={hex}
-                          onChange={(event) => update(event.target.value)}
-                        />
-                      </label>
-                    );
-                  })}
-                  <span className="appearance-sample-plaque" role="cell">
-                    <span className="appearance-mobile-label">Sample</span>
-                    <span
-                      className="appearance-sample"
-                      style={{
-                        color: settings.entityStyles[kind].foreground,
-                        background: settings.entityStyles[kind].background,
-                      }}
-                    >
-                      {ENTITY_SAMPLES[kind]}
+                        </label>
+                      );
+                    })}
+                    <span className="appearance-sample-plaque" role="cell">
+                      <span className="appearance-mobile-label">Sample</span>
+                      <span
+                        className="appearance-sample"
+                        style={{
+                          color: settings.entityStyles[kind].foreground,
+                          background: settings.entityStyles[kind].background,
+                        }}
+                      >
+                        {ENTITY_SAMPLES[kind]}
+                      </span>
                     </span>
-                  </span>
-                </div>
-              ))}
+                    {contrastIssue ? (
+                      <p className="appearance-contrast-error appearance-grid-contrast-error" id={contrastId}>
+                        {contrastIssue.message}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </section>
         </>

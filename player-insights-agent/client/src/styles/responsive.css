@@ -1,9 +1,9 @@
 /*
- * ── One set of breakpoints: 480, 800, 1180, 1366 ────────────────────────────
+ * ── One set of breakpoints: 480, 800, 1320, 1366 ────────────────────────────
  *
  * There were two, and they disagreed. Tailwind's `md` (768) and `xl` (1280) were
  * deciding the identity chip and the primary navigation while these hand-written
- * queries were deciding the ask layout, so the nav collapsed 100px later than the
+ * queries were deciding the ask layout, so the nav collapsed later than the
  * column it shares a header with, and the chip left the header 32px before the
  * rail left the page. Both bands were live and neither was chosen.
  *
@@ -12,7 +12,7 @@
  * used to do half of it are gone from Layout.tsx.
  *
  * The two gaps the old set left are also closed here, and they are the reason this
- * file is worth reading rather than skimming: below 1180px the trace inspector was
+ * file is worth reading rather than skimming: below 1320px the trace inspector was
  * simply `display: none` and below 800px so was the conversation rail, with no
  * other route to either. A phone could not switch, create or delete a conversation
  * at all except by editing the address bar, and a laptop at 1100px could not reach
@@ -28,14 +28,14 @@
  * rule of its own that collapsed its node graph into a stacked list, which meant
  * the page had two layouts and only one of them was ever looked at. Its canvas is
  * a fixed size now and a narrow viewport scrolls it, so the only thing left to
- * reshape is the pair of rails below it, in the 1180px band with everything else.
+ * reshape is the pair of rails below it, in the 1320px band with everything else.
  */
 
 /* Below 1366 the attribution sheds its words and keeps its symbol: an
    administrator's tab row is six items and seven with the Benchmark Lab
    experiment on, and "Built on Databricks" is the widest thing in the right-hand
    cluster that is not identity. The bricks symbol still carries the attribution,
-   which is what the symbol is for. Restored below 1180px by the block after
+   which is what the symbol is for. Restored below 1320px by the block after
    next, where the nav has gone and the room is back.
    The avatar does not shrink at any width. It is two characters, it is the only
    thing in the cluster that says WHO, and there is nothing to take off it. */
@@ -59,17 +59,8 @@
   .app-nav-tab {
     padding: 0 8px;
   }
-  /* The harness hands back the 76px it is given on a wide window. The rail is
-     340px there because the column is read rather than glanced at; below this
-     bound the middle column is the one with nothing to spare, and a transcript
-     squeezed to keep a side column roomy is the wrong way round. The band the
-     header already declares tight is the band this is tight in too. */
-  .ask-layout {
-    --trace-width: 264px;
-    --conversation-width: var(--trace-width);
-  }
 }
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   /* The nav moves into the sheet, and the hamburger that opens it appears. One
      switch, both halves, so the header can never have both or neither. */
   .app-nav {
@@ -90,7 +81,7 @@
    * The inspector goes, and its two load-bearing parts move into a strip above the
    * composer: the run's status and the way into the full run. Hiding the column was
    * the whole of the old behaviour, which took "Explore full run" off the screen for
-   * every reader between 800px and 1180px — the run they had just watched became
+   * every reader between 800px and 1320px — the run they had just watched became
    * unreachable from the page that ran it.
    */
   .trace-inspector {
@@ -267,7 +258,7 @@
    The inset is restated as the token rather than as a literal so that the brand
    column, which is the rail's width less this number, is measured from whatever
    the header is actually padded by. Nothing depends on the alignment at this
-   width -- the nav went at 1180px -- but a rule that only happens to be unread is
+   width -- the nav went at 1320px -- but a rule that only happens to be unread is
    a rule that is wrong the day something reads it. */
 @media (max-width: 480px) {
   .app-header {

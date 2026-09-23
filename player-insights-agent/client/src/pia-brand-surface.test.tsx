@@ -53,9 +53,10 @@ describe('Player Insights Agent visible brand surfaces', () => {
     expect(header).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(header).toContain('data-pia-cut="engraved"');
     expect(header).toContain('data-pia-static="true"');
-    expect(header).toContain('width="24"');
-    expect(header).toContain('pia-mark--dark');
-    expect(header).toContain('pia-type--dark');
+    expect(header).toContain('width="19"');
+    expect(header).toContain('height="21"');
+    expect(header).toContain('pia-mark--light');
+    expect(header).toContain('pia-type--light');
     expect(header).toContain('pia-wordmark');
     expect(header).not.toContain('pia-acronym');
     expect(header).not.toContain('>PI<span');
@@ -63,14 +64,15 @@ describe('Player Insights Agent visible brand surfaces', () => {
     expect(header).not.toContain('pia-mark--cluster');
     expect(startup).toContain('Player Insights Agent');
     expect(startup).toContain('data-startup-loader="pia-primary"');
+    expect(partial('app-session.css')).toMatch(/\.startup-surface\s*\{[^}]*color:\s*var\(--ast-text\)/s);
     expect(AI_ANALYSIS_CAVEAT).toBe('Player Insights Agent analysis. AI can make mistakes.');
   });
 
-  it('keeps the dark header lockup white, ice-accented, and collision-safe at desktop and narrow widths', () => {
+  it('keeps the theme-aware header lockup collision-safe at desktop and narrow widths', () => {
     const brand = partial('pia-brand.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     const shell = partial('shell.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
     const responsive = partial('responsive.css').replace(/\/\*[\s\S]*?\*\//g, ' ');
-    const collapsedStart = responsive.indexOf('@media (max-width: 1180px)');
+    const collapsedStart = responsive.indexOf('@media (max-width: 1320px)');
     const narrowStart = responsive.indexOf('@media (max-width: 800px)');
     const phoneStart = responsive.indexOf('@media (max-width: 480px)');
     const collapsed = responsive.slice(collapsedStart, narrowStart);

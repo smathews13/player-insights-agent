@@ -42,7 +42,7 @@ const LIGHT: ChartTheme = {
   accent: '#1a62a8',
   second: '#0f6257',
   third: '#8a5a00',
-  fourth: '#4c5c68',
+  other: '#4c5c68',
   mono: MONO,
 };
 
@@ -57,7 +57,7 @@ const DARK: ChartTheme = {
   // floor on navy unaided, so the dark theme leaves it where it is.
   second: '#04867d',
   third: '#6faedd',
-  fourth: '#8a9aa3',
+  other: '#8a9aa3',
   mono: MONO,
 };
 
@@ -271,7 +271,7 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
     expect(at(at(chosen.data[0]).marker).color).toBe('#7a5e32');
   });
 
-  it('maps the fourth series too, which had no slot and so stayed a light-theme colour', () => {
+  it('maps the fourth category to the explicit Other slot', () => {
     /*
      * The bug: `agent/charts.py` assigns four series colours and this file mapped
      * three, so a fourth line kept #445461 on the night sky. That measures 2.0:1
@@ -293,7 +293,8 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
       layout: cartesianLayout(),
     };
     const { data } = themedFigure(four, DARK);
-    expect(data.map((trace) => at(at(trace).line).color)).toEqual([DARK.accent, DARK.second, DARK.third, DARK.fourth]);
+    expect(data.map((trace) => at(at(trace).line).color)).toEqual([DARK.accent, DARK.second, DARK.third, DARK.other]);
+    expect(at(data[3]).name).toBe('Other');
   });
 
   it('gives every dark series enough contrast on the night sky to be seen', () => {
@@ -304,7 +305,7 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
       accent: DARK.accent,
       second: DARK.second,
       third: DARK.third,
-      fourth: DARK.fourth,
+      other: DARK.other,
     })) {
       expect(contrast(colour, DARK.surface), `${slot} on the night sky`).toBeGreaterThanOrEqual(3);
     }
@@ -568,7 +569,7 @@ describe('the theme is read off the document, and re-read when it changes', () =
       '--chart-1': '#1a62a8',
       '--chart-2': '#0f6257',
       '--chart-3': '#8a5a00',
-      '--chart-4': '#4c5c68',
+      '--chart-other': '#4c5c68',
       '--font-mono': MONO,
     });
     expect(readChartTheme()).toEqual(LIGHT);
@@ -583,7 +584,7 @@ describe('the theme is read off the document, and re-read when it changes', () =
       '--chart-1': '#8fc1e8',
       '--chart-2': '#04867d',
       '--chart-3': '#6faedd',
-      '--chart-4': '#8a9aa3',
+      '--chart-other': '#8a9aa3',
       '--font-mono': MONO,
     });
     expect(readChartTheme()).toEqual(DARK);

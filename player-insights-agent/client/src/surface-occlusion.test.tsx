@@ -212,7 +212,7 @@ describe('primary surface occlusion', () => {
 
     expect(partial('base.css')).toMatch(/\n:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ast-action\)/);
     expect(partial('dark-mode.css')).toMatch(
-      /html\[data-theme='dark'\] :focus-visible\s*\{[^}]*outline:\s*1px solid var\(--ast-ice-accent\)/
+      /html\[data-theme='dark'\] :focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ast-action\)[^}]*box-shadow:\s*0 0 0 5px var\(--ast-focus-halo\)/
     );
     expect(bodyFor(firstOpen, '.fo-continue')).toMatch(/background:\s*var\(--ast-blue\)/);
     const loginChrome = bodyFor(contract, '.ast-login-panel');

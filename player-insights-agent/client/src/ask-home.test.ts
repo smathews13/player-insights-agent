@@ -206,22 +206,23 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // inside .ask-layout, so it read the token while the rail read the override and
     // the two disagreed by 44px. The inspector's width is still nobody else's, so
     // it stays here.
-    expect(partial('tokens.css')).toMatch(/--conversation-width:\s*340px/);
-    expect(body('.ask-layout')).toMatch(/--trace-width:\s*340px/);
-    expect(atWidth(1365)).toMatch(/--trace-width:\s*264px/);
+    expect(partial('tokens.css')).toMatch(/--conversation-width:\s*290px/);
+    expect(body('.ask-layout')).toMatch(/--trace-width:\s*320px/);
+    expect(body('.ask-layout')).toMatch(/--conversation-width:\s*290px/);
+    expect(atWidth(1365)).not.toMatch(/--(?:trace|conversation)-width/);
   });
 
   it('changes column width at a width somebody chose, not continuously', () => {
     // The token was a clamp -- `clamp(220px, 15vw, 264px)` -- so the columns slid
     // with the window and reached the design's widths only past 1760px. That is a
     // third breakpoint system, invisible, disagreeing with the two this document was
-    // just reduced to one of. Flat, and narrowed once, at 1180px.
+    // just reduced to one of. Flat, and narrowed once, at 1320px.
     //
     // Asserted against tokens.css now rather than against .ask-layout, because that
     // is where the declaration lives; against .ask-layout it would pass by there
     // being no declaration there at all, which is a test that cannot fail.
     expect(partial('tokens.css')).not.toMatch(/--conversation-width:\s*clamp/);
-    expect(atWidth(1180)).toMatch(/--conversation-width:\s*220px/);
+    expect(atWidth(1320)).toMatch(/--conversation-width:\s*220px/);
   });
 
   it('holds the transcript off the rails by a token rather than by a retyped clamp', () => {
@@ -916,8 +917,8 @@ describe('below 800px the conversation rail is somewhere else, not gone', () => 
   });
 });
 
-describe('below 1180px the finished run is still reachable', () => {
-  const NARROW = atWidth(1180);
+describe('below 1320px the finished run is still reachable', () => {
+  const NARROW = atWidth(1320);
 
   it('swaps the inspector for the strip in one query', () => {
     expect(NARROW).toMatch(/\.trace-inspector\s*\{\s*display:\s*none/);
@@ -957,7 +958,7 @@ describe('below 1180px the finished run is still reachable', () => {
 });
 
 describe('there is one set of breakpoints, and this is it', () => {
-  it('reshapes at 480, 800, 1180 and 1366 and at no other width', () => {
+  it('reshapes at 480, 800, 1320 and 1366 and at no other width', () => {
     // Two systems were live: Tailwind's md/xl on utilities in Layout.tsx and these
     // hand-written queries. The chip left the header 32px before the rail left the
     // page, and the nav collapsed 100px after it. A fifth width appearing here is
@@ -965,7 +966,7 @@ describe('there is one set of breakpoints, and this is it', () => {
     const widths = [...withoutComments(RESPONSIVE).matchAll(/@media \(max-width: (\d+)px\)/g)].map((match) =>
       Number(match[1])
     );
-    expect([...new Set(widths)].sort((a, b) => a - b)).toEqual([480, 800, 1180, 1365]);
+    expect([...new Set(widths)].sort((a, b) => a - b)).toEqual([480, 800, 1320, 1365]);
   });
 
   it('states them largest first, so a narrower rule always overrides the wider one', () => {

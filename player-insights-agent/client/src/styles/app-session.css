@@ -6,7 +6,7 @@
   min-height: 100dvh;
   place-items: center;
   background: var(--ast-sky-fill);
-  color: var(--ast-white);
+  color: var(--ast-text);
 }
 
 .startup-loader {

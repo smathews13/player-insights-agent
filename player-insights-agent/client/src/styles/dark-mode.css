@@ -189,8 +189,9 @@ html[data-theme='dark'] .header-settings:active:not(:disabled) {
 }
 
 html[data-theme='dark'] .header-settings:focus-visible {
-  outline: 1px solid var(--ast-ice-accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--ast-action);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
 }
 
 html[data-theme='dark'] .access-gate-actions button:not(.refresh-button) {
@@ -464,14 +465,14 @@ html[data-theme='dark'] .account-menu {
   background: var(--ast-surface-menu);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 html[data-theme='dark'] [data-slot='sheet-content'] {
   background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
-  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 html[data-theme='dark'] .trace-empty-mark {
@@ -595,7 +596,7 @@ html[data-theme='dark'] .composer-attach:active:not(:disabled) {
 }
 
 html[data-theme='dark'] .answer-card:has(.live-progress) {
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--ast-shadow-flat);
 }
 
 html[data-theme='dark'] .trace-bar {
@@ -603,13 +604,16 @@ html[data-theme='dark'] .trace-bar {
 }
 
 html[data-theme='dark'] :focus-visible {
-  outline: 1px solid var(--ast-ice-accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--ast-action);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
 }
 
 html[data-theme='dark'] :is(input, textarea, select, .app-select-trigger):focus-visible {
   border-color: var(--ast-ice-accent);
-  outline: none;
+  outline: 2px solid var(--ast-action);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
 }
 
 html[data-theme='dark'] .app-sky-line {

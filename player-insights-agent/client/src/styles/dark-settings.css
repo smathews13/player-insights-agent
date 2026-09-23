@@ -2,7 +2,7 @@ html[data-theme='dark'] .settings-page.settings-modal {
   background: var(--ast-surface-elevated);
   backdrop-filter: none;
   border-color: var(--ast-border-input);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 html[data-theme='dark'] .settings-rail button.active,
@@ -43,19 +43,19 @@ html[data-theme='dark'] .environment-tools [data-slot='button']:active:not(:disa
   color: var(--ast-white);
 }
 html[data-theme='dark'] .environment-list:focus-visible {
-  outline: 1px solid var(--ast-ice-accent);
-  outline-offset: -1px;
-  box-shadow: none;
+  outline: 2px solid var(--ast-action);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
 }
 html[data-theme='dark'] .appearance-grid {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--ast-surface-sunken);
 }
 html[data-theme='dark'] .settings-save-notice,
 html[data-theme='dark'] .runtime-field-label {
   color: var(--ast-caption);
 }
-html[data-theme='dark'] .settings-modal-overlay {
-  background: color-mix(in srgb, var(--ast-scrim) 50%, transparent);
+html[data-theme='dark'] :is(.settings-overlay, .settings-modal-overlay) {
+  background: var(--ast-scrim);
 }
 html[data-theme='dark'] .settings-footer-actions [data-slot='button'][data-pressed='true'] {
   background: color-mix(in srgb, var(--ast-primary-control-fill) 68%, var(--ast-primary-control-border));
