@@ -518,7 +518,9 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
   const normalized: NormalizedAnswer = {
     id: asString(raw.id),
     mode: raw.mode === 'live' ? 'live' : 'representative',
-    takeaway: asString(raw.takeaway, 'The agent returned an answer with no summary line.'),
+    // Missing stays missing. Supplying explanatory prose here would make a
+    // malformed or older stored payload look like something the agent said.
+    takeaway: asString(raw.takeaway),
     narrative: asString(raw.narrative),
     content: asString(raw.content),
     figures: normalizeFigures(raw.figures),

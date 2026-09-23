@@ -1,10 +1,9 @@
 /**
- * The four ways a request is allowed to end, and the shape of the fourth.
+ * The six ways a request is allowed to end, and the unavailable shape.
  *
  * Every ask request terminates as exactly one of `plan`, `clarification`,
- * `answer` or `unavailable`. Three of those already existed and are unchanged.
- * `unavailable` is the one this module adds, and its whole purpose is to be the
- * thing a surface returns INSTEAD OF making something up.
+ * `report`, `dashboard`, `answer` or `unavailable`. `unavailable` exists to be
+ * the thing a surface returns INSTEAD OF making something up.
  *
  * WHY THE CONTRACT IS ENFORCED RATHER THAN DOCUMENTED. The defect this replaces
  * was not that the app lacked a failure shape. It was that the failure path
@@ -25,8 +24,8 @@ import { failureDefinition, type FailureCode, type FailureLayer } from './failur
 import type { FailureEvidence } from './failure-evidence';
 import type { AppBudgetStatus } from './app-budget-guard';
 
-/** The four terminal outcomes. Exactly one of these ends a request. */
-export const TERMINAL_KINDS = ['plan', 'clarification', 'answer', 'unavailable'] as const;
+/** The six terminal outcomes. Exactly one of these ends a request. */
+export const TERMINAL_KINDS = ['plan', 'clarification', 'report', 'dashboard', 'answer', 'unavailable'] as const;
 export type TerminalKind = (typeof TERMINAL_KINDS)[number];
 
 /**

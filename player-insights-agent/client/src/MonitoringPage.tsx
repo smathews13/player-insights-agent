@@ -998,9 +998,8 @@ export function MonitoringPaginationControls({
  * The stored answer as a shape Ask PIA's own card will render, or null.
  *
  * Null for a plan proposal and for a clarification, which are stored in the same
- * column and are not answers. Rendering one through the answer card would put a
- * takeaway of "The agent returned an answer with no summary line." over a
- * question the agent asked back.
+ * column and are not answers. Rendering one through the answer card would turn
+ * a question the agent asked back into an empty answer card.
  */
 function answerFrom(raw: unknown): Answer | null {
   if (!raw || typeof raw !== 'object') return null;

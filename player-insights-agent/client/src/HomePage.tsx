@@ -281,6 +281,10 @@ function normalizeResponse(raw: unknown, executionIdentity?: unknown): AgentResp
     const id = typeof response.id === 'string' && response.id ? response.id : `msg-${crypto.randomUUID()}`;
     return report ? ({ type: 'report', mode: 'live', id, report } satisfies ReportResponse) : null;
   }
+  // Legacy stored answers may predate the `type` discriminator. A value that
+  // does declare a different type is not an answer, even if it happens to carry
+  // text fields an answer normalizer could fill around.
+  if (response.type !== undefined && response.type !== 'answer') return null;
   const wire = response as WireAnswer;
   return normalizeAnswer(
     executionIdentity === undefined ? wire : { ...wire, execution_identity: executionIdentity }

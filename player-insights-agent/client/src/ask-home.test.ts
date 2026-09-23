@@ -1003,3 +1003,9 @@ describe('dashboard response integration', () => {
     expect(HOME_PAGE).toMatch(/response\.type !== 'dashboard'[\s\S]*?response\.trace\.stages/);
   });
 });
+
+describe('future response type safety', () => {
+  it('does not normalize a declared unknown response type as an answer', () => {
+    expect(HOME_PAGE).toContain("if (response.type !== undefined && response.type !== 'answer') return null");
+  });
+});
