@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
+import { DARK_ENTITY_STYLES, DEFAULT_RUNTIME_SETTINGS, THEME_FONT_COLORS } from '../../shared/runtime-settings';
 import {
   RuntimeSettingsDraftConflict,
   runtimeSettingsDocumentFromResponse,
@@ -24,6 +24,39 @@ describe('runtime settings API responses', () => {
   it('does not default a saved light scheme back to dark on the response path', async () => {
     const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
     await expect(runtimeSettingsFromResponse(json({ settings: light, revision: 2 }), 'saved')).resolves.toEqual(light);
+  });
+
+  it('sends every theme-owned default when switching a saved dark preference to light', async () => {
+    const dark = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      colorScheme: 'dark' as const,
+      entityStyles: DARK_ENTITY_STYLES,
+      fontBodyColor: THEME_FONT_COLORS.dark.body,
+      fontMutedColor: THEME_FONT_COLORS.dark.muted,
+    };
+    const fetcher = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>().mockResolvedValue(
+      json({
+        settings: DEFAULT_RUNTIME_SETTINGS,
+        revision: 2,
+        source: 'override',
+        canReset: true,
+      })
+    );
+
+    await expect(
+      saveRuntimeSettingsDraft('/api/runtime-settings', dark, DEFAULT_RUNTIME_SETTINGS, 1, fetcher)
+    ).resolves.toMatchObject({ settings: DEFAULT_RUNTIME_SETTINGS, revision: 2 });
+    const body = fetcher.mock.calls[0]?.[1]?.body;
+    if (typeof body !== 'string') throw new Error('expected JSON request body');
+    expect(JSON.parse(body)).toMatchObject({
+      revision: 1,
+      patch: {
+        colorScheme: 'light',
+        entityStyles: DEFAULT_RUNTIME_SETTINGS.entityStyles,
+        fontBodyColor: THEME_FONT_COLORS.light.body,
+        fontMutedColor: THEME_FONT_COLORS.light.muted,
+      },
+    });
   });
 
   it('preserves caller preference source and reset capability', async () => {
