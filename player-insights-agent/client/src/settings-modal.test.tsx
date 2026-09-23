@@ -113,7 +113,7 @@ describe('Settings modal', () => {
     expect(render('runtime')).toContain('Loop structure');
     expect(render('environment')).toContain('<h3>Environment</h3>');
     expect(render('appearance')).toContain('<h3>Appearance</h3>');
-    expect(render('appearance')).toContain('aria-label="Dark mode"');
+    expect(render('appearance')).toContain('aria-label="Light mode"');
     expect(render('appearance')).toContain('Body text color');
     expect(render('appearance')).toContain('Secondary text color');
     expect(render('appearance')).toContain('aria-label="Font size L"');

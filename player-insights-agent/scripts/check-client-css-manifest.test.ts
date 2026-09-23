@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { assertNeutralLoginPanelCss } from './client-css-contract.mjs';
 
 const NEUTRAL =
-  '.ast-login-panel,.ast-login-panel:focus,.ast-login-panel:focus-visible,.ast-login-panel:focus-within,.ast-login-panel[aria-busy=true]{background:var(--ast-surface-elevated);border:1px solid var(--ast-border-input);outline:none;box-shadow:0 18px 48px color-mix(in oklab,var(--db-ink-deep) 16%,transparent)}';
+  '.ast-login-panel,.ast-login-panel:focus,.ast-login-panel:focus-visible,.ast-login-panel:focus-within,.ast-login-panel[aria-busy=true]{background:var(--ast-surface-elevated);border:1px solid var(--ast-border-input);outline:none;box-shadow:var(--ast-shadow-overlay)}';
 
 describe('compiled login panel chrome', () => {
   it('accepts neutral default, focus-within, and loading chrome', () => {

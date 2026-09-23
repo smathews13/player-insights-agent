@@ -65,19 +65,15 @@ describe('the panel', () => {
   });
 
   it('keeps exactly two exceptions to the flat, opaque rule: the scrim and the panel’s shadow', () => {
-    // Both are the app's darkest fill held at a fraction, rather than a hand-typed
-    // `rgba(17, 23, 28, ...)` that no longer knows it is a palette colour.
-    expect(rule('.access-gate')).toMatch(/background:\s*color-mix\(in oklab, var\(--db-ink-deep\) 50%, transparent\)/);
-    expect(rule('.access-gate-panel')).toMatch(
-      /box-shadow:\s*0 18px 48px color-mix\(in oklab, var\(--db-ink-deep\) 22%, transparent\)/
-    );
+    expect(rule('.access-gate')).toMatch(/background:\s*var\(--ast-scrim\)/);
+    expect(rule('.access-gate-panel')).toMatch(/box-shadow:\s*var\(--ast-shadow-overlay\)/);
     // And nowhere else. A mix against `transparent` or the shared hover tint are
     // the tells now that neither is spelled out; the third permitted use is that
     // hover tint, a wash of the action colour on a control.
     const translucent = [
       ...CSS.matchAll(/^\s*(background|box-shadow|border-color)[^;]*(color-mix\(|--db-hover-tint|rgba\()[^;]*;/gm),
     ].map(([line]) => line.trim());
-    expect(translucent).toHaveLength(3);
+    expect(translucent).toHaveLength(1);
   });
 
   it('writes the hover wash as the shared token, so it follows the blue', () => {

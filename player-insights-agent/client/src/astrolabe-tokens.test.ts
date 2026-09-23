@@ -32,37 +32,62 @@ const SOURCE = TOKENS.replace(/\/\*[\s\S]*?\*\//g, ' ');
 
 /** The delivered tokens.css, value for value and name for name. */
 const PALETTE: Record<string, string> = {
+  '--ast-canvas': '#f4f7f9',
+  '--ast-surface': '#ffffff',
+  '--ast-surface-sunken': '#f0f4f7',
+  '--ast-surface-raised': '#ffffff',
+  '--ast-surface-selected': '#edf3f9',
   '--ast-white': '#ffffff',
   '--ast-navy': '#11171c',
-  '--ast-blue': '#2272b4',
+  '--ast-blue': '#1a62a8',
+  '--ast-action': '#1a62a8',
+  '--ast-action-hover': '#14507f',
+  '--ast-action-ink-on-fill': '#ffffff',
+  '--ast-action-tint': '#e8f1fa',
+  '--ast-action-edge': '#bbd6f0',
   '--ast-blue-on-dark': '#6faedd',
-  '--ast-ice': '#f0f6fb',
   '--ast-icon-tint': '#b7d6ee',
-  '--ast-text': '#161616',
-  '--ast-text-long': '#3a3838',
-  '--ast-text-secondary': '#6f6f6f',
+  '--ast-ink': '#0e1720',
+  '--ast-ink-secondary': '#4c5c68',
+  '--ast-ink-tertiary': '#6b7a87',
+  '--ast-ink-disabled': '#9aa7b2',
   '--ast-text-on-dark-secondary': '#8a9aa3',
-  '--ast-hairline': '#ebebeb',
-  '--ast-border-input': '#cbcbcb',
-  '--ast-fill-band': '#f7f7f7',
-  '--ast-pos-text': '#35706b',
-  '--ast-pos-border': '#c5ddd9',
-  '--ast-pos-fill': '#f4f9f8',
-  '--ast-neg-text': '#a04a62',
-  '--ast-neg-border': '#e3c4cc',
-  '--ast-neg-fill': '#faf3f5',
-  '--ast-warn-text': '#8a6a38',
-  '--ast-warn-border': '#e0d3b8',
-  '--ast-warn-fill': '#f9f6ef',
-  '--ast-warn-deep': '#7a5e32',
-  '--ast-neutral-text': '#46596b',
-  '--ast-neutral-fill': '#f2f6f9',
-  '--ast-info-text': '#0e538b',
-  '--ast-info-fill': '#ddeaf4',
+  '--ast-hairline': '#e2e8ed',
+  '--ast-hairline-strong': '#cfd9e0',
+  '--ast-border-input': '#c9d3db',
+  '--ast-border-dashed': '#b8c6d1',
+  '--ast-pos-text': '#0f6257',
+  '--ast-pos-border': '#a8d5cd',
+  '--ast-pos-fill': '#eaf6f3',
+  '--ast-neg-text': '#a21f35',
+  '--ast-neg-border': '#edbfc8',
+  '--ast-neg-fill': '#fcf1f3',
+  '--ast-warn-text': '#8a5a00',
+  '--ast-warn-border': '#e6ce9a',
+  '--ast-warn-fill': '#fdf6e8',
+  '--ast-warn-deep': '#7a5a11',
+  '--ast-neutral-text': '#4c5c68',
+  '--ast-neutral-border': '#dce3e9',
+  '--ast-neutral-fill': '#f2f5f8',
+  '--ast-info-text': '#1a5b8f',
+  '--ast-info-border': '#bbd6f0',
+  '--ast-info-fill': '#e8f1fa',
+  '--ast-provenance-text': '#7a5a11',
+  '--ast-provenance-border': '#e4d3a6',
+  '--ast-provenance-fill': '#fbf5e6',
+  '--ast-danger-fill': '#c2263f',
+  '--ast-danger-hover': '#a61e34',
+  '--ast-danger-ink': '#ffffff',
+  '--ast-star': '#c3d0da',
+  '--ast-constellation-line': '#dde5eb',
+  '--ast-chart-track': '#e7ecf0',
+  '--ast-chart-gridline': '#edf1f4',
 };
 
 function declared(name: string) {
-  return SOURCE.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]?.trim().toLowerCase();
+  return SOURCE.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]
+    ?.trim()
+    .toLowerCase();
 }
 
 describe('the astrolabe palette is the palette the delivered tokens.css specifies', () => {
@@ -119,7 +144,7 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
   });
 
   it('states one unitless leading standard for proportional body copy', () => {
-    expect(declared('--ast-lh-body')).toBe('1.15');
+    expect(declared('--ast-lh-body')).toBe('1.5');
   });
 
   it('agrees with the scale tokens.css already declares, step for step', () => {
@@ -140,13 +165,13 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
       ['--ast-fs-18', '--text-h-card'],
       ['--ast-fs-22', '--text-h-page'],
       ['--ast-fs-32', '--text-hero'],
-      ['--ast-radius-control', '--radius-sm'],
-      ['--ast-radius-card', '--radius-md'],
     ]) {
       const theirs = app.match(new RegExp(`${existing}:\\s*([^;]+);`))?.[1]?.trim();
       expect(theirs, `${existing} is declared`).toBeDefined();
       expect(declared(ast), `${ast} agrees with ${existing}`).toBe(theirs);
     }
+    expect(app).toMatch(/--radius-sm:\s*var\(--ast-radius-control\)/);
+    expect(app).toMatch(/--radius-md:\s*var\(--ast-radius-card\)/);
   });
 
   it('does not restate the two faces, which tokens.css already declares', () => {
@@ -183,19 +208,27 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
 describe('the pill recipe is one recipe, and it is never colour alone', () => {
   const RECIPE = SOURCE.match(/\.ast-pill\s*\{([^}]*)\}/)?.[1] ?? '';
 
-  it('is 1px bordered, 4px radius, 11px at 500', () => {
+  it('is 1px bordered, 6px radius, 13px at 500', () => {
     expect(RECIPE).toMatch(/border:\s*1px solid transparent/);
-    expect(RECIPE).toMatch(/border-radius:\s*var\(--ast-radius-control\)/);
-    expect(RECIPE).toMatch(/font-size:\s*var\(--ast-fs-11\)/);
+    expect(RECIPE).toMatch(/border-radius:\s*var\(--ast-radius-pill\)/);
+    expect(RECIPE).toMatch(/font-size:\s*var\(--ast-fs-13\)/);
     expect(RECIPE).toMatch(/font-weight:\s*500/);
-    expect(RECIPE).toMatch(/padding:\s*1px 8px/);
+    expect(RECIPE).toMatch(/padding:\s*3px 10px/);
   });
 
-  it('has five families and one outlined alternative, and no sixth meaning', () => {
+  it('has six families and one outlined alternative', () => {
     // A family that is not one of the five meanings is a colour spent on the
     // sixty-first thing on a screen.
     const families = [...SOURCE.matchAll(/\.ast-pill--([a-z-]+)\s*\{/g)].map((match) => match[1]);
-    expect([...new Set(families)].sort()).toEqual(['info', 'neg', 'neutral', 'neutral-outline', 'pos', 'warn']);
+    expect([...new Set(families)].sort()).toEqual([
+      'info',
+      'neg',
+      'neutral',
+      'neutral-outline',
+      'pos',
+      'provenance',
+      'warn',
+    ]);
   });
 
   it('gives positive, negative and warning a visible edge as well as a tint', () => {
@@ -207,18 +240,13 @@ describe('the pill recipe is one recipe, and it is never colour alone', () => {
     }
   });
 
-  it('leaves neutral and info on the transparent edge rather than drawing one', () => {
-    // The delivered file declares fill and text for these two and no border token at
-    // all. That agrees with the design reference, where every #F2F6F9 and #DDEAF4 chip
-    // is fill and text only, and with role-badges.md: "no border ... Do not add a
-    // border to any state", because a bordered pill at this radius is what this app's
-    // buttons look like. The box stays 1px either way, so a chip does not resize when
-    // its family changes.
+  it('gives neutral and info the same visible edge contract as every state family', () => {
     for (const family of ['neutral', 'info']) {
       const body = SOURCE.match(new RegExp(`\\.ast-pill--${family}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
-      expect(body, `${family} draws no edge`).not.toMatch(/border/);
+      expect(body, `${family} draws its family edge`).toMatch(
+        new RegExp(`border-color:\\s*var\\(--ast-${family}-border\\)`)
+      );
     }
-    expect(SOURCE).not.toMatch(/--ast-(neutral|info)-border/);
   });
 
   it('offers the outlined neutral §2 gives as the alternative form', () => {
@@ -254,6 +282,7 @@ describe('the partials are wired into the cascade', () => {
     // every assertion about it passes for the wrong reason.
     expect(partialNames()).toContain('astrolabe-tokens.css');
     expect(partialNames()).toContain('astrolabe-animation.css');
+    expect(partialNames()).toContain('light-mode.css');
     expect(partialNames()).toContain('dark-mode.css');
   });
 });

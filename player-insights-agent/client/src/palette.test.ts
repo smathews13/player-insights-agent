@@ -259,8 +259,8 @@ describe('the palette is the palette, and nothing is painted beside it', () => {
     // --success used to be independently a 163-degree green sitting three degrees off
     // the mark's turquoise. Two of those on one screen is not a palette, it is a bug
     // report waiting to be filed, so the status token routes through the family.
-    expect(TOKENS).toMatch(/--success:\s*var\(--db-green-600\)/);
-    expect(TOKENS).toMatch(/--destructive:\s*var\(--db-red-600\)/);
+    expect(TOKENS).toMatch(/--success:\s*var\(--ast-pos-text\)/);
+    expect(TOKENS).toMatch(/--destructive:\s*var\(--ast-danger-fill\)/);
   });
 });
 
@@ -444,7 +444,7 @@ describe('the two washes of the action colour are the action colour', () => {
 describe('the chart series say the same things the rest of the app does', () => {
   it('draws the primary series in the action colour', () => {
     // The bar and the button that produced it are the same colour on purpose.
-    expect(TOKENS).toMatch(/--chart-1:\s*var\(--db-blue-600\)/);
+    expect(TOKENS).toMatch(/--chart-1:\s*var\(--ast-chart-1\)/);
   });
 
   it('reserves the emphasis series for the working colour and nothing else', () => {
@@ -467,7 +467,8 @@ describe('focus is one thing everywhere', () => {
     // one that is always ugly.
     const base = partial('base.css');
     const rule = base.match(/(?:^|\n):focus-visible\s*\{([^}]*)\}/)?.[1] ?? '';
-    expect(rule).toMatch(/outline:\s*2px solid var\(--ast-blue\)/);
+    expect(rule).toMatch(/outline:\s*2px solid var\(--ast-action\)/);
     expect(rule).toMatch(/outline-offset:\s*2px/);
+    expect(rule).toMatch(/box-shadow:\s*0 0 0 5px var\(--ast-focus-halo\)/);
   });
 });

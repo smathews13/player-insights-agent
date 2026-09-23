@@ -132,7 +132,9 @@ svg {
  * painted outside dark mode -- so the answer cards cannot be sitting on stars.
  */
 html:not([data-theme='dark']) .app-sky {
-  display: none;
+  display: block;
+  color: var(--ast-star);
+  opacity: 0.4;
 }
 
 /*
@@ -496,6 +498,7 @@ html:not([data-theme='dark']) .app-sky {
  * would use if it were pressed.
  */
 :focus-visible {
-  outline: 2px solid var(--ast-blue);
+  outline: 2px solid var(--ast-action);
   outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--ast-focus-halo);
 }

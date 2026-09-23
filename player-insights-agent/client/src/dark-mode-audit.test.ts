@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_ENTITY_STYLES } from '../../shared/runtime-settings';
+import { DARK_ENTITY_STYLES } from '../../shared/runtime-settings';
 import { partial, stylesheet } from './styles/stylesheet';
 
 const routeDark = (route: string) => partial(`dark-${route}.css`).replace(/\/\*[\s\S]*?\*\//g, ' ');
@@ -468,27 +468,17 @@ describe('dark mode covers the shipped surfaces', () => {
     }
     // The runtime chain, which a blanket `.entity-token` fill would have cut.
     // Fallbacks are the night-sky hexes Settings ships — not paper washes.
-    expect(DARK).toMatch(
-      new RegExp(`--ast-entity-table-bg:\\s*var\\(--entity-table-bg,\\s*${DEFAULT_ENTITY_STYLES.table.background}\\)`)
-    );
-    expect(DARK).toMatch(
-      new RegExp(
-        `--ast-entity-catalog-bg:\\s*var\\(--entity-catalog-bg,\\s*${DEFAULT_ENTITY_STYLES.catalog.background}\\)`
-      )
-    );
-    expect(DARK).toMatch(
-      new RegExp(
-        `--ast-entity-schema-bg:\\s*var\\(--entity-schema-bg,\\s*${DEFAULT_ENTITY_STYLES.schema.background}\\)`
-      )
-    );
-    expect(DARK).toMatch(
-      new RegExp(
-        `--ast-entity-column-bg:\\s*var\\(--entity-column-bg,\\s*${DEFAULT_ENTITY_STYLES.column.background}\\)`
-      )
-    );
+    for (const kind of ['catalog', 'schema', 'table', 'column'] as const) {
+      expect(DARK).toMatch(
+        new RegExp(`--ast-entity-${kind}-bg:\\s*var\\(--entity-${kind}-bg,\\s*var\\(--ast-dark-entity-${kind}-bg\\)\\)`)
+      );
+      expect(ASTROLABE).toMatch(
+        new RegExp(`--ast-dark-entity-${kind}-bg:\\s*${DARK_ENTITY_STYLES[kind].background}`, 'i')
+      );
+    }
     expect(DARK).toMatch(/--ast-entity-quote-bg:\s*var\(--entity-quote-bg,\s*var\(--ast-surface-muted\)\)/);
-    expect(ASTROLABE).toMatch(new RegExp(`--ast-entity-tag-on-navy:\\s*${DEFAULT_ENTITY_STYLES.tag.background}`, 'i'));
-    expect(DARK).toMatch(/--ast-entity-tag-bg:\s*var\(--entity-tag-bg,\s*var\(--ast-entity-tag-on-navy\)\)/);
+    expect(ASTROLABE).toMatch(new RegExp(`--ast-dark-entity-tag-bg:\\s*${DARK_ENTITY_STYLES.tag.background}`, 'i'));
+    expect(DARK).toMatch(/--ast-entity-tag-bg:\s*var\(--entity-tag-bg,\s*var\(--ast-dark-entity-tag-bg\)\)/);
     for (const paper of ['#ddeaf4', '#e8e8e8', '#f4f4f4', '#f7f7f7']) {
       expect(DARK, `${paper} is still an entity fallback`).not.toMatch(
         new RegExp(`--ast-entity-[a-z]+-bg:\\s*var\\(--entity-[a-z]+-bg,\\s*${paper}\\)`, 'i')

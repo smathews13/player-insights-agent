@@ -500,7 +500,7 @@ a.arch-node-main:hover .arch-node-label {
 .arch-node-status,
 .arch-node-drift,
 .arch-node-age {
-  padding: 1px 6px;
+  padding: 3px 6px;
 }
 /* Deliberately no amber edge on the card itself: a 1px warning hairline on a
    white card is a mark nobody sees. The pill carries the fact. */

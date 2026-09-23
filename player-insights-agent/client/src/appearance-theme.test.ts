@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('Appearance theme switch', () => {
-  it('paints light mode as soon as the Dark switch is turned off', () => {
+  it('paints light mode as soon as the Light switch is turned on', () => {
     const attributes = new Map<string, string>([['data-theme', 'dark']]);
     const root = {
       classList: { add: vi.fn() },
@@ -23,11 +23,11 @@ describe('Appearance theme switch', () => {
       querySelector: (selector: string) => (selector === 'meta[name="theme-color"]' ? themeColor : null),
     });
 
-    const colorScheme = previewColorScheme(false);
+    const colorScheme = previewColorScheme(true);
 
     expect(colorScheme).toBe('light');
     expect(root.getAttribute('data-theme')).toBe('light');
-    expect(themeColor.setAttribute).toHaveBeenCalledWith('content', '#ffffff');
+    expect(themeColor.setAttribute).toHaveBeenCalledWith('content', '#f4f7f9');
     expect({ ...DEFAULT_RUNTIME_SETTINGS, colorScheme }.colorScheme).toBe('light');
   });
 

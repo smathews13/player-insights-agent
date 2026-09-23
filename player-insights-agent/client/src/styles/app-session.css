@@ -130,7 +130,7 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   background: var(--ast-surface-elevated);
-  box-shadow: 0 18px 48px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 .app-session-card h1,

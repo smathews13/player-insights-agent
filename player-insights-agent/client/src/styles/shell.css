@@ -79,7 +79,7 @@
   background-color: var(--ast-surface-chrome);
   background-image: none;
   backdrop-filter: none;
-  box-shadow: 0 1px 0 var(--ast-hairline);
+  box-shadow: var(--ast-shadow-chrome);
 }
 .app-header::before {
   position: absolute;
@@ -382,7 +382,7 @@
   /* The one place the header is allowed a shadow: this is a layer over the page
      rather than a surface on it, so the hairline alone would leave it reading as
      part of whatever it covers. Same idiom as the gate's card. */
-  box-shadow: 0 6px 16px color-mix(in oklab, var(--db-ink-deep) 14%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--db-body);
   font-size: 11px;
   line-height: 1.5;

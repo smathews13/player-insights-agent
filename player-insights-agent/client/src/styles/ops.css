@@ -2157,7 +2157,7 @@ a.ops-cost-resource {
 }
 
 .ops-bar-track {
-  background: var(--ast-hairline);
+  background: var(--ast-chart-track);
   border-radius: 2px;
   height: 8px;
   overflow: hidden;
@@ -2166,7 +2166,7 @@ a.ops-cost-resource {
 .ops-bar-fill {
   display: block;
   height: 100%;
-  background: var(--ast-blue);
+  background: var(--ast-chart-1);
 }
 
 .ops-statistic-positive .ops-bar-fill {

@@ -45,7 +45,8 @@ describe('Sam’s second feedback wave', () => {
     // provide the semantic fill through which that topology is occluded.
     expect(rule(RAIL, '.ask-layout')).not.toContain('background-image');
     expect(ASTROLABE).not.toContain('--ast-sky-spackle');
-    expect(ASTROLABE).toMatch(/--ast-sky-fill:\s*#16202e/);
+    expect(ASTROLABE).toMatch(/--ast-sky-fill:\s*var\(--ast-canvas\)/);
+    expect(ASTROLABE).toMatch(/html\[data-theme='dark'\][\s\S]*--ast-sky-fill:\s*var\(--ast-navy\)/);
     expect(rule(ASK, '.conversation-main')).toContain('background: transparent');
     expect(rule(ASK, '.ask-hero h2')).toContain('color: var(--ast-white)');
     // The rail is chrome, on the header's own surface. It was navy with white ink

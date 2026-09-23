@@ -79,7 +79,7 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   background: var(--ast-surface-menu);
-  box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--foreground);
   font-size: 13px;
 }
@@ -241,7 +241,7 @@
   border: 1px solid var(--ast-hairline);
   border-radius: var(--radius-md);
   background: var(--ast-surface-menu);
-  box-shadow: 0 12px 32px color-mix(in oklab, var(--db-ink-deep) 22%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--foreground);
   backdrop-filter: none;
 }
@@ -310,7 +310,7 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
+  background: var(--ast-scrim);
 }
 
 .account-composer {
@@ -318,7 +318,7 @@
   overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--card);
-  box-shadow: 0 16px 48px color-mix(in oklab, var(--db-ink-deep) 35%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--foreground);
 }
 

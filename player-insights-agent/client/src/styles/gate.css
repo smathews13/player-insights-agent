@@ -19,7 +19,7 @@
      at half strength. Written as a mix rather than as `rgba(17, 23, 28, 0.5)` so
      the one translucent surface in the app is still recognisably made of a
      palette colour. Premultiplied against `transparent`, this is the same paint. */
-  background: color-mix(in oklab, var(--db-ink-deep) 50%, transparent);
+  background: var(--ast-scrim);
   overflow-y: auto;
 }
 
@@ -51,7 +51,7 @@
   /* Kept, unlike every other shadow in the app: this is a Modal, and a modal is
      the one thing DuBois says may float. The same ink as the scrim behind it, at
      22%, so the panel and the ground it floats over are one colour decision. */
-  box-shadow: 0 18px 48px color-mix(in oklab, var(--db-ink-deep) 22%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 .access-gate-panel h1 {

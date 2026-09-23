@@ -6,6 +6,7 @@ import {
   FONT_SIZE_IDS,
   FONT_SIZE_SCALE,
   RUNTIME_LOOP_LIMITS,
+  entityStylesForScheme,
   fontColorsForScheme,
   isHexColor,
   type FontFamilyId,
@@ -205,8 +206,8 @@ const ENTITY_SAMPLES = {
  * control until a second, distant action was pressed.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- shared by focused appearance tests
-export function previewColorScheme(dark: boolean): ColorScheme {
-  const scheme = dark ? 'dark' : 'light';
+export function previewColorScheme(light: boolean): ColorScheme {
+  const scheme = light ? 'light' : 'dark';
   applyColorScheme(scheme);
   return scheme;
 }
@@ -241,7 +242,9 @@ export function RuntimeSettingsPanel({
       revision.current = loaded.revision;
       setCanReset(section === 'appearance' && loaded.canReset);
       setSettings(loaded.settings);
-      applyColorScheme(loaded.settings.colorScheme);
+      // Runtime and Appearance read through different authorization routes.
+      // Opening Runtime must never repaint a theme owned by Appearance.
+      if (section === 'appearance') applyColorScheme(loaded.settings.colorScheme);
       setState('ready');
       return { ok: true };
     } catch (caught) {
@@ -569,19 +572,20 @@ export function RuntimeSettingsPanel({
             <div className="appearance-display-rows">
               <div className="appearance-display-row">
                 <div>
-                  <span className="appearance-choice-label">Dark mode</span>
+                  <span className="appearance-choice-label">Light mode</span>
                 </div>
                 <StateSwitch
-                  checked={settings.colorScheme === 'dark'}
+                  checked={settings.colorScheme === 'light'}
                   onCheckedChange={(on) => {
-                    const colorScheme: ColorScheme = on ? 'dark' : 'light';
+                    const colorScheme: ColorScheme = on ? 'light' : 'dark';
                     setSettings((current) => ({
                       ...current,
                       colorScheme,
+                      ...entityStylesForScheme(current, colorScheme),
                       ...fontColorsForScheme(current, colorScheme),
                     }));
                   }}
-                  aria-label="Dark mode"
+                  aria-label="Light mode"
                 />
               </div>
               <div className="appearance-display-row">

@@ -93,7 +93,7 @@ thead th,
   background: var(--ast-surface-elevated);
   border: 1px solid var(--ast-border-input);
   outline: none;
-  box-shadow: 0 18px 48px color-mix(in oklab, var(--db-ink-deep) 16%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 /* Retired gate glows and dotted focus frames must not return through a wrapper

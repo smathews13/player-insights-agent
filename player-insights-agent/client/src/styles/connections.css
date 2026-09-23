@@ -374,7 +374,7 @@
   border: 1px solid var(--db-line-strong);
   border-radius: var(--radius-sm);
   background: var(--background);
-  box-shadow: 0 6px 16px color-mix(in oklab, var(--db-ink-deep) 14%, transparent);
+  box-shadow: var(--ast-shadow-overlay);
   color: var(--db-body);
   font-size: var(--text-sm);
   font-weight: 400;

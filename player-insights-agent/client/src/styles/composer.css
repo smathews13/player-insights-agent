@@ -306,12 +306,12 @@
     color 0.15s ease;
 }
 .composer-attach:hover {
-  background: var(--db-hover-tint);
-  color: var(--db-ink);
+  background: var(--ast-action-tint);
+  color: var(--ast-text);
 }
 .composer-attach:active {
-  background: var(--db-press-tint);
-  color: var(--db-ink);
+  background: var(--ast-action-press-tint);
+  color: var(--ast-text);
 }
 /*
  * The ring is restated rather than inherited from base.css, and that is a

@@ -679,18 +679,18 @@ html[data-theme='dark'] {
   /* Catalog, schema and table carry the customer's violet/indigo identifier palette;
      the values mirror DEFAULT_ENTITY_STYLES so this fallback and the runtime default
      paint the same chips. A custom --entity-* set in Appearance still wins. */
-  --ast-entity-catalog-fg: var(--entity-catalog-fg, #a9b4ff);
-  --ast-entity-catalog-bg: var(--entity-catalog-bg, #242a4e);
-  --ast-entity-schema-fg: var(--entity-schema-fg, #d7d2ff);
-  --ast-entity-schema-bg: var(--entity-schema-bg, #372f66);
-  --ast-entity-table-fg: var(--entity-table-fg, #f4f6fb);
-  --ast-entity-table-bg: var(--entity-table-bg, #262a38);
+  --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-dark-entity-catalog-fg));
+  --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-dark-entity-catalog-bg));
+  --ast-entity-schema-fg: var(--entity-schema-fg, var(--ast-dark-entity-schema-fg));
+  --ast-entity-schema-bg: var(--entity-schema-bg, var(--ast-dark-entity-schema-bg));
+  --ast-entity-table-fg: var(--entity-table-fg, var(--ast-dark-entity-table-fg));
+  --ast-entity-table-bg: var(--entity-table-bg, var(--ast-dark-entity-table-bg));
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-ghost-text));
-  --ast-entity-column-bg: var(--entity-column-bg, #1e2830);
+  --ast-entity-column-bg: var(--entity-column-bg, var(--ast-dark-entity-column-bg));
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-icon-tint));
   --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-surface-muted));
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-ink-on-dark));
-  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-entity-tag-on-navy));
+  --ast-entity-tag-bg: var(--entity-tag-bg, var(--ast-dark-entity-tag-bg));
 }
 
 /*

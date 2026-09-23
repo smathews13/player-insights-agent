@@ -35,10 +35,15 @@ describe('color scheme', () => {
     expect(meta.getAttribute('content')).toBe(LIGHT_THEME_COLOR);
   });
 
-  it('boots dark before React or settings fetch', () => {
+  it('boots light before React or settings fetch', () => {
     const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-    expect(html).toMatch(/<html[^>]*class="light"[^>]*data-theme="dark"/);
-    expect(html).toMatch(/<meta name="theme-color" content="#11171C"\s*\/>/);
+    expect(html).toMatch(/<html[^>]*class="light"[^>]*data-theme="light"/);
+    expect(html).toMatch(/<meta name="theme-color" content="#F4F7F9"\s*\/>/);
+  });
+
+  it('does not overwrite a cached theme while the App module loads', () => {
+    const app = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
+    expect(app).toContain('if (!appliedColorScheme()) applyColorScheme(DEFAULT_COLOR_SCHEME)');
   });
 
   it('does not require a document to exist', () => {

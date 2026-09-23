@@ -114,7 +114,7 @@ describe('Identity table polish', () => {
     expect(frame).toMatch(/border-color:\s*var\(--border\)/);
     expect(frame).toMatch(/border-radius:\s*var\(--radius-md\)/);
     expect(frame).toMatch(/background:\s*var\(--roster-panel-surface\)/);
-    expect(frame).toMatch(/box-shadow:[^;]*var\(--db-ink-deep\)/);
+    expect(frame).toMatch(/box-shadow:\s*var\(--ast-shadow-chrome\)/);
     expect(bodyFor(CSS, '.roles-table tr')).toMatch(
       /--settings-table-cell-background:\s*var\(--roster-panel-surface\)/
     );
@@ -130,7 +130,7 @@ describe('Identity table polish', () => {
     expect(CSS).toMatch(
       /\.roles-table tbody tr\[aria-selected='true'\],\s*\.roles-table tbody tr\[data-selected='true'\] \{[^}]*--settings-table-cell-background:\s*var\(--roster-interaction-surface\)/s
     );
-    expect(bodyFor(TOKENS, ':root')).toMatch(/--background:\s*#ffffff/);
+    expect(bodyFor(TOKENS, ':root')).toMatch(/--background:\s*var\(--ast-canvas\)/);
     expect(bodyFor(TOKENS, "html[data-theme='dark']")).toMatch(/--background:\s*var\(--ast-navy\)/);
     expect(CSS).not.toMatch(/html\[data-theme='dark'\][^{]*\.settings-actions-table[^}]*background/s);
   });

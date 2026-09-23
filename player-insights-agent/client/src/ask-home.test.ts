@@ -155,7 +155,7 @@ describe('the app shell measures what every sticky offset thinks it measures', (
     // the brand column is the rail's width less this inset, so the two are one
     // number.
     const tokens = partial('tokens.css');
-    expect(tokens).toMatch(/--app-header-content-h:\s*52px/);
+    expect(tokens).toMatch(/--app-header-content-h:\s*56px/);
     expect(tokens).toMatch(/--app-header-h:\s*calc\(var\(--app-header-content-h\) \+ var\(--app-header-safe-top\)\)/);
     expect(tokens).toMatch(/--app-header-pad-x:\s*20px/);
     const header = body('.app-header');

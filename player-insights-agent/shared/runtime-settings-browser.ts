@@ -57,8 +57,8 @@ export const RUNTIME_ENTITY_STYLE_KEYS = ['foreground', 'background'] as const;
 
 /**
  * Paper-era chips. A stored pair that still equals these was never chosen —
- * it rode along when someone saved loop or answer settings — so read upgrades
- * that pair to the night-sky default. A pair that differs is a choice and stays.
+ * it rode along when someone saved loop or answer settings. A pair that differs
+ * is a choice and stays.
  */
 export const PAPER_ENTITY_STYLES: RuntimeEntityStyles = {
   catalog: { foreground: '#ffffff', background: '#0e538b' },
@@ -82,7 +82,7 @@ export const PAPER_ENTITY_STYLES: RuntimeEntityStyles = {
  * astrolabe-tokens.css and dark-mode.css and the swatch the Appearance picker ships,
  * so an empty store, a pre-hydration paint and the Settings fields all agree.
  */
-export const DEFAULT_ENTITY_STYLES: RuntimeEntityStyles = {
+export const DARK_ENTITY_STYLES: RuntimeEntityStyles = {
   catalog: { foreground: '#a9b4ff', background: '#242a4e' },
   schema: { foreground: '#d7d2ff', background: '#372f66' },
   table: { foreground: '#f4f6fb', background: '#262a38' },
@@ -90,6 +90,18 @@ export const DEFAULT_ENTITY_STYLES: RuntimeEntityStyles = {
   quote: { foreground: '#b7d6ee', background: '#181e23' },
   tag: { foreground: '#f2f6fa', background: '#243746' },
 };
+
+/** Daylight provenance chips: governed identifiers use one measured family. */
+export const LIGHT_ENTITY_STYLES: RuntimeEntityStyles = {
+  catalog: { foreground: '#7a5a11', background: '#fbf5e6' },
+  schema: { foreground: '#7a5a11', background: '#fbf5e6' },
+  table: { foreground: '#7a5a11', background: '#fbf5e6' },
+  column: { foreground: '#4c5c68', background: '#f2f5f8' },
+  quote: { foreground: '#4c5c68', background: '#f2f5f8' },
+  tag: { foreground: '#0e1720', background: '#e8f1fa' },
+};
+
+export const DEFAULT_ENTITY_STYLES = LIGHT_ENTITY_STYLES;
 
 function sameHexStyle(left: RuntimeEntityStyle, right: RuntimeEntityStyle): boolean {
   return (
@@ -115,7 +127,7 @@ export type DensityId = (typeof DENSITY_IDS)[number];
 
 export const THEME_FONT_COLORS: Record<'dark' | 'light', { body: string; muted: string }> = {
   dark: { body: '#ffffff', muted: '#c5ccd4' },
-  light: { body: '#161616', muted: '#6f6f6f' },
+  light: { body: '#0e1720', muted: '#6b7a87' },
 };
 
 export const FONT_FAMILY_STACKS: Record<FontFamilyId, string> = {
@@ -188,14 +200,27 @@ export type RuntimeSettings = {
   density: DensityId;
 };
 
-/** Replace leftover paper pairs; leave any pair someone actually set. */
-export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEntityStyles {
+/** Replace untouched historical defaults with the selected theme's palette. */
+export function upgradeEntityStylesForScheme(
+  styles: RuntimeEntityStyles,
+  scheme: 'dark' | 'light'
+): RuntimeEntityStyles {
+  const target = scheme === 'dark' ? DARK_ENTITY_STYLES : LIGHT_ENTITY_STYLES;
   return Object.fromEntries(
     RUNTIME_ENTITY_KINDS.map((kind) => [
       kind,
-      sameHexStyle(styles[kind], PAPER_ENTITY_STYLES[kind]) ? DEFAULT_ENTITY_STYLES[kind] : styles[kind],
+      sameHexStyle(styles[kind], PAPER_ENTITY_STYLES[kind]) ||
+      sameHexStyle(styles[kind], DARK_ENTITY_STYLES[kind]) ||
+      sameHexStyle(styles[kind], LIGHT_ENTITY_STYLES[kind])
+        ? target[kind]
+        : styles[kind],
     ])
   ) as RuntimeEntityStyles;
+}
+
+/** Compatibility export for callers that specifically upgrade to paper. */
+export function upgradePaperEntityStyles(styles: RuntimeEntityStyles): RuntimeEntityStyles {
+  return upgradeEntityStylesForScheme(styles, 'light');
 }
 
 /** Current behavior. An empty store therefore changes no existing deployment. */
@@ -222,10 +247,10 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     timezone: '',
     injectCurrentDate: false,
   },
-  colorScheme: 'dark',
+  colorScheme: 'light',
   entityStyles: DEFAULT_ENTITY_STYLES,
-  fontBodyColor: THEME_FONT_COLORS.dark.body,
-  fontMutedColor: THEME_FONT_COLORS.dark.muted,
+  fontBodyColor: THEME_FONT_COLORS.light.body,
+  fontMutedColor: THEME_FONT_COLORS.light.muted,
   fontFamily: 'dm-sans',
   fontSize: 'm',
   backgroundGraphics: true,
@@ -262,11 +287,10 @@ function trimmedString(value: unknown, maximum: number, fallback?: string): stri
   return trimmed.length <= maximum ? trimmed : null;
 }
 
-function parseEntityStyles(value: unknown): RuntimeEntityStyles | null {
+function parseEntityStyles(value: unknown, scheme: 'dark' | 'light'): RuntimeEntityStyles | null {
   if (value === undefined) {
-    return Object.fromEntries(
-      RUNTIME_ENTITY_KINDS.map((kind) => [kind, { ...DEFAULT_ENTITY_STYLES[kind] }])
-    ) as RuntimeEntityStyles;
+    const defaults = scheme === 'dark' ? DARK_ENTITY_STYLES : LIGHT_ENTITY_STYLES;
+    return Object.fromEntries(RUNTIME_ENTITY_KINDS.map((kind) => [kind, { ...defaults[kind] }])) as RuntimeEntityStyles;
   }
   const object = strictObject(value, RUNTIME_ENTITY_KINDS);
   if (!object || !RUNTIME_ENTITY_KINDS.every((kind) => owns(object, kind))) return null;
@@ -286,8 +310,9 @@ function parseEntityStyles(value: unknown): RuntimeEntityStyles | null {
     return [kind, { foreground: style.foreground, background: style.background }] as const;
   });
   if (entries.some((entry) => entry === null)) return null;
-  return upgradePaperEntityStyles(
-    Object.fromEntries(entries as [RuntimeEntityKind, RuntimeEntityStyle][]) as RuntimeEntityStyles
+  return upgradeEntityStylesForScheme(
+    Object.fromEntries(entries as [RuntimeEntityKind, RuntimeEntityStyle][]) as RuntimeEntityStyles,
+    scheme
   );
 }
 
@@ -356,8 +381,8 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
   ] as const);
   const clarification = oneOf(behavior.clarification, ['strict', 'balanced', 'proceed-with-caveat'] as const);
   const timezone = trimmedString(behavior.timezone, 80);
-  const colorScheme = oneOf(root.colorScheme === undefined ? 'dark' : root.colorScheme, ['dark', 'light'] as const);
-  const entityStyles = parseEntityStyles(root.entityStyles);
+  const colorScheme = oneOf(root.colorScheme === undefined ? 'light' : root.colorScheme, ['dark', 'light'] as const);
+  const entityStyles = colorScheme ? parseEntityStyles(root.entityStyles, colorScheme) : null;
   const fontFamily = oneOf(root.fontFamily === undefined ? 'dm-sans' : root.fontFamily, FONT_FAMILY_IDS);
   const fontSize = oneOf(root.fontSize === undefined ? 'm' : root.fontSize, FONT_SIZE_IDS);
   const density = oneOf(root.density === undefined ? 'comfortable' : root.density, DENSITY_IDS);
@@ -501,4 +526,12 @@ export function fontColorsForScheme(
     fontBodyColor: sameHex(settings.fontBodyColor, from.body) ? to.body : settings.fontBodyColor,
     fontMutedColor: sameHex(settings.fontMutedColor, from.muted) ? to.muted : settings.fontMutedColor,
   };
+}
+
+/** Keep custom entity colours; move untouched defaults with the theme. */
+export function entityStylesForScheme(
+  settings: Pick<RuntimeSettings, 'colorScheme' | 'entityStyles'>,
+  nextScheme: 'dark' | 'light'
+): Pick<RuntimeSettings, 'entityStyles'> {
+  return { entityStyles: upgradeEntityStylesForScheme(settings.entityStyles, nextScheme) };
 }

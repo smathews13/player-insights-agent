@@ -194,7 +194,7 @@ export const CANVAS_FIT_SLACK = 2;
  * why the answer to a card that needs more room is always to give it more room.
  */
 export const CANVAS_WIDTH = 1264;
-export const CANVAS_HEIGHT = 861;
+export const CANVAS_HEIGHT = 869;
 
 /**
  * The white between one column and the next, everywhere.
@@ -333,8 +333,8 @@ export const CARD_LINE_HEIGHT = 1.35;
 export const CARD_TEXT = 11;
 /** `--text-base`, which only `.arch-node-label` sets. */
 export const CARD_TITLE_TEXT = 13;
-/** 1px padding and 1px border, top and bottom, on a status pill. */
-export const PILL_CHROME_HEIGHT = 4;
+/** 3px padding and 1px border, top and bottom, on a status pill. */
+export const PILL_CHROME_HEIGHT = 8;
 /** 6px padding and 1px border, either side. */
 export const PILL_CHROME_WIDTH = 14;
 
@@ -630,14 +630,14 @@ const NODE_PLACEMENTS: Readonly<Record<string, Omit<NodeBox, 'height'>>> = {
   browser: { left: 12, top: 186, width: 128, accent: 'question' },
   app: { left: 222, top: 190, width: 172, accent: 'question' },
   'agent-endpoint': { left: 476, top: 160, width: 196, accent: 'agent' },
-  'data-source-finder': { left: 476, top: 352, width: 196, accent: 'agent' },
+  'data-source-finder': { left: 476, top: 358, width: 196, accent: 'agent' },
   lakebase: { left: 222, top: 644, width: 172, accent: 'kept' },
   'experiment-id': { left: 476, top: 644, width: 196, accent: 'kept' },
   'llm-endpoint': { left: 754, top: 36, width: 218, accent: 'agent' },
   'genie-dictionary': { left: 754, top: 206, width: 218, accent: 'genie' },
   'genie-data': { left: 754, top: 396, width: 218, accent: 'genie' },
   'sql-warehouse': { left: 1054, top: 260, width: 198, accent: 'governed' },
-  catalog: { left: 1054, top: 452, width: 198, accent: 'governed' },
+  catalog: { left: 1054, top: 460, width: 198, accent: 'governed' },
 };
 
 /**
@@ -942,7 +942,7 @@ const EDGE_GEOMETRY: Readonly<
     to: { side: 'top', along: 98 },
     route: { kind: 'straight' },
     labelX: 586,
-    labelY: 333,
+    labelY: 336,
     accent: 'agent',
     duration: 2.4,
     delay: 0.4,
@@ -1039,7 +1039,7 @@ const EDGE_GEOMETRY: Readonly<
     to: { side: 'top', along: 99 },
     route: { kind: 'straight' },
     labelX: 1165,
-    labelY: 432,
+    labelY: 436,
     accent: 'governed',
     duration: 2.4,
     delay: 1.2,
