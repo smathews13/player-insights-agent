@@ -173,6 +173,7 @@ export function SettingsPage({
   // the Runtime form was a thousand pixels below the button that caused it.
   const [saveState, setSaveState] = useState<SettingsSaveState>(SETTINGS_SAVE_IDLE);
   const [paneDirtyCount, setPaneDirtyCount] = useState(0);
+  const [paneValid, setPaneValid] = useState(true);
   const paneDirtyCountRef = useRef(0);
   // The press paint, held for a beat so the click is visible before the modal
   // goes. See SAVE_PRESS_MS.
@@ -247,7 +248,7 @@ export function SettingsPage({
    * controls preserve the modal's stable action geometry without pretending
    * there is a form to submit or a change that Cancel could roll back.
    */
-  const saveDisabled = settingsSaveDisabled(saving, dirtyCount, Boolean(form));
+  const saveDisabled = settingsSaveDisabled(saving, dirtyCount, Boolean(form)) || !paneValid;
   const dirtyLabel = unsavedChangesLabel(dirtyCount);
   const requestClose = useCallback(() => {
     switch (settingsDismissalAction(dirtyCount, saving)) {
@@ -315,6 +316,7 @@ export function SettingsPage({
                     clearPaneDirty: () => {
                       paneDirtyCountRef.current = 0;
                       setPaneDirtyCount(0);
+                      setPaneValid(true);
                     },
                     // A "Saved" from the pane being left must not be read as an
                     // outcome for the one being opened.
@@ -346,7 +348,12 @@ export function SettingsPage({
               </div>
             ) : null}
             {active === 'runtime' || active === 'appearance' ? (
-              <RuntimeSettingsPanel section={active} onSaveState={setSaveState} onDirtyChange={handlePaneDirty} />
+              <RuntimeSettingsPanel
+                section={active}
+                onSaveState={setSaveState}
+                onDirtyChange={handlePaneDirty}
+                onValidityChange={setPaneValid}
+              />
             ) : null}
             {active === 'environment' ? (
               <EnvironmentPanel
@@ -592,7 +599,9 @@ export function SettingsPage({
                 ? 'Identity changes save immediately'
                 : active === 'environment'
                   ? 'Environment details are read-only'
-                  : undefined
+                  : !paneValid
+                    ? 'Fix color contrast errors before saving'
+                    : undefined
             }
             onClick={() => setPressed(true)}
           >

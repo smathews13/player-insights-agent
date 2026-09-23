@@ -52,12 +52,13 @@ export const CHART_THEME_ATTRIBUTE = 'data-theme';
  * The paints one figure needs, resolved from the document rather than from a spec.
  *
  * Eight slots and no more: everything else in a spec is geometry, which is the same
- * in both themes. The four series slots exist because a spec names the agent's
+ * in both themes. Three named series plus one neutral Other slot exist because a spec names the agent's
  * palette by value, and mapping slot for slot is what lets the token layer move a
  * series colour -- as the dark theme already moves `--chart-1` and `--chart-3` -- and
  * have the charts follow.
  *
- * THERE WERE THREE, AND THE AGENT EMITS FOUR. A fourth series was painted in the
+ * THERE WERE THREE, AND THE AGENT EMITS FOUR. A fourth category is the neutral
+ * Other series rather than a fourth named palette slot. It used to be painted in the
  * light theme's grey-blue whatever the surface, which is 2.31:1 on the night sky --
  * under the 3:1 a graphic needs to be seen at all. So a four-series chart had one
  * line the reader simply could not find, and it was the slot with no mapping rather
@@ -78,8 +79,8 @@ export interface ChartTheme {
   second: string;
   /** The third series. */
   third: string;
-  /** The fourth series, past which `agent/charts.py` separates by dash rather than hue. */
-  fourth: string;
+  /** Categories beyond the three-series ceiling, labelled Other. */
+  other: string;
   /** The face every numeral on an axis is set in. */
   mono: string;
 }
@@ -93,7 +94,7 @@ const THEME_TOKENS: Record<keyof ChartTheme, string> = {
   accent: '--chart-1',
   second: '--chart-2',
   third: '--chart-3',
-  fourth: '--chart-4',
+  other: '--chart-other',
   mono: '--font-mono',
 };
 
@@ -113,11 +114,11 @@ const FALLBACK_THEME: ChartTheme = {
   accent: '#1a62a8',
   second: '#0f6257',
   third: '#8a5a00',
-  fourth: '#4c5c68',
+  other: '#4c5c68',
   mono: "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
-/** The palette `agent/charts.py` assigns, in slot order: `--chart-1`, `-2`, `-3`, `-4`. */
+/** The palette `agent/charts.py` assigns: three named series, then the neutral Other slot. */
 const AGENT_SERIES = ['#2272b4', '#04867d', '#4299e0', '#445461'];
 
 /** `INK` in `agent/charts.py`: the outline it draws around a pale fill, and label text. */
@@ -232,7 +233,11 @@ function withAlpha(colour: unknown, alpha: number): string | null {
 function themedSeries(colour: unknown, theme: ChartTheme): string | null {
   const slot = AGENT_SERIES.indexOf(text(colour));
   if (slot < 0) return null;
-  return [theme.accent, theme.second, theme.third, theme.fourth][slot];
+  return [theme.accent, theme.second, theme.third, theme.other][slot];
+}
+
+function isOtherSeries(colour: unknown): boolean {
+  return AGENT_SERIES.indexOf(text(colour)) === 3;
 }
 
 /** A spec field as comparable text, and empty for anything that is not a string. */
@@ -340,6 +345,7 @@ function paintFrame(layout: Record<string, unknown>, theme: ChartTheme): void {
 
 /** One trace's series colour, outline and printed text, slot for slot. */
 function paintTrace(trace: Record<string, unknown>, theme: ChartTheme): void {
+  const other = isOtherSeries(record(trace.line).color) || isOtherSeries(record(trace.marker).color);
   const stroke = themedSeries(record(trace.line).color, theme);
   if (stroke) branch(trace, 'line').color = stroke;
 
@@ -370,6 +376,7 @@ function paintTrace(trace: Record<string, unknown>, theme: ChartTheme): void {
   }
 
   if (record(trace.textfont).color !== undefined) branch(trace, 'textfont').color = theme.ink;
+  if (other) trace.name = 'Other';
 }
 
 /**

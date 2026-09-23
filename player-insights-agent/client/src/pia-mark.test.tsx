@@ -72,26 +72,26 @@ describe('the six delivered PIA assets', () => {
 });
 
 describe('typed PIA mark geometry', () => {
-  it('switches at 24px exactly, never at a caller-selected cut', () => {
-    expect(PIA_SIMPLIFIED_CUTOFF).toBe(24);
-    expect(piaDpadCut(23.999)).toBe('simplified');
-    expect(piaDpadCut(24)).toBe('engraved');
-    expect(piaMarkElements(23)).toBe(PIA_DPAD_SIMPLIFIED);
-    expect(piaMarkElements(24)).toBe(PIA_DPAD_ENGRAVED);
+  it('switches at the 16px legibility floor, never at a caller-selected cut', () => {
+    expect(PIA_SIMPLIFIED_CUTOFF).toBe(16);
+    expect(piaDpadCut(15.999)).toBe('simplified');
+    expect(piaDpadCut(16)).toBe('engraved');
+    expect(piaMarkElements(15)).toBe(PIA_DPAD_SIMPLIFIED);
+    expect(piaMarkElements(16)).toBe(PIA_DPAD_ENGRAVED);
     expect(piaMarkElements(12, 'cluster')).toBe(PIA_CLUSTER);
   });
 
   it('exposes locked header, hero, and compact measurements', () => {
     expect(PIA_LOCKUP_SEATS).toEqual({
-      header: { mark: 24, type: 12.5, gap: 7 },
-      hero: { mark: 48, type: 24, gap: 12 },
-      compact: { mark: 40, type: 38, gap: 5 },
+      header: { mark: 21, markWidth: 19, markHeight: 21, type: 17, gap: 5 },
+      hero: { mark: 48, markWidth: 48, markHeight: 48, type: 24, gap: 12 },
+      compact: { mark: 40, markWidth: 40, markHeight: 40, type: 38, gap: 5 },
     });
   });
 
   it('marks the selected cut in rendered SVG markup', () => {
     expect(renderToStaticMarkup(<PiaMark size={15} />)).toContain('data-pia-cut="simplified"');
-    expect(renderToStaticMarkup(<PiaMark size={24} />)).toContain('data-pia-cut="engraved"');
+    expect(renderToStaticMarkup(<PiaMark size={16} />)).toContain('data-pia-cut="engraved"');
   });
 });
 
@@ -110,7 +110,8 @@ describe('wordmark, acronym, lockup, and static identity primitives', () => {
     expect(lockup).toContain('pia-lockup--full');
     expect(lockup).toContain('data-pia-cut="engraved"');
     expect(lockup).toContain('data-pia-static="true"');
-    expect(lockup).toContain('width="24"');
+    expect(lockup).toContain('width="19"');
+    expect(lockup).toContain('height="21"');
     expect(lockup).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(lockup).toContain('pia-wordmark');
     expect(lockup).not.toContain('pia-acronym');

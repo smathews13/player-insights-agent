@@ -16,16 +16,6 @@ const SECTIONS = readFileSync(new URL('./settings-sections.ts', import.meta.url)
 const SETTINGS_STYLES = readFileSync(new URL('./styles/settings.css', import.meta.url), 'utf8');
 const RESPONSIVE_STYLES = readFileSync(new URL('./styles/responsive-settings.css', import.meta.url), 'utf8');
 
-const BANNED_LABELS = [
-  ['AA', 'contrast', 'passed'].join(' '),
-  ['AA', 'contrast', 'warning'].join(' '),
-  ['editable', 'color', 'pairs'].join(' '),
-  ['Restore', 'safe', 'palette'].join(' '),
-  ['Color', 'contrast'].join(' '),
-  ['Enter', 'two', 'six-digit', 'hex', 'colors.'].join(' '),
-  ['needs', '4.5:1'].join(' '),
-] as const;
-
 const CUSTOM_SAFE_SETTINGS: RuntimeSettings = {
   ...DEFAULT_RUNTIME_SETTINGS,
   colorScheme: 'light',
@@ -46,26 +36,29 @@ const CUSTOM_LOW_CONTRAST_SETTINGS: RuntimeSettings = {
   },
 };
 
-function expectAuditAbsent(content: string): void {
-  for (const label of BANNED_LABELS) expect(content).not.toContain(label);
-}
-
-describe('removed Appearance contrast audit', () => {
+describe('Appearance contrast validation', () => {
   it.each([
     ['default palette', DEFAULT_RUNTIME_SETTINGS],
     ['custom passing palette', CUSTOM_SAFE_SETTINGS],
-    ['custom failing palette', CUSTOM_LOW_CONTRAST_SETTINGS],
-  ])('renders no audit status, copy, action, or accessible name for the %s', (_name, initialSettings) => {
+  ])('renders no contrast error for the %s', (_name, initialSettings) => {
     const markup = renderToStaticMarkup(
       <RuntimeSettingsPanel section="appearance" initialSettings={initialSettings} />
     );
 
-    expectAuditAbsent(markup);
-    expect(markup).not.toContain(['appearance', 'contrast'].join('-'));
-    expect(markup).not.toContain(['appearance', 'restore', 'palette'].join('-'));
+    expect(markup).not.toContain('appearance-contrast-error');
+    expect(markup).not.toContain('needs at least 4.5:1 contrast');
   });
 
-  it('leaves Entity colors as the clean final section in default and custom states', () => {
+  it('marks an unreadable pair and explains the measured requirement', () => {
+    const markup = renderToStaticMarkup(
+      <RuntimeSettingsPanel section="appearance" initialSettings={CUSTOM_LOW_CONTRAST_SETTINGS} />
+    );
+    expect(markup).toContain('appearance-contrast-error');
+    expect(markup).toContain('aria-invalid="true"');
+    expect(markup).toContain('Catalog text needs at least 4.5:1 contrast; this pair is 1.00:1.');
+  });
+
+  it('leaves Entity colors as the final section in default and custom states', () => {
     for (const initialSettings of [DEFAULT_RUNTIME_SETTINGS, CUSTOM_SAFE_SETTINGS, CUSTOM_LOW_CONTRAST_SETTINGS]) {
       const markup = renderToStaticMarkup(
         <RuntimeSettingsPanel section="appearance" initialSettings={initialSettings} />
@@ -77,11 +70,11 @@ describe('removed Appearance contrast audit', () => {
     }
   });
 
-  it('removes desktop/mobile CSS and Settings navigation, help, and source references', () => {
+  it('keeps validation inline without restoring a separate audit surface', () => {
     const settingsSurface = [PANEL, PAGE, SECTIONS, SETTINGS_STYLES, RESPONSIVE_STYLES].join('\n');
 
-    expectAuditAbsent(settingsSurface);
-    expect(settingsSurface).not.toContain(['appearance', 'contrast'].join('-'));
+    expect(settingsSurface).toContain('appearance-contrast-error');
+    expect(settingsSurface).toContain('runtimeAppearanceContrastIssues');
     expect(settingsSurface).not.toContain(['appearance', 'restore', 'palette'].join('-'));
     expect(existsSync(new URL(`./appearance-${['con', 'trast'].join('')}.ts`, import.meta.url))).toBe(false);
   });

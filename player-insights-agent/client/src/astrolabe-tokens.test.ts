@@ -49,13 +49,14 @@ const PALETTE: Record<string, string> = {
   '--ast-icon-tint': '#b7d6ee',
   '--ast-ink': '#0e1720',
   '--ast-ink-secondary': '#4c5c68',
-  '--ast-ink-tertiary': '#6b7a87',
+  '--ast-ink-tertiary': '#62727f',
   '--ast-ink-disabled': '#9aa7b2',
   '--ast-text-on-dark-secondary': '#8a9aa3',
   '--ast-hairline': '#e2e8ed',
   '--ast-hairline-strong': '#cfd9e0',
-  '--ast-border-input': '#c9d3db',
+  '--ast-border-input': '#7f8e9a',
   '--ast-border-dashed': '#b8c6d1',
+  '--ast-switch-off': '#d3dce3',
   '--ast-pos-text': '#0f6257',
   '--ast-pos-border': '#a8d5cd',
   '--ast-pos-fill': '#eaf6f3',
@@ -88,6 +89,18 @@ function declared(name: string) {
   return SOURCE.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]
     ?.trim()
     .toLowerCase();
+}
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5]
+    .map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255)
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrast(one: string, two: string): number {
+  const values = [luminance(one), luminance(two)].sort((left, right) => right - left);
+  return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
 describe('the astrolabe palette is the palette the delivered tokens.css specifies', () => {
@@ -128,6 +141,11 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
     expect(SOURCE).not.toContain('--db-warm');
   });
 
+  it('treats the accessibility floor as authoritative where supplied values conflict', () => {
+    expect(contrast(declared('--ast-ink-tertiary')!, declared('--ast-canvas')!)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(declared('--ast-border-input')!, declared('--ast-surface')!)).toBeGreaterThanOrEqual(3);
+  });
+
   it('states the eight steps of the scale, at the sizes §3 gives', () => {
     for (const [token, size] of [
       ['--ast-fs-11', '11px'],
@@ -137,7 +155,8 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
       ['--ast-fs-16', '16px'],
       ['--ast-fs-18', '18px'],
       ['--ast-fs-22', '22px'],
-      ['--ast-fs-32', '32px'],
+      ['--ast-fs-30', '30px'],
+      ['--ast-fs-40', '40px'],
     ]) {
       expect(declared(token), `${token} is ${size}`).toBe(size);
     }
@@ -163,8 +182,8 @@ describe('the astrolabe palette is the palette the delivered tokens.css specifie
       ['--ast-fs-14', '--text-h-sub'],
       ['--ast-fs-16', '--text-h-section'],
       ['--ast-fs-18', '--text-h-card'],
-      ['--ast-fs-22', '--text-h-page'],
-      ['--ast-fs-32', '--text-hero'],
+      ['--ast-fs-30', '--text-h-page'],
+      ['--ast-fs-40', '--text-hero'],
     ]) {
       const theirs = app.match(new RegExp(`${existing}:\\s*([^;]+);`))?.[1]?.trim();
       expect(theirs, `${existing} is declared`).toBeDefined();

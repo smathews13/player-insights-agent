@@ -50,7 +50,7 @@ describe('runtime settings contract', () => {
   it('upgrades leftover paper pairs and leaves a chosen pair alone', () => {
     expect(upgradePaperEntityStyles(PAPER_ENTITY_STYLES)).toEqual(DEFAULT_ENTITY_STYLES);
 
-    const customTable = { foreground: '#112233', background: '#445566' };
+    const customTable = { foreground: '#ffffff', background: '#445566' };
     expect(
       upgradePaperEntityStyles({
         ...PAPER_ENTITY_STYLES,

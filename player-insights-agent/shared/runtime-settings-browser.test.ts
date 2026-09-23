@@ -9,7 +9,9 @@ import {
   RUNTIME_ENTITY_STYLE_KEYS,
   RUNTIME_LOOP_KEYS,
   RUNTIME_SETTINGS_KEYS,
+  contrastRatio,
   parsePersistedRuntimeSettings,
+  runtimeAppearanceContrastIssues,
   type RuntimeSettings,
 } from './runtime-settings-browser';
 import {
@@ -114,6 +116,26 @@ describe('browser runtime settings cache parser', () => {
       expect(parsePersistedRuntimeSettings(changedValue), path.join('.')).toBeNull();
       expect(RuntimeSettingsSchema.safeParse(changedValue).success, `${path.join('.')} schema`).toBe(false);
     }
+  });
+
+  it('enforces readable custom text and entity colors at both settings boundaries', () => {
+    expect(contrastRatio('#0e1720', '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    const unreadableText = changed(['fontMutedColor'], '#9aa7b2');
+    const unreadableEntity = changed(['entityStyles', 'table'], {
+      foreground: '#ffffff',
+      background: '#f4f7f9',
+    });
+    for (const value of [unreadableText, unreadableEntity]) {
+      expect(parsePersistedRuntimeSettings(value)).toBeNull();
+      expect(RuntimeSettingsSchema.safeParse(value).success).toBe(false);
+    }
+    expect(runtimeAppearanceContrastIssues(DEFAULT_RUNTIME_SETTINGS)).toEqual([]);
+  });
+
+  it('upgrades the retired light tertiary value to the accessible replacement', () => {
+    const legacy = changed(['fontMutedColor'], '#6b7a87');
+    expect(parsePersistedRuntimeSettings(legacy)?.fontMutedColor).toBe('#62727f');
+    expect(RuntimeSettingsSchema.parse(legacy).fontMutedColor).toBe('#62727f');
   });
 
   it('is strict at every object level and requires every non-defaulted field', () => {

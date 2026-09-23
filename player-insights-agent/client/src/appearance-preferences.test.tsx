@@ -240,7 +240,9 @@ describe('Appearance preferences', () => {
     expect(INDEX.indexOf(RUNTIME_APPEARANCE_CACHE_KEY)).toBeLessThan(INDEX.indexOf('/src/main.tsx'));
     expect(INDEX).toContain("root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable'");
     expect(INDEX).toContain('const sizeScale = { s: 0.92, m: 1, l: 1.15 }[saved.fontSize]');
-    expect(INDEX).toContain('if (hex.test(saved.fontBodyColor))');
+    expect(INDEX).toContain('if (readableOnSurfaces(saved.fontBodyColor))');
+    expect(INDEX).toContain("window.matchMedia?.('(prefers-color-scheme: dark)').matches");
+    expect(INDEX).toContain('contrast(style.foreground, style.background) >= 4.5');
     expect(INDEX).toContain('if (families[saved.fontFamily])');
     expect(runtimeAppearanceFromCache(JSON.stringify(DEFAULT_RUNTIME_SETTINGS))).toEqual(DEFAULT_RUNTIME_SETTINGS);
     for (const malformed of [null, '{', '{"density":"dense"}', '{"fontBodyColor":"red"}']) {

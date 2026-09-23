@@ -1,4 +1,4 @@
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .monitoring-page .monitoring-strip {
     grid-template-columns: repeat(7, minmax(0, 1fr));
     grid-template-areas: none;

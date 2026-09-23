@@ -18,19 +18,35 @@
        */
       try {
         const saved = JSON.parse(localStorage.getItem('astrolabe.runtime-appearance.v1') || 'null');
+        const root = document.documentElement;
+        const cachedScheme = saved?.colorScheme === 'dark' || saved?.colorScheme === 'light' ? saved.colorScheme : null;
+        const colorScheme =
+          cachedScheme || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        root.dataset.theme = colorScheme;
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute('content', colorScheme === 'dark' ? '#0B1014' : '#F4F7F9');
         if (saved && typeof saved === 'object') {
-          const root = document.documentElement;
-          if (saved.colorScheme === 'dark' || saved.colorScheme === 'light') {
-            root.dataset.theme = saved.colorScheme;
-            document
-              .querySelector('meta[name="theme-color"]')
-              ?.setAttribute('content', saved.colorScheme === 'dark' ? '#11171C' : '#F4F7F9');
-          }
           root.dataset.backgroundGraphics = saved.backgroundGraphics === false ? 'off' : 'on';
           root.dataset.animations = saved.animations === false ? 'off' : 'on';
           root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable';
           const hex = /^#[0-9a-f]{6}$/i;
-          if (hex.test(saved.fontBodyColor)) {
+          const luminance = (value) => {
+            const channels = [1, 3, 5]
+              .map((at) => Number.parseInt(value.slice(at, at + 2), 16) / 255)
+              .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+            return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+          };
+          const contrast = (foreground, background) => {
+            if (!hex.test(foreground) || !hex.test(background)) return 0;
+            const one = luminance(foreground);
+            const two = luminance(background);
+            return (Math.max(one, two) + 0.05) / (Math.min(one, two) + 0.05);
+          };
+          const surfaces = colorScheme === 'dark' ? ['#101820', '#0B1014'] : ['#FFFFFF', '#F4F7F9'];
+          const readableOnSurfaces = (foreground) =>
+            hex.test(foreground) && surfaces.every((background) => contrast(foreground, background) >= 4.5);
+          if (readableOnSurfaces(saved.fontBodyColor)) {
             for (const token of [
               '--ast-text',
               '--ast-text-long',
@@ -45,9 +61,13 @@
               root.style.setProperty(token, saved.fontBodyColor);
             }
           }
-          if (hex.test(saved.fontMutedColor)) {
+          const mutedColor =
+            colorScheme === 'light' && saved.fontMutedColor?.toLowerCase() === '#6b7a87'
+              ? '#62727F'
+              : saved.fontMutedColor;
+          if (readableOnSurfaces(mutedColor)) {
             for (const token of ['--ast-text-secondary', '--ast-caption', '--muted-foreground', '--db-slate']) {
-              root.style.setProperty(token, saved.fontMutedColor);
+              root.style.setProperty(token, mutedColor);
             }
           }
           const families = {
@@ -65,9 +85,9 @@
               ['--text-h-sub', 14],
               ['--text-h-section', 16],
               ['--text-h-card', 18],
-              ['--text-h-page', 22],
+              ['--text-h-page', 30],
               ['--text-kpi', 22],
-              ['--text-hero', 32],
+              ['--text-hero', 40],
               ['--ast-fs-11', 11],
               ['--ast-fs-12', 12],
               ['--ast-fs-13', 13],
@@ -75,19 +95,29 @@
               ['--ast-fs-16', 16],
               ['--ast-fs-18', 18],
               ['--ast-fs-22', 22],
-              ['--ast-fs-32', 32],
+              ['--ast-fs-30', 30],
+              ['--ast-fs-40', 40],
             ]) {
               root.style.setProperty(token, `${Math.round(px * sizeScale)}px`);
             }
           }
           for (const kind of ['catalog', 'schema', 'table', 'column', 'quote', 'tag']) {
             const style = saved.entityStyles?.[kind];
-            if (hex.test(style?.foreground)) root.style.setProperty(`--entity-${kind}-fg`, style.foreground);
-            if (hex.test(style?.background)) root.style.setProperty(`--entity-${kind}-bg`, style.background);
+            if (
+              hex.test(style?.foreground) &&
+              hex.test(style?.background) &&
+              contrast(style.foreground, style.background) >= 4.5
+            ) {
+              root.style.setProperty(`--entity-${kind}-fg`, style.foreground);
+              root.style.setProperty(`--entity-${kind}-bg`, style.background);
+            }
           }
         }
       } catch {
-        // Defaults above are the safe first paint when storage is unavailable.
+        if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.dataset.theme = 'dark';
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0B1014');
+        }
       }
     </script>
     <style>
@@ -101,7 +131,7 @@
         background: #f4f7f9;
       }
       html[data-theme='dark'] body {
-        background: #11171c;
+        background: #0b1014;
       }
     </style>
     <link rel="icon" type="image/svg+xml" href="/pia-dpad-tab.svg" />

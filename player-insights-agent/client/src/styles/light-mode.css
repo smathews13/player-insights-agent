@@ -53,7 +53,14 @@ html:not([data-theme='dark'])
     [data-slot='select-content'],
     [data-slot='dropdown-menu-content'],
     .account-menu,
-    .settings-page.settings-modal
+    .settings-page.settings-modal,
+    .settings-discard,
+    .monitoring-question-modal,
+    .user-profile-modal,
+    .monitoring-users-modal,
+    .uc-explorer-modal,
+    .account-composer,
+    .ops-scope-dialog
   ) {
   background: var(--ast-surface-raised);
   border-color: var(--ast-hairline);
@@ -80,6 +87,8 @@ html:not([data-theme='dark'])
     [role='button'],
     [role='tab'],
     [role='radio'],
+    [tabindex],
+    summary,
     [data-slot='switch']
   ):focus-visible,
 html:not([data-theme='dark']) .composer:focus-within {
@@ -137,7 +146,17 @@ html:not([data-theme='dark']) :is(tbody tr, [data-slot='table-row']):hover {
   background: var(--ast-surface-sunken);
 }
 
-html:not([data-theme='dark']) .settings-overlay {
+html:not([data-theme='dark'])
+  :is(
+    .settings-overlay,
+    .settings-discard-overlay,
+    .monitoring-question-overlay,
+    .user-profile-modal-overlay,
+    .monitoring-users-overlay,
+    .uc-explorer-overlay,
+    .account-composer-overlay,
+    .ops-scope-dialog-overlay
+  ) {
   background: var(--ast-scrim);
 }
 

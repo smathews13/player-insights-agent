@@ -140,7 +140,7 @@
   --db-wash: #f7f7f7; /* backgroundSecondary: hover, selected, panel heads */
   --db-warm: #f9f7f4; /* warm hero / AI-context surface (use sparingly) */
   --db-line: #ebebeb; /* hairline — the ONLY thin border */
-  --db-line-strong: #cbcbcb; /* control borders (inputs, outline buttons) */
+  --db-line-strong: var(--ast-border-input); /* accessible control boundaries */
   --db-code-bg: rgba(82, 82, 82, 0.08);
   --db-skeleton: rgba(162, 162, 162, 0.16);
   --db-row-hover: rgba(82, 82, 82, 0.04);
@@ -294,9 +294,9 @@
      264. Two surfaces reading one name and getting two answers is worse than a
      token in a shared file, so the number lives here once and the rail, the
      fixed composer and the header all read it. The 1180px band in
-     responsive.css still narrows it to 220px for the rail alone. */
-  --conversation-width: 340px;
-  --trace-width: 340px;
+     responsive.css still narrows it to 220px for the rail alone below 1320px. */
+  --conversation-width: 290px;
+  --trace-width: 320px;
 
   /*
    * How far the ask surface's middle column holds its contents off the two rails
@@ -384,7 +384,7 @@
   --input: var(--ast-border-input);
   --ring: var(--ast-action);
   /*
-   * Four series and an emphasis, rather than the two weights of black this used
+   * Three named series, a neutral Other category, and an emphasis, rather than the two weights of black this used
    * to be. --chart-1 is the primary series and is the same blue as every other
    * action, which is the point: the bar and the button that produced it are the
    * same colour. --chart-emphasis is orange and marks exactly one bar, the
@@ -396,7 +396,7 @@
    * the app, so the charts were the last thing on screen painted in it.
    *
    * No text is printed on top of any of these. One bar used to carry its own
-   * duration, on the Run Explorer's waterfall, and took --chart-4 for the
+   * duration, on the Run Explorer's waterfall, and took --chart-other for the
    * contrast: white measures 7.82:1 on #445461 against 4.46:1 on the teal. That
    * view is gone and the figure has a column of its own, so the rule holds
    * everywhere without an exception to keep.
@@ -404,7 +404,7 @@
   --chart-1: var(--ast-chart-1);
   --chart-2: var(--ast-chart-2);
   --chart-3: var(--ast-chart-3);
-  --chart-4: var(--ast-neutral-text);
+  --chart-other: var(--ast-neutral-text);
   --chart-emphasis: var(--db-orange);
   /*
    * Status colours are pinned because AppKit's dark variants are lighter and
@@ -443,12 +443,12 @@
   --text-base: 13px; /* app body */
   --text-sm: 12px; /* dense body, captions */
   --text-xs: 11px; /* eyebrows (700, +0.06em, uppercase), pill labels */
-  --text-h-page: 22px; /* page h2, 700, -0.01em */
+  --text-h-page: 30px; /* page h2, 700, -0.01em */
   --text-h-card: 18px; /* takeaway titles, 700, -0.01em, lh 1.35 */
   --text-h-section: 16px; /* card/section titles, 700 */
   --text-h-sub: 14px; /* sub-block titles, 700 */
   --text-kpi: 22px; /* metric tile values, 700, tabular-nums */
-  --text-hero: 32px; /* Ask hero h2, 700, -0.015em */
+  --text-hero: 40px; /* Ask hero h2, 700, -0.015em */
 }
 
 /*
@@ -459,15 +459,15 @@
 html[data-theme='dark'] {
   color-scheme: dark;
   --db-ink: var(--ast-ink-on-dark);
-  --db-body: var(--ast-ink-on-dark);
-  --db-slate: rgba(232, 237, 242, 0.68);
-  --db-slate-icon: rgba(232, 237, 242, 0.68);
+  --db-body: #d5e1e5;
+  --db-slate: #8b9ca4;
+  --db-slate-icon: #8b9ca4;
   --db-grey-blue: var(--ast-ink-on-dark);
   --db-chip: rgba(255, 255, 255, 0.12);
   --db-wash: rgba(255, 255, 255, 0.03);
   --db-warm: rgba(255, 255, 255, 0.03);
-  --db-line: rgba(255, 255, 255, 0.12);
-  --db-line-strong: rgba(255, 255, 255, 0.22);
+  --db-line: rgba(255, 255, 255, 0.1);
+  --db-line-strong: rgba(255, 255, 255, 0.14);
   --db-code-bg: rgba(255, 255, 255, 0.08);
   --db-skeleton: rgba(255, 255, 255, 0.12);
   --db-row-hover: rgba(255, 255, 255, 0.07);
@@ -482,7 +482,7 @@ html[data-theme='dark'] {
   --db-green-line: rgba(154, 214, 206, 0.4);
   --db-amber-wash: rgba(255, 171, 0, 0.12);
   --db-amber-line: rgba(255, 171, 0, 0.35);
-  --background: var(--ast-navy);
+  --background: var(--ast-canvas);
   --foreground: var(--ast-ink-on-dark);
   /* Primary reading surfaces attenuate the ambient sky by 95%. Nested badges
      and state tints may retain more alpha because they composite onto this
@@ -503,11 +503,11 @@ html[data-theme='dark'] {
   --secondary: rgba(255, 255, 255, 0.12);
   --secondary-foreground: var(--ast-ink-on-dark);
   --muted: rgba(255, 255, 255, 0.03);
-  --muted-foreground: rgba(232, 237, 242, 0.68);
+  --muted-foreground: #8b9ca4;
   --accent: rgba(255, 255, 255, 0.05);
   --accent-foreground: var(--ast-ink-on-dark);
-  --border: rgba(255, 255, 255, 0.12);
-  --input: rgba(255, 255, 255, 0.22);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
   --ring: var(--ast-ice-accent);
   --chart-1: var(--ast-ice-accent);
   --chart-3: var(--ast-blue-on-dark);
@@ -523,5 +523,5 @@ html[data-theme='dark'] {
    * the floor, and it is the one hue in the four that is not a blue -- lightening it
    * would cost the separation that makes it worth having.
    */
-  --chart-4: var(--ast-text-on-dark-secondary);
+  --chart-other: var(--ast-text-on-dark-secondary);
 }

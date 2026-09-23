@@ -21,7 +21,7 @@ import { partial, partialNames } from './styles/stylesheet';
  * shape as the leftover this file exists to prevent.
  */
 
-const DECLARED = [1365, 1180, 800, 480];
+const DECLARED = [1365, 1320, 800, 480];
 const ROUTE_EXCEPTIONS = new Map<string, number[]>([
   // Dense configured/measured pairs and settings dialogs need one local
   // single-column handoff before the app-wide 480px phone band.
@@ -31,9 +31,9 @@ const ROUTE_EXCEPTIONS = new Map<string, number[]>([
   // The responsive wordmark, Run Explorer split, and dense settings editors
   // switch on the widths of their own fixed content rather than app navigation.
   ['pia-brand.css', [720]],
-  // The inspector exists only above the shared 1180px max-width handoff, so its
+  // The inspector exists only above the shared 1320px max-width handoff, so its
   // inverse min-width starts at the next whole CSS pixel.
-  ['rail.css', [1181]],
+  ['rail.css', [1321]],
   ['responsive-runs.css', [960]],
   ['settings.css', [900, 720]],
   ['responsive-settings.css', [960, 640]],
@@ -85,7 +85,7 @@ describe('the app has one set of breakpoints', () => {
       /@media \(max-width: 800px\)[\s\S]*\.arch-loop-tiles\s*\{[^}]*grid-template-columns:\s*repeat\(2/
     );
     expect(architecture).toMatch(
-      /@media \(max-width: 1180px\)[\s\S]*\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/
+      /@media \(max-width: 1320px\)[\s\S]*\.arch-rails\s*\{[^}]*grid-template-columns:\s*1fr/
     );
     const connectionPage = partial('connections.css');
     const lakebaseCompact = connectionPage.slice(

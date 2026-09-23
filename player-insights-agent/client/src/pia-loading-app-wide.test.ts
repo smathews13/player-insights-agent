@@ -86,7 +86,7 @@ describe('app-wide PIA loading context map', () => {
     expect(read('HomePage.tsx')).toContain('<PiaAvatar size={32} />');
     expect(read('PlanCard.tsx')).toContain('<PiaAvatar size={32} />');
     expect(read('AIAnalysisCaveat.tsx')).toContain('<PiaAvatar size={14} />');
-    expect(read('Layout.tsx')).toContain('<PiaLockup as="h1" seat="header" name="full" tone="dark" />');
+    expect(read('Layout.tsx')).toContain('<PiaLockup as="h1" seat="header" name="full" tone="light" />');
     const runtime = sourceFiles(new URL('.', ROOT).pathname)
       .filter((path) => path.endsWith('.tsx') && !path.endsWith('/PiaMark.tsx'))
       .map((path) => readFileSync(path, 'utf8'))

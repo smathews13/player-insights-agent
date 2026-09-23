@@ -71,7 +71,8 @@
 }
 /* The container already draws the focus ring; a second one inside it is noise. */
 .composer textarea:focus-visible {
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
 }
 .composer textarea::placeholder {
   color: var(--db-slate);

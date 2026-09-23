@@ -117,12 +117,16 @@ export function PiaMark({
  */
 export function PiaAvatar({
   size,
+  width = size,
+  height = size,
   tone = 'light',
   className,
   label,
   style,
 }: {
   size: number;
+  width?: number;
+  height?: number;
   tone?: PiaMarkTone;
   className?: string;
   label?: string;
@@ -131,8 +135,8 @@ export function PiaAvatar({
   return (
     <svg
       className={`pia-mark pia-avatar pia-mark--${tone} pia-mark--dpad ${className ?? ''}`.trim()}
-      width={size}
-      height={size}
+      width={width}
+      height={height}
       viewBox={`0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}`}
       fill="none"
       role={label ? 'img' : undefined}
@@ -218,7 +222,7 @@ export function PiaLockup({
       className={`pia-lockup pia-lockup--${seat} pia-lockup--${name} ${className ?? ''}`.trim()}
       style={style}
     >
-      <PiaAvatar size={measurements.mark} tone={tone} />
+      <PiaAvatar size={measurements.mark} width={measurements.markWidth} height={measurements.markHeight} tone={tone} />
       <LockupName name={name} tone={tone} />
     </Tag>
   );

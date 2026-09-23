@@ -237,7 +237,7 @@
   border: 1px solid var(--ast-border-input);
   border-radius: var(--ast-radius-card);
   background: var(--ast-surface-elevated);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--ast-shadow-overlay);
 }
 
 .ops-scope-dialog-head {

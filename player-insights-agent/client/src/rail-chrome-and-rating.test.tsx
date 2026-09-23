@@ -235,7 +235,7 @@ describe('the question staggered right of the answer', () => {
     // partial's own: a second set of widths is the defect breakpoints.test.ts
     // exists to catch, and it is how the nav once collapsed 100px after the
     // column it shares a header with.
-    const band = atRule(partial('responsive.css'), '@media (max-width: 1180px)');
+    const band = atRule(partial('responsive.css'), '@media (max-width: 1320px)');
 
     expect(band).toMatch(/\.conversation-main \{\s*--question-stagger: 0px;/);
     expect(band).toContain('.trace-inspector');

@@ -127,8 +127,13 @@ export type DensityId = (typeof DENSITY_IDS)[number];
 
 export const THEME_FONT_COLORS: Record<'dark' | 'light', { body: string; muted: string }> = {
   dark: { body: '#ffffff', muted: '#c5ccd4' },
-  light: { body: '#0e1720', muted: '#6b7a87' },
+  light: { body: '#0e1720', muted: '#62727f' },
 };
+export const LEGACY_LIGHT_MUTED_COLOR = '#6b7a87';
+
+export function upgradeFontColorForContrast(color: string, scheme: 'dark' | 'light'): string {
+  return scheme === 'light' && sameHex(color, LEGACY_LIGHT_MUTED_COLOR) ? THEME_FONT_COLORS.light.muted : color;
+}
 
 export const FONT_FAMILY_STACKS: Record<FontFamilyId, string> = {
   'dm-sans': "'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
@@ -149,9 +154,9 @@ const TYPE_TOKEN_PX = [
   ['--text-h-sub', 14],
   ['--text-h-section', 16],
   ['--text-h-card', 18],
-  ['--text-h-page', 22],
+  ['--text-h-page', 30],
   ['--text-kpi', 22],
-  ['--text-hero', 32],
+  ['--text-hero', 40],
   ['--ast-fs-11', 11],
   ['--ast-fs-12', 12],
   ['--ast-fs-13', 13],
@@ -159,7 +164,8 @@ const TYPE_TOKEN_PX = [
   ['--ast-fs-16', 16],
   ['--ast-fs-18', 18],
   ['--ast-fs-22', 22],
-  ['--ast-fs-32', 32],
+  ['--ast-fs-30', 30],
+  ['--ast-fs-40', 40],
 ] as const;
 
 export type RuntimeSettings = {
@@ -392,12 +398,16 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
       : typeof root.fontBodyColor === 'string' && isHexColor(root.fontBodyColor)
         ? root.fontBodyColor
         : null;
-  const fontMutedColor =
+  const parsedFontMutedColor =
     root.fontMutedColor === undefined && colorScheme
       ? THEME_FONT_COLORS[colorScheme].muted
       : typeof root.fontMutedColor === 'string' && isHexColor(root.fontMutedColor)
         ? root.fontMutedColor
         : null;
+  const fontMutedColor =
+    parsedFontMutedColor && colorScheme
+      ? upgradeFontColorForContrast(parsedFontMutedColor, colorScheme)
+      : parsedFontMutedColor;
 
   if (
     maxSteps === null ||
@@ -433,7 +443,7 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
     return null;
   }
 
-  return {
+  const settings: RuntimeSettings = {
     loop: { maxSteps, maxToolCalls, maxRunSeconds },
     answer: {
       takeaway: answer.takeaway,
@@ -466,6 +476,7 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
     animations: root.animations === undefined ? true : root.animations,
     density,
   };
+  return runtimeAppearanceContrastIssues(settings).length === 0 ? settings : null;
 }
 
 export type RuntimeEntityCssVariables = Record<`--entity-${RuntimeEntityKind}-${'fg' | 'bg'}`, string>;
@@ -513,6 +524,78 @@ export function runtimeAppearanceCssVariables(settings: RuntimeSettings): Record
 
 export function isHexColor(value: string): boolean {
   return HEX_COLOR.test(value);
+}
+
+export const MINIMUM_TEXT_CONTRAST = 4.5;
+
+export type AppearanceContrastIssue = {
+  field: string;
+  message: string;
+  ratio: number;
+};
+
+function relativeLuminance(hex: string): number {
+  const channels = [1, 3, 5]
+    .map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255)
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+export function contrastRatio(foreground: string, background: string): number {
+  if (!isHexColor(foreground) || !isHexColor(background)) return 0;
+  const one = relativeLuminance(foreground);
+  const two = relativeLuminance(background);
+  return (Math.max(one, two) + 0.05) / (Math.min(one, two) + 0.05);
+}
+
+function contrastIssue(
+  field: string,
+  label: string,
+  foreground: string,
+  background: string
+): AppearanceContrastIssue | null {
+  const ratio = contrastRatio(foreground, background);
+  return ratio >= MINIMUM_TEXT_CONTRAST
+    ? null
+    : {
+        field,
+        ratio,
+        message: `${label} needs at least ${MINIMUM_TEXT_CONTRAST}:1 contrast; this pair is ${ratio.toFixed(2)}:1.`,
+      };
+}
+
+/**
+ * Validate every user-selected text paint against every surface it can occupy.
+ *
+ * The written design values for tertiary text and control borders conflict with
+ * the accessibility floor. The floor wins: Appearance may preview any draft,
+ * but it cannot persist a pair that makes meaningful text unreadable.
+ */
+export function runtimeAppearanceContrastIssues(
+  settings: Pick<RuntimeSettings, 'colorScheme' | 'fontBodyColor' | 'fontMutedColor' | 'entityStyles'>
+): AppearanceContrastIssue[] {
+  const surfaces = settings.colorScheme === 'dark' ? ['#101820', '#0b1014'] : ['#ffffff', '#f4f7f9'];
+  const issues: AppearanceContrastIssue[] = [];
+  for (const [field, label, foreground] of [
+    ['fontBodyColor', 'Body text', settings.fontBodyColor],
+    ['fontMutedColor', 'Secondary text', settings.fontMutedColor],
+  ] as const) {
+    const ratios = surfaces.map((background) => ({ background, ratio: contrastRatio(foreground, background) }));
+    const weakest = ratios.reduce((minimum, candidate) => (candidate.ratio < minimum.ratio ? candidate : minimum));
+    const issue = contrastIssue(field, label, foreground, weakest.background);
+    if (issue) issues.push(issue);
+  }
+  for (const kind of RUNTIME_ENTITY_KINDS) {
+    const style = settings.entityStyles[kind];
+    const issue = contrastIssue(
+      `entityStyles.${kind}`,
+      `${kind[0].toUpperCase()}${kind.slice(1)} text`,
+      style.foreground,
+      style.background
+    );
+    if (issue) issues.push(issue);
+  }
+  return issues;
 }
 
 /** Keep a custom colour; follow the new theme when the reader was still on defaults. */

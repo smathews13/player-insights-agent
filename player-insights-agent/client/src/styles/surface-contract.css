@@ -70,7 +70,8 @@ thead th,
  */
 .ast-dialog-panel[data-ast-dialog-panel]:focus,
 .ast-dialog-panel[data-ast-dialog-panel]:focus-visible {
-  outline: none;
+  outline: none !important;
+  box-shadow: var(--ast-shadow-overlay) !important;
 }
 
 /*
@@ -92,8 +93,8 @@ thead th,
 .ast-login-panel[aria-busy='true'] {
   background: var(--ast-surface-elevated);
   border: 1px solid var(--ast-border-input);
-  outline: none;
-  box-shadow: var(--ast-shadow-overlay);
+  outline: none !important;
+  box-shadow: var(--ast-shadow-overlay) !important;
 }
 
 /* Retired gate glows and dotted focus frames must not return through a wrapper
