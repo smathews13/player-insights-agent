@@ -259,6 +259,21 @@ describe('extractDashboard', () => {
     expect(extractReport(dashboardResponse)).toBeNull();
   });
 
+  it('accepts the flat custom_outputs envelope supported by the shared contract', () => {
+    expect(
+      extractDashboard({
+        custom_outputs: {
+          type: 'dashboard',
+          title: 'Flat dashboard',
+          html: '<!DOCTYPE html><html><body>Flat</body></html>',
+        },
+      })
+    ).toMatchObject({
+      title: 'Flat dashboard',
+      html: '<!DOCTYPE html><html><body>Flat</body></html>',
+    });
+  });
+
   it('reads an AppKit-wrapped dashboard and rejects endpoint errors', () => {
     expect(extractDashboard({ data: dashboardResponse })?.title).toBe('Cross-franchise reach');
     expect(
