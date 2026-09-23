@@ -34,6 +34,7 @@ import {
   displaySourceTitle,
   isRecommendedSourceTitle,
   planRevisionReducer,
+  planSourceId,
   planWithSelectedSource,
   ranSourceStepId,
   recommendedSourceId,
@@ -90,7 +91,7 @@ function PlanSourceStep({
         <div className="plan-step-heading">
           <strong>
             {product && <BrandIcon product={product} size={14} />}
-            <PlanText text={title} columns={columns} />
+            <PlanText text={title} columns={columns} entities={candidate ? [candidate.table] : []} />
           </strong>
           {recommended ? (
             <Badge variant="outline" className="ast-pill ast-pill--pos">
@@ -178,8 +179,29 @@ export function PlanCard({
    * here because it is a decision about THIS card and dies with it.
    */
   const [selectedStepId, setSelectedStepId] = useState(() => recommendedSourceId(plan));
-  /** More than one ranked source, so the reader has a choice worth showing. */
-  const canChooseSource = (plan.candidates?.length ?? 0) > 1;
+  const candidates = plan.candidates ?? [];
+  const jointSourcePlan = candidates.filter((candidate) => candidate.recommended).length > 1;
+  const candidatesAlignWithSteps = candidates.length === plan.steps.length;
+  /**
+   * Only offer a runnable choice when every candidate has the step id the
+   * approval helper sends back. A contract with one joint step and several
+   * candidates is a source set, not several selectable steps.
+   */
+  const canChooseSource = candidates.length > 1 && candidatesAlignWithSteps && !jointSourcePlan;
+  const sourceRows =
+    candidates.length > plan.steps.length
+      ? candidates.map((candidate, index) => ({
+          candidate,
+          step:
+            plan.steps[index] ??
+            ({
+              id: planSourceId(plan, index),
+              title: candidate.table,
+              description: candidate.why,
+              kind: 'data',
+            } satisfies AnalysisPlan['steps'][number]),
+        }))
+      : plan.steps.map((step, index) => ({ step, candidate: candidates[index] }));
   /**
    * The three things this card can be: waiting on the reader, approved by them,
    * or settled some other way -- revised, or left behind by the next question.
@@ -263,15 +285,15 @@ export function PlanCard({
                 in a text box is not a revision the agent can honour, so the
                 choice is a radio that writes into the note below. */}
             <div className="plan-steps">
-              {plan.steps.map((step, index) => (
+              {sourceRows.map(({ step, candidate }, index) => (
                 <PlanSourceStep
                   key={step.id}
                   step={step}
                   index={index}
                   columns={columns}
-                  candidate={plan.candidates?.[index]}
+                  candidate={candidate}
                   pick={
-                    plan.candidates?.[index]
+                    canChooseSource && candidate
                       ? {
                           name: `plan-source-${plan.id}`,
                           checked: revision.selectedStepId === step.id,
@@ -308,24 +330,26 @@ export function PlanCard({
                 line the radios read as "pick one table and discard the others",
                 which is not what approving does: it sends the whole set and marks
                 one primary. Shown only while there is a choice to frame. */}
-            {!resolved && canChooseSource ? (
+            {!resolved && candidates.length > 0 && (canChooseSource || jointSourcePlan || !candidatesAlignWithSteps) ? (
               <p className="plan-sources-note">
-                All of these governed tables are in scope for this plan. It leads with the recommended source and may
-                join the others as the question needs — choosing a different one only changes which table is primary, it
-                does not drop the rest.
+                {jointSourcePlan
+                  ? 'All of these governed tables are required for this plan and will be read together.'
+                  : canChooseSource
+                    ? 'All of these governed tables are in scope for this plan. It leads with the recommended source and may join the others as the question needs — choosing a different one only changes which table is primary, it does not drop the rest.'
+                    : 'All candidate tables are in scope. This plan did not provide one runnable step per candidate, so approval keeps the agent’s recommended source.'}
               </p>
             ) : null}
-            {plan.steps.map((step, index) => (
+            {sourceRows.map(({ step, candidate }, index) => (
               <PlanSourceStep
                 key={step.id}
                 step={step}
                 index={index}
                 columns={columns}
-                candidate={plan.candidates?.[index]}
+                candidate={candidate}
                 recommended={ranStepId ? step.id === ranStepId : undefined}
-                recommendedLabel={ranStepId ? 'Ran' : 'Recommended'}
+                recommendedLabel={ranStepId ? 'Ran' : jointSourcePlan ? 'In scope' : 'Recommended'}
                 pick={
-                  !resolved && canChooseSource && plan.candidates?.[index]
+                  !resolved && canChooseSource && candidate
                     ? {
                         name: `plan-run-${plan.id}`,
                         checked: selectedStepId === step.id,
@@ -400,7 +424,7 @@ export function PlanCard({
               ) : null}
               <Button
                 type="button"
-                onClick={() => onApprove(planWithSelectedSource(plan, selectedStepId))}
+                onClick={() => onApprove(canChooseSource ? planWithSelectedSource(plan, selectedStepId) : plan)}
                 disabled={loading}
               >
                 <Play /> {canRevise ? 'Approve and run' : 'Run revised plan'}

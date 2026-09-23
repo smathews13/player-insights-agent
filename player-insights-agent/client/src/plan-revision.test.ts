@@ -228,8 +228,9 @@ describe('approval outcome copy', () => {
 
 describe('legacy plan revision safety', () => {
   it('only offers source radios for structured candidates', () => {
-    expect(CARD).toContain('plan.candidates?.[index]');
-    expect(CARD).toContain('? {');
+    expect(CARD).toContain('canChooseSource && candidate');
+    expect(CARD).toContain('candidate={candidate}');
+    expect(CARD).toContain('candidates.length === plan.steps.length');
   });
 });
 
@@ -294,7 +295,7 @@ describe('approving runs the selected source', () => {
   });
 
   it('is what the card hands the page on approve, and the page runs that plan', () => {
-    expect(CARD).toContain('onApprove(planWithSelectedSource(plan, selectedStepId))');
+    expect(CARD).toContain('onApprove(canChooseSource ? planWithSelectedSource(plan, selectedStepId) : plan)');
     expect(CARD).toContain('name: `plan-run-${plan.id}`');
     const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
     expect(home).toContain('onApprove={(planToRun) =>');
@@ -314,6 +315,19 @@ describe('a settled plan marks the source that ran', () => {
 
   it('marks the recommended table when that is the one that ran', () => {
     expect(ranSourceStepId(PLAN, ['cdp_northwind_prod.gold_di.gtav_daily_summary'])).toBe('source-1');
+  });
+
+  it('marks a joined candidate even when several candidates share one backend step', () => {
+    const grouped: AnalysisPlan = {
+      ...PLAN,
+      steps: [PLAN.steps[0]],
+      candidates: [
+        PLAN.candidates![0],
+        { ...PLAN.candidates![1], recommended: true },
+        { ...PLAN.candidates![1], table: 'catalog.schema.third', field: 'player_id', recommended: true },
+      ],
+    };
+    expect(ranSourceStepId(grouped, ['cdp_share_prod.global_production.play_by_title'])).toBe('candidate-2');
   });
 
   it('will not guess when the run named no reading source', () => {
@@ -347,7 +361,7 @@ describe('a settled plan marks the source that ran', () => {
 
   it('is placed from the answer only once the run has produced one', () => {
     expect(CARD).toContain("state === 'approved' && approvalExecuted ? ranSourceStepId(plan, ranSourceNames)");
-    expect(CARD).toContain("recommendedLabel={ranStepId ? 'Ran' : 'Recommended'}");
+    expect(CARD).toContain("recommendedLabel={ranStepId ? 'Ran' : jointSourcePlan ? 'In scope' : 'Recommended'}");
     const home = readFileSync(new URL('./HomePage.tsx', import.meta.url), 'utf8');
     expect(home).toContain("source.role === 'reading'");
     expect(home).toContain('ranSourceNames={planRanSourceNames}');

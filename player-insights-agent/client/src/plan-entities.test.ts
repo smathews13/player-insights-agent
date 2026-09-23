@@ -120,7 +120,7 @@ describe('a column named in a plan is bold and inert', () => {
 describe('the plan card asks for that treatment on every line it draws', () => {
   it('routes the summary, each step title and each step detail through the helper', () => {
     expect(PLAN).toContain('<PlanText text={plan.summary} columns={columns} />');
-    expect(PLAN).toContain('<PlanText text={title} columns={columns} />');
+    expect(PLAN).toContain('<PlanText text={title} columns={columns} entities={candidate ? [candidate.table] : []} />');
     expect(PLAN).toContain('<PlanText text={step.description} columns={columns} />');
   });
 

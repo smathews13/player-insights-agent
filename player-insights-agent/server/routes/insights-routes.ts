@@ -619,7 +619,10 @@ const DocumentSnippetSchema = z.looseObject({
 
 const LiveAnswerSchema = z.looseObject({
   id: z.string().min(1),
-  takeaway: z.string().min(1),
+  // Empty is valid when Appearance disables the takeaway. Figures, sources,
+  // content and trace remain structured data and must not be downgraded to the
+  // prose-only fallback because one optional display section is off.
+  takeaway: z.string(),
   // Empty is allowed: a deadline-stopped run can have a takeaway and no written
   // narrative. Requiring a sentence here used to drop the structured result and
   // store a 0.0s prose-only card with the stages thrown away.
@@ -2467,14 +2470,25 @@ export function extractStructuredAnswer(value: unknown): LiveAnswer | null {
   const record = value as Record<string, unknown>;
   if (isEndpointError(record)) return null;
   const custom = record.custom_outputs;
-  const candidates: unknown[] = [custom];
+  const explicitAnswers: unknown[] = [];
   if (custom && typeof custom === 'object') {
     const customRecord = custom as Record<string, unknown>;
-    candidates.unshift(customRecord.answer, customRecord.player_insights_answer);
+    for (const candidate of [customRecord.answer, customRecord.player_insights_answer]) {
+      if (candidate !== undefined) explicitAnswers.push(candidate);
+    }
   }
+  const candidates: unknown[] = [...explicitAnswers, custom];
   for (const candidate of candidates) {
     const parsed = LiveAnswerSchema.safeParse(candidate);
-    if (!parsed.success) continue;
+    if (!parsed.success) {
+      if (explicitAnswers.includes(candidate)) {
+        console.warn(
+          '[serving] Structured answer failed validation:',
+          parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        );
+      }
+      continue;
+    }
     const undeclared = undeclaredAnswerKeys(parsed.data);
     if (undeclared.length > 0) {
       // Forwarded, not dropped, but the app renders nothing for these, so the
