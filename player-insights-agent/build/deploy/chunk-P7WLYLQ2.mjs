@@ -1,5 +1,5 @@
 
-import{DECLARABLE_KINDS,DECLARED_RESOURCE_TYPES}from"./chunk-6VWRNKK5.mjs";import{CONNECTED_RESOURCES}from"./chunk-Q7N2ZVLF.mjs";import{APP_SCHEMA}from"./chunk-OMC625AH.mjs";var DECLARED_CONNECTIONS_QUERY=`
+import{DECLARABLE_KINDS,DECLARED_RESOURCE_TYPES}from"./chunk-ABM3SU3W.mjs";import{CONNECTED_RESOURCES}from"./chunk-Q7N2ZVLF.mjs";import{APP_SCHEMA}from"./chunk-OMC625AH.mjs";var DECLARED_CONNECTIONS_QUERY=`
   SELECT id, label, kind, resource_type, value, note, state, origin, created_at, created_by, changed_at, changed_by
   FROM ${APP_SCHEMA}.declared_connections
   ORDER BY created_at, id`;var UPSERT_DECLARED_CONNECTION_QUERY=`

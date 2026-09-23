@@ -5729,7 +5729,7 @@ export function setupInsightsRoutes(
               unavailableResult({
                 code: 'OUTPUT_SCHEMA_VIOLATION',
                 requestId: identity.correlationId,
-                runId: null,
+                runId: admission.run?.runId ?? null,
                 // The endpoint answered, so a run happened. What did not happen
                 // is anything this app could store as an answer, and claiming
                 // `not_stored` would assert a write failure nobody attempted.
