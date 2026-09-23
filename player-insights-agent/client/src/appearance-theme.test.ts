@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_RUNTIME_SETTINGS, FONT_FAMILY_STACKS } from '../../shared/runtime-settings';
 import { previewRuntimeTypography } from './runtime-entity-styles';
-import { previewColorScheme } from './RuntimeSettingsPanel';
+import { assertAppearanceThemePreserved, previewColorScheme } from './RuntimeSettingsPanel';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -47,5 +47,15 @@ describe('Appearance theme switch', () => {
     expect(setProperty).toHaveBeenCalledWith('--ast-text', '#ffffff');
     expect(setProperty).toHaveBeenCalledWith('--font-sans', FONT_FAMILY_STACKS['dm-mono']);
     expect(setProperty).toHaveBeenCalledWith('--text-base', '12px');
+  });
+
+  it('refuses a save response that would toggle the submitted theme', () => {
+    const light = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
+    const dark = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'dark' as const };
+
+    expect(() => assertAppearanceThemePreserved(light, light)).not.toThrow();
+    expect(() => assertAppearanceThemePreserved(light, dark)).toThrow(
+      'the server returned dark mode after light mode was submitted'
+    );
   });
 });

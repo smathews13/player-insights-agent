@@ -212,6 +212,14 @@ export function previewColorScheme(light: boolean): ColorScheme {
   return scheme;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- pure save contract covered by Appearance tests
+export function assertAppearanceThemePreserved(draft: RuntimeSettings, saved: RuntimeSettings): void {
+  if (saved.colorScheme === draft.colorScheme) return;
+  throw new Error(
+    `Appearance was not saved: the server returned ${saved.colorScheme} mode after ${draft.colorScheme} mode was submitted.`
+  );
+}
+
 export function RuntimeSettingsPanel({
   section,
   onSaveState = () => {},
@@ -303,6 +311,7 @@ export function RuntimeSettingsPanel({
         settings,
         revision.current
       );
+      if (section === 'appearance') assertAppearanceThemePreserved(settings, saved.settings);
       savedSettings.current = saved.settings;
       revision.current = saved.revision;
       setCanReset(section === 'appearance' && saved.canReset);
