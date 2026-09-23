@@ -22,9 +22,9 @@ function result(overrides: Parameters<typeof unavailableResult>[0] | null = null
   return unavailableResult(overrides ?? { code: 'DEPENDENCY_UNAVAILABLE', requestId: 'req-1' });
 }
 
-describe('the four terminal outcomes', () => {
-  it('are the four the plan names', () => {
-    expect([...TERMINAL_KINDS]).toEqual(['plan', 'clarification', 'answer', 'unavailable']);
+describe('the six terminal outcomes', () => {
+  it('includes both authored artifact responses', () => {
+    expect([...TERMINAL_KINDS]).toEqual(['plan', 'clarification', 'report', 'dashboard', 'answer', 'unavailable']);
   });
 });
 
@@ -42,15 +42,7 @@ describe('an unavailable result', () => {
   it('names every key that would make it read as an answer', () => {
     // Pinned as a list rather than derived, so widening what a failure may
     // carry is an edit to this line and therefore a decision.
-    expect([...ANSWER_CONTENT_KEYS]).toEqual([
-      'takeaway',
-      'narrative',
-      'figures',
-      'charts',
-      'sources',
-      'sql',
-      'trace',
-    ]);
+    expect([...ANSWER_CONTENT_KEYS]).toEqual(['takeaway', 'narrative', 'figures', 'charts', 'sources', 'sql', 'trace']);
   });
 
   it('takes its message, layer and retryability from the taxonomy', () => {
@@ -78,7 +70,9 @@ describe('the facts a panel has to state and cannot guess', () => {
     // whether it was recorded, and claiming it was not is the same class of
     // error as claiming it was: asserting an outcome nobody saw.
     expect(result().persistence_status).toBe('unknown');
-    expect(result({ code: 'DEPENDENCY_UNAVAILABLE', requestId: 'r', persistence: 'not_stored' }).persistence_status).toBe('not_stored');
+    expect(
+      result({ code: 'DEPENDENCY_UNAVAILABLE', requestId: 'r', persistence: 'not_stored' }).persistence_status
+    ).toBe('not_stored');
   });
 
   it('omits the execution identity entirely rather than inventing one', () => {

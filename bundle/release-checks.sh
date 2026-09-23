@@ -20,6 +20,8 @@ FAST_VITEST=(
   "server/lib/migration-runner.test.ts"
   "server/lib/telemetry-retention.test.ts"
   "server/routes/admin-routes.test.ts"
+  "server/routes/backend-app-handoff-contract.test.ts"
+  "client/src/backend-app-handoff-render.test.tsx"
 )
 
 step() { printf '\n==> %s\n' "$*"; }

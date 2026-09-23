@@ -46,7 +46,9 @@ for file in \
   server/lib/app-session.test.ts \
   server/lib/migration-runner.test.ts \
   server/lib/telemetry-retention.test.ts \
-  server/routes/admin-routes.test.ts; do
+  server/routes/admin-routes.test.ts \
+  server/routes/backend-app-handoff-contract.test.ts \
+  client/src/backend-app-handoff-render.test.tsx; do
   [[ "$ALLOWLIST" == *"$file"* ]] || fail "fast tier lost $file"
 done
 [[ "$FAST" == *'check-migration-order.mjs'* ]] || fail "fast tier lost migration ordering"

@@ -83,8 +83,8 @@ describe('normalizeAnswer', () => {
     expect(normalizeAnswer({ mode: 'live' }).mode).toBe('live');
   });
 
-  it('keeps a takeaway slot filled, because it is the card title', () => {
-    expect(normalizeAnswer({}).takeaway).toBeTruthy();
+  it('does not invent a takeaway when the wire omitted one', () => {
+    expect(normalizeAnswer({}).takeaway).toBe('');
     expect(normalizeAnswer({ takeaway: 'Real summary.' }).takeaway).toBe('Real summary.');
   });
 
