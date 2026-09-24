@@ -90,7 +90,7 @@ function originsFromBlocks(blocks: readonly Block[], pin: readonly SourceRow[]):
   };
 
   if (tables.length === 1) {
-    const names = mentions.length > 0 ? mentions : pin.map((row) => row.name);
+    const names = mentions;
     origins[0] = names.map((name) => take(name)).filter((row): row is SourceRow => !!row);
     return origins;
   }
@@ -135,10 +135,7 @@ export function tableOriginLists(
  * Table start offset → sources to draw in that table's header, for one parsed
  * body (the answer card's `AnswerProse` tree).
  */
-export function tableOriginSources(
-  blocks: readonly Block[],
-  sources: readonly SourceRef[]
-): Map<number, SourceRef[]> {
+export function tableOriginSources(blocks: readonly Block[], sources: readonly SourceRef[]): Map<number, SourceRef[]> {
   const pin = pinable(sourceRows(sources));
   const lists = originsFromBlocks(blocks, pin);
   const map = new Map<number, SourceRef[]>();

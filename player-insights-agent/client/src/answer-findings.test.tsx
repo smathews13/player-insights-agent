@@ -194,15 +194,22 @@ describe('table origin on the table header', () => {
     expect(origins.get(table.start)?.map((source) => source.name)).toEqual([DAILY]);
   });
 
-  it('does not put a reference dictionary on a results table unless the prose named it', () => {
+  it('leaves unnamed sources in the Sources section instead of pinning them above one table', () => {
     const blocks = parseAnswerMarkdown(`Sessions by title.\n\n${TABLE}`);
-    const origins = tableOriginSources(blocks, [
+    const sources: SourceRef[] = [
       { name: DAILY, freshness: '', role: 'reading' },
       { name: 'main.player_insights.data_dictionary', freshness: '', role: 'reference' },
-    ]);
+    ];
+    const origins = tableOriginSources(blocks, sources);
     const table = blocks.find((block) => block.kind === 'table');
     if (!table || table.kind !== 'table') throw new Error('expected a table');
-    expect(origins.get(table.start)?.map((source) => source.name)).toEqual([DAILY]);
+    expect(origins.get(table.start)).toEqual([]);
+    const linked = evidenceLinkedSourceNames(`Sessions by title.\n\n${TABLE}`, null, null, sources);
+    expect(linked).toEqual([]);
+    expect(leftoverSources(sources, linked).map((source) => source.name)).toEqual([
+      DAILY,
+      'main.player_insights.data_dictionary',
+    ]);
   });
 
   it('names chart figure-sources as already linked so Sources can drop the duplicate Open', () => {
