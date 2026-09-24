@@ -663,7 +663,10 @@ export function answerTables(answer: NormalizedAnswer): ExportTable[] {
         )
       : []
   );
-  return tables.map((block, index) => ({ block, sources: origins[index] ?? [] }));
+  return tables.map((block, index) => {
+    const named = origins[index] ?? [];
+    return { block, sources: named.length > 0 ? named : normalized.sources };
+  });
 }
 
 export function serializeTableTsv(table: ExportTable): string {

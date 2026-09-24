@@ -1,4 +1,5 @@
 import type { AppSpendFigure } from '../../shared/ops-contract';
+import type { CostRange } from './ops-billing';
 
 const DAY_MS = 86_400_000;
 export const LIFETIME_SPEND_LOOKBACK_DAYS = 366;
@@ -9,12 +10,18 @@ type CachedLifetime = { at: number; value: AppSpendFigure } | { at: number; pend
 const cache = new Map<string, CachedLifetime>();
 
 /** System billing history is bounded; the returned range never asks beyond its available annual window. */
-export function lifetimeSpendRange(throughDay: string): { from: string; to: string } {
+export function lifetimeSpendRange(throughDay: string, firstDeployedAt?: string): CostRange {
   const through = Date.parse(`${throughDay}T00:00:00Z`);
   if (!Number.isFinite(through)) return { from: throughDay, to: throughDay };
+  const lookback = through - (LIFETIME_SPEND_LOOKBACK_DAYS - 1) * DAY_MS;
+  const deployedAt = firstDeployedAt ? Date.parse(firstDeployedAt) : Number.NaN;
+  const lowerBound = Number.isFinite(deployedAt) ? Math.max(lookback, deployedAt) : lookback;
   return {
-    from: new Date(through - (LIFETIME_SPEND_LOOKBACK_DAYS - 1) * DAY_MS).toISOString().slice(0, 10),
+    from: new Date(lowerBound).toISOString().slice(0, 10),
     to: throughDay,
+    ...(Number.isFinite(deployedAt) && deployedAt >= lookback
+      ? { fromTimestamp: new Date(deployedAt).toISOString() }
+      : {}),
   };
 }
 

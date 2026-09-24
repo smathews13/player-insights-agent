@@ -25,6 +25,14 @@ describe('lifetime app spend cache', () => {
     expect(lifetimeSpendRange('2026-09-02')).toEqual({ from: '2025-09-02', to: '2026-09-02' });
   });
 
+  it('starts at the exact first deployment instant instead of billing the earlier part of that day', () => {
+    expect(lifetimeSpendRange('2026-09-23', '2026-08-04T17:42:10.000Z')).toEqual({
+      from: '2026-08-04',
+      to: '2026-09-23',
+      fromTimestamp: '2026-08-04T17:42:10.000Z',
+    });
+  });
+
   it('coalesces concurrent reads and reuses the completed snapshot until expiry', async () => {
     const read = vi.fn(() => Promise.resolve(FIGURE));
     const [first, second] = await Promise.all([

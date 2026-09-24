@@ -621,15 +621,18 @@ export function AgentPathConstellation({
    * MARKING THE FRONTIER AND ANIMATING IT ARE DIFFERENT CLAIMS.
    *
    * A failed stage remains the frontier while the run decides whether it can
-   * continue, so its ring stays seated. Only a stage that is both reported as
-   * running and backed by the caller's live clock may beat. The old single
+   * continue, so its ring stays seated. Only a stage reported as running may
+   * beat; the elapsed figure still requires the caller's live clock. The old single
    * `inFlight` switch tore down the pulse wrapper, live connector, ring pulse and
    * status loader in one render when an error landed, which was the visible pop.
+   * The live clock is optional: planning can announce a running stage before its
+   * timer starts, and that stage still needs the loader and pulse.
    */
-  const beating = current?.status === 'running' && elapsedMs !== null;
+  const beating = current?.status === 'running';
+  const timed = beating && elapsedMs !== null;
   const path = buildPathConstellation(stages, beating ? activeIndex : -1, pathVariant(thread, turn));
   const currentStar = current ? path.stars[activeIndex] : null;
-  const statusDuration = beating
+  const statusDuration = timed
     ? `${Math.max(0, Math.floor(elapsedMs / 1000))}s`
     : activeIndex === -1 && totalMs !== null
       ? formatDuration(totalMs)

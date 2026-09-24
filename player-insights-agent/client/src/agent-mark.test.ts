@@ -303,7 +303,7 @@ describe('the mark that replaced it', () => {
     // seats on this page and both draw the app's own mark now.
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('PiaRobotMark');
-    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<PiaAvatar size=\{24\} \/>/);
+    expect(home).toMatch(/className="ask-hero-chip-mark">\s*<PiaLoaderMark variant="panel" size=\{24\} tone="light"/);
     expect(home).toMatch(/className="agent-avatar">\s*<PiaAvatar size=\{32\} \/>/);
   });
 
@@ -358,10 +358,9 @@ describe('the mark that replaced it', () => {
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('<Sparkles />');
     expect(home).not.toMatch(/<ConceptFlicker seat="button" \/>/);
-    expect(home).toMatch(
-      /<Button type="submit" disabled=\{loading \? stopping : !canAsk\} aria-busy=\{stopping \|\| parsing \|\| undefined\}>/
-    );
-    expect(home).toMatch(/\{loading \? \([\s\S]{0,220}'Stop'/);
+    expect(home).toContain('disabled={warehousePreparing || (loading ? stopping : !canAsk)}');
+    expect(home).toContain('busyLabel="Starting warehouse"');
+    expect(home).toMatch(/\) : loading \? \([\s\S]{0,220}'Stop'/);
 
     const resourceTags = SOURCES.get('ResourceTagsPanel.tsx')!;
     expect(resourceTags).toContain(

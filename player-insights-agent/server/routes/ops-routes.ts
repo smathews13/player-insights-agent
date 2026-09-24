@@ -2468,7 +2468,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           throughDay: currentThrough,
           honesty: currentHonesty,
         });
-        const lifetimeRange = lifetimeSpendRange(range.to);
+        const lifetimeRange = lifetimeSpendRange(range.to, firstDeployment?.deployedAt);
         const lifetimeKey = [
           userEmail(req).toLowerCase(),
           ids.workspaceId,
@@ -2477,6 +2477,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
           ids.warehouseId,
           ids.vectorEndpoint,
           ...ids.genieSpaces.map((space) => space.id),
+          lifetimeRange.from,
+          lifetimeRange.fromTimestamp ?? '',
           lifetimeRange.to,
         ].join('|');
         const lifetimeSpend = await cachedLifetimeSpend(lifetimeKey, clock(), () =>

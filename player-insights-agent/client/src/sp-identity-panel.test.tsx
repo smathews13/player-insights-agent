@@ -330,7 +330,7 @@ describe('Settings → Identity', () => {
       />
     );
     expect(markup.match(/does not grant access to table rows/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-    expect(markup.match(/>Add metadata search<\/button>/g) ?? []).toHaveLength(2);
+    expect(markup.match(/>Add permissions template<\/button>/g) ?? []).toHaveLength(2);
     expect(markup).not.toContain('Use semantic discovery');
   });
 

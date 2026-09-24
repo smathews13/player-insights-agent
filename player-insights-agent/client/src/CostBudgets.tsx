@@ -438,6 +438,7 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
   });
   const lifetimeDates = dates(lifetime, payload.range.from, payload.throughDay || payload.range.to);
   const currentDates = dates(current, payload.range.from, payload.throughDay || payload.range.to);
+  const currentMonthName = budgetMonthName(currentDates.from);
   return (
     <div className="ops-cost-summary-box" aria-label="App spend summary">
       <div className="ops-cost-summary-peers">
@@ -453,7 +454,9 @@ export function CostSpendSummary({ payload, unit }: { payload: OpsCostPayload; u
           />
         </div>
         <div className="ops-cost-summary-peer">
-          <span className="ops-cost-summary-heading">This calendar month</span>
+          <span className="ops-cost-summary-heading">
+            {currentMonthName ? `${currentMonthName} spend` : 'Current month spend'}
+          </span>
           <strong className="ops-cost-summary-value ast-num">{amount(current, fallback.label)}</strong>
           <DateRangeBadges
             accessibleLabel={`Billing date range from ${currentDates.from} through ${currentDates.through}`}
@@ -482,6 +485,13 @@ function dayNumber(day: string): number | null {
   return Number.isFinite(parsed) ? Math.floor(parsed / 86_400_000) : null;
 }
 
+function budgetMonthName(day: string): string {
+  const parsed = Date.parse(`${day}T00:00:00Z`);
+  return Number.isFinite(parsed)
+    ? new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(parsed)
+    : '';
+}
+
 /**
  * Project month-end budget crossing from the canonical MTD display snapshot.
  * Partial snapshots remain useful display estimates but never change fail-open
@@ -507,16 +517,18 @@ export function monthlyBudgetProgress(
   const snapshot = display ?? legacy;
   if (snapshot?.amount === null || snapshot?.amount === undefined) return null;
   const difference = savedBudget - snapshot.amount;
+  const monthName = budgetMonthName(status.monthStart);
+  const period = monthName ? `in ${monthName}` : 'in the current month';
   const formatted = (value: number) =>
     value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const balance =
     unit === 'USD'
       ? difference < 0
-        ? `$${formatted(Math.abs(difference))} over $${formatted(savedBudget)} app budget in the current month`
-        : `$${formatted(difference)} of $${formatted(savedBudget)} app budget remaining in the current month`
+        ? `$${formatted(Math.abs(difference))} over $${formatted(savedBudget)} app budget ${period}`
+        : `$${formatted(difference)} of $${formatted(savedBudget)} app budget remaining ${period}`
       : difference < 0
-        ? `${formatted(Math.abs(difference))} over ${formatted(savedBudget)} DBU app budget in the current month`
-        : `${formatted(difference)} of ${formatted(savedBudget)} DBU app budget remaining in the current month`;
+        ? `${formatted(Math.abs(difference))} over ${formatted(savedBudget)} DBU app budget ${period}`
+        : `${formatted(difference)} of ${formatted(savedBudget)} DBU app budget remaining ${period}`;
   const spent = `${snapshot.amount.toFixed(2)} ${unit}`;
   const estimated = snapshot.coverage !== 'complete';
   if (snapshot.amount >= savedBudget) {

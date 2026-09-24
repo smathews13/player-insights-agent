@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConversationOrganizationSelect } from './ConversationOrganizationSelect';
+import { ConversationOrganizationOption, ConversationOrganizationSelect } from './ConversationOrganizationSelect';
 import {
   CONVERSATION_ORGANIZATION_SELECTION_KEY,
   conversationMatchesOrganizations,
@@ -52,6 +52,23 @@ describe('conversation organization filter', () => {
         organizations.map((item) => item.id)
       )
     ).toEqual(['2k']);
+  });
+
+  it('renders the Databricks and Acme organization artwork in menu rows', () => {
+    const organizations = railOrganizations(conversations);
+    const databricks = organizations.find((organization) => organization.id === 'databricks');
+    const customer = organizations.find((organization) => organization.id === 'acme-interactive');
+    if (!databricks || !customer) throw new Error('expected canonical organizations');
+
+    const markup = renderToStaticMarkup(
+      <>
+        <ConversationOrganizationOption organization={databricks} />
+        <ConversationOrganizationOption organization={customer} />
+      </>
+    );
+    expect(markup).toContain('data-organization-id="databricks"');
+    expect(markup).toContain('data-organization-id="acme-interactive"');
+    expect(markup).toContain('roster-organization-mark--acme');
   });
 });
 

@@ -561,9 +561,10 @@ function costCard(page: DrawOp[], x: number, label: string, value: string, note:
 function costMark(page: DrawOp[]): void {
   const squares = [
     [52, 714],
-    [52, 726],
-    [40, 714],
-    [64, 714],
+    [52, 723],
+    [52, 705],
+    [43, 714],
+    [61, 714],
   ] as const;
   for (const [x, y] of squares) {
     page.push({ kind: 'rect', x, y, w: 9, h: 9, fill: INK });
@@ -616,13 +617,7 @@ function observedCards(page: DrawOp[], brief: CostBriefPayload, exported: CostBr
     costMoney(exported.attributed, brief.currency),
     'Question-driven usage'
   );
-  costCard(
-    page,
-    404,
-    'Standing infrastructure',
-    costMoney(exported.standing, brief.currency),
-    'Fixed idle remainder'
-  );
+  costCard(page, 404, 'Standing infrastructure', costMoney(exported.standing, brief.currency), 'Fixed idle remainder');
 
   const attributed = exported.attributed ?? 0;
   const standing = exported.standing ?? 0;
@@ -631,10 +626,10 @@ function observedCards(page: DrawOp[], brief: CostBriefPayload, exported: CostBr
   page.push({ kind: 'rect', x: 42, y: 526, w: 528, h: 8, fill: PANEL });
   if (attributedWidth > 0) page.push({ kind: 'rect', x: 42, y: 526, w: attributedWidth, h: 8, fill: BLUE });
   if (total > 0)
-    page.push({ kind: 'rect', x: 42 + attributedWidth, y: 526, w: 528 - attributedWidth, h: 8, fill: BLUE_LIGHT });
+    page.push({ kind: 'rect', x: 42 + attributedWidth, y: 526, w: 528 - attributedWidth, h: 8, fill: GREEN });
   page.push({ kind: 'rect', x: 42, y: 509, w: 7, h: 7, fill: BLUE });
   costText(page, 'Attributed to questions', 54, 508, 8, false, MUTED);
-  page.push({ kind: 'rect', x: 172, y: 509, w: 7, h: 7, fill: BLUE_LIGHT, stroke: RULE, lineWidth: 0.3 });
+  page.push({ kind: 'rect', x: 172, y: 509, w: 7, h: 7, fill: GREEN, stroke: RULE, lineWidth: 0.3 });
   costText(page, 'Standing infrastructure', 184, 508, 8, false, MUTED);
 }
 
@@ -719,6 +714,116 @@ function projectionResourceTable(page: DrawOp[], brief: CostBriefPayload, projec
   return y;
 }
 
+function costPageHeader(page: DrawOp[], brief: CostBriefPayload, eyebrow: string, title: string): void {
+  const days = costDays(brief);
+  const window = opsRangeDates(brief.range);
+  page.push({ kind: 'rect', x: 0, y: 0, w: PAGE_WIDTH, h: PAGE_HEIGHT, fill: BACKGROUND });
+  costMark(page);
+  costText(page, eyebrow, 86, 728, 9, true, BLUE_LIGHT);
+  costText(page, title, 86, 693, 24, true);
+  costText(page, 'Player Insights · Databricks App', 86, 673, 11, false, MUTED);
+  costText(page, `Window ${window}${days ? ` · ${days} complete days` : ''}`, 350, 693, 8, false, MUTED);
+  costText(page, `Generated ${brief.generatedAt}`, 350, 678, 8, false, MUTED);
+  page.push({ kind: 'line', x1: 42, y1: 654, x2: 570, y2: 654, color: RULE, lineWidth: 0.8 });
+}
+
+function costPageFooter(page: DrawOp[], left: string, right: string): void {
+  page.push({ kind: 'line', x1: 42, y1: 55, x2: 570, y2: 55, color: RULE, lineWidth: 0.6 });
+  costText(page, left, 42, 38, 8, false, MUTED);
+  costText(page, right, 345, 38, 8, false, MUTED);
+}
+
+function prodProjectionCards(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): void {
+  const fixed = projection.devStanding;
+  const variable = projection.devVariable === null ? null : projection.devVariable * projection.variableUsageFactor;
+  costCard(page, 42, 'Projected Prod', costMoney(projection.prodProjected, brief.currency, true), 'Modeled total');
+  costCard(page, 223, 'Fixed hosting input', costMoney(fixed, brief.currency, true), '100% of Dev standing');
+  costCard(page, 404, 'Usage input', costMoney(variable, brief.currency, true), '15% of Dev variable');
+
+  const fixedValue = fixed ?? 0;
+  const variableValue = variable ?? 0;
+  const total = fixedValue + variableValue;
+  const fixedWidth = total > 0 ? 528 * (fixedValue / total) : 0;
+  page.push({ kind: 'rect', x: 42, y: 526, w: 528, h: 8, fill: PANEL });
+  if (fixedWidth > 0) page.push({ kind: 'rect', x: 42, y: 526, w: fixedWidth, h: 8, fill: BLUE });
+  if (total > 0) page.push({ kind: 'rect', x: 42 + fixedWidth, y: 526, w: 528 - fixedWidth, h: 8, fill: GREEN });
+  page.push({ kind: 'rect', x: 42, y: 509, w: 7, h: 7, fill: BLUE });
+  costText(page, 'Fixed hosting', 54, 508, 8, false, MUTED);
+  page.push({ kind: 'rect', x: 137, y: 509, w: 7, h: 7, fill: GREEN });
+  costText(page, 'Question-driven usage', 149, 508, 8, false, MUTED);
+}
+
+function prodProjectionResourceTable(page: DrawOp[], brief: CostBriefPayload, projection: DevProdProjection): number {
+  costText(page, 'PROD INPUTS BY RESOURCE', 42, 476, 9, true, BLUE);
+  const tableBottom = 428 - projection.resources.length * 28 - 18;
+  page.push({
+    kind: 'rect',
+    x: 42,
+    y: tableBottom,
+    w: 528,
+    h: 470 - tableBottom,
+    fill: PANEL,
+    stroke: RULE,
+    lineWidth: 0.6,
+  });
+  page.push({ kind: 'rect', x: 42, y: 446, w: 528, h: 24, fill: PANEL_HEADER });
+  costText(page, 'RESOURCE', 42, 454, 8, true, MUTED);
+  costText(page, 'FIXED INPUT', 286, 454, 8, true, MUTED);
+  costText(page, 'USAGE INPUT', 390, 454, 8, true, MUTED);
+  costText(page, 'PROD PROJECTED', 500, 454, 8, true, MUTED);
+  page.push({ kind: 'line', x1: 42, y1: 446, x2: 570, y2: 446, color: RULE, lineWidth: 0.8 });
+  let y = 428;
+  for (const resource of projection.resources) {
+    costText(page, resource.label, 42, y, 9, false);
+    costText(page, costMoney(resource.prodStanding, brief.currency, true), 286, y, 8, false);
+    costText(page, costMoney(resource.prodVariable, brief.currency, true), 390, y, 8, false, GREEN);
+    costText(page, costMoney(resource.prodProjected, brief.currency, true), 500, y, 8, true);
+    page.push({ kind: 'line', x1: 42, y1: y - 10, x2: 570, y2: y - 10, color: RULE, lineWidth: 0.4 });
+    y -= 28;
+  }
+  costText(page, 'Total', 42, y, 9, true);
+  costText(page, costMoney(projection.devStanding, brief.currency, true), 286, y, 8, true);
+  const variable = projection.devVariable === null ? null : projection.devVariable * projection.variableUsageFactor;
+  costText(page, costMoney(variable, brief.currency, true), 390, y, 8, true, GREEN);
+  costText(page, costMoney(projection.prodProjected, brief.currency, true), 500, y, 8, true);
+  return y;
+}
+
+function devProdProjectionPages(brief: CostBriefPayload, projection: DevProdProjection): DrawOp[][] {
+  const exported = costBriefExportView(brief);
+  const dev: DrawOp[] = [];
+  costPageHeader(dev, brief, 'DEV + PROD PROJECTION · PAGE 1 OF 2', 'Development observed');
+  costText(dev, 'DEVELOPMENT · OBSERVED', 42, 638, 9, true, BLUE);
+  observedCards(dev, brief, exported);
+  observedResourceTable(dev, brief, exported);
+  costPageFooter(dev, 'Player Insights Agent · Development observed', 'Billing-derived Dev spend · Page 1 of 2');
+
+  const prod: DrawOp[] = [];
+  costPageHeader(prod, brief, 'DEV + PROD PROJECTION · PAGE 2 OF 2', 'Production projection');
+  costText(prod, 'PRODUCTION · PROJECTED', 42, 638, 9, true, BLUE);
+  prodProjectionCards(prod, brief, projection);
+  const tableEnd = prodProjectionResourceTable(prod, brief, projection);
+  const boxY = Math.max(72, tableEnd - 88);
+  prod.push({ kind: 'rect', x: 42, y: boxY, w: 528, h: 70, fill: PANEL, stroke: RULE, lineWidth: 0.6 });
+  costText(prod, 'PROJECTION ASSUMPTIONS · NOT ACTUAL SPEND', 54, boxY + 52, 8, true, GREEN);
+  costText(prod, 'Fixed hosting input: 100% of reconciled Dev standing spend.', 54, boxY + 35, 8, false);
+  costText(
+    prod,
+    `Usage input: ${Math.round(PROD_VARIABLE_USAGE_FACTOR * 100)}% of reconciled Dev question-driven spend.`,
+    54,
+    boxY + 21,
+    8,
+    false
+  );
+  costText(prod, 'Projected figures are displayed to the nearest currency unit.', 54, boxY + 7, 8, false, MUTED);
+  costPageFooter(
+    prod,
+    'Player Insights Agent · Production projection',
+    'Modeled inputs, not actual spend · Page 2 of 2'
+  );
+  return [dev, prod];
+}
+
 /**
  * Branded, one-page cost report matching the supplied reference's hierarchy:
  * title and window, three spend cards, a comparison bar, resource table, and
@@ -726,9 +831,10 @@ function projectionResourceTable(page: DrawOp[], brief: CostBriefPayload, projec
  * modeled Prod number as projected and prints its assumptions in the document.
  */
 export function costBriefPdf(brief: CostBriefPayload, mode: CostBriefPdfMode = 'observed'): Blob {
-  const page: DrawOp[] = [];
   const exported = costBriefExportView(brief);
   const projection = mode === 'dev-prod-projection' ? buildDevProdProjection(brief) : null;
+  if (projection && brief.state === 'ready') return assemblePdf(devProdProjectionPages(brief, projection), []);
+  const page: DrawOp[] = [];
   const days = costDays(brief);
   const window = opsRangeDates(brief.range);
 

@@ -437,6 +437,7 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   border-radius: var(--radius-md);
   padding: 0 14px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .monitoring-table {
@@ -456,6 +457,12 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
 }
 .monitoring-table th + th {
   padding-left: 12px;
+}
+.monitoring-table thead tr {
+  background: var(--ast-fill-band);
+  box-shadow:
+    -14px 0 0 var(--ast-fill-band),
+    14px 0 0 var(--ast-fill-band);
 }
 /*
  * The row is one control, so the whole of it takes the pointer and the focus

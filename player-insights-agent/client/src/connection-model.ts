@@ -322,6 +322,25 @@ export interface ConnectionReading {
 }
 
 /**
+ * AI Gateway is configured runtime routing, not a user-token probe. When both
+ * the experimental switch and its configured mode are active, its model-service
+ * row belongs under Connected even though the generic preflight has no check.
+ */
+export function withAiGatewayRuntimeConnection(
+  readings: readonly ConnectionReading[],
+  enabled: boolean,
+  mode: string
+): ConnectionReading[] {
+  const activeMode = mode === 'mlflow' || mode === 'openai';
+  if (!enabled || !activeMode) return [...readings];
+  return readings.map((reading) =>
+    reading.resource.id === 'llm-gateway' && reading.row.configured.trim()
+      ? { ...reading, status: 'reachable' as const }
+      : reading
+  );
+}
+
+/**
  * The value to show, including the case where only the probe knows it.
  *
  * `inUseSummary` reads the ROW, which carries what the deployment was

@@ -44,6 +44,7 @@ async function startApp(warehouseWarmup: WarehouseWarmup, transport = answersWit
   return {
     open: () => fetch(`http://127.0.0.1:${port}/api/preflight`),
     warm: () => fetch(`http://127.0.0.1:${port}/api/warehouse-warmup`, { method: 'POST' }),
+    ready: () => fetch(`http://127.0.0.1:${port}/api/warehouse-ready`, { method: 'POST' }),
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
@@ -178,6 +179,28 @@ describe('the page never waits for the warm-up', () => {
     expect(source).toContain('warmGenieWarehousesForArrival(req)');
     expect(source).toContain('createGenieWarehouseWarmup');
     expect(source).toContain('executionToken(req)');
+  });
+});
+
+describe('an explicit Ask waits for runnable warehouse state', () => {
+  it('answers the ready request only after the injected readiness check resolves', async () => {
+    let readyCalls = 0;
+    const warmup: WarehouseWarmup = {
+      warm: () => Promise.resolve({ kind: 'already-warm', state: 'STARTING' }),
+      ready: () => {
+        readyCalls += 1;
+        return Promise.resolve({ kind: 'ready', state: 'RUNNING', waitedMs: 1_000 });
+      },
+    };
+    const app = await startApp(warmup);
+    try {
+      const response = await app.ready();
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ kind: 'ready', state: 'RUNNING', waitedMs: 1_000 });
+      expect(readyCalls).toBe(1);
+    } finally {
+      await app.close();
+    }
   });
 });
 

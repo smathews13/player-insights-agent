@@ -502,6 +502,14 @@ describe('the elapsed figure is a measurement (§5, §3)', () => {
     expect(path(inFlight, 5, null)).not.toMatch(/ast-sky-status-elapsed/);
   });
 
+  it('animates a running planning step before its elapsed clock starts', () => {
+    const planning = [stage({ id: 'orchestrator', name: 'Planning the analysis', status: 'running', duration: 0 })];
+    const markup = path(planning, 0, null);
+    expect(markup).toContain('pia-loader-mark--button');
+    expect(markup).toContain('ast-anim-center-pulse');
+    expect(markup).not.toMatch(/ast-sky-status-elapsed/);
+  });
+
   it('names the final step after the run settles', () => {
     expect(path([], -1, null)).toBe('');
     expect(path(finished, -1, null)).toContain('Step 06 · Queried governed data');

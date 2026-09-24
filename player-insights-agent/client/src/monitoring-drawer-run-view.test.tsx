@@ -260,11 +260,9 @@ describe("the modal draws one run view, the card's own", () => {
     const keep = markup.indexOf('keep-in-mind');
     const process = markup.indexOf('run-process');
     expect(evidence).toBeGreaterThan(-1);
-    expect(origin).toBeGreaterThan(evidence);
-    expect(figures).toBeGreaterThan(origin);
+    expect(origin).toBe(-1);
+    expect(figures).toBeGreaterThan(evidence);
     expect(tokens).toBeGreaterThan(figures);
-    expect(origin).toBeLessThan(markup.indexOf('<table'));
-    expect(tokens).toBeGreaterThan(origin);
     expect(sources).toBeGreaterThan(tokens);
     expect(keep).toBeGreaterThan(sources);
     expect(process).toBeGreaterThan(keep);

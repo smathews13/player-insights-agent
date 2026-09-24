@@ -61,10 +61,9 @@ export function DeploymentTimeChip({
       tabIndex={0}
       aria-describedby={tooltipId}
     >
-      {/* 14px, which is the glyph size the account badge and the gear beside it
-          draw. At 12px this chip read as a smaller-grade control than its two
-          neighbours on the same rail. */}
-      <Clock3 className="size-3.5" aria-hidden="true" />
+      {/* Compact so the whole build stamp remains inside the conversation-rail
+          column and the Ask tab begins on that column's hairline. */}
+      <Clock3 className="size-3" aria-hidden="true" />
       <span className="deployment-time-label">{label}</span>
       <span className="deployment-time-tooltip" data-testid="deployment-time-tooltip" id={tooltipId} role="tooltip">
         {detail}

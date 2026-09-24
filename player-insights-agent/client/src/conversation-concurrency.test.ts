@@ -11,9 +11,10 @@ describe('conversation-scoped active questions', () => {
   });
 
   it('blocks duplicate submission by conversation rather than page-global loading', () => {
-    expect(HOME).toContain(
-      'if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;'
-    );
+    const ask = HOME.slice(HOME.indexOf('async function ask('), HOME.indexOf('// Everything below writes'));
+    expect(ask).toContain('warehousePreparing');
+    expect(ask).toContain('readLiveAsk(conversationId)?.inFlight');
+    expect(ask).toContain('readActiveAsk(conversationId)');
   });
 
   it('files background completion under the run origin before touching visible transcript state', () => {

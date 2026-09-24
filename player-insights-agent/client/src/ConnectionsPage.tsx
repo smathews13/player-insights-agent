@@ -159,6 +159,7 @@ import {
   groupConnections,
   readConnections,
   readingsById,
+  withAiGatewayRuntimeConnection,
   type ConnectionGroupKey,
   type ConnectionEntry,
   type ConnectionReading,
@@ -343,22 +344,33 @@ export function BuildFactRow({ row }: { row: BuildRow }) {
 }
 
 /** One build stamp, kept separate from the dependency status rows below. */
-export function BuildStampRow({ artifact }: { artifact: BuildArtifact }) {
+export function BuildStampRow({ artifact, loading = false }: { artifact: BuildArtifact; loading?: boolean }) {
   return (
     <div className="identity-fact deployment-source-fact" data-wrap="true">
       <p className="identity-fact-label">{artifact.label}</p>
       <div className="identity-fact-value">
-        {/* Eight characters, which is what a reader recognises a commit by, and
+        {loading ? (
+          <PiaLoadingLabel
+            as="span"
+            seat="status"
+            label={`Loading ${artifact.label.toLowerCase()}`}
+            className="deployment-source-loader"
+          />
+        ) : (
+          <>
+            {/* Eight characters, which is what a reader recognises a commit by, and
             the whole hash on the clipboard: `git show` takes the short one, but a
             paste into a message or a ticket wants the full string. */}
-        <StatusBadge
-          value={artifact.short || NOT_SET}
-          tone={artifact.tone}
-          title={artifact.full || NOT_SET}
-          testId={`build-${artifact.key}`}
-        />
-        <span className="deployment-inline-description">{artifact.description}</span>
-        {artifact.full ? <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} /> : null}
+            <StatusBadge
+              value={artifact.short || NOT_SET}
+              tone={artifact.tone}
+              title={artifact.full || NOT_SET}
+              testId={`build-${artifact.key}`}
+            />
+            <span className="deployment-inline-description">{artifact.description}</span>
+            {artifact.full ? <CopyButton value={artifact.full} label={`Copy the ${artifact.label} commit`} /> : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -2165,6 +2177,11 @@ export function ConnectionsPage() {
     () => (payload ? readConnections(payload, reported) : connectionPlaceholderReadings(reported)),
     [payload, reported]
   );
+  const gatewayMode = payload?.resources.find((row) => row.resource.id === 'llm-gateway-mode')?.configured.trim() ?? '';
+  const groupedReadings = useMemo(
+    () => withAiGatewayRuntimeConnection(readings, usesAiGateway(features), gatewayMode),
+    [features, gatewayMode, readings]
+  );
   /**
    * The sections, in the order a reader needs them: what is broken, what moved,
    * what answered, what nobody asked, and then the configuration.
@@ -2173,7 +2190,7 @@ export function ConnectionsPage() {
    * chip. Grouping by kind put a blocked warehouse under "Data and compute"
    * three screens down, with its verdict as a chip a reader had to find.
    */
-  const groups = useMemo(() => groupConnections(readings), [readings]);
+  const groups = useMemo(() => groupConnections(groupedReadings), [groupedReadings]);
   /**
    * The catalog the schema picker lists inside.
    *
@@ -2200,7 +2217,6 @@ export function ConnectionsPage() {
     const model = readingsById(readings).get('llm-endpoint')?.row;
     return (model?.intended ?? model?.configured ?? '').trim();
   }, [readings]);
-  const gatewayMode = payload?.resources.find((row) => row.resource.id === 'llm-gateway-mode')?.configured.trim() ?? '';
   const denylistRow = payload?.resources.find((row) => row.resource.id === 'catalog-denylist');
   const managedDenylist = (denylistRow?.intended ?? denylistRow?.configured ?? '').trim();
 
@@ -2449,7 +2465,7 @@ export function ConnectionsPage() {
                   in the grouped rows below, so repeating it here would give one
                   reading two badges. */}
               {build.artifacts.map((artifact) => (
-                <BuildStampRow key={artifact.key} artifact={artifact} />
+                <BuildStampRow key={artifact.key} artifact={artifact} loading={firstRun && !payload} />
               ))}
               {telemetryFacts.map((row) => (
                 <BuildFactRow key={row.key} row={row} />

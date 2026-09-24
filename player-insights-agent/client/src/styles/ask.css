@@ -218,8 +218,8 @@
 /*
  * The chip that introduces the agent, on Ice.
  *
- * The engraved avatar is large enough for all four controller glyphs to remain
- * legible while the adjacent words carry the accessible product name.
+ * The compact passive loader is large enough for D-pad and diamond-button
+ * phases to remain legible while the adjacent words carry the accessible name.
  */
 .ask-hero-chip {
   display: inline-flex;
@@ -241,7 +241,7 @@
  * and before that a lucide sparkle in a filled orange square. §1 retires both:
  * the thing that answers and the thing you opened are one thing and were only
  * ever drawn as two. This is the complete engraved D-pad used by the header and
- * answer surfaces, not an empty-state cluster or simplified plus.
+ * answer surfaces, animated here only while the empty-state hero is visible.
  */
 .ask-hero-chip-mark {
   display: grid;

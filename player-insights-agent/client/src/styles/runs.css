@@ -30,18 +30,18 @@
    * One block-size contract for BOTH top-level panes.
    *
    * The pane starts after the app header, 56px page inset, title and 24px page
-   * gap. Another 240px beyond the header-adjusted dynamic viewport gives both
-   * panes modestly more reading room than the old 160px allowance, while the
-   * 1240px ceiling stops a tall display turning either scroll owner into an
-   * unbounded column. The smaller 640px floor lets browser zoom and very short
-   * laptop windows contract sooner than the old 760px floor. The page remains
+   * gap. Another 320px beyond the header-adjusted dynamic viewport gives both
+   * panes the longer reading room requested for run inspection, while the
+   * 1400px ceiling stops a tall display turning either scroll owner into an
+   * unbounded column. The 760px floor keeps ordinary laptop panes from ending
+   * halfway down the page. The page remains
    * in normal flow, so the pane cannot disappear behind later content. The
    * narrow layout below removes this contract entirely.
    */
   --run-explorer-pane-block-size: clamp(
-    640px,
-    calc(100dvh - var(--app-header-h) + 240px - env(safe-area-inset-bottom, 0px)),
-    1240px
+    760px,
+    calc(100dvh - var(--app-header-h) + 320px - env(safe-area-inset-bottom, 0px)),
+    1400px
   );
   /* Recorded result tables benefit from the available desktop width. The shell
      still contracts fluidly below this cap and the narrow breakpoint stacks the
