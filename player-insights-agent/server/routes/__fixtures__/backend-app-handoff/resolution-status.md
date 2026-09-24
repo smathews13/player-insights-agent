@@ -1,10 +1,12 @@
 # Failure-point resolution status
 
-The README, failure map, and JSON examples in this folder remain the byte-for-byte
-sanitized handoff pinned to backend `07f6ad75` and app mirror `3bb6d87f`. This
-file records how the app addresses each numbered point without rewriting that
-historical evidence. Acme's latest ownership note is controlling: the
-`agent/` folder in this app repository is not the backend served by `astrolabe`.
+The failure map and JSON examples remain the sanitized handoff pinned to backend
+`07f6ad75` and app mirror `3bb6d87f`. The README carries the same upstream
+content plus an app-copy maintenance warning that prevents its backend re-pin
+steps from being run against this repository's stale `agent/` folder. This file
+records how the app addresses each numbered point. Acme's latest ownership
+note is controlling: the `agent/` folder here is not the backend served by
+`astrolabe`.
 
 | #   | App status                                                                                                                                  | Backend status / boundary                                                                                                       |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

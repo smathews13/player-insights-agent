@@ -81,6 +81,10 @@ describe('sanitized backend/app handoff fixtures', () => {
     expect(handoffReadme).toContain('T2-Marketing-Technology/dbx-player-insights-agent');
     expect(handoffReadme).toContain('The `agent/` folder in the app repo is not the served backend.');
     expect(handoffReadme).toContain('A backend change is live only after a new model version is logged and served.');
+    expect(handoffReadme).toContain("Do not run the\n> backend re-pin steps against this checkout's `agent/` folder");
+    expect(handoffReadme).toContain(
+      '**Re-pin the backend side from a current checkout of\n   `T2-Marketing-Technology/dbx-player-insights-agent`'
+    );
     expect(failureMap).toContain('Fixed in the backend by MIT-14735');
   });
 
