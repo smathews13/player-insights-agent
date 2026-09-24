@@ -175,3 +175,61 @@ databricks api get "/api/2.0/mlflow/get-trace-artifact?request_id=<trace id>"
 Then read `spans[name=predict_stream].events[*].attributes["mlflow.chunk.value"]`.
 
 The last event is exactly what the app's SSE parser received.
+
+## Who changes what
+
+This contract has two owners. Each owns one side and changes only that side.
+
+1. **Backend: T2, repo `T2-Marketing-Technology/dbx-player-insights-agent`.**
+   Owns everything the `astrolabe` endpoint sends: the stream events, the seven
+   payload types, every field, and `schema_version`.
+   A backend change is live only after a new model version is logged and served.
+2. **App: the Databricks team, the app repo and its public mirror.**
+   Owns how the app calls the endpoint, validates the reply, and renders it.
+   An app change is live after Deploy from Git. That never changes the model.
+3. **The `agent/` folder in the app repo is not the served backend.**
+   It is an older copy of this repo, with separate history. A change made there
+   does not reach the endpoint. Propose a backend change as a note, a diff, or a
+   ticket, and the backend owner makes it here.
+4. **This folder is the shared reference.**
+   - The backend owner keeps it current.
+   - A backend PR that changes the shape updates `template.json` in the same PR.
+   - The app team may keep a byte-for-byte copy, with their own status notes beside it.
+5. **Versions.**
+   - The agreed strings for the core payloads are `pia.answer/1`, `pia.plan/1` and
+     `pia.clarification/1`. The backend starts sending them with MIT-14749. Until
+     then these payloads are unversioned, which the app accepts.
+   - Reports use `pia.report/1`; dashboards use `pia.dashboard/1`.
+   - A breaking shape change bumps the number.
+   - The app refuses a version it does not know.
+   - So the app ships support for a new version BEFORE the backend starts sending it.
+6. **Enforced vs agreed.**
+   - Enforced: the app's zod schemas, our Pydantic models, and both test suites.
+   - Agreed but not enforced: everything else in this README, including the rule
+     order in points 3–5.
+
+## Keeping this current
+
+This folder is a snapshot, pinned to two SHAs. Treat it as the starting point, not as ground truth.
+
+1. **Pins.** Backend `07f6ad75`, app mirror `3bb6d87f`. Any app file:line here is correct at that SHA only.
+2. **Re-pin the app side.**
+   - Run `git fetch frontend-ref`.
+   - Read the files at the new head with `git show frontend-ref/main:<path>`.
+   - Update the SHA above and any line numbers that moved.
+3. **Re-pin the backend side.** Re-read `agent/contracts.py` and check the key counts:
+
+   ```bash
+   cd agent && uv run --python 3.13 python -c "from contracts import AnswerContract as A; print(len(A.model_fields))"
+   ```
+
+4. **Get a fresh wire copy.**
+   - Run `databricks api get "/api/2.0/mlflow/get-trace-artifact?request_id=<trace id>"`.
+   - Take `spans[name=predict_stream].events[*].attributes["mlflow.chunk.value"]`.
+   - The last event is the final payload.
+5. **Sanitize before the first commit.**
+   - Keep keys, list lengths, types, ids, timings and token counts.
+   - Replace questions, table and column names, figures, SQL, caveats and stage input/output with fictional values.
+   - Then check for leftovers with `grep -riEf local/sanitize-patterns.txt docs/handoff-contract/`. The pattern list names real titles and catalogs, so it stays local; it is not in this folder.
+   - Keep the real-data copy under `local/` only.
+6. **Change the contract and this folder together.** A PR that changes a field in `agent/contracts.py`, a `custom_outputs` type, or a `runtime_settings` rule also updates `template.json`. Add a row to `failure-points.md` if the change can break the app.
