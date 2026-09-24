@@ -161,7 +161,11 @@ import type {
 } from '../../shared/ops-contract';
 import { opsCurrentMonthRange, opsDayRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
-import { cachedLifetimeSpend, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
+import {
+  cachedLifetimeSpend,
+  deploymentClippedSpendRange,
+  lifetimeSpendRange,
+} from '../lib/ops-lifetime-spend';
 import {
   cachedRecentMonthlySpend,
   readRecentMonthlySpend,
@@ -1841,7 +1845,7 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
 
     app.get('/api/ops/cost', async (req: Request, res: Response) => {
       const readAt = new Date(clock()).toISOString();
-      const range = opsCurrentMonthRange(clock());
+      let range = opsCurrentMonthRange(clock());
       const userBrowse = queryText(req, 'userBrowse') === '1';
       const spendUser = queryText(req, 'spendUser').toLowerCase();
       const requestedUnit = queryText(req, 'unit');
@@ -1880,7 +1884,6 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
         }
         res.json(payload);
       };
-      const spendWindow = capUserSpendRange(range);
       const requestAbort = new AbortController();
       res.once?.('close', () => {
         if (!res.writableEnded) requestAbort.abort(new Error('The Cost caller disconnected.'));
@@ -1906,6 +1909,8 @@ export function setupOpsRoutes(appkit: InsightsAppKit, deps: OpsDeps) {
               workspaceId: ids.workspaceId,
             })
       ).catch(() => null);
+      range = deploymentClippedSpendRange(range, firstDeployment?.deployedAt);
+      const spendWindow = capUserSpendRange(range);
       const activityRange = userBrowse ? range : spendWindow.range;
       const [
         storedBudgets,

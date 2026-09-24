@@ -182,7 +182,7 @@ describe('the ranged cost route', () => {
     expect(GENIE_APP_ACTIVITY_QUERY).toContain('AND NOT EXISTS');
   });
 
-  it('passes complete-day bounds to billing and the run ledger', async () => {
+  it('clips current-month billing and the run ledger to the exact first deployment instant', async () => {
     let handler: ((req: Request, res: Response) => Promise<void>) | undefined;
     const app = {
       get: (path: string, registered: (req: Request, res: Response) => Promise<void>) => {
@@ -278,7 +278,7 @@ describe('the ranged cost route', () => {
         now: () => Date.parse('2026-08-18T12:00:00Z'),
         fetchImpl,
         readAppBillingTag: () => Promise.resolve('matched'),
-        readFirstAppDeployment: () => Promise.resolve({ deployedAt: '2026-01-01T00:00:00Z' }),
+        readFirstAppDeployment: () => Promise.resolve({ deployedAt: '2026-08-04T17:42:10.000Z' }),
         queryHistoryTransport: {
           listQueries: () =>
             Promise.resolve({
@@ -310,13 +310,18 @@ describe('the ranged cost route', () => {
     );
 
     expect(payload.period).toBe('current_month');
-    expect(payload.range).toEqual({ from: '2026-08-01', to: '2026-08-17' });
+    expect(payload.range).toEqual({
+      from: '2026-08-04',
+      to: '2026-08-17',
+      fromTimestamp: '2026-08-04T17:42:10.000Z',
+    });
     expect(payload.billingLagDays).toBe(1);
-    expect(lakebase).toHaveBeenCalledWith(QUESTION_COST_RUNS_QUERY, ['2026-08-01', '2026-08-17']);
+    expect(lakebase).toHaveBeenCalledWith(QUESTION_COST_RUNS_QUERY, ['2026-08-04', '2026-08-17']);
     expect(statementBodies[0].parameters).toEqual(
       expect.arrayContaining([
-        { name: 'from_day', value: '2026-08-01', type: 'DATE' },
+        { name: 'from_day', value: '2026-08-04', type: 'DATE' },
         { name: 'to_day', value: '2026-08-17', type: 'DATE' },
+        { name: 'from_instant', value: '2026-08-04T17:42:10.000Z', type: 'TIMESTAMP' },
       ])
     );
     expect(statementBodies.some((body) => String(body.statement).includes('system.serving.endpoint_usage'))).toBe(
@@ -327,7 +332,7 @@ describe('the ranged cost route', () => {
     );
     expect(payload.budgets).toEqual({ total: { USD: null, DBU: null }, resources: {} });
     expect(payload.budgetsReadable).toBe(true);
-    expect(payload.recentMonthlySpend?.map((month) => month.month)).toEqual(['2026-07', '2026-06', '2026-05']);
+    expect(payload.recentMonthlySpend).toEqual([]);
     expect(payload.honesty?.priceSource).toBe('list_prices');
     expect(payload.honesty?.contractRates).toBe('unavailable');
 

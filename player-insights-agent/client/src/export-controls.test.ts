@@ -67,13 +67,13 @@ describe('export controls contract', () => {
     expect(home).not.toContain('conversation-export-toolbar');
   });
 
-  it('right-aligns answer export without a trailing dots icon', () => {
+  it('right-aligns answer export and uses no trailing dots icon anywhere', () => {
     const answerMenu = source.slice(
       source.indexOf('export function AnswerExportMenu'),
       source.indexOf('export function ReportExportMenu')
     );
     expect(answerMenu).toContain('triggerLabel="Export answer"');
-    expect(answerMenu).toContain('showMoreIcon={false}');
+    expect(source).not.toContain('MoreHorizontal');
     expect(answerBodyCss).toMatch(/\.feedback > \.export-menu\s*\{[^}]*margin-left:\s*auto/s);
   });
 
