@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeSettings } from '../../shared/runtime-settings';
@@ -12,6 +13,12 @@ import planRequestFixture from './__fixtures__/backend-app-handoff/example-reque
 import executeRequestFixture from './__fixtures__/backend-app-handoff/example-request-execute.json';
 import planResponseFixture from './__fixtures__/backend-app-handoff/example-plan-response.json';
 import answerResponseFixture from './__fixtures__/backend-app-handoff/example-answer-response.json';
+
+const handoffReadme = readFileSync(new URL('./__fixtures__/backend-app-handoff/README.md', import.meta.url), 'utf8');
+const failureMap = readFileSync(
+  new URL('./__fixtures__/backend-app-handoff/failure-points.md', import.meta.url),
+  'utf8'
+);
 
 type RequestFixture = {
   body: {
@@ -69,6 +76,13 @@ describe('sanitized backend/app handoff fixtures', () => {
   const executeRequest = executeRequestFixture as RequestFixture;
   const planResponse = planResponseFixture as ResponseFixture;
   const answerResponse = answerResponseFixture as ResponseFixture;
+
+  it('pins the backend ownership and model re-log boundary', () => {
+    expect(handoffReadme).toContain('T2-Marketing-Technology/dbx-player-insights-agent');
+    expect(handoffReadme).toContain('The `agent/` folder in the app repo is not the served backend.');
+    expect(handoffReadme).toContain('A backend change is live only after a new model version is logged and served.');
+    expect(failureMap).toContain('Fixed in the backend by MIT-14735');
+  });
 
   it('rebuilds the recorded plan and execute requests without dropping custom_inputs', () => {
     expect(requestFromFixture(planRequest)).toEqual(planRequest.body);
