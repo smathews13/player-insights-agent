@@ -30,6 +30,7 @@ const CAVEATS = readFileSync(new URL('./KeepInMind.tsx', import.meta.url), 'utf8
 const PROSE = CARD.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '').replace(/^\s*\/\/.*$/gm, '');
 const PLAN = readFileSync(new URL('./PlanCard.tsx', import.meta.url), 'utf8');
 const CHARTS = readFileSync(new URL('./AnswerCharts.tsx', import.meta.url), 'utf8');
+const ENTITY_LINKS = readFileSync(new URL('./DataEntityLinks.tsx', import.meta.url), 'utf8');
 const ANSWER_CSS = partial('answer.css');
 const ASK_CSS = partial('ask.css');
 const MONITORING_CSS = partial('monitoring.css');
@@ -90,12 +91,16 @@ describe('the answer and plan cards sit on the design’s scale, not the library
   });
 
   it('sizes the takeaway as a card heading and not as a hero', () => {
-    // 16.5px/700. It was a clamp to 28px on a page whose own h2 is 22px, so the
-    // one sentence in the card out-shouted the page it was on.
+    // The base is regular so backend-authored strong text remains visible.
     const rule = ruleFor(ANSWER_CSS, '.answer-takeaway {');
     expect(rule).toContain('font-size: calc(var(--ast-fs-16) + 0.5px)');
-    expect(rule).toContain('font-weight: 700');
+    expect(rule).toContain('font-weight: 400');
     expect(rule).toContain('line-height: 1.35');
+  });
+
+  it('keeps number typography without forcing every number bold', () => {
+    expect(ANSWER_CSS).not.toMatch(/\.answer-inline-number\s*\{[^}]*font-weight/s);
+    expect(ENTITY_LINKS).toContain('className="answer-inline-number ast-num"');
   });
 
   it('uses the answer specification’s compact 1.5 reading rhythm', () => {

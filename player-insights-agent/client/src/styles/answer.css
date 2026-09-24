@@ -664,13 +664,14 @@
  *
  * It was a clamp up to 28px, which is the hero size on a page whose own h2 is
  * 22px: the one sentence in the card competed with the page rather than heading
- * the card. 18px/700 at 1.35 is the handoff's, and `pretty` keeps a two-line
- * takeaway from leaving one word alone on the second line.
+ * the card. 16.5px/400 at 1.35 is the handoff's, and `pretty` keeps a two-line
+ * takeaway from leaving one word alone on the second line. The base weight is
+ * regular so only backend-authored `strong` spans are bold.
  */
 .answer-takeaway {
   padding-inline: 20px;
   font-size: calc(var(--ast-fs-16) + 0.5px);
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.35;
   letter-spacing: -0.01em;
   text-wrap: pretty;
@@ -1218,7 +1219,4 @@ ol.answer-list {
   font-size: 9px;
   line-height: 1.3;
   text-transform: lowercase;
-}
-.answer-inline-number {
-  font-weight: 700;
 }
