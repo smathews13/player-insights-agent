@@ -123,7 +123,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
       },
       {
         id: 'semantic-discovery',
-        label: 'Add metadata search',
+        label: 'Add permissions template',
         description:
           'Adds read-only Vector Search access so Player Insights Agent can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,
@@ -168,7 +168,7 @@ export const DEFAULT_SP_PERSONA_TEMPLATES = [
       },
       {
         id: 'semantic-discovery',
-        label: 'Add metadata search',
+        label: 'Add permissions template',
         description:
           'Adds read-only Vector Search access so Player Insights Agent can find relevant table and column metadata; it does not grant access to table rows.',
         leastPrivilege: false,

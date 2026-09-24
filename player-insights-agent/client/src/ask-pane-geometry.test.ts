@@ -23,7 +23,7 @@ function rule(source: string, selector: string): string {
 describe('Ask and Run use page-specific desktop pane geometry', () => {
   it('gives Run Explorer taller viewport-fit reading panes without changing Ask', () => {
     expect(rule(RUNS, '.run-explorer')).toMatch(
-      /--run-explorer-pane-block-size:\s*clamp\(\s*640px,\s*calc\(100dvh - var\(--app-header-h\) \+ 240px - env\(safe-area-inset-bottom,\s*0px\)\),\s*1240px\s*\)/
+      /--run-explorer-pane-block-size:\s*clamp\(\s*760px,\s*calc\(100dvh - var\(--app-header-h\) \+ 320px - env\(safe-area-inset-bottom,\s*0px\)\),\s*1400px\s*\)/
     );
     expect(TOKENS).toContain('--workspace-pane-block-size: clamp(');
     expect(rule(RUNS, '.run-explorer')).not.toContain('var(--workspace-pane-block-size)');
@@ -167,7 +167,7 @@ describe('the Ask composer follows the answer pane in normal flow', () => {
     expect(composer).toMatch(/position:\s*static/);
     expect(composer).not.toMatch(/\b(?:top|right|bottom|left|z-index|transform):/);
     expect(composer).not.toMatch(/margin-(?:top|block-start):\s*-/);
-    expect(HOME).toContain('{loading ? (\n                stopping ? (');
+    expect(HOME).toMatch(/\) : loading \? \(\s*stopping \? \(/);
     expect(HOME).toContain("'Stop'");
   });
 });

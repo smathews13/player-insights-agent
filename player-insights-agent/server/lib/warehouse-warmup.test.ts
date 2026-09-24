@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createWarehouseWarmup,
+  waitForWarehouseReady,
   warehouseStartPath,
   warehouseStatePath,
   WARMUP_COOLDOWN_MS,
@@ -115,6 +116,40 @@ describe('warming the warehouse when somebody opens the app', () => {
     expect(await warmup.warm()).toEqual({ kind: 'not-configured' });
     // Not even a metadata read: there is no id to ask about.
     expect(ws.calls).toEqual([]);
+  });
+});
+
+describe('waiting for runnable compute after an explicit Ask', () => {
+  it('starts a stopped warehouse and resolves only after it reports running', async () => {
+    const ws = workspace('STOPPED');
+    const time = clock(0);
+    const outcome = await waitForWarehouseReady({
+      warehouseId: WAREHOUSE,
+      transport: ws.transport,
+      now: time.now,
+      sleep: (delay) => {
+        time.advance(delay);
+        ws.box.state = 'RUNNING';
+        return Promise.resolve();
+      },
+      pollMs: 1_000,
+    });
+
+    expect(outcome).toEqual({ kind: 'ready', state: 'RUNNING', waitedMs: 1_000 });
+    expect(ws.calls).toEqual([
+      { path: STATE, method: 'GET' },
+      { path: START, method: 'POST' },
+      { path: STATE, method: 'GET' },
+    ]);
+  });
+
+  it('does not start or wait when the warehouse is already running', async () => {
+    const ws = workspace('RUNNING');
+    const outcome = await waitForWarehouseReady({ warehouseId: WAREHOUSE, transport: ws.transport });
+    expect(outcome.kind).toBe('ready');
+    if (outcome.kind !== 'ready') throw new Error('expected ready warehouse');
+    expect(typeof outcome.waitedMs).toBe('number');
+    expect(ws.starts()).toHaveLength(0);
   });
 });
 

@@ -97,25 +97,30 @@
 .ops-stop-all .ops-stop-all-button {
   border-color: var(--db-red-700);
   background: var(--db-red-700);
-  color: var(--destructive-foreground);
+  color: #ffffff;
 }
 
 .ops-admin-action-scope .ops-scope-check-button {
   border-color: var(--db-red-700);
   background: var(--db-red-700);
-  color: var(--destructive-foreground);
+  color: #ffffff;
+}
+
+.ops-stop-all .ops-stop-all-button span,
+.ops-admin-action-scope .ops-scope-check-button span {
+  color: #ffffff;
 }
 
 .ops-admin-action-scope .ops-scope-check-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--db-red-700) 82%, white);
   background: color-mix(in srgb, var(--db-red-700) 82%, white);
-  color: var(--destructive-foreground);
+  color: #ffffff;
 }
 
 .ops-stop-all .ops-stop-all-button:hover {
   border-color: color-mix(in srgb, var(--db-red-700) 82%, white);
   background: color-mix(in srgb, var(--db-red-700) 82%, white);
-  color: var(--destructive-foreground);
+  color: #ffffff;
 }
 
 /* ── A block ─────────────────────────────────────────────────────────────── */
@@ -2490,9 +2495,9 @@ a.ops-bar-count:hover {
 }
 
 .ops-latency-block .ops-block-head-control {
-  flex: 1 1 320px;
+  flex: 1 1 720px;
   min-width: 0;
-  max-width: 25rem;
+  max-width: 52rem;
 }
 
 .ops-latency-search {

@@ -87,6 +87,10 @@ afterEach(() => {
 });
 
 describe('daily user spend schema migration', () => {
+  it('uses a new calculation version to rebuild legacy null-spend rows', () => {
+    expect(USER_SPEND_CALCULATION_VERSION).toBe(2);
+  });
+
   it('adds app-owned daily and refresh tables at v31 with only justified indexes', () => {
     const migration = LATER_MIGRATIONS.find((entry) => entry.name === 'daily user spend read model');
     expect(migration?.version).toBe(31);
@@ -310,7 +314,7 @@ describe('fast read semantics', () => {
     expect(page.freshness).toMatchObject({
       isRefreshing: false,
       isStale: false,
-      calculationVersion: 1,
+      calculationVersion: USER_SPEND_CALCULATION_VERSION,
       billingCompleteThrough: '2026-08-31',
     });
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');

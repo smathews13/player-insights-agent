@@ -65,13 +65,13 @@ describe('app-wide PIA loading context map', () => {
     expect(loader).toContain('<SwapMark detailed />');
   });
 
-  it('reserves full panel choreography for initialization contexts', () => {
+  it('reserves full two-concept choreography for initialization and the idle Ask hero', () => {
     const panelHosts = sourceFiles(new URL('.', ROOT).pathname)
       .filter((path) => path.endsWith('.tsx'))
       .filter((path) => readFileSync(path, 'utf8').includes('variant="panel"'))
       .map((path) => path.slice(path.lastIndexOf('/') + 1))
       .sort();
-    expect(panelHosts).toEqual(['AppSessionRecovery.tsx', 'Layout.tsx', 'StartupBoundary.tsx']);
+    expect(panelHosts).toEqual(['AppSessionRecovery.tsx', 'HomePage.tsx', 'Layout.tsx', 'StartupBoundary.tsx']);
   });
 
   it('uses a static engraved status mark for completed answers', () => {
@@ -81,8 +81,8 @@ describe('app-wide PIA loading context map', () => {
     expect(read('FinalAnswer.tsx')).not.toContain('PiaFlicker');
   });
 
-  it('uses the canonical static avatar in representative PIA identity hosts', () => {
-    expect(read('HomePage.tsx')).toContain('<PiaAvatar size={24} />');
+  it('uses the passive loader only in the idle hero and static avatars on completed identity hosts', () => {
+    expect(read('HomePage.tsx')).toContain('<PiaLoaderMark variant="panel" size={24}');
     expect(read('HomePage.tsx')).toContain('<PiaAvatar size={32} />');
     expect(read('PlanCard.tsx')).toContain('<PiaAvatar size={32} />');
     expect(read('AIAnalysisCaveat.tsx')).toContain('<PiaAvatar size={14} />');

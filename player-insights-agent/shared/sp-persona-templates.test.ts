@@ -50,7 +50,7 @@ describe('deployment-configured SP persona template contract', () => {
       expect(tableIntent?.selector.idSuffixes?.length).toBeGreaterThan(0);
       expect(tableIntent?.selector).not.toHaveProperty('labelIncludes');
       const metadataSearch = template.variants[1];
-      expect(metadataSearch.label).toBe('Add metadata search');
+      expect(metadataSearch.label).toBe('Add permissions template');
       expect(metadataSearch.description).toContain('does not grant access to table rows');
       expect(metadataSearch.grants[metadataSearch.grants.length - 1]?.optional).toBe(true);
     }

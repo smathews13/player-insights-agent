@@ -100,29 +100,16 @@ const cardText = (feedback: FeedbackEntry) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-describe('the release badge and the two controls beside it', () => {
-  /**
-   * The three compact chips on the header rail are the release stamp, the
-   * account badge and the gear, and the stamp was reported as "styled
-   * differently from its neighbours". The surface half already agreed -- same
-   * height, hairline, radius, fill and ink, pinned in
-   * deployment-time-chip.test.tsx -- so what was left is the two properties
-   * that were not compared to anything: a 12px glyph against the badge's 14px,
-   * with 6px of gap against its 8px, and no response to the pointer at all.
-   */
-  it('draws its glyph and gap at the account badge’s size, not one grade smaller', () => {
+describe('the release badge inside the conversation-rail header column', () => {
+  /** The release stamp is the member that gives so Ask stays on the rail edge. */
+  it('stays compact enough that Ask starts on the rail hairline', () => {
     const chip = rule(SHELL, '.deployment-time-chip');
-    const badge = rule(ACCOUNT, '.account-menu-trigger');
 
-    expect(badge).toMatch(/gap:\s*8px/);
-    expect(chip).toMatch(/gap:\s*8px/);
-    // Stated in the rule as well as in the markup's utility class, so the size
-    // cannot quietly change to a third value with the class still in place.
-    expect(rule(SHELL, '.deployment-time-chip > svg')).toMatch(/width:\s*14px/);
-    expect(rule(ACCOUNT, '.account-menu-trigger > .roster-organization-mark')).toMatch(/width:\s*14px/);
+    expect(chip).toMatch(/gap:\s*4px/);
+    expect(chip).toMatch(/padding:\s*0 6px/);
+    expect(rule(SHELL, '.deployment-time-chip > svg')).toMatch(/width:\s*12px/);
     const markup = renderToStaticMarkup(<DeploymentTimeChip deployedAt="2026-08-20T16:51:23.456Z" />);
-    expect(markup).toContain('size-3.5');
-    expect(markup).not.toMatch(/class="[^"]*size-3"/);
+    expect(markup).toContain('size-3');
   });
 
   it('answers the pointer with its own near-opaque identity lift', () => {

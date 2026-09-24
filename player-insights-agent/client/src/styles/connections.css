@@ -2171,6 +2171,15 @@
   line-height: 1.35;
 }
 
+.deployment-source-loader {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ast-text-secondary);
+  gap: 6px;
+}
+
 /* ── The configuration plane ────────────────────────────────────────────────
    The Notebook card and the list of assets the agent may consider. Both landed
    as working markup with the palette written into the components as inline

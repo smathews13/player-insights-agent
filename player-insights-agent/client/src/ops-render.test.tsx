@@ -117,6 +117,9 @@ describe('the admin cancellation control', () => {
     // inside it is red. Kept in lockstep with ops-scope-modal.test.tsx.
     expect(admin).toContain('data-variant="destructive"');
     expect(admin).not.toContain('data-variant="default"');
+    expect(OPS_STYLES).toMatch(
+      /\.ops-stop-all \.ops-stop-all-button span,\s*\.ops-admin-action-scope \.ops-scope-check-button span\s*\{[^}]*color:\s*#ffffff/
+    );
     const toolbar = render(<HealthBody block={block(health())} />);
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
@@ -1749,7 +1752,7 @@ describe('the cost block', () => {
     expect(summary).toContain('aria-label="Billing date range from 2026-08-04 through 2026-09-02"');
     expect(summary).toContain('dateTime="2026-08-04"');
     expect(summary).toContain('Aug 4, 2026');
-    expect(summary).toContain('This calendar month');
+    expect(summary).toContain('September spend');
     expect(summary).toContain('36.87 USD');
     expect(summary).toContain('aria-label="Billing date range from 2026-09-01 through 2026-09-02"');
     expect(summary).toContain('Sep 1, 2026');

@@ -80,6 +80,21 @@ describe('the build stamps stay identifiers rather than duplicate statuses', () 
     expect(markup).toContain('title="5b0e675b1c"');
   });
 
+  it('shows source loaders instead of false not-set values during the first read', () => {
+    const artifacts = stamp({ appBuildSha: '', modelBuildSha: '' }).artifacts;
+    const markup = render(
+      <>
+        {artifacts.map((artifact) => (
+          <BuildStampRow key={artifact.key} artifact={artifact} loading />
+        ))}
+      </>
+    );
+    expect(markup).toContain('Loading app source');
+    expect(markup).toContain('Loading agent source');
+    expect(markup).not.toContain('not set');
+    expect(markup.match(/pia-loader-mark--chip/g)).toHaveLength(2);
+  });
+
   it('keeps the Orchestrator stamp without repeating its endpoint status', () => {
     const [, orchestrator] = stamp({
       appBuildSha: '',

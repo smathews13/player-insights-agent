@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { AiGatewayCandidate } from '../../shared/ai-gateway-contract';
 import { connectedResource } from '../../shared/deployment-config';
 import { AiGatewayCapabilityBadges, AiGatewayConnection, gatewayCandidateForMode } from './AiGatewayConnection';
-import { readConnection } from './connection-model';
+import { groupConnections, readConnection, withAiGatewayRuntimeConnection } from './connection-model';
 
 function reading(configured: boolean, connected = false) {
   return readConnection({
@@ -109,6 +109,14 @@ describe('AI Gateway Connections row', () => {
     expect(markup).toContain('ast-pill--pos');
     expect(markup).not.toContain('ast-pill--neg');
     expect(readable).not.toMatch(/\bConnect\b|\bChange\b|Stage for agent release/);
+  });
+
+  it('groups an enabled configured Gateway under Connected without a generic probe', () => {
+    const base = reading(true, false);
+    expect(groupConnections([base])[0]?.key).toBe('blocked');
+    const connected = withAiGatewayRuntimeConnection([base], true, 'mlflow');
+    expect(groupConnections(connected)[0]?.key).toBe('reachable');
+    expect(withAiGatewayRuntimeConnection([base], false, 'mlflow')[0]?.status).toBe(base.status);
   });
 
   it('shows configured but disabled as neutral rather than unreachable', () => {

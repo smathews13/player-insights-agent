@@ -436,6 +436,14 @@ describe('the figures line up and the palette is the palette', () => {
     expect(rule('.monitoring-numeric')).not.toMatch(/font-family|font-variant-numeric/);
   });
 
+  it('carries the table header fill through both rounded top corners', () => {
+    expect(rule('.monitoring-list-pane')).toMatch(/overflow:\s*hidden/);
+    const header = rule('.monitoring-table thead tr');
+    expect(header).toContain('background: var(--ast-fill-band)');
+    expect(header).toMatch(/-14px 0 0 var\(--ast-fill-band\)/);
+    expect(header).toMatch(/14px 0 0 var\(--ast-fill-band\)/);
+  });
+
   /**
    * Refused and failed are the two halves of one tile and they must never sum.
    * monitoring-ops.md names their colours: #46596B and #A04A62. They were DuBois

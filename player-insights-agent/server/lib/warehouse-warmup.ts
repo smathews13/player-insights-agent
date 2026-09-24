@@ -99,6 +99,8 @@ export const WARMUP_COOLDOWN_MS = 60_000;
  * protect a response.
  */
 export const WARMUP_TIMEOUT_MS = 10_000;
+export const WAREHOUSE_READY_TIMEOUT_MS = 90_000;
+export const WAREHOUSE_READY_POLL_MS = 1_000;
 
 /**
  * States where the compute is up, or on its way up, and calling start again would
@@ -154,6 +156,69 @@ export interface WarehouseWarmup {
    * broken page, which is a strictly worse trade than the cold start.
    */
   warm(): Promise<WarmupOutcome>;
+  /** Explicit Ask path: wait until the configured warehouse is runnable. */
+  ready?(): Promise<WarehouseReadinessOutcome>;
+}
+
+export type WarehouseReadinessOutcome =
+  | { kind: 'ready'; state: 'RUNNING'; waitedMs: number }
+  | { kind: 'not-configured' }
+  | { kind: 'nothing-to-warm'; state: string }
+  | { kind: 'timed-out'; state: string; waitedMs: number }
+  | { kind: 'failed'; at: 'state' | 'start'; message: string };
+
+/**
+ * Start the app warehouse when needed and wait until it can execute queries.
+ * Used only after an explicit Ask; page startup continues using fire-and-forget.
+ */
+export async function waitForWarehouseReady(options: {
+  warehouseId: string;
+  transport: WarmupTransport;
+  now?: () => number;
+  sleep?: (delayMs: number) => Promise<void>;
+  timeoutMs?: number;
+  pollMs?: number;
+  callTimeoutMs?: number;
+}): Promise<WarehouseReadinessOutcome> {
+  const warehouseId = options.warehouseId.trim();
+  if (!warehouseId) return { kind: 'not-configured' };
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)));
+  const timeoutMs = options.timeoutMs ?? WAREHOUSE_READY_TIMEOUT_MS;
+  const pollMs = options.pollMs ?? WAREHOUSE_READY_POLL_MS;
+  const callTimeoutMs = options.callTimeoutMs ?? WARMUP_TIMEOUT_MS;
+  const startedAt = now();
+  let lastState = '';
+  let startRequested = false;
+
+  while (now() - startedAt <= timeoutMs) {
+    try {
+      const body = await withDeadline(
+        options.transport({ path: warehouseStatePath(warehouseId), method: 'GET' }),
+        callTimeoutMs,
+        `the warehouse did not report its state within ${callTimeoutMs} ms`
+      );
+      lastState = typeof body.state === 'string' ? body.state.trim().toUpperCase() : '';
+    } catch (error) {
+      return { kind: 'failed', at: 'state', message: messageOf(error) };
+    }
+    if (lastState === 'RUNNING') return { kind: 'ready', state: 'RUNNING', waitedMs: now() - startedAt };
+    if (NOTHING_TO_WARM.has(lastState)) return { kind: 'nothing-to-warm', state: lastState };
+    if (lastState !== 'STARTING' && !startRequested) {
+      try {
+        await withDeadline(
+          options.transport({ path: warehouseStartPath(warehouseId), method: 'POST' }),
+          callTimeoutMs,
+          `the warehouse did not acknowledge a start within ${callTimeoutMs} ms`
+        );
+        startRequested = true;
+      } catch (error) {
+        return { kind: 'failed', at: 'start', message: messageOf(error) };
+      }
+    }
+    await sleep(pollMs);
+  }
+  return { kind: 'timed-out', state: lastState, waitedMs: now() - startedAt };
 }
 
 function messageOf(error: unknown): string {
@@ -237,6 +302,16 @@ export function createWarehouseWarmup(options: {
         inFlight = null;
       });
       return inFlight;
+    },
+    ready() {
+      return waitForWarehouseReady({
+        warehouseId: options.warehouseId(),
+        transport: options.transport,
+        now,
+        timeoutMs: WAREHOUSE_READY_TIMEOUT_MS,
+        pollMs: WAREHOUSE_READY_POLL_MS,
+        callTimeoutMs: timeoutMs,
+      });
     },
   };
 }

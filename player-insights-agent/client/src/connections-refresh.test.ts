@@ -258,7 +258,8 @@ describe('the headline counts what was actually asked', () => {
     expect(PAGE).not.toMatch(/countPreflightChecks/);
     expect(PAGE).not.toMatch(/connections-status-headline/);
     expect(PAGE).toMatch(/readConnections\(payload, reported\)/);
-    expect(PAGE).toMatch(/groupConnections\(readings\)/);
+    expect(PAGE).toMatch(/withAiGatewayRuntimeConnection\(readings,/);
+    expect(PAGE).toMatch(/groupConnections\(groupedReadings\)/);
   });
 });
 

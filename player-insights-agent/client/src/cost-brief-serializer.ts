@@ -97,6 +97,22 @@ function finite(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+function reconciledBreakdown(
+  total: number | null,
+  attributed: number | null,
+  standing: number | null
+): { attributed: number | null; standing: number | null } {
+  if (!finite(total)) return { attributed, standing };
+  if (finite(attributed)) {
+    const residual = Math.round(Math.max(0, total - attributed) * 1_000_000) / 1_000_000;
+    if (!finite(standing) || Math.abs(attributed + standing - total) > 0.01) {
+      return { attributed, standing: residual };
+    }
+  }
+  if (finite(standing) && !finite(attributed)) return { attributed: Math.max(0, total - standing), standing };
+  return { attributed, standing };
+}
+
 /**
  * Frontend export guard for the component that is intentionally absent from
  * every customer-facing cost view. The API can still include `vector-search`
@@ -108,10 +124,16 @@ export function costBriefExportView(brief: CostBriefPayload): CostBriefExportVie
   const excluded = brief.resources.filter((resource) => resource.id === 'vector-search');
   const resources = brief.resources.filter((resource) => resource.id !== 'vector-search');
   if (excluded.length === 0) {
+    const total = finite(brief.total.amount) ? brief.total.amount : null;
+    const breakdown = reconciledBreakdown(
+      total,
+      finite(brief.spendBreakdown.attributed.amount) ? brief.spendBreakdown.attributed.amount : null,
+      finite(brief.spendBreakdown.standing.amount) ? brief.spendBreakdown.standing.amount : null
+    );
     return {
-      total: finite(brief.total.amount) ? brief.total.amount : null,
-      standing: finite(brief.spendBreakdown.standing.amount) ? brief.spendBreakdown.standing.amount : null,
-      attributed: finite(brief.spendBreakdown.attributed.amount) ? brief.spendBreakdown.attributed.amount : null,
+      total,
+      standing: breakdown.standing,
+      attributed: breakdown.attributed,
       resources,
     };
   }
@@ -128,10 +150,16 @@ export function costBriefExportView(brief: CostBriefPayload): CostBriefExportVie
       ? Math.max(0, value - excludedParts.reduce((sum, item) => sum + (item?.[part] ?? 0), 0))
       : null;
 
+  const total = subtract(brief.total.amount, 'total');
+  const breakdown = reconciledBreakdown(
+    total,
+    subtract(brief.spendBreakdown.attributed.amount, 'attributed'),
+    subtract(brief.spendBreakdown.standing.amount, 'standing')
+  );
   return {
-    total: subtract(brief.total.amount, 'total'),
-    standing: subtract(brief.spendBreakdown.standing.amount, 'standing'),
-    attributed: subtract(brief.spendBreakdown.attributed.amount, 'attributed'),
+    total,
+    standing: breakdown.standing,
+    attributed: breakdown.attributed,
     resources,
   };
 }
@@ -156,6 +184,63 @@ export function buildDevProdProjection(brief: CostBriefPayload): DevProdProjecti
   const devVariable = exported.attributed;
   const prodProjected =
     devStanding !== null && devVariable !== null ? devStanding + devVariable * PROD_VARIABLE_USAGE_FACTOR : null;
+  const parts = exported.resources.map((resource) => {
+    if (!finite(resource.amount)) return { resource, standing: null, variable: null };
+    const standing = finite(resource.standingAmount)
+      ? Math.max(0, Math.min(resource.amount, resource.standingAmount))
+      : 0;
+    return { resource, standing, variable: Math.max(0, resource.amount - standing) };
+  });
+  const rawVariableTotal = parts.reduce((sum, part) => sum + (part.variable ?? 0), 0);
+  const variableScale = devVariable !== null && rawVariableTotal > 0 ? Math.max(0, devVariable / rawVariableTotal) : 1;
+  const resourceStandingTotal = parts.reduce((sum, part) => sum + (part.standing ?? 0), 0);
+  const standingResidual =
+    devStanding === null ? 0 : Math.round(Math.max(0, devStanding - resourceStandingTotal) * 1_000_000) / 1_000_000;
+  const resources: DevProdProjectionResource[] = parts.map(({ resource, standing, variable }) => {
+    if (standing === null || variable === null || !finite(resource.amount)) {
+      return {
+        id: resource.id,
+        label: resource.label,
+        quality: resource.quality,
+        devObserved: null,
+        devStanding: null,
+        devVariable: null,
+        prodProjected: null,
+        prodStanding: null,
+        prodVariable: null,
+        combined: null,
+      };
+    }
+    const scaledVariable = variable * variableScale;
+    const prodVariable = scaledVariable * PROD_VARIABLE_USAGE_FACTOR;
+    const projected = standing + prodVariable;
+    return {
+      id: resource.id,
+      label: resource.label,
+      quality: resource.quality,
+      devObserved: resource.amount,
+      devStanding: standing,
+      devVariable: scaledVariable,
+      prodProjected: projected,
+      prodStanding: standing,
+      prodVariable,
+      combined: resource.amount + projected,
+    };
+  });
+  if (standingResidual > 0) {
+    resources.push({
+      id: 'reconciled-standing',
+      label: 'Reconciled fixed hosting',
+      quality: 'estimate',
+      devObserved: null,
+      devStanding: standingResidual,
+      devVariable: 0,
+      prodProjected: standingResidual,
+      prodStanding: standingResidual,
+      prodVariable: 0,
+      combined: null,
+    });
+  }
 
   return {
     currency: brief.currency,
@@ -165,40 +250,7 @@ export function buildDevProdProjection(brief: CostBriefPayload): DevProdProjecti
     devVariable,
     prodProjected,
     combined: devObserved !== null && prodProjected !== null ? devObserved + prodProjected : null,
-    resources: exported.resources.map((resource) => {
-      if (!finite(resource.amount)) {
-        return {
-          id: resource.id,
-          label: resource.label,
-          quality: resource.quality,
-          devObserved: null,
-          devStanding: null,
-          devVariable: null,
-          prodProjected: null,
-          prodStanding: null,
-          prodVariable: null,
-          combined: null,
-        };
-      }
-      const standing = finite(resource.standingAmount)
-        ? Math.max(0, Math.min(resource.amount, resource.standingAmount))
-        : 0;
-      const variable = Math.max(0, resource.amount - standing);
-      const prodVariable = variable * PROD_VARIABLE_USAGE_FACTOR;
-      const projected = standing + prodVariable;
-      return {
-        id: resource.id,
-        label: resource.label,
-        quality: resource.quality,
-        devObserved: resource.amount,
-        devStanding: standing,
-        devVariable: variable,
-        prodProjected: projected,
-        prodStanding: standing,
-        prodVariable,
-        combined: resource.amount + projected,
-      };
-    }),
+    resources,
   };
 }
 

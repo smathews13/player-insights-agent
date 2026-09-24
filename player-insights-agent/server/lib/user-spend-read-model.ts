@@ -9,7 +9,9 @@ const SP_ASSIGNMENTS_TABLE = appTable('sp_assignments');
 const SP_PERSONAS_TABLE = appTable('sp_personas');
 const SP_PERSONA_DEFINITIONS_TABLE = appTable('sp_persona_definitions');
 
-export const USER_SPEND_CALCULATION_VERSION = 1;
+// Version 2 rebuilds rows from the canonical Ops cost pipeline after v1 could
+// persist roster-only/null-spend rows as a completed first refresh.
+export const USER_SPEND_CALCULATION_VERSION = 2;
 export const USER_SPEND_OVERLAP_DAYS = 7;
 export const USER_SPEND_REFRESH_INTERVAL_MS = 60 * 60 * 1_000;
 export const USER_SPEND_STALE_MS = 2 * 60 * 60 * 1_000;

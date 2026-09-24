@@ -168,6 +168,9 @@ describe('the figures line up', () => {
   });
 
   it('keeps the latency search wide enough for its placeholder', () => {
+    const seat = rule('.ops-latency-block .ops-block-head-control');
+    expect(seat).toMatch(/flex:\s*1\s+1\s+720px/);
+    expect(seat).toMatch(/max-width:\s*52rem/);
     const search = rule('.ops-latency-head-controls .ops-latency-search');
     expect(search).toMatch(/min-width:\s*0/);
     expect(search).toMatch(/flex:\s*1\s+1\s+280px/);

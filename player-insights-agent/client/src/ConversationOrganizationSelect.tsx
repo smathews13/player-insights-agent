@@ -1,10 +1,20 @@
 import { AppMultiSelect } from './AppMultiSelect';
+import { OrganizationAvatar } from './OrganizationAvatar';
 import {
   CONVERSATION_ORGANIZATION_FILTER_RULE,
   organizationSelectionSummary,
   toggleOrganizationSelection,
   type RailOrganization,
 } from './conversation-organization-selection';
+
+export function ConversationOrganizationOption({ organization }: { organization: RailOrganization }) {
+  return (
+    <span className="monitoring-organization-option-content">
+      <OrganizationAvatar organization={organization} />
+      <span>{organization.name}</span>
+    </span>
+  );
+}
 
 export function ConversationOrganizationSelect({
   organizations,
@@ -38,6 +48,7 @@ export function ConversationOrganizationSelect({
         ariaLabel: `${organization.name}, ${organization.count} conversation${organization.count === 1 ? '' : 's'}`,
         title: organization.name,
         count: organization.count,
+        content: <ConversationOrganizationOption organization={organization} />,
       }))}
     />
   );

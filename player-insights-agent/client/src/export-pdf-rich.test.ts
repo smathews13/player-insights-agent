@@ -152,21 +152,32 @@ describe('styled cost brief PDF', () => {
     // the supplied dark vector layout, not the generic text or light report.
     expect(text).toMatch(/ re [fB]/);
     expect(text).toContain('0.07 0.09 0.11 rg');
+    expect(text).toContain('0.08 0.62 0.48 rg');
+    expect(text).toContain('52 705 9 9 re');
+    expect(text).toContain('61 714 9 9 re');
   });
 
-  it('labels Prod as a projection and prints the lower-usage and fixed-hosting assumptions', async () => {
+  it('gives Dev and Prod separate pages and prints the Prod projection inputs', async () => {
     const text = await pdfText(costBriefPdf(costBrief, 'dev-prod-projection'), 'windows-1252');
-    expect(text).toContain('(DEV + PROD PROJECTION)');
-    expect(text).toContain('(OBSERVED DEV)');
+    expect(text).toContain('(DEV + PROD PROJECTION · PAGE 1 OF 2)');
+    expect(text).toContain('(DEV + PROD PROJECTION · PAGE 2 OF 2)');
+    expect(text).toContain('(Development observed)');
+    expect(text).toContain('(Production projection)');
+    expect(text).toContain('(DEVELOPMENT · OBSERVED)');
+    expect(text).toContain('(PRODUCTION · PROJECTED)');
     expect(text).toContain('(PROJECTED PROD)');
-    expect(text).toContain('(COMBINED TOTAL)');
+    expect(text).toContain('(FIXED HOSTING INPUT)');
+    expect(text).toContain('(USAGE INPUT)');
+    expect(text).toContain('(PROD INPUTS BY RESOURCE)');
     expect(text).toContain('(PROJECTION ASSUMPTIONS · NOT ACTUAL SPEND)');
-    expect(text).toContain('(Prod fixed hosting: 100% of each applicable Dev standing-cost share.)');
-    expect(text).toContain('(Prod question-driven usage: 15% of observed Dev variable usage.)');
+    expect(text).toContain('(Fixed hosting input: 100% of reconciled Dev standing spend.)');
+    expect(text).toContain('(Usage input: 15% of reconciled Dev question-driven spend.)');
     expect(text).toContain('(Projected figures are displayed to the nearest currency unit.)');
     expect(text).toContain('(490)');
     expect(text).toContain('(USD)');
     expect(text).not.toContain('Vector Search');
     expect(text).toContain('0.07 0.09 0.11 rg');
+    expect(text).toContain('0.08 0.62 0.48 rg');
+    expect(text.match(/52 705 9 9 re/g)).toHaveLength(2);
   });
 });

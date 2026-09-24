@@ -205,13 +205,12 @@
  *
  * Not just a flex row: the used width is what the first tab sits after. The
  * conversation rail width is the minimum reservation, while the complete
- * lockup, release chip, and divider may make the column wider.
+ * lockup, release chip, and divider fit inside that reservation.
  *
  * A fixed rail-width column clipped the release chip after the rail moved to
  * the approved 290px geometry: the first tab started underneath the chip. A
- * minimum reservation keeps Ask out of the sidebar, and max-content ensures the
- * tab row cannot paint over any visible brand chrome. The reference explicitly
- * allows PIA's wider lockup to move navigation right of true centre.
+ * fixed reservation keeps Ask on the sidebar hairline. The date chip is the
+ * compact member that gives; it must not move the tab row into the main pane.
  *
  * The 24px that used to sit on .app-nav as a stated gap is still gone. A gap
  * AND a column width would be two rules deciding one position.
@@ -229,10 +228,10 @@
   align-items: center;
   /* §1's gap between the lockup and the divider that follows it. The 8px inside
      the lockup, between mark and wordmark, is the component's own. */
-  gap: 14px;
-  width: max-content;
+  gap: 8px;
+  width: calc(var(--conversation-width) - var(--app-header-pad-x));
   min-width: calc(var(--conversation-width) - var(--app-header-pad-x));
-  max-width: none;
+  max-width: calc(var(--conversation-width) - var(--app-header-pad-x));
 }
 /*
  * The lockup inside the header's first column.
@@ -315,13 +314,10 @@
   position: relative;
   display: flex;
   align-items: center;
-  /* 8px, which is the account badge's gap. It was 6px, and paired with a 12px
-     glyph it made the release stamp read as a denser, smaller-grade chip than
-     the two controls it sits beside. */
-  gap: 8px;
+  gap: 4px;
   flex: none;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 6px;
   border: 1px solid var(--ast-border-input);
   border-radius: var(--radius-sm);
   background: var(--card);
@@ -333,8 +329,8 @@
   flex: none;
   /* Stated rather than left to the utility class, so the glyph cannot fall back
      to a different size than the account badge's if the markup changes. */
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 /*
  * Hover, because the two controls beside it have one.

@@ -5,8 +5,8 @@
  * under `@media (prefers-color-scheme: dark) { :root:not(.light) }`, and that is
  * not this theme. `data-theme` is ours. Light is the default first paint; a
  * cached or server-saved preference may replace it without AppKit consulting
- * the operating-system media query. index.html consults the OS only when no
- * cached preference exists; after that, data-theme remains authoritative.
+ * the operating-system media query. With no saved preference, `index.html`
+ * keeps the default light paint; after that, data-theme remains authoritative.
  */
 
 export type ColorScheme = 'dark' | 'light';

@@ -110,6 +110,20 @@ describe('serializeCostBriefMarkdown', () => {
 });
 
 describe('buildDevProdProjection', () => {
+  it('reconciles a zero standing field to the residual of total minus attributed', () => {
+    const inconsistent = {
+      ...ready,
+      total: figure(1494.16),
+      spendBreakdown: { attributed: figure(942.12), standing: figure(0) },
+    };
+    expect(costBriefExportView(inconsistent)).toMatchObject({
+      total: 1494.16,
+      attributed: 942.12,
+      standing: 552.04,
+    });
+    expect(buildDevProdProjection(inconsistent).prodProjected).toBeCloseTo(552.04 + 942.12 * 0.15, 6);
+  });
+
   it('duplicates fixed hosting and applies the disclosed lower factor only to question-driven usage', () => {
     const projection = buildDevProdProjection(ready);
 
@@ -124,26 +138,32 @@ describe('buildDevProdProjection', () => {
 
   it('keeps existing resource categories and treats only their standing share as fixed', () => {
     const projection = buildDevProdProjection(ready);
-    expect(projection.resources.map((resource) => resource.label)).toEqual(['Serving endpoint', 'Ask SQL warehouse']);
+    expect(projection.resources.map((resource) => resource.label)).toEqual([
+      'Serving endpoint',
+      'Ask SQL warehouse',
+      'Reconciled fixed hosting',
+    ]);
     expect(projection.resources[0]).toMatchObject({
       devObserved: 500,
       devStanding: 200,
-      devVariable: 300,
       prodStanding: 200,
-      prodVariable: 45,
-      prodProjected: 245,
-      combined: 745,
     });
-    // No standing attribution means this resource is wholly question-driven.
     expect(projection.resources[1]).toMatchObject({
       devObserved: 734.5,
       devStanding: 0,
-      devVariable: 734.5,
       prodStanding: 0,
-      prodVariable: 110.175,
-      prodProjected: 110.175,
-      combined: 844.675,
     });
+    expect(projection.resources[2]).toMatchObject({
+      id: 'reconciled-standing',
+      devStanding: 134.5,
+      prodStanding: 134.5,
+      prodVariable: 0,
+      prodProjected: 134.5,
+    });
+    expect(projection.resources.reduce((sum, resource) => sum + (resource.prodProjected ?? 0), 0)).toBeCloseTo(
+      projection.prodProjected!,
+      6
+    );
   });
 
   it('does not turn an unavailable observed category into zero projected spend', () => {

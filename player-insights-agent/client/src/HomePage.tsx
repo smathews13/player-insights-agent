@@ -151,6 +151,7 @@ import { PiaFlicker } from './PiaFlicker';
 import { WorkingInlineRow } from './WorkingInlineRow';
 import { elapsedSeconds, seatForTranscript } from './working-animation';
 import { ToolCallsLabel } from './ToolCallsLabel';
+import { waitForWarehouseReady } from './warehouse-warmup';
 import {
   normalizeAnswer,
   normalizeClarification,
@@ -432,6 +433,7 @@ export function HomePage() {
   const [attaching, setAttaching] = useState(false);
   const [clearingDocs, setClearingDocs] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [warehousePreparing, setWarehousePreparing] = useState(false);
   /**
    * A run discovered from Lakebase after this view was reopened.
    *
@@ -706,7 +708,8 @@ export function HomePage() {
   // run the button is disabled for -- a second submission while one is in
   // flight, or an empty prompt.
   const budgetBlocked = budgetStatus?.level === 'approval-required';
-  const canAsk = draft.trim().length > 0 && !loading && !conversationLoading && !parsing && !budgetBlocked;
+  const canAsk =
+    draft.trim().length > 0 && !loading && !warehousePreparing && !conversationLoading && !parsing && !budgetBlocked;
   // The rail draws the run that happened, or the one happening, or nothing. No
   // reference stages stand in, and a run in flight draws its OWN steps or none:
   // the fallback to the last answer's trace used to apply whenever the live list
@@ -1448,13 +1451,26 @@ export function HomePage() {
   }
 
   async function ask(question = draft, approval?: PlanApproval) {
-    if (!question.trim() || readLiveAsk(conversationId)?.inFlight || readActiveAsk(conversationId)) return;
+    if (
+      !question.trim() ||
+      warehousePreparing ||
+      readLiveAsk(conversationId)?.inFlight ||
+      readActiveAsk(conversationId)
+    )
+      return;
     if (budgetStatus?.level === 'approval-required') return;
+    const runConversationId = conversationId;
+    setWarehousePreparing(true);
+    try {
+      await waitForWarehouseReady();
+    } finally {
+      setWarehousePreparing(false);
+    }
+    if (activeConversationRef.current !== runConversationId) return;
     // Everything below writes into the conversation this run started in. Once
     // the user is somewhere else, none of it is theirs to write: an answer, a
     // step, an error banner or a URL change landing in the conversation they
     // moved to describes a question that was never asked there.
-    const runConversationId = conversationId;
     // A submitted prompt is no longer an empty browser-only draft. Remove the
     // local-only marker before the request starts so any concurrent deletion
     // uses the durable route rather than leaving a server upsert behind.
@@ -2624,11 +2640,12 @@ export function HomePage() {
         <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
           {transcriptEmpty && (
             <div className="ask-hero">
-              {/* The chip introduces the agent with the same engraved static
-                avatar used on every answer and agent-authored turn. */}
+              {/* The idle chip uses the compact form of the answer-loading mark.
+                It alternates D-pad and diamond-button concepts until the first
+                question removes this empty-state hero. */}
               <div className="ask-hero-chip">
                 <span className="ask-hero-chip-mark">
-                  <PiaAvatar size={24} />
+                  <PiaLoaderMark variant="panel" size={24} tone="light" className="ask-hero-passive-mark" />
                 </span>
                 Player Insights Agent
               </div>
@@ -3021,8 +3038,14 @@ export function HomePage() {
             {/* One control for one current action. While a question is active it
                 becomes Stop and remains pressable; Stop first records durable
                 cancellation and only then aborts this browser's stream. */}
-            <Button type="submit" disabled={loading ? stopping : !canAsk} aria-busy={stopping || parsing || undefined}>
-              {loading ? (
+            <Button
+              type="submit"
+              disabled={warehousePreparing || (loading ? stopping : !canAsk)}
+              aria-busy={warehousePreparing || stopping || parsing || undefined}
+            >
+              {warehousePreparing ? (
+                <PiaBusyButtonContent busy label="Ask Player Insights Agent" busyLabel="Starting warehouse" />
+              ) : loading ? (
                 stopping ? (
                   <PiaBusyButtonContent busy label="Stop" busyLabel="Stopping" />
                 ) : (

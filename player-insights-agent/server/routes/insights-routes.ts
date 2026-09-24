@@ -106,6 +106,7 @@ import type { TokenAttribution } from '../../shared/llm-token-usage';
 import {
   createWarehouseWarmup,
   describeWarmup,
+  waitForWarehouseReady,
   type WarehouseWarmup,
   type WarmupTransport,
 } from '../lib/warehouse-warmup';
@@ -3879,6 +3880,29 @@ export function setupInsightsRoutes(
       // invocation is needed to discover them.
       warmGenieWarehousesForArrival(req);
       res.status(202).json({ accepted: true });
+    });
+
+    app.post('/api/warehouse-ready', async (_req, res) => {
+      const warmup = appkit.warehouseWarmup ?? appWarehouseWarmup;
+      const outcome = warmup.ready
+        ? await warmup.ready()
+        : await waitForWarehouseReady({
+            warehouseId: appWarehouseId(),
+            transport: appWarmupTransport(),
+          });
+      if (outcome.kind === 'ready' || outcome.kind === 'not-configured') {
+        res.json(outcome);
+        return;
+      }
+      if (outcome.kind === 'nothing-to-warm') {
+        res.status(503).json(outcome);
+        return;
+      }
+      if (outcome.kind === 'timed-out') {
+        res.status(504).json(outcome);
+        return;
+      }
+      res.status(503).json(outcome);
     });
 
     /**

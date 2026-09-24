@@ -20,8 +20,7 @@
         const saved = JSON.parse(localStorage.getItem('astrolabe.runtime-appearance.v1') || 'null');
         const root = document.documentElement;
         const cachedScheme = saved?.colorScheme === 'dark' || saved?.colorScheme === 'light' ? saved.colorScheme : null;
-        const colorScheme =
-          cachedScheme || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const colorScheme = cachedScheme || 'light';
         root.dataset.theme = colorScheme;
         document
           .querySelector('meta[name="theme-color"]')
@@ -169,10 +168,8 @@
           }
         }
       } catch {
-        if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-          document.documentElement.dataset.theme = 'dark';
-          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#0B1014');
-        }
+        document.documentElement.dataset.theme = 'light';
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#F4F7F9');
       }
     </script>
     <style>
