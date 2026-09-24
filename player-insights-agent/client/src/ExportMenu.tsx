@@ -7,7 +7,6 @@ import {
   FileDown,
   FileImage,
   FileText,
-  MoreHorizontal,
   Presentation,
   TrendingUp,
   type LucideIcon,
@@ -33,12 +32,10 @@ function ActionsMenu({
   label,
   actions,
   triggerLabel = 'Export',
-  showMoreIcon = true,
 }: {
   label: string;
   actions: readonly ExportAction[];
   triggerLabel?: string;
-  showMoreIcon?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
@@ -66,7 +63,6 @@ function ActionsMenu({
           <Button type="button" variant="ghost" size="sm" aria-label={label} aria-haspopup="menu">
             <Download aria-hidden="true" />
             <span className="export-menu-label">{triggerLabel}</span>
-            {showMoreIcon ? <MoreHorizontal aria-hidden="true" /> : null}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="export-menu-content" align="end" role="menu" aria-label={label}>
@@ -110,7 +106,6 @@ export function AnswerExportMenu({ question, answer }: { question: string; answe
     <ActionsMenu
       label="Export this question and answer"
       triggerLabel="Export answer"
-      showMoreIcon={false}
       actions={[
         {
           label: 'Copy Markdown',
@@ -336,7 +331,6 @@ export function CostBriefExportMenu() {
           >
             <Download aria-hidden="true" />
             <span className="export-menu-label">Export</span>
-            <MoreHorizontal aria-hidden="true" />
           </Button>
         </PopoverTrigger>
         <PopoverContent

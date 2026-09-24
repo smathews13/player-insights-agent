@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSpendFigure } from '../../shared/ops-contract';
 import {
   cachedLifetimeSpend,
+  deploymentClippedSpendRange,
   forgetLifetimeSpend,
   LIFETIME_SPEND_CACHE_MS,
   lifetimeSpendRange,
@@ -31,6 +32,28 @@ describe('lifetime app spend cache', () => {
       to: '2026-09-23',
       fromTimestamp: '2026-08-04T17:42:10.000Z',
     });
+  });
+
+  it('clips a current-month range to the exact first deployment instant', () => {
+    expect(
+      deploymentClippedSpendRange(
+        { from: '2026-09-01', to: '2026-09-23' },
+        '2026-09-08T17:42:10.000Z'
+      )
+    ).toEqual({
+      from: '2026-09-08',
+      to: '2026-09-23',
+      fromTimestamp: '2026-09-08T17:42:10.000Z',
+    });
+  });
+
+  it('keeps a current-month range intact when the app predates it', () => {
+    expect(
+      deploymentClippedSpendRange(
+        { from: '2026-09-01', to: '2026-09-23' },
+        '2026-08-04T17:42:10.000Z'
+      )
+    ).toEqual({ from: '2026-09-01', to: '2026-09-23' });
   });
 
   it('coalesces concurrent reads and reuses the completed snapshot until expiry', async () => {

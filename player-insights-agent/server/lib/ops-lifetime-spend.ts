@@ -9,6 +9,27 @@ type CachedLifetime = { at: number; value: AppSpendFigure } | { at: number; pend
 
 const cache = new Map<string, CachedLifetime>();
 
+/** Keep a reporting range inside the app's actual lifetime, including a mid-day first deployment. */
+export function deploymentClippedSpendRange(range: CostRange, firstDeployedAt?: string): CostRange {
+  const deployedAt = firstDeployedAt ? Date.parse(firstDeployedAt) : Number.NaN;
+  const rangeStart = Date.parse(`${range.from}T00:00:00Z`);
+  const rangeEnd = Date.parse(`${range.to}T23:59:59.999Z`);
+  if (
+    !Number.isFinite(deployedAt) ||
+    !Number.isFinite(rangeStart) ||
+    !Number.isFinite(rangeEnd) ||
+    deployedAt <= rangeStart ||
+    deployedAt > rangeEnd
+  ) {
+    return range;
+  }
+  return {
+    from: new Date(deployedAt).toISOString().slice(0, 10),
+    to: range.to,
+    fromTimestamp: new Date(deployedAt).toISOString(),
+  };
+}
+
 /** System billing history is bounded; the returned range never asks beyond its available annual window. */
 export function lifetimeSpendRange(throughDay: string, firstDeployedAt?: string): CostRange {
   const through = Date.parse(`${throughDay}T00:00:00Z`);
