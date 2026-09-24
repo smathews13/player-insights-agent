@@ -1,5 +1,11 @@
 # Backend → app handoff contract
 
+> **App-copy maintenance note:** this file is mirrored into the app repository
+> from `T2-Marketing-Technology/dbx-player-insights-agent`. Do not run the
+> backend re-pin steps against this checkout's `agent/` folder; it is not the
+> served backend. Read backend contracts from a current T2 backend checkout or
+> request a refreshed sanitized handoff from its owner.
+
 MIT-14733. Pinned to backend `07f6ad75` (endpoint `astrolabe` v31, 100% of traffic) and the app mirror `3bb6d87f`. Written 2026-09-22.
 
 Files in this folder:
@@ -217,7 +223,10 @@ This folder is a snapshot, pinned to two SHAs. Treat it as the starting point, n
    - Run `git fetch frontend-ref`.
    - Read the files at the new head with `git show frontend-ref/main:<path>`.
    - Update the SHA above and any line numbers that moved.
-3. **Re-pin the backend side.** Re-read `agent/contracts.py` and check the key counts:
+3. **Re-pin the backend side from a current checkout of
+   `T2-Marketing-Technology/dbx-player-insights-agent`, never from this app
+   repository's `agent/` folder.** Re-read `agent/contracts.py` there and check
+   the key counts:
 
    ```bash
    cd agent && uv run --python 3.13 python -c "from contracts import AnswerContract as A; print(len(A.model_fields))"
