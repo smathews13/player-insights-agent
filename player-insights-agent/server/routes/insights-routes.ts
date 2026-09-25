@@ -45,6 +45,8 @@ import {
   PLAN_SCHEMA_VERSION,
 } from '../../shared/core-response-contract';
 import type { ContractSection } from '../../shared/contract-observatory';
+import { StageSchema, TraceSchema } from '../../shared/run-trace-contract';
+export { TraceSchema } from '../../shared/run-trace-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -101,6 +103,7 @@ import { createStageRecorder, readStageEvents } from '../lib/run-stage-events';
 import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
+import { documentRunTrace } from '../lib/document-run-trace';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
@@ -460,119 +463,6 @@ const ChartSchema = z.looseObject({
   kind: z.string(),
   data: z.array(z.record(z.string(), z.unknown())),
   layout: z.record(z.string(), z.unknown()),
-});
-const StageSchema = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  kind: z.string(),
-  start: z.number(),
-  duration: z.number(),
-  status: z.enum(['complete', 'running', 'partial', 'failed', 'cancelled', 'awaiting_approval']),
-  calls: z.number(),
-  input: z.string(),
-  output: z.string(),
-  // A safe, structured projection of tables enumerated by discovery. Optional
-  // across a rolling model/app deploy; the client can still read older listing
-  // output while new runs no longer need to infer names from prose.
-  tables: z.array(z.string()).optional(),
-  // Where the stage sits in the run. Defaulted because an endpoint running a
-  // model version logged before the agent's loop returns a flat list with
-  // neither key, and requiring them would fail the parse.
-  depth: z.number().default(0),
-  parent_id: z.string().default(''),
-  token_usage: z
-    .object({
-      inputTokens: z.number().int().nonnegative().optional(),
-      outputTokens: z.number().int().nonnegative().optional(),
-      totalTokens: z.number().int().nonnegative().optional(),
-      cachedReadTokens: z.number().int().nonnegative().optional(),
-      cacheWriteTokens: z.number().int().nonnegative().optional(),
-      cacheStatus: z.enum(['used', 'not-used', 'unavailable']),
-      attempts: z.number().int().positive(),
-      totalMismatch: z.boolean(),
-    })
-    .optional(),
-});
-/**
- * A Genie space a run put its question to.
- *
- * `title` is what a reader should be shown. `id` names infrastructure and is
- * carried for the admin who has to match it against the bundle, not for the
- * person reading their own run.
- */
-const GenieSpaceSchema = z.looseObject({ id: z.string(), title: z.string().default('') });
-const ResourceCallSchema = z.looseObject({
-  kind: z.enum(['genie-space', 'vector-index']),
-  id: z.string(),
-  tool: z.enum(['data_genie', 'genie_mcp', 'dictionary_genie', 'search_semantics']),
-  calls: z.number().int().nonnegative(),
-});
-const TokenInvocationSchema = z.object({
-  invocationId: z.string().min(1),
-  stageId: z.string().min(1),
-  attempt: z.number().int().positive(),
-  inputTokens: z.number().int().nonnegative().optional(),
-  outputTokens: z.number().int().nonnegative().optional(),
-  totalTokens: z.number().int().nonnegative().optional(),
-  cachedReadTokens: z.number().int().nonnegative().optional(),
-  cacheWriteTokens: z.number().int().nonnegative().optional(),
-  cacheStatus: z.enum(['used', 'not-used', 'unavailable']),
-  attempts: z.number().int().positive(),
-  totalMismatch: z.boolean(),
-});
-export const TraceSchema = z.looseObject({
-  id: z.string(),
-  totalMs: z.number(),
-  toolCalls: z.number(),
-  stages: z.array(StageSchema),
-  /**
-   * The Genie spaces this run reached, in the order it first reached each.
-   *
-   * Optional rather than defaulted, for the reason spelled out on the token
-   * fields below: an answer stored before the agent recorded this, or served by
-   * an endpoint still running an older model version, reported nothing, and an
-   * empty array would state that the run asked Genie nothing. Those are
-   * different facts and only the agent knows which one applies. A run from a
-   * version that DOES record it and asked no space returns `[]`, which is the
-   * claim, so the two must not be collapsed.
-   */
-  genie_spaces: z.array(GenieSpaceSchema).optional(),
-  /**
-   * Exact resource-call counters emitted by current agent versions.
-   *
-   * Optional preserves the distinction between an older trace that did not
-   * record resource identity and a current trace that recorded zero calls.
-   */
-  resource_calls: z.array(ResourceCallSchema).optional(),
-  /** Data Genie transport selected by the server for this run. */
-  genie_transport: z.enum(['direct', 'mcp']).optional(),
-  // OPTIONAL WITHOUT A DEFAULT, and the difference is the whole point. Optional is
-  // what lets an answer stored before the agent metered tokens still parse, and it
-  // is enough to keep `undeclaredAnswerKeys` from calling a metered run drift.
-  // Defaulting to zero went further and invented a measurement: some gateways
-  // return `total_tokens` alone, and a zero written into the other two halves says
-  // the model read nothing and wrote nothing. Worse, it made the guard downstream
-  // in RunExplorer unfalsifiable -- it tests `typeof === 'number'`, which a default
-  // guarantees -- so the rule that a half-metred split must not be printed had
-  // never once applied. Absent has to stay absent for that guard to work.
-  prompt_tokens: z.number().optional(),
-  completion_tokens: z.number().optional(),
-  total_tokens: z.number().optional(),
-  token_invocations: z.array(TokenInvocationSchema).optional(),
-  token_reconciliation: z
-    .object({
-      attributedTokens: z.number().int().nonnegative(),
-      attributedCalls: z.number().int().nonnegative(),
-      overviewTokens: z.number().int().nonnegative().optional(),
-      coveragePercent: z.number().nonnegative().optional(),
-      unattributedTokens: z.number().int().nonnegative().optional(),
-      nestedAggregateTokens: z.number().int().nonnegative(),
-      mismatchCount: z.number().int().nonnegative(),
-      cachedReadTokens: z.number().int().nonnegative().optional(),
-      cacheCoveredInputTokens: z.number().int().nonnegative().optional(),
-      cacheHitPercent: z.number().nonnegative().optional(),
-    })
-    .optional(),
 });
 /**
  * What one statement of a run measured, over what window, from which table.
@@ -5683,11 +5573,14 @@ export function setupInsightsRoutes(
           const dashboard = extractDashboard(endpointResult);
           if (dashboard) {
             const messageId = `msg-${crypto.randomUUID()}`;
+            const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
+            const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
             const dashboardResponse = {
               type: 'dashboard' as const,
               mode: 'live' as const,
               id: messageId,
               dashboard,
+              trace,
             };
             const persisted = await readStored(
               appkit,
@@ -5705,7 +5598,7 @@ export function setupInsightsRoutes(
                 'assistant',
                 dashboard.title,
                 JSON.stringify(withAskRuntime(dashboardResponse, askRuntime, traceSessionId)),
-                platformTraceId,
+                documentTraceId,
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
               ]
@@ -5717,8 +5610,8 @@ export function setupInsightsRoutes(
               appkit,
               admission,
               runStored
-                ? { to: 'SUCCEEDED', traceId: platformTraceId, messageId }
-                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: platformTraceId }
+                ? { to: 'SUCCEEDED', traceId: documentTraceId, messageId }
+                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: documentTraceId }
             );
             reply.json({ ...dashboardResponse, runStored, execution_identity: executionIdentityClaim(identity) });
             return;
@@ -5729,7 +5622,15 @@ export function setupInsightsRoutes(
           const report = extractReport(endpointResult);
           if (report) {
             const messageId = `msg-${crypto.randomUUID()}`;
-            const reportResponse = { type: 'report' as const, mode: 'live' as const, id: messageId, report };
+            const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
+            const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
+            const reportResponse = {
+              type: 'report' as const,
+              mode: 'live' as const,
+              id: messageId,
+              report,
+              trace,
+            };
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (report)',
@@ -5746,7 +5647,7 @@ export function setupInsightsRoutes(
                 'assistant',
                 report.title,
                 JSON.stringify(withAskRuntime(reportResponse, askRuntime, traceSessionId)),
-                platformTraceId,
+                documentTraceId,
                 ...executionIdentityColumns(email, executionIdentityClaim(identity)),
                 ...outputFenceParams,
               ]
@@ -5758,8 +5659,8 @@ export function setupInsightsRoutes(
               appkit,
               admission,
               runStored
-                ? { to: 'SUCCEEDED', traceId: platformTraceId, messageId }
-                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: platformTraceId }
+                ? { to: 'SUCCEEDED', traceId: documentTraceId, messageId }
+                : { to: 'PERSISTENCE_FAILED', code: 'PERSISTENCE_UNAVAILABLE', traceId: documentTraceId }
             );
             reply.json({ ...reportResponse, runStored, execution_identity: executionIdentityClaim(identity) });
             return;

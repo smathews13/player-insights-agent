@@ -11,7 +11,7 @@ import {
 } from './active-conversation-runs';
 import { settleAskDisplay, terminalSettlementForResponse } from './ask-terminal-state';
 import { normalizeAnswer, type TraceStage, type WireAnswer } from './answer-shape';
-import type { Answer, ConversationMessage } from './app-types';
+import type { Answer, ConversationMessage, DashboardResponse, ReportResponse } from './app-types';
 import { ConversationRailRunStatus } from './ConversationRailRunStatus';
 import { claimConversationTitle, unaskedConversation } from './conversation-rail';
 import { mergeNewestConversationMessages } from './conversation-messages';
@@ -106,6 +106,54 @@ afterEach(() => {
 });
 
 describe('first-answer terminal ordering', () => {
+  it.each([
+    {
+      kind: 'dashboard',
+      response: {
+        type: 'dashboard',
+        mode: 'live',
+        id: 'message-dashboard',
+        dashboard: {
+          schemaVersion: 'pia.dashboard/1',
+          title: 'Dashboard',
+          html: '<!DOCTYPE html><html><body>Dashboard</body></html>',
+        },
+      } satisfies DashboardResponse,
+      duration: 324_600,
+    },
+    {
+      kind: 'report',
+      response: {
+        type: 'report',
+        mode: 'live',
+        id: 'message-report',
+        report: {
+          schema_version: 'pia.report/1',
+          title: 'Report',
+          sections: [{ body: 'Complete report.' }],
+        },
+      } satisfies ReportResponse,
+      duration: 214_300,
+    },
+  ])('settles a live $kind as Complete as soon as its result event arrives', ({ response, duration }) => {
+    start(`Build a ${response.type}`);
+    settleAskDisplay(
+      CONVERSATION,
+      RUN,
+      terminalSettlementForResponse(response, {
+        runStored: true,
+        trace: { totalMs: duration },
+      })
+    );
+    const active = readActiveConversationRuns();
+    expect(conversationIsLive(active, CONVERSATION)).toBe(false);
+    expect(active.get(CONVERSATION)?.summary).toMatchObject({
+      runId: response.id,
+      status: 'Complete',
+      durationMs: duration,
+    });
+  });
+
   it('never commits the first persisted answer beside an extra Live placeholder', () => {
     let messages: ConversationMessage[] = [{ id: 'question-first', role: 'user', content: 'Who led?' }];
     let renderer: 'pending' | 'resolved' = 'pending';
