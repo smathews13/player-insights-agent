@@ -1,4 +1,4 @@
-import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
+import { asMlflowTraceId, isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import { foldRecordedStages } from '../../shared/prose-only-answer';
 import { TraceSchema } from '../../shared/run-trace-contract';
 
@@ -20,7 +20,10 @@ export function documentRunTrace(
       : undefined;
   const sent = custom && typeof custom === 'object' ? (custom as Record<string, unknown>).trace : undefined;
   const parsed = TraceSchema.safeParse(sent);
-  if (parsed.success) return parsed.data;
+  if (parsed.success) {
+    const platformId = asMlflowTraceId(platformTraceId);
+    return isMlflowTraceId(parsed.data.id) || !platformId ? parsed.data : { ...parsed.data, id: platformId };
+  }
 
   const folded = foldRecordedStages(collectedStages);
   return {

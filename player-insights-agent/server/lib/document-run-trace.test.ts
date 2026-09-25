@@ -41,6 +41,26 @@ describe('document run trace', () => {
     ).toEqual(sent);
   });
 
+  it('binds the platform MLflow id when a valid endpoint trace carries only a local id', () => {
+    const trace = documentRunTrace(
+      {
+        custom_outputs: {
+          type: 'dashboard',
+          trace: {
+            id: 'trace-local',
+            totalMs: 324_600,
+            toolCalls: 1,
+            stages: [stage('orchestrator', 324_600)],
+          },
+        },
+      },
+      [],
+      'tr-a87e1e2613d6b9bcdbb3e687766ba8b0'
+    );
+    expect(trace.id).toBe('tr-a87e1e2613d6b9bcdbb3e687766ba8b0');
+    expect(trace.stages).toHaveLength(1);
+  });
+
   it('builds a fallback trace whose duration is root wall time rather than nested duration sum', () => {
     const stages = [
       stage('orchestrator', 10_000),
