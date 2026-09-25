@@ -44,6 +44,7 @@ import {
   CLARIFICATION_SCHEMA_VERSION,
   PLAN_SCHEMA_VERSION,
 } from '../../shared/core-response-contract';
+import type { ContractSection } from '../../shared/contract-observatory';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
@@ -779,6 +780,118 @@ const ClarificationSchema = z.looseObject({
   options: z.array(z.string()).default([]),
   trace: TraceSchema,
 });
+
+/** The wire fields this build accepts, derived from the schemas that actually parse them. */
+export function frontendContractSections(): ContractSection[] {
+  const fields = (shape: object) => Object.keys(shape).sort();
+  return [
+    {
+      id: 'envelopes',
+      label: 'Response envelopes',
+      schemaVersion: null,
+      fields: ['answer', 'clarification', 'dashboard', 'plan', 'preflight_retired', 'report', 'unavailable'],
+    },
+    {
+      id: 'answer',
+      label: 'Answer',
+      schemaVersion: ANSWER_SCHEMA_VERSION,
+      fields: fields(LiveAnswerSchema.shape),
+    },
+    {
+      id: 'figure',
+      label: 'Figure',
+      schemaVersion: null,
+      fields: fields(FigureSchema.shape),
+    },
+    {
+      id: 'chart',
+      label: 'Chart',
+      schemaVersion: null,
+      fields: fields(ChartSchema.shape),
+    },
+    {
+      id: 'source',
+      label: 'Source',
+      schemaVersion: null,
+      fields: fields(SourceSchema.shape),
+    },
+    {
+      id: 'derivation',
+      label: 'Derivation',
+      schemaVersion: null,
+      fields: fields(DerivationSchema.shape),
+    },
+    {
+      id: 'trace',
+      label: 'Trace summary',
+      schemaVersion: null,
+      fields: fields(TraceSchema.shape),
+    },
+    {
+      id: 'stage',
+      label: 'Trace stage',
+      schemaVersion: null,
+      fields: fields(StageSchema.shape),
+    },
+    {
+      id: 'plan',
+      label: 'Analysis plan',
+      schemaVersion: PLAN_SCHEMA_VERSION,
+      fields: fields(AnalysisPlanSchema.shape),
+    },
+    {
+      id: 'plan-step',
+      label: 'Plan step',
+      schemaVersion: null,
+      fields: fields(PlanStepSchema.shape),
+    },
+    {
+      id: 'plan-candidate',
+      label: 'Plan candidate',
+      schemaVersion: null,
+      fields: fields(PlanCandidateSchema.shape),
+    },
+    {
+      id: 'clarification',
+      label: 'Clarification',
+      schemaVersion: CLARIFICATION_SCHEMA_VERSION,
+      fields: fields(ClarificationSchema.shape),
+    },
+    {
+      id: 'report',
+      label: 'Report',
+      schemaVersion: 'pia.report/1',
+      fields: [
+        'caveats',
+        'generatedAt',
+        'generated_at',
+        'provenance',
+        'schema_version',
+        'sections',
+        'sources',
+        'subtitle',
+        'summary',
+        'theme',
+        'title',
+      ],
+    },
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      schemaVersion: 'pia.dashboard/1',
+      fields: [
+        'caveats',
+        'generatedAt',
+        'generated_at',
+        'html',
+        'schemaVersion',
+        'schema_version',
+        'title',
+        'truncated',
+      ],
+    },
+  ];
+}
 type Clarification = z.infer<typeof ClarificationSchema>;
 
 // PDF is handled separately, by `extractPdfText`; these are the formats read as UTF-8.

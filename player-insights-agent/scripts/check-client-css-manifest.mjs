@@ -12,6 +12,7 @@ const routes = {
   ArchitecturePage: '.architecture-page{',
   BenchmarkLab: '.benchmark-lab{',
   ConnectionsPage: '.connections-page{',
+  ContractPage: '.contract-page{',
   MonitoringPage: '.monitoring-page{',
   OpsPage: '.ops-page{',
   RunExplorer: '.run-explorer{',

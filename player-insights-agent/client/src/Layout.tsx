@@ -14,6 +14,7 @@ import { Alert, AlertDescription, Button, Sheet, SheetContent, SheetHeader, Shee
 import {
   Activity,
   CircleAlert,
+  FileDiff,
   FlaskConical,
   Gauge,
   Info,
@@ -214,6 +215,7 @@ const NAV_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>>
   '/ops': Gauge,
   '/connections': PlugZap,
   '/architecture': Network,
+  '/contract': FileDiff,
   '/benchmarks': FlaskConical,
 };
 
@@ -442,7 +444,10 @@ export function Layout() {
   const role = roleFrom(identity);
   useLayoutEffect(() => {
     const adminPath =
-      location.pathname === '/monitoring' || location.pathname === '/ops' || location.pathname === '/settings';
+      location.pathname === '/monitoring' ||
+      location.pathname === '/ops' ||
+      location.pathname === '/contract' ||
+      location.pathname === '/settings';
     if (adminPath && role.state === 'consumer') startupReadiness.markReady();
   }, [location.pathname, role.state, startupReadiness]);
   const settingsDeepLink = location.pathname === '/settings';
@@ -638,7 +643,7 @@ export function Layout() {
           <IdentityChips
             identity={identity}
             role={role}
-            hideRoleBadge={!showsHeaderRoleBadge(features)}
+            hideRoleBadge={!showsHeaderRoleBadge(features, role.state)}
             gear={
               showsSettingsGear(role.state) ? (
                 <Button

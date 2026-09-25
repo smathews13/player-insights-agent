@@ -13,6 +13,7 @@ describe('Experimental settings durable API', () => {
             settings: {
               aiGateway: false,
               benchmarkLab: true,
+              contractObservatory: false,
               egressControls: false,
               forecasting: true,
               genieCodeMcp: true,
@@ -27,6 +28,7 @@ describe('Experimental settings durable API', () => {
       settings: {
         aiGateway: false,
         benchmarkLab: true,
+        contractObservatory: false,
         egressControls: false,
         forecasting: true,
         genieCodeMcp: true,
@@ -43,6 +45,7 @@ describe('Experimental settings durable API', () => {
           settings: {
             aiGateway: false,
             benchmarkLab: true,
+            contractObservatory: false,
             egressControls: false,
             forecasting: false,
             genieCodeMcp: false,

@@ -147,16 +147,19 @@ describe('all required scopes granted', () => {
     expect(markup).not.toContain('Questions run under this identity.');
   });
 
-  it('draws the dark sign-in brand as one engraved white D-pad and the readable full wordmark', () => {
+  it('draws the theme-aware sign-in brand with readable light and dark treatments', () => {
     expect(markup).toContain('pia-lockup--hero pia-lockup--full fo-title');
-    expect(markup).toContain('pia-mark--dark pia-mark--dpad');
+    expect(markup).toContain('pia-mark--light pia-mark--dpad');
     expect(markup).toContain('width="48"');
     expect(markup).toContain('data-pia-cut="engraved"');
     expect(markup).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(markup).not.toContain('pia-mark--cluster');
-    expect(PIA_BRAND).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
-    expect(PIA_BRAND).toMatch(/\.pia-mark--dark\s*\{[^}]*--pia-mark-accent:\s*var\(--ast-ice-accent\)/s);
-    expect(PIA_BRAND).toMatch(/\.pia-type--dark,[\s\S]*?\{[^}]*color:\s*var\(--ast-white\)/);
+    expect(PIA_BRAND).toMatch(/\.pia-mark--light,[\s\S]*?\{[^}]*--pia-mark-ink:\s*var\(--ast-navy\)/s);
+    expect(PIA_BRAND).toMatch(/\.pia-type--light,[\s\S]*?\{[^}]*color:\s*var\(--ast-navy\)/);
+    expect(PIA_BRAND).toMatch(
+      /html\[data-theme='dark'\] \.pia-mark--light\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s
+    );
+    expect(PIA_BRAND).toMatch(/html\[data-theme='dark'\] \.pia-type--light\s*\{[^}]*color:\s*var\(--ast-white\)/);
   });
 
   it('carries the OAuth badge', () => {

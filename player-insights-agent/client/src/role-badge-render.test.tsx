@@ -165,8 +165,8 @@ describe('the Super admin chip leaves the top rail while Benchmarking is on', ()
 
   it('hides the rail copy only, and only on the header', () => {
     const source = readFileSync(new URL('Layout.tsx', import.meta.url), 'utf8').replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ');
-    expect(source).toContain('hideRoleBadge={!showsHeaderRoleBadge(features)}');
-    expect((source.match(/hideRoleBadge=\{!showsHeaderRoleBadge\(features\)\}/g) ?? []).length).toBe(1);
+    expect(source).toContain('hideRoleBadge={!showsHeaderRoleBadge(features, role.state)}');
+    expect((source.match(/hideRoleBadge=\{!showsHeaderRoleBadge\(features, role\.state\)\}/g) ?? []).length).toBe(1);
     expect(source).toMatch(
       /<IdentityChips\s+identity=\{identity\}\s+role=\{role\}\s+deployedAt=\{deployment\.deployedAt\}[\s\S]*?className="mobile-identity"/
     );

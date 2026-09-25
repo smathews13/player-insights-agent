@@ -61,6 +61,7 @@ createApp({
       { setupAiGatewayRoutes },
       { setupBrowseRoutes },
       { setupArchitectureRoutes },
+      { setupContractRoutes },
       { setupAdminRoutes },
       { setupAccessGuideRoutes },
       { setupUserRoutes },
@@ -93,6 +94,7 @@ createApp({
       import('./routes/ai-gateway-routes'),
       import('./routes/browse-routes'),
       import('./routes/architecture-routes'),
+      import('./routes/contract-routes'),
       import('./routes/admin-routes'),
       import('./routes/access-guide-routes'),
       import('./routes/user-routes'),
@@ -185,6 +187,7 @@ createApp({
     // After the identity gate as well, for the same reason: the payload names
     // the app's own service principal and the endpoint it invokes.
     setupArchitectureRoutes(appkit);
+    setupContractRoutes(appkit, { isAdminRoute });
     // After the insights routes for a second reason on top of the identity gate:
     // they also register the admin guard, and Express applies middleware to what
     // is added afterwards. Registered first, `/api/admins` would serve the admin

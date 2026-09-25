@@ -96,8 +96,8 @@ describe('Benchmarking follows the operator setting', () => {
   });
 
   it('hides the top-rail rank chip only while that tab is visible', () => {
-    expect(showsHeaderRoleBadge(NO_EXPERIMENTS)).toBe(true);
-    expect(showsHeaderRoleBadge({ ...NO_EXPERIMENTS, benchmarkLab: true })).toBe(false);
+    expect(showsHeaderRoleBadge(NO_EXPERIMENTS, 'admin')).toBe(true);
+    expect(showsHeaderRoleBadge({ ...NO_EXPERIMENTS, benchmarkLab: true }, 'admin')).toBe(false);
   });
 
   it('gates a direct Benchmarking URL with the same live setting', () => {

@@ -8,6 +8,7 @@
 export interface ExperimentalFeatures {
   aiGateway: boolean;
   benchmarkLab: boolean;
+  contractObservatory?: boolean;
   egressControls: boolean;
   forecasting: boolean;
   genieCodeMcp?: boolean;
@@ -17,6 +18,7 @@ export interface ExperimentalFeatures {
 export const EXPERIMENTAL_FEATURE_KEYS = [
   'aiGateway',
   'benchmarkLab',
+  'contractObservatory',
   'egressControls',
   'forecasting',
   'genieCodeMcp',
@@ -26,6 +28,7 @@ export const EXPERIMENTAL_FEATURE_KEYS = [
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
   aiGateway: false,
   benchmarkLab: false,
+  contractObservatory: false,
   egressControls: false,
   forecasting: false,
   genieCodeMcp: false,
@@ -63,6 +66,7 @@ export function decodeExperimentalSettingsDocument(
     settings: {
       aiGateway: settings.aiGateway === true,
       benchmarkLab: settings.benchmarkLab === true,
+      contractObservatory: settings.contractObservatory === true,
       egressControls: settings.egressControls === true,
       forecasting: settings.forecasting === true,
       genieCodeMcp: settings.genieCodeMcp === true,

@@ -191,17 +191,18 @@ describe('Settings modal', () => {
       'Selects the agent notebook and applies staged agent versions.',
       'Applies billing attribution tags to supported Databricks resources.',
       'Projects 7- and 30-day costs from configurable usage assumptions.',
+      'Adds an administrator-only Contract tab for comparing backend handoff fields with the frontend validators and reviewing recent handoff failures.',
       'Runs repeatable evaluation suites against saved test questions.',
     ]) {
       expect(featureTable).toContain(description);
     }
-    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(7);
+    expect(featureTable.match(/class="settings-row-note"/g) ?? []).toHaveLength(8);
   });
 
   it('aligns every Experimental row through table cells and one control wrapper', () => {
     const markup = render('experimental');
-    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(7);
-    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(7);
+    expect(markup.match(/class="exp-feature-status"/g) ?? []).toHaveLength(8);
+    expect(markup.match(/class="exp-feature-control-inner"/g) ?? []).toHaveLength(8);
     expect(markup.match(/class="exp-feature-status-column"/g) ?? []).toHaveLength(1);
     expect(markup.match(/class="exp-feature-control-column"/g) ?? []).toHaveLength(1);
     expect(SETTINGS_STYLES).toMatch(
@@ -218,7 +219,7 @@ describe('Settings modal', () => {
   it('puts a distinct icon, title, then one shared Experimental badge on every feature', () => {
     const markup = render('experimental');
     const badges = markup.split('experimental-pane-badge').length - 1;
-    expect(badges).toBe(7);
+    expect(badges).toBe(8);
     const rows = markup.match(/<tr(?: [^>]*)?>[\s\S]*?<\/tr>/g) ?? [];
     for (const [feature, kind, iconName] of [
       ['AI Gateway', 'ai-gateway', 'lucide-route'],
@@ -227,6 +228,7 @@ describe('Settings modal', () => {
       ['Notebook agent sync', 'notebook-agent-sync', 'lucide-notebook-tabs'],
       ['Resource tags', 'resource-tags', 'lucide-tags'],
       ['Forecasting', 'forecasting', 'lucide-trending-up'],
+      ['Contract observatory', 'contract-observatory', 'lucide-file-diff'],
       ['Benchmarking', 'benchmarking', 'lucide-flask-conical'],
     ] as const) {
       const row = rows.find((candidate) => candidate.includes(`>${feature}</span>`));
