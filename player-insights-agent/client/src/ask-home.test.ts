@@ -271,7 +271,9 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // chip and the first line of its takeaway covered by the nav tabs.
     expect(body('html')).toMatch(/scroll-padding-top:\s*var\(--app-header-h\)/);
     expect(HOME_PAGE).toContain("block: 'start'");
-    expect(atWidth(800)).toMatch(/padding:\s*24px 16px 0/);
+    expect(atWidth(800)).toMatch(
+      /padding:\s*24px\s+max\(16px,\s*env\(safe-area-inset-right,\s*0px\)\)\s+0\s+max\(16px,\s*env\(safe-area-inset-left,\s*0px\)\)/
+    );
   });
 
   it('caps attachment growth in a labelled keyboard-scrollable region', () => {
@@ -691,14 +693,12 @@ describe('the inspector while a run is still going', () => {
     expect(parked).toContain('endLiveAsk(runConversationId, status.run_id)');
   });
 
-  it('keeps the numbered constellation exclusively in the Live Agent harness', () => {
-    // The answer pane reports live steps in text; only the inspector draws their
-    // expanding numbered path.
-    const answerPane = HOME_PAGE.slice(0, HOME_PAGE.indexOf('<aside className="trace-inspector"'));
-    const harness = HOME_PAGE.slice(HOME_PAGE.indexOf('<aside className="trace-inspector"'));
-    expect(answerPane).not.toContain('<AgentPathConstellation');
-    expect(answerPane).not.toContain('<WorkingConstellation');
-    expect(harness.match(/<AgentPathConstellation/g)).toHaveLength(1);
+  it('keeps the numbered constellation in the desktop and mobile harnesses', () => {
+    // The answer pane still reports live steps in text. The numbered path has one
+    // desktop inspector and one phone drawer, never a transcript copy.
+    expect(HOME_PAGE).toContain('<MobileContextDrawer label="Agent path"');
+    expect(HOME_PAGE.match(/<AgentPathConstellation/g)).toHaveLength(2);
+    expect(HOME_PAGE).not.toContain('<WorkingConstellation');
     expect(HOME_PAGE).not.toContain("import { WorkingConstellation } from './WorkingConstellation'");
   });
 
@@ -940,10 +940,11 @@ describe('below 1320px the finished run is still reachable', () => {
     // The inspector held the only copy, and `display: none` took it off the screen
     // at exactly the widths where the reader most needs it. One constant, two sites,
     // so the strip cannot end up with a shortened version of a sentence whose job
-    // is to say the answer on screen will not be here tomorrow.
+    // is to say the answer on screen will not be here tomorrow. The phone drawer
+    // is a third visible site, so the constant has three consumers.
     expect(HOME_PAGE).toMatch(/const RUN_NOT_STORED =/);
     expect(HOME_PAGE).toMatch(/will not be here when you \s*'?\s*\+?\s*'?come back/);
-    expect(HOME_PAGE.match(/RUN_NOT_STORED/g)?.length).toBe(3);
+    expect(HOME_PAGE.match(/RUN_NOT_STORED/g)?.length).toBe(4);
   });
 
   it('moves the nav at the same width, rather than 100px later than the column beside it', () => {

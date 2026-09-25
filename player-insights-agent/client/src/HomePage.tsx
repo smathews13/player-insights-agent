@@ -109,6 +109,7 @@ import {
   type ActiveRunPollingController,
 } from './active-run-polling';
 import { LiveProgress } from './LiveProgress';
+import { MobileContextDrawer } from './MobileContextDrawer';
 import { liveHarnessStages, railStagesFor, runningElapsed, runningStepNumber } from './live-progress';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import {
@@ -541,6 +542,7 @@ export function HomePage() {
    * is hidden and its trigger is the rail.
    */
   const [railSheetOpen, setRailSheetOpen] = useState(false);
+  const [contextSheetOpen, setContextSheetOpen] = useState(false);
   /**
    * Whether the two side rails are collapsed. Both start COLLAPSED so the answer
    * column is the widest thing on the page on open; the reader's choice to open
@@ -2614,27 +2616,111 @@ export function HomePage() {
           responsive.css decides both, so the page cannot end up with two rails or
           none. Above that width this button is display:none and the aside is the
           rail. */}
-      <Sheet open={railSheetOpen} onOpenChange={setRailSheetOpen}>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="rail-sheet-trigger"
-          onClick={() => setRailSheetOpen(true)}
-        >
-          <MessagesSquare aria-hidden="true" /> Conversations
-          {/* The count, because the button replaces a rail whose length was
-              visible, and "Conversations" alone does not say whether there are
-              any. */}
-          {rail.entries.length > 0 && <span className="rail-sheet-count">{rail.entries.length}</span>}
-        </Button>
-        <SheetContent side="left" className="rail-sheet">
-          <SheetHeader>
-            <SheetTitle>Conversations</SheetTitle>
-          </SheetHeader>
-          <div className="conversation-rail is-sheet ast-surface-primary">{renderRail('rail-sheet')}</div>
-        </SheetContent>
-      </Sheet>
+      <div className="mobile-ask-drawers">
+        <Sheet open={railSheetOpen} onOpenChange={setRailSheetOpen}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rail-sheet-trigger"
+            onClick={() => setRailSheetOpen(true)}
+          >
+            <MessagesSquare aria-hidden="true" /> Conversations
+            {/* The count, because the button replaces a rail whose length was
+                visible, and "Conversations" alone does not say whether there are
+                any. */}
+            {rail.entries.length > 0 && <span className="rail-sheet-count">{rail.entries.length}</span>}
+          </Button>
+          <SheetContent side="left" className="rail-sheet">
+            <SheetHeader>
+              <SheetTitle>Conversations</SheetTitle>
+            </SheetHeader>
+            <div className="conversation-rail is-sheet ast-surface-primary">{renderRail('rail-sheet')}</div>
+          </SheetContent>
+        </Sheet>
+        <MobileContextDrawer label="Agent path" open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
+          <div className="trace-inspector is-sheet">
+            <div className="trace-head">
+              <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
+              <RunStatusPill status={runStatus} onDark />
+            </div>
+            <h3 className="trace-title">Agent path</h3>
+            {railStages.length > 0 ? (
+              <AgentPathConstellation
+                stages={railStages}
+                activeIndex={railActiveIndex}
+                elapsedMs={railElapsedMs}
+                currentStage={currentStage}
+                totalMs={answer?.trace.totalMs ?? asked?.trace.totalMs ?? null}
+                thread={conversationId}
+                turn={railTurn}
+              />
+            ) : loading ? (
+              <div className="trace-working">
+                <WorkingInlineRow elapsed={elapsed} label={currentStage.label} />
+              </div>
+            ) : null}
+            {answer && (
+              <>
+                <Separator className="trace-divider" />
+                <div className="metric-row">
+                  <span>
+                    Total time
+                    <strong
+                      title={
+                        answer.trace.stages.length > 0
+                          ? `${answer.trace.totalMs.toLocaleString()} milliseconds`
+                          : 'Not recorded'
+                      }
+                    >
+                      {answer.trace.stages.length > 0 ? formatDuration(answer.trace.totalMs) : 'Not recorded'}
+                    </strong>
+                  </span>
+                  <span>
+                    <ToolCallsLabel>Tool calls</ToolCallsLabel>
+                    <strong>{answer.trace.stages.length > 0 ? answer.trace.toolCalls : 'Not recorded'}</strong>
+                  </span>
+                  <span>
+                    Tokens
+                    <strong
+                      title={
+                        typeof answer.trace.prompt_tokens === 'number' &&
+                        typeof answer.trace.completion_tokens === 'number'
+                          ? `${answer.trace.prompt_tokens.toLocaleString()} input tokens / ${answer.trace.completion_tokens.toLocaleString()} output tokens`
+                          : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                            ? `${answer.trace.total_tokens.toLocaleString()} total tokens`
+                            : 'Not recorded'
+                      }
+                    >
+                      {typeof answer.trace.prompt_tokens === 'number' &&
+                      typeof answer.trace.completion_tokens === 'number'
+                        ? `${answer.trace.prompt_tokens.toLocaleString()} / ${answer.trace.completion_tokens.toLocaleString()}`
+                        : typeof answer.trace.total_tokens === 'number' && answer.trace.total_tokens > 0
+                          ? answer.trace.total_tokens.toLocaleString()
+                          : 'Not recorded'}
+                    </strong>
+                  </span>
+                  <span>
+                    Slowest<strong>{slowestStageName(answer.trace.stages) ?? 'Not recorded'}</strong>
+                  </span>
+                </div>
+                {answer.runStored === false ? (
+                  <Alert variant="destructive">
+                    <CircleAlert />
+                    <AlertDescription>{RUN_NOT_STORED}</AlertDescription>
+                  </Alert>
+                ) : (
+                  <Button variant="default" className="trace-explore w-full" asChild>
+                    <Link to={`/runs?run=${encodeURIComponent(answer.id)}`}>
+                      Explore full run <ExternalLink aria-hidden="true" />
+                    </Link>
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </MobileContextDrawer>
+      </div>
 
       <div className="conversation-column">
         <section ref={conversationMainRef} className={`conversation-main${transcriptEmpty ? ' is-empty' : ''}`}>
