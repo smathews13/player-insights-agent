@@ -15,6 +15,7 @@ export type { ExperimentalFeatures } from './experimental-settings-browser';
 export const ExperimentalSettingsSchema = z.object({
   aiGateway: z.boolean().default(false),
   benchmarkLab: z.boolean().default(false),
+  contractObservatory: z.boolean().default(false),
   egressControls: z.boolean().default(false),
   forecasting: z.boolean().default(false),
   genieCodeMcp: z.boolean().default(false),
@@ -24,6 +25,7 @@ export const ExperimentalSettingsSchema = z.object({
 export const ExperimentalSettingsPatchSchema = z.strictObject({
   aiGateway: z.boolean().optional(),
   benchmarkLab: z.boolean().optional(),
+  contractObservatory: z.boolean().optional(),
   egressControls: z.boolean().optional(),
   forecasting: z.boolean().optional(),
   genieCodeMcp: z.boolean().optional(),

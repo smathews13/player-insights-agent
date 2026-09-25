@@ -40,6 +40,7 @@ describe('deployment-wide Experimental settings', () => {
     expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings).toEqual({
       aiGateway: false,
       benchmarkLab: false,
+      contractObservatory: false,
       egressControls: false,
       forecasting: false,
       genieCodeMcp: false,
@@ -77,6 +78,7 @@ describe('deployment-wide Experimental settings', () => {
       {
         aiGateway: true,
         benchmarkLab: true,
+        contractObservatory: true,
         egressControls: true,
         forecasting: true,
         genieCodeMcp: true,
@@ -90,6 +92,7 @@ describe('deployment-wide Experimental settings', () => {
       {
         aiGateway: false,
         benchmarkLab: false,
+        contractObservatory: false,
         egressControls: false,
         forecasting: false,
         genieCodeMcp: false,
@@ -101,6 +104,7 @@ describe('deployment-wide Experimental settings', () => {
     expect(off.settings).toEqual({
       aiGateway: false,
       benchmarkLab: false,
+      contractObservatory: false,
       egressControls: false,
       forecasting: false,
       genieCodeMcp: false,
@@ -126,6 +130,7 @@ describe('deployment-wide Experimental settings', () => {
     expect(read.settings).toEqual({
       aiGateway: true,
       benchmarkLab: true,
+      contractObservatory: false,
       egressControls: false,
       forecasting: true,
       genieCodeMcp: true,

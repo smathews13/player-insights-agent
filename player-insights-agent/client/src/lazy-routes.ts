@@ -8,6 +8,7 @@
 export const loadArchitecturePage = () => import('./ArchitecturePage');
 export const loadBenchmarkLab = () => import('./BenchmarkLab');
 export const loadConnectionsPage = () => import('./ConnectionsPage');
+export const loadContractPage = () => import('./ContractPage');
 export const loadMonitoringPage = () => import('./MonitoringPage');
 export const loadOpsPage = () => import('./OpsPage');
 export const loadRunExplorer = () => import('./RunExplorer');
@@ -16,6 +17,7 @@ const ROUTE_LOADERS: Readonly<Record<string, () => Promise<unknown>>> = {
   '/architecture': loadArchitecturePage,
   '/benchmarks': loadBenchmarkLab,
   '/connections': loadConnectionsPage,
+  '/contract': loadContractPage,
   '/monitoring': loadMonitoringPage,
   '/ops': loadOpsPage,
   '/runs': loadRunExplorer,

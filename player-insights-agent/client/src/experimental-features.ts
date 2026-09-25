@@ -49,6 +49,11 @@ export function showsBenchmarkLab(features: ExperimentalFeatures): boolean {
   return features.benchmarkLab;
 }
 
+/** Whether administrators can open the frontend/backend contract diagnostics tab. */
+export function showsContractObservatory(features: ExperimentalFeatures): boolean {
+  return features.contractObservatory === true;
+}
+
 /**
  * Whether the egress panel is drawn on the Settings page.
  *

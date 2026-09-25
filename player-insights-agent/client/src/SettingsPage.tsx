@@ -8,6 +8,7 @@ import { ResourceTagsPanel } from './ResourceTagsPanel';
 import {
   NO_EXPERIMENTS,
   showsBenchmarkLab,
+  showsContractObservatory,
   showsEgressControls,
   showsForecasting,
   showsNotebookAgentSync,
@@ -512,6 +513,35 @@ export function SettingsPage({
                               setSaveState(SETTINGS_SAVE_IDLE);
                             }}
                             aria-label="Show Ops forecasting"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <ExperimentalFeatureName kind="contract-observatory">
+                          Contract observatory
+                        </ExperimentalFeatureName>
+                        <p className="settings-row-note">
+                          Adds an administrator-only Contract tab for comparing backend handoff fields with the frontend
+                          validators and reviewing recent handoff failures.
+                        </p>
+                      </td>
+                      <td className="exp-feature-status">
+                        <ExperimentalStatus on={showsContractObservatory(draftFeatures)} />
+                      </td>
+                      <td className="exp-feature-control">
+                        <div className="exp-feature-control-inner">
+                          <Switch
+                            checked={showsContractObservatory(draftFeatures)}
+                            disabled={!experimentalLoaded || !showsAdminSurfaces(role.state)}
+                            onCheckedChange={(enabled) => {
+                              setDraftFeatures((current) =>
+                                withExperimentalFeature(current, 'contractObservatory', enabled)
+                              );
+                              setSaveState(SETTINGS_SAVE_IDLE);
+                            }}
+                            aria-label="Show Contract tab"
                           />
                         </div>
                       </td>

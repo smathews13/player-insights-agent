@@ -286,7 +286,7 @@ export function FirstOpenPanel({
         {/* The lockup IS the heading, so the dialog takes its name from it.
               The old long app name that used to be set here renders nowhere in
               the app any more (§1). */}
-        <PiaLockup as="h1" seat="hero" tone="dark" id="first-open-title" className="fo-title" />
+        <PiaLockup as="h1" seat="hero" tone="light" id="first-open-title" className="fo-title" />
       </div>
 
       <section className="fo-box fo-identity" id="first-open-description">

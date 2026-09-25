@@ -7,6 +7,7 @@ import {
 } from '../../shared/experimental-settings-browser';
 import {
   showsBenchmarkLab,
+  showsContractObservatory,
   showsEgressControls,
   showsForecasting,
   showsNotebookAgentSync,
@@ -26,6 +27,7 @@ describe('deployment-wide experimental feature contract', () => {
     const enabled = {
       aiGateway: true,
       benchmarkLab: true,
+      contractObservatory: true,
       egressControls: true,
       forecasting: true,
       genieCodeMcp: true,
@@ -33,6 +35,7 @@ describe('deployment-wide experimental feature contract', () => {
     };
     expect(ExperimentalSettingsSchema.parse(enabled)).toEqual(enabled);
     expect(showsBenchmarkLab(enabled)).toBe(true);
+    expect(showsContractObservatory(enabled)).toBe(true);
     expect(showsEgressControls(enabled)).toBe(true);
     expect(showsForecasting(enabled)).toBe(true);
     expect(usesGenieMcp(enabled)).toBe(true);

@@ -19,7 +19,7 @@
  * GatePanel.tsx are markup and ARIA.
  */
 import { useOutletContext } from 'react-router';
-import { showsBenchmarkLab, type ExperimentalFeatures } from './experimental-features';
+import { showsBenchmarkLab, showsContractObservatory, type ExperimentalFeatures } from './experimental-features';
 import { BENCHMARK_LAB_ENABLED, SHOW_EVERY_TAB_TO_EVERYONE } from './nav-reveal';
 import { IDENTITY_RESOLVING } from './user-initials';
 import { isRole, ROLE_WORD, type Role } from '../../shared/user-roster-contract';
@@ -228,6 +228,7 @@ const ADMIN_NAV: readonly NavEntry[] = [
 
 /** The Benchmarking entry, appended for every signed-in role when enabled. */
 export const BENCHMARK_NAV_ENTRY: NavEntry = { to: '/benchmarks', label: 'Benchmarking' };
+export const CONTRACT_NAV_ENTRY: NavEntry = { to: '/contract', label: 'Contract' };
 
 /**
  * The whole navigation, in order, for one role.
@@ -241,8 +242,10 @@ export const BENCHMARK_NAV_ENTRY: NavEntry = { to: '/benchmarks', label: 'Benchm
  */
 export function navEntries(state: RoleState, features: ExperimentalFeatures): NavEntry[] {
   const base = showsAdminSurfaces(state) || SHOW_EVERY_TAB_TO_EVERYONE ? ADMIN_NAV : CONSUMER_NAV;
-  if (!BENCHMARK_LAB_ENABLED || !showsBenchmarkLab(features)) return [...base];
-  return [...base, BENCHMARK_NAV_ENTRY];
+  const entries = [...base];
+  if (showsAdminSurfaces(state) && showsContractObservatory(features)) entries.push(CONTRACT_NAV_ENTRY);
+  if (BENCHMARK_LAB_ENABLED && showsBenchmarkLab(features)) entries.push(BENCHMARK_NAV_ENTRY);
+  return entries;
 }
 
 /**
@@ -262,8 +265,11 @@ export function showsSettingsGear(state: RoleState): boolean {
  * extra tab needs. The signed-in menu still names the rank; only the rail copy
  * yields. When Benchmarking is off, the pill stays if the row has room.
  */
-export function showsHeaderRoleBadge(features: ExperimentalFeatures): boolean {
-  return !BENCHMARK_LAB_ENABLED || !showsBenchmarkLab(features);
+export function showsHeaderRoleBadge(features: ExperimentalFeatures, state: RoleState): boolean {
+  return (
+    (!BENCHMARK_LAB_ENABLED || !showsBenchmarkLab(features)) &&
+    (!showsAdminSurfaces(state) || !showsContractObservatory(features))
+  );
 }
 
 /* ── The header's right-hand cluster ─────────────────────────────────────── */
@@ -331,6 +337,7 @@ export const HEADER_CLUSTER_ORDER: readonly ['role-badge', 'identity-chip', 'set
 export const ADMIN_PAGE_NAMES: Readonly<Record<string, string>> = {
   '/monitoring': 'Monitoring',
   '/ops': 'Ops',
+  '/contract': 'Contract',
 };
 
 /** Whether standing on this path needs the admin role. */

@@ -5,6 +5,7 @@ import { AdminOnly } from './GatePanel';
 import { HomePage } from './HomePage';
 import { Layout } from './Layout';
 import { BenchmarkingVisibility } from './BenchmarkingVisibility';
+import { ContractVisibility } from './ContractVisibility';
 import { kickWarehouseWarmup } from './warehouse-warmup';
 import { appliedColorScheme, applyColorScheme, DEFAULT_COLOR_SCHEME } from './color-scheme';
 import { useRuntimeEntityStyles } from './runtime-entity-styles';
@@ -14,6 +15,7 @@ import {
   loadArchitecturePage,
   loadBenchmarkLab,
   loadConnectionsPage,
+  loadContractPage,
   loadMonitoringPage,
   loadOpsPage,
   loadRunExplorer,
@@ -45,6 +47,7 @@ import { useStartupReadiness } from './startup-readiness';
 const ArchitecturePage = lazy(() => loadArchitecturePage().then((loaded) => ({ default: loaded.ArchitecturePage })));
 const BenchmarkLab = lazy(() => loadBenchmarkLab().then((loaded) => ({ default: loaded.BenchmarkLab })));
 const ConnectionsPage = lazy(() => loadConnectionsPage().then((loaded) => ({ default: loaded.ConnectionsPage })));
+const ContractPage = lazy(() => loadContractPage().then((loaded) => ({ default: loaded.ContractPage })));
 const MonitoringPage = lazy(() => loadMonitoringPage().then((loaded) => ({ default: loaded.MonitoringPage })));
 const OpsPage = lazy(() => loadOpsPage().then((loaded) => ({ default: loaded.OpsPage })));
 const RunExplorer = lazy(() => loadRunExplorer().then((loaded) => ({ default: loaded.RunExplorer })));
@@ -166,6 +169,19 @@ const router = createBrowserRouter([
             <LazyRoute>
               <OpsPage />
             </LazyRoute>
+          </AdminOnly>
+        ),
+        errorElement: <RouteError />,
+      },
+      {
+        path: '/contract',
+        element: (
+          <AdminOnly>
+            <ContractVisibility>
+              <LazyRoute>
+                <ContractPage />
+              </LazyRoute>
+            </ContractVisibility>
           </AdminOnly>
         ),
         errorElement: <RouteError />,
