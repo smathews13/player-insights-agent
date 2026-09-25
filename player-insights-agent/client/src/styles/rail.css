@@ -565,7 +565,16 @@ html[data-theme='dark'] .ask-layout > .trace-inspector {
  * child of it, so anything short of `display: none` would take the middle cell and
  * push the transcript into the inspector's column.
  */
+.mobile-ask-drawers {
+  display: contents;
+}
 .rail-sheet-trigger {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 16px 0;
+}
+.context-sheet-trigger {
   display: none;
   align-items: center;
   gap: 6px;
