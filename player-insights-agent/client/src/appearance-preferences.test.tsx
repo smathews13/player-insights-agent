@@ -109,6 +109,7 @@ describe('Appearance preferences', () => {
     expect(PANEL).toContain("event.key === 'ArrowLeft' || event.key === 'ArrowUp'");
     expect(PANEL).toContain('tabIndex={settings.density === density ? 0 : -1}');
     expect(PANEL).toContain('tabIndex={settings.fontSize === size ? 0 : -1}');
+    expect(PANEL).toContain('tabIndex={settings.mobileFontSize === size ? 0 : -1}');
   });
 
   it('writes safe root attributes and caches only normalized settings', () => {
@@ -159,6 +160,7 @@ describe('Appearance preferences', () => {
       fontMutedColor: '#667788',
       fontFamily: 'dm-mono',
       fontSize: 'l',
+      mobileFontSize: 's',
       backgroundGraphics: false,
       animations: false,
       density: 'compact',
@@ -173,6 +175,8 @@ describe('Appearance preferences', () => {
     expect(text).toContain('aria-label="Font: DM Mono"');
     expect(text).toContain('aria-label="Font size L"');
     expect(text).toContain('aria-checked="true" tabindex="0" aria-label="Font size L"');
+    expect(text).toContain('aria-label="Mobile font size S"');
+    expect(text).toContain('aria-checked="true" tabindex="0" aria-label="Mobile font size S"');
     expect(text).toContain('aria-label="Body text color"');
     expect(text).toContain('value="#123456"');
     expect(text).toContain('aria-label="Secondary text color"');
@@ -194,6 +198,7 @@ describe('Appearance preferences', () => {
       fontMutedColor: '#667788',
       fontFamily: 'dm-mono',
       fontSize: 'l',
+      mobileFontSize: 's',
       backgroundGraphics: false,
       animations: false,
       density: 'compact',
@@ -211,6 +216,7 @@ describe('Appearance preferences', () => {
       '--ast-text-secondary': '#667788',
       '--font-sans': FONT_FAMILY_STACKS['dm-mono'],
       '--text-base': '15px',
+      '--mobile-text-base': '12px',
     });
     expect(themeColor.setAttribute).toHaveBeenLastCalledWith('content', '#f4f7f9');
 
@@ -242,6 +248,7 @@ describe('Appearance preferences', () => {
     expect(INDEX.indexOf(RUNTIME_APPEARANCE_CACHE_KEY)).toBeLessThan(INDEX.indexOf('/src/main.tsx'));
     expect(INDEX).toContain("root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable'");
     expect(INDEX).toContain('const sizeScale = { s: 0.92, m: 1, l: 1.15 }[saved.fontSize]');
+    expect(INDEX).toContain("saved.mobileFontSize === 'auto' || saved.mobileFontSize == null");
     expect(INDEX).toContain('if (readableOnSurfaces(saved.fontBodyColor))');
     expect(INDEX).toContain('contrast(style.foreground, style.background) >= 4.5');
     expect(INDEX).toContain('const lightEntityDefaults =');
@@ -322,7 +329,7 @@ describe('Appearance preferences', () => {
 
   it('keeps Display rows aligned and stacks their controls cleanly at phone widths', () => {
     expect(SETTINGS_STYLES).toMatch(
-      /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/s
+      /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/s
     );
     expect(SETTINGS_STYLES).toMatch(
       /\.appearance-display-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/s

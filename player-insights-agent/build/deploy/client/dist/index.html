@@ -76,28 +76,37 @@
           };
           if (families[saved.fontFamily]) root.style.setProperty('--font-sans', families[saved.fontFamily]);
           const sizeScale = { s: 0.92, m: 1, l: 1.15 }[saved.fontSize];
+          const mobileSize =
+            saved.mobileFontSize === 'auto' || saved.mobileFontSize == null ? saved.fontSize : saved.mobileFontSize;
+          const mobileSizeScale = { s: 0.92, m: 1, l: 1.15 }[mobileSize];
+          const typeTokens = [
+            ['--text-xs', 11],
+            ['--text-sm', 12],
+            ['--text-base', 13],
+            ['--text-h-sub', 14],
+            ['--text-h-section', 16],
+            ['--text-h-card', 18],
+            ['--text-h-page', 30],
+            ['--text-kpi', 22],
+            ['--text-hero', 40],
+            ['--ast-fs-11', 11],
+            ['--ast-fs-12', 12],
+            ['--ast-fs-13', 13],
+            ['--ast-fs-14', 14],
+            ['--ast-fs-16', 16],
+            ['--ast-fs-18', 18],
+            ['--ast-fs-22', 22],
+            ['--ast-fs-30', 30],
+            ['--ast-fs-40', 40],
+          ];
           if (sizeScale) {
-            for (const [token, px] of [
-              ['--text-xs', 11],
-              ['--text-sm', 12],
-              ['--text-base', 13],
-              ['--text-h-sub', 14],
-              ['--text-h-section', 16],
-              ['--text-h-card', 18],
-              ['--text-h-page', 30],
-              ['--text-kpi', 22],
-              ['--text-hero', 40],
-              ['--ast-fs-11', 11],
-              ['--ast-fs-12', 12],
-              ['--ast-fs-13', 13],
-              ['--ast-fs-14', 14],
-              ['--ast-fs-16', 16],
-              ['--ast-fs-18', 18],
-              ['--ast-fs-22', 22],
-              ['--ast-fs-30', 30],
-              ['--ast-fs-40', 40],
-            ]) {
+            for (const [token, px] of typeTokens) {
               root.style.setProperty(token, `${Math.round(px * sizeScale)}px`);
+            }
+          }
+          if (mobileSizeScale) {
+            for (const [token, px] of typeTokens) {
+              root.style.setProperty(`--mobile-${token.slice(2)}`, `${Math.round(px * mobileSizeScale)}px`);
             }
           }
           const lightEntityDefaults = {
@@ -219,11 +228,11 @@
     -->
     <link rel="preload" href="/fonts/DMSans-variable.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
     <title>Player Insights Agent</title>
-    <script type="module" crossorigin src="/assets/index-COghdSkA.js"></script>
+    <script type="module" crossorigin src="/assets/index-Dunv-S4B.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-DGruFWvd.js">
     <link rel="modulepreload" crossorigin href="/assets/appkit-ui-D2Bo8AzQ.js">
     <link rel="modulepreload" crossorigin href="/assets/organization-logos-Bn_Exckj.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CvZUW0dw.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CShxl8R0.css">
   </head>
   <body>
     <div id="root"></div>

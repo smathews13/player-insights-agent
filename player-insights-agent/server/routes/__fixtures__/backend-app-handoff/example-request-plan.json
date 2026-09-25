@@ -71,6 +71,7 @@
         "fontMutedColor": "#c5ccd4",
         "fontFamily": "system",
         "fontSize": "l",
+        "mobileFontSize": "auto",
         "backgroundGraphics": true,
         "animations": true,
         "density": "comfortable"

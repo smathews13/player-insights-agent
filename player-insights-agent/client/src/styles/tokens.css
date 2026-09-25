@@ -452,6 +452,34 @@
 }
 
 /*
+ * Appearance keeps the desktop scale intact while allowing phones to use a
+ * separately saved scale. Runtime settings populate the mobile tokens; the
+ * fallbacks preserve today's medium scale before settings finish loading.
+ */
+@media (max-width: 800px) {
+  :root {
+    --text-xs: var(--mobile-text-xs, 11px) !important;
+    --text-sm: var(--mobile-text-sm, 12px) !important;
+    --text-base: var(--mobile-text-base, 13px) !important;
+    --text-h-sub: var(--mobile-text-h-sub, 14px) !important;
+    --text-h-section: var(--mobile-text-h-section, 16px) !important;
+    --text-h-card: var(--mobile-text-h-card, 18px) !important;
+    --text-h-page: var(--mobile-text-h-page, 30px) !important;
+    --text-kpi: var(--mobile-text-kpi, 22px) !important;
+    --text-hero: var(--mobile-text-hero, 40px) !important;
+    --ast-fs-11: var(--mobile-ast-fs-11, 11px) !important;
+    --ast-fs-12: var(--mobile-ast-fs-12, 12px) !important;
+    --ast-fs-13: var(--mobile-ast-fs-13, 13px) !important;
+    --ast-fs-14: var(--mobile-ast-fs-14, 14px) !important;
+    --ast-fs-16: var(--mobile-ast-fs-16, 16px) !important;
+    --ast-fs-18: var(--mobile-ast-fs-18, 18px) !important;
+    --ast-fs-22: var(--mobile-ast-fs-22, 22px) !important;
+    --ast-fs-30: var(--mobile-ast-fs-30, 30px) !important;
+    --ast-fs-40: var(--mobile-ast-fs-40, 40px) !important;
+  }
+}
+
+/*
  * Night-sky theme. `data-theme` is ours; `.light` still defeats AppKit's OS
  * media query. Hex primitives used here are declared in astrolabe-tokens.css
  * so palette.test.ts can see them.

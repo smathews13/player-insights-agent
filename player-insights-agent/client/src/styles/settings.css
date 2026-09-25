@@ -1900,7 +1900,7 @@ html[data-theme='dark'] .settings-overlay .settings-page.settings-modal {
 
 .appearance-text-controls {
   display: grid;
-  grid-template-columns: minmax(190px, 1.35fr) auto repeat(2, minmax(150px, 1fr));
+  grid-template-columns: minmax(190px, 1.35fr) auto auto repeat(2, minmax(150px, 1fr));
   align-items: end;
   gap: 10px 16px;
 }
