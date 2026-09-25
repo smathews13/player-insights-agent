@@ -103,4 +103,28 @@ describe('SSE terminal response projection', () => {
     };
     expect(terminalSettlementForResponse(dashboard, { trace: { totalMs: '324600' } }).summary?.durationMs).toBeNull();
   });
+
+  it.each([
+    ['failed', 'Failed', 'ast-pill--neg'],
+    ['partial', 'Partial', 'ast-pill--warn'],
+  ] as const)('keeps a %s document stage consistent with stored run verdicts', (stageStatus, label, tone) => {
+    const report: ReportResponse = {
+      type: 'report',
+      mode: 'live',
+      id: 'msg-report-stage',
+      report: {
+        schema_version: 'pia.report/1',
+        title: 'Player report',
+        sections: [{ body: 'A report whose run did not finish cleanly.' }],
+      },
+    };
+    expect(
+      terminalSettlementForResponse(report, {
+        trace: {
+          totalMs: 10_000,
+          stages: [{ id: 'report-render', status: stageStatus }],
+        },
+      }).summary
+    ).toMatchObject({ status: label, tone, durationMs: 10_000 });
+  });
 });

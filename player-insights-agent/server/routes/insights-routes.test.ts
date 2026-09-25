@@ -4179,8 +4179,9 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
   it('returns the complete standalone HTML dashboard instead of prose fallback', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const html = '<!DOCTYPE html><html><body><h1>Cross-franchise reach</h1></body></html>';
+    const platformTraceId = 'tr-a87e1e2613d6b9bcdbb3e687766ba8b0';
     const trace = {
-      id: 'tr-a87e1e2613d6b9bcdbb3e687766ba8b0',
+      id: 'trace-local',
       totalMs: 324_600,
       toolCalls: 1,
       stages: [
@@ -4211,6 +4212,7 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
           ],
           custom_outputs: {
             type: 'dashboard',
+            trace_id: platformTraceId,
             dashboard: {
               schemaVersion: 'pia.dashboard/1',
               title: 'Cross-franchise reach',
@@ -4233,11 +4235,11 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
       expect(answered.type).toBe('dashboard');
       expect((answered.dashboard as { title?: string }).title).toBe('Cross-franchise reach');
       expect((answered.dashboard as { html?: string }).html).toBe(html);
-      expect(answered.trace).toEqual(trace);
+      expect(answered.trace).toEqual({ ...trace, id: platformTraceId });
       expect(JSON.stringify(answered)).not.toContain(DEGRADED_ANSWER_MARKER);
       const stored = store.messages.find((message) => message.id === answered.id);
       const envelope = JSON.parse(String(stored?.response_json)) as { trace?: unknown };
-      expect(envelope.trace).toEqual(trace);
+      expect(envelope.trace).toEqual({ ...trace, id: platformTraceId });
       expect(await app.runs()).toContainEqual(
         expect.objectContaining({
           id: answered.id,

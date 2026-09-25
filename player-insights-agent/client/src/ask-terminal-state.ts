@@ -1,4 +1,4 @@
-import { answerRunVerdict } from '../../shared/run-verdict';
+import { answerRunVerdict, runVerdict, type RunVerdict, type VerdictStage } from '../../shared/run-verdict';
 import { settleActiveConversationRunById, updateActiveConversationRuns } from './active-conversation-runs';
 import type { AgentResponse } from './app-types';
 import { endLiveAsk } from './live-ask';
@@ -29,6 +29,27 @@ function rawTraceDuration(raw: unknown): number | null {
   return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
 }
 
+function rawTraceVerdict(raw: unknown): RunVerdict | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const trace = (raw as { trace?: unknown }).trace;
+  if (!trace || typeof trace !== 'object') return null;
+  const stages = (trace as { stages?: unknown }).stages;
+  if (!Array.isArray(stages)) return null;
+  const projected = stages.flatMap((stage): VerdictStage[] => {
+    if (!stage || typeof stage !== 'object') return [];
+    const record = stage as { id?: unknown; status?: unknown };
+    if (typeof record.status !== 'string') return [];
+    return [{ id: typeof record.id === 'string' ? record.id : '', status: record.status }];
+  });
+  return runVerdict(projected);
+}
+
+const PRESENTATION = {
+  complete: ['Complete', 'ast-pill--pos'],
+  partial: ['Partial', 'ast-pill--warn'],
+  failed: ['Failed', 'ast-pill--neg'],
+} as const;
+
 /**
  * Terminal facts carried by an SSE result after the server persisted/settled it.
  *
@@ -55,23 +76,19 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
     };
   }
   if (response.type === 'dashboard') {
+    const [status, tone] = PRESENTATION[rawTraceVerdict(raw) ?? 'complete'];
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
-      summary: summary(
-        response.id,
-        'Complete',
-        'ast-pill--pos',
-        rawTraceDuration(raw),
-        response.dashboard.truncated === true
-      ),
+      summary: summary(response.id, status, tone, rawTraceDuration(raw), response.dashboard.truncated === true),
     };
   }
   if (response.type === 'report') {
+    const [status, tone] = PRESENTATION[rawTraceVerdict(raw) ?? 'complete'];
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
-      summary: summary(response.id, 'Complete', 'ast-pill--pos', rawTraceDuration(raw)),
+      summary: summary(response.id, status, tone, rawTraceDuration(raw)),
     };
   }
 
@@ -82,12 +99,7 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
     narrative: response.narrative,
     content: response.content,
   });
-  const presentation = {
-    complete: ['Complete', 'ast-pill--pos'],
-    partial: ['Partial', 'ast-pill--warn'],
-    failed: ['Failed', 'ast-pill--neg'],
-  } as const;
-  const [status, tone] = presentation[verdict];
+  const [status, tone] = PRESENTATION[verdict];
   return {
     state: 'SUCCEEDED',
     terminalMessageId: response.id,

@@ -381,6 +381,7 @@ export const PROSE_ONLY_DEGRADED_SQL = `(
  */
 export function classifiedRunStatusSql(input: { trace: string; payload: string; caveats: string }): string {
   const empty = EMPTY_STAGES_FAILED_SQL.split('trace').join(input.trace);
+  const document = `COALESCE(${input.payload}->>'type', '') IN ('dashboard', 'report')`;
   const landed = ANSWER_LANDED_SQL.split('payload').join(input.payload);
   const synth = bindSynthesisIncompleteSql(input.trace, input.caveats);
   const prose = PROSE_ONLY_DEGRADED_SQL.split('payload').join(input.payload).split('caveats').join(input.caveats);
@@ -389,6 +390,12 @@ export function classifiedRunStatusSql(input: { trace: string; payload: string; 
   const partialStage = `jsonb_path_exists(${input.trace}, '$.stages[*] ? (@.status == "partial" ${VERDICT_STAGE_EXEMPTION_SQL})')`;
   return `CASE
            WHEN ${empty} THEN 'failed'
+           WHEN ${document} THEN
+             CASE
+               WHEN ${failedStage} THEN 'failed'
+               WHEN ${partialStage} THEN 'partial'
+               ELSE 'complete'
+             END
            WHEN ${prose} THEN
              CASE WHEN ${failedStage} THEN 'failed' ELSE 'partial' END
            WHEN ${landed} AND ${synth} THEN 'partial'

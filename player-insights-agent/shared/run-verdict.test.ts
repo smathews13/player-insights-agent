@@ -257,4 +257,20 @@ describe('the store query lands a catalog listing the same way the card does', (
     expect(sql).toContain('this answer is degraded');
     expect(sql).toContain("THEN 'complete'");
   });
+
+  it('classifies documents from their stages before answer-only prose rules', () => {
+    const sql = classifiedRunStatusSql({
+      trace: 'a.trace',
+      payload: 'a.payload',
+      caveats: 'a.caveats',
+    });
+    const document = sql.indexOf("COALESCE(a.payload->>'type', '') IN ('dashboard', 'report')");
+    const prose = sql.indexOf('this answer is degraded');
+    expect(document).toBeGreaterThan(-1);
+    expect(document).toBeLessThan(prose);
+    expect(sql.slice(document, prose)).toContain('WHEN jsonb_path_exists(a.trace');
+    expect(sql.slice(document, prose)).toContain("THEN 'failed'");
+    expect(sql.slice(document, prose)).toContain("THEN 'partial'");
+    expect(sql.slice(document, prose)).toContain("ELSE 'complete'");
+  });
 });
