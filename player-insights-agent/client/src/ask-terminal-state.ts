@@ -21,6 +21,14 @@ function summary(
   return { runId, status, tone, durationMs, feedback: null, truncated };
 }
 
+function rawTraceDuration(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const trace = (raw as { trace?: unknown }).trace;
+  if (!trace || typeof trace !== 'object') return null;
+  const duration = (trace as { totalMs?: unknown }).totalMs;
+  return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
+}
+
 /**
  * Terminal facts carried by an SSE result after the server persisted/settled it.
  *
@@ -50,14 +58,20 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
-      summary: summary(response.id, 'Complete', 'ast-pill--pos', null, response.dashboard.truncated === true),
+      summary: summary(
+        response.id,
+        'Complete',
+        'ast-pill--pos',
+        rawTraceDuration(raw),
+        response.dashboard.truncated === true
+      ),
     };
   }
   if (response.type === 'report') {
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
-      summary: summary(response.id, 'Complete', 'ast-pill--pos', null),
+      summary: summary(response.id, 'Complete', 'ast-pill--pos', rawTraceDuration(raw)),
     };
   }
 

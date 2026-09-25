@@ -4179,6 +4179,27 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
   it('returns the complete standalone HTML dashboard instead of prose fallback', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const html = '<!DOCTYPE html><html><body><h1>Cross-franchise reach</h1></body></html>';
+    const trace = {
+      id: 'tr-a87e1e2613d6b9bcdbb3e687766ba8b0',
+      totalMs: 324_600,
+      toolCalls: 1,
+      stages: [
+        {
+          id: 'orchestrator',
+          name: 'Orchestrator',
+          kind: 'agent',
+          start: 0,
+          duration: 324_600,
+          status: 'complete',
+          calls: 1,
+          input: '',
+          output: '',
+          depth: 0,
+          parent_id: '',
+        },
+      ],
+    };
+    const store = memoryLakebase();
     const app = await startInsightsApp(
       () =>
         Promise.resolve({
@@ -4196,9 +4217,10 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
               html,
               caveats: ['One source was unavailable.'],
             },
+            trace,
           },
         }),
-      memoryLakebase()
+      store
     );
 
     try {
@@ -4211,7 +4233,18 @@ describe('a dashboard answer is served and persisted as its own artifact', () =>
       expect(answered.type).toBe('dashboard');
       expect((answered.dashboard as { title?: string }).title).toBe('Cross-franchise reach');
       expect((answered.dashboard as { html?: string }).html).toBe(html);
+      expect(answered.trace).toEqual(trace);
       expect(JSON.stringify(answered)).not.toContain(DEGRADED_ANSWER_MARKER);
+      const stored = store.messages.find((message) => message.id === answered.id);
+      const envelope = JSON.parse(String(stored?.response_json)) as { trace?: unknown };
+      expect(envelope.trace).toEqual(trace);
+      expect(await app.runs()).toContainEqual(
+        expect.objectContaining({
+          id: answered.id,
+          status: 'complete',
+          duration_ms: 324_600,
+        })
+      );
     } finally {
       await app.close();
     }
@@ -4228,35 +4261,77 @@ describe('a report answer is served, not degraded', () => {
 
   it('returns the complete agent report contract instead of prose-only fallback', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
-    const app = await startInsightsApp(
-      () =>
-        Promise.resolve({
-          output: [
-            {
-              type: 'message',
-              content: [{ type: 'output_text', text: 'Across the 7 major Contoso franchises analysed...' }],
-            },
-          ],
-          custom_outputs: {
-            type: 'report',
-            report: {
-              schema_version: 'pia.report/1',
-              title: 'Contoso Franchise Cross-Play Analysis',
-              summary: 'Across the 7 major Contoso franchises analysed, 200M unique players have been identified.',
-              sections: [
-                {
-                  heading: 'Cross-Franchise Overlap by Contoso Franchise',
-                  table: {
-                    columns: ['Franchise', 'Total Players', '% Played Another T2 Title'],
-                    rows: [['Hoops', '122.5M', '63%']],
-                  },
-                },
-              ],
-            },
+    const stages = [
+      {
+        id: 'orchestrator',
+        name: 'Orchestrator',
+        kind: 'agent',
+        start: 0,
+        duration: 10_000,
+        status: 'complete',
+        calls: 1,
+        input: '',
+        output: '',
+        depth: 0,
+        parent_id: '',
+      },
+      {
+        id: 'report-data',
+        name: 'Read report data',
+        kind: 'tool',
+        start: 1_000,
+        duration: 4_000,
+        status: 'complete',
+        calls: 1,
+        input: '',
+        output: '',
+        depth: 1,
+        parent_id: 'orchestrator',
+      },
+      {
+        id: 'report-render',
+        name: 'Render report',
+        kind: 'tool',
+        start: 5_000,
+        duration: 4_000,
+        status: 'complete',
+        calls: 1,
+        input: '',
+        output: '',
+        depth: 1,
+        parent_id: 'orchestrator',
+      },
+    ];
+    const store = memoryLakebase();
+    const app = await startInsightsApp(({ onStage }) => {
+      stages.forEach((stage) => onStage?.(stage));
+      return Promise.resolve({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'Across the 7 major Contoso franchises analysed...' }],
           },
-        }),
-      memoryLakebase()
-    );
+        ],
+        custom_outputs: {
+          type: 'report',
+          trace_id: 'tr-d51ee469eb8f7ce35820ad49cfb1c409',
+          report: {
+            schema_version: 'pia.report/1',
+            title: 'Contoso Franchise Cross-Play Analysis',
+            summary: 'Across the 7 major Contoso franchises analysed, 200M unique players have been identified.',
+            sections: [
+              {
+                heading: 'Cross-Franchise Overlap by Contoso Franchise',
+                table: {
+                  columns: ['Franchise', 'Total Players', '% Played Another T2 Title'],
+                  rows: [['Hoops', '122.5M', '63%']],
+                },
+              },
+            ],
+          },
+        },
+      });
+    }, store);
 
     try {
       const answered = await app.ask({
@@ -4269,7 +4344,26 @@ describe('a report answer is served, not degraded', () => {
       const report = answered.report as { title?: string; sections?: unknown[] };
       expect(report.title).toBe('Contoso Franchise Cross-Play Analysis');
       expect(report.sections).toHaveLength(1);
+      expect(answered.trace).toMatchObject({
+        id: 'tr-d51ee469eb8f7ce35820ad49cfb1c409',
+        totalMs: 10_000,
+        toolCalls: 2,
+      });
+      expect((answered.trace as { stages?: unknown[] }).stages).toHaveLength(3);
       expect(JSON.stringify(answered)).not.toContain(DEGRADED_ANSWER_MARKER);
+      const stored = store.messages.find((message) => message.id === answered.id);
+      const envelope = JSON.parse(String(stored?.response_json)) as {
+        trace?: { totalMs?: number; stages?: Array<{ status?: string }> };
+      };
+      expect(envelope.trace?.totalMs).toBe(10_000);
+      expect(envelope.trace?.stages).toHaveLength(3);
+      expect(await app.runs()).toContainEqual(
+        expect.objectContaining({
+          id: answered.id,
+          status: 'complete',
+          duration_ms: 10_000,
+        })
+      );
     } finally {
       await app.close();
     }

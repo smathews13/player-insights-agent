@@ -53,10 +53,10 @@ describe('SSE terminal response projection', () => {
       },
     };
 
-    expect(terminalSettlementForResponse(report, report)).toMatchObject({
+    expect(terminalSettlementForResponse(report, { ...report, trace: { totalMs: 214_300 } })).toMatchObject({
       state: 'SUCCEEDED',
       terminalMessageId: 'msg-report-1',
-      summary: { runId: 'msg-report-1', status: 'Complete', durationMs: null },
+      summary: { runId: 'msg-report-1', status: 'Complete', durationMs: 214_300 },
     });
   });
 
@@ -71,17 +71,36 @@ describe('SSE terminal response projection', () => {
         html: '<!DOCTYPE html><html><body>Players</body></html>',
       },
     };
-    expect(terminalSettlementForResponse(dashboard, { runStored: true })).toEqual({
+    expect(
+      terminalSettlementForResponse(dashboard, {
+        runStored: true,
+        trace: { totalMs: 324_600 },
+      })
+    ).toEqual({
       state: 'SUCCEEDED',
       terminalMessageId: 'msg-dashboard-1',
       summary: {
         runId: 'msg-dashboard-1',
         status: 'Complete',
         tone: 'ast-pill--pos',
-        durationMs: null,
+        durationMs: 324_600,
         feedback: null,
         truncated: false,
       },
     });
+  });
+
+  it('keeps a document duration absent when the raw trace is missing or malformed', () => {
+    const dashboard: DashboardResponse = {
+      type: 'dashboard',
+      mode: 'live',
+      id: 'msg-dashboard-2',
+      dashboard: {
+        schemaVersion: 'pia.dashboard/1',
+        title: 'Player dashboard',
+        html: '<!DOCTYPE html><html><body>Players</body></html>',
+      },
+    };
+    expect(terminalSettlementForResponse(dashboard, { trace: { totalMs: '324600' } }).summary?.durationMs).toBeNull();
   });
 });
