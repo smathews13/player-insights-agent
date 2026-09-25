@@ -97,6 +97,9 @@ describe('shared answer-table typography', () => {
     expect(css).toMatch(/\.answer-table thead th\s*\{[^}]*background: var\(--ast-neutral-fill\)/s);
     expect(css).toMatch(/\.answer-table tbody td\s*\{[^}]*font-size: var\(--ast-fs-12\)/s);
     expect(css).toMatch(/\.answer-table-wrap\s*\{[^}]*overflow-x: auto/s);
+    expect(css).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*?\.answer-table thead th[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;/
+    );
   });
 });
 

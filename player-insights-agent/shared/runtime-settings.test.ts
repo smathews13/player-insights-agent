@@ -136,12 +136,20 @@ describe('runtime settings contract', () => {
   });
 
   it('fills type settings from the row theme when an older store omitted them', () => {
-    const { fontBodyColor: _b, fontMutedColor: _m, fontFamily: _f, fontSize: _s, ...legacy } = DEFAULT_RUNTIME_SETTINGS;
+    const {
+      fontBodyColor: _b,
+      fontMutedColor: _m,
+      fontFamily: _f,
+      fontSize: _s,
+      mobileFontSize: _mobile,
+      ...legacy
+    } = DEFAULT_RUNTIME_SETTINGS;
     expect(RuntimeSettingsSchema.parse(legacy)).toMatchObject({
       fontBodyColor: THEME_FONT_COLORS.light.body,
       fontMutedColor: THEME_FONT_COLORS.light.muted,
       fontFamily: 'dm-sans',
       fontSize: 'm',
+      mobileFontSize: 'auto',
     });
     expect(
       RuntimeSettingsSchema.parse({
@@ -182,6 +190,7 @@ describe('runtime settings contract', () => {
       fontMutedColor: '#8899aa',
       fontFamily: 'system' as const,
       fontSize: 'l' as const,
+      mobileFontSize: 's' as const,
     };
     expect(runtimeAppearanceCssVariables(typed)).toMatchObject({
       '--ast-text': '#ffeecc',
@@ -191,6 +200,7 @@ describe('runtime settings contract', () => {
       '--font-sans': FONT_FAMILY_STACKS.system,
       '--text-base': '15px',
       '--ast-fs-13': '15px',
+      '--mobile-text-base': '12px',
     });
   });
 

@@ -5,6 +5,7 @@ import {
   FONT_FAMILY_STACKS,
   FONT_SIZE_IDS,
   FONT_SIZE_SCALE,
+  MOBILE_FONT_SIZE_IDS,
   RUNTIME_LOOP_LIMITS,
   resolveEntityStylesForRender,
   runtimeAppearanceContrastIssues,
@@ -13,6 +14,7 @@ import {
   isHexColor,
   type FontFamilyId,
   type FontSizeId,
+  type MobileFontSizeId,
   type DensityId,
   type RuntimeSettings,
 } from '../../shared/runtime-settings';
@@ -45,6 +47,13 @@ const FONT_FAMILY_OPTIONS: { value: FontFamilyId; label: string }[] = [
 ];
 
 const FONT_SIZE_LABELS: Record<FontSizeId, string> = {
+  s: 'S',
+  m: 'M',
+  l: 'L',
+};
+
+const MOBILE_FONT_SIZE_LABELS: Record<MobileFontSizeId, string> = {
+  auto: 'Same',
   s: 'S',
   m: 'M',
   l: 'L',
@@ -714,7 +723,7 @@ export function RuntimeSettingsPanel({
               </label>
               <div className="runtime-field">
                 <span className="runtime-field-label" id="appearance-font-size-label">
-                  Size
+                  Desktop Size
                 </span>
                 <div className="appearance-size" role="radiogroup" aria-labelledby="appearance-font-size-label">
                   {FONT_SIZE_IDS.map((size) => (
@@ -743,6 +752,42 @@ export function RuntimeSettingsPanel({
                       }}
                     >
                       {FONT_SIZE_LABELS[size]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="runtime-field">
+                <span className="runtime-field-label" id="appearance-mobile-font-size-label">
+                  Mobile Size
+                </span>
+                <div className="appearance-size" role="radiogroup" aria-labelledby="appearance-mobile-font-size-label">
+                  {MOBILE_FONT_SIZE_IDS.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      role="radio"
+                      aria-checked={settings.mobileFontSize === size}
+                      tabIndex={settings.mobileFontSize === size ? 0 : -1}
+                      aria-label={`Mobile font size ${size === 'auto' ? 'same as desktop' : FONT_SIZE_LABELS[size]}`}
+                      onClick={() => setSettings((current) => ({ ...current, mobileFontSize: size }))}
+                      onKeyDown={(event) => {
+                        const offset =
+                          event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                            ? 1
+                            : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                              ? -1
+                              : 0;
+                        if (!offset) return;
+                        event.preventDefault();
+                        const next =
+                          MOBILE_FONT_SIZE_IDS[
+                            (MOBILE_FONT_SIZE_IDS.indexOf(size) + offset + MOBILE_FONT_SIZE_IDS.length) %
+                              MOBILE_FONT_SIZE_IDS.length
+                          ];
+                        setSettings((current) => ({ ...current, mobileFontSize: next }));
+                      }}
+                    >
+                      {MOBILE_FONT_SIZE_LABELS[size]}
                     </button>
                   ))}
                 </div>

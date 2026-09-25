@@ -25,6 +25,7 @@ const APPEARANCE_KEYS = new Set([
   'fontMutedColor',
   'fontFamily',
   'fontSize',
+  'mobileFontSize',
   'backgroundGraphics',
   'animations',
   'density',

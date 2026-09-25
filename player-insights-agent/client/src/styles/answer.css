@@ -1104,6 +1104,22 @@ ol.answer-list {
   text-align: left;
   vertical-align: bottom;
 }
+/*
+ * A phone cannot afford to reserve a whole line for a long generated field
+ * name. Keep body values whole where their data type requires it, but let the
+ * column label wrap -- including identifiers with no spaces -- before the
+ * table decides it needs a horizontal scrollbar.
+ */
+@media (max-width: 800px) {
+  .answer-table thead th,
+  .answer-table thead th[data-wrap='atomic'],
+  .answer-table thead th[data-wrap='prose'] {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+}
 .answer-table tbody td {
   padding: 9px 14px;
   font-size: var(--ast-fs-12);
