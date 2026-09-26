@@ -245,7 +245,7 @@ describe('runtime and appearance modal sections', () => {
   it('lays out the consolidated text panel across supported responsive breakpoints', () => {
     expect(styles).toMatch(/\.appearance-text-panel\s*\{[^}]*display:\s*grid[^}]*border:\s*1px solid/s);
     expect(styles).toMatch(
-      /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/
+      /\.appearance-text-controls\s*\{[^}]*grid-template-columns:\s*minmax\(190px,\s*1\.35fr\)\s*auto\s*auto\s*repeat\(2,\s*minmax\(150px,\s*1fr\)\)/
     );
     expect(responsiveStyles).toMatch(
       /@media \(max-width:\s*800px\)\s*\{[\s\S]*?\.appearance-text-controls\s*\{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/
