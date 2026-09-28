@@ -34,6 +34,31 @@ describe('token usage read boundaries', () => {
     ).toBeUndefined();
   });
 
+  it('treats legacy all-zero trace totals as unmeasured unless invocation evidence exists', () => {
+    expect(normalizeTrace({ stages: [], prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 })).not.toHaveProperty(
+      'total_tokens'
+    );
+    expect(
+      normalizeTrace({
+        stages: [],
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+        token_invocations: [
+          {
+            invocationId: 'span-zero',
+            stageId: 'synthesis',
+            attempt: 1,
+            totalTokens: 0,
+            cacheStatus: 'unavailable',
+            attempts: 1,
+            totalMismatch: false,
+          },
+        ],
+      })
+    ).toMatchObject({ prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
+  });
+
   it('preserves reconciliation and attributed usage when a stored run is normalized', () => {
     const run = {
       trace: {
