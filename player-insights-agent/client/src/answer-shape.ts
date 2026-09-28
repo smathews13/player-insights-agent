@@ -267,21 +267,27 @@ export function normalizeTrace(raw: unknown): TraceSummary {
     toolCalls: asFiniteNumber(trace.toolCalls),
     stages: asArray(trace.stages).map(normalizeStage),
   };
-  // Only carried through when present: a stored answer from before metering
-  // must not gain a fabricated 0 that looks like a measured free run.
-  if (typeof trace.prompt_tokens === 'number' && Number.isFinite(trace.prompt_tokens)) {
-    normalized.prompt_tokens = trace.prompt_tokens;
-  }
-  if (typeof trace.completion_tokens === 'number' && Number.isFinite(trace.completion_tokens)) {
-    normalized.completion_tokens = trace.completion_tokens;
-  }
-  if (typeof trace.total_tokens === 'number' && Number.isFinite(trace.total_tokens)) {
-    normalized.total_tokens = trace.total_tokens;
-  }
   const invocations = asArray(trace.token_invocations)
     .map(normalizedTokenInvocation)
     .filter((item): item is TokenInvocationUsage => item !== undefined);
   if (invocations.length > 0) normalized.token_invocations = invocations;
+  // Older agents serialized zero when no usage block was reported. Keep a zero
+  // only when invocation evidence proves metering happened; any positive count
+  // is evidence on its own.
+  const usageReported =
+    invocations.length > 0 ||
+    [trace.prompt_tokens, trace.completion_tokens, trace.total_tokens].some(
+      (value) => typeof value === 'number' && Number.isFinite(value) && value > 0
+    );
+  if (usageReported && typeof trace.prompt_tokens === 'number' && Number.isFinite(trace.prompt_tokens)) {
+    normalized.prompt_tokens = trace.prompt_tokens;
+  }
+  if (usageReported && typeof trace.completion_tokens === 'number' && Number.isFinite(trace.completion_tokens)) {
+    normalized.completion_tokens = trace.completion_tokens;
+  }
+  if (usageReported && typeof trace.total_tokens === 'number' && Number.isFinite(trace.total_tokens)) {
+    normalized.total_tokens = trace.total_tokens;
+  }
   if (trace.token_reconciliation && typeof trace.token_reconciliation === 'object') {
     normalized.token_reconciliation = trace.token_reconciliation as TokenReconciliation;
   }

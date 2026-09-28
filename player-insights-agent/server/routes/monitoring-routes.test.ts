@@ -275,7 +275,9 @@ describe('the query reads questions rather than answers', () => {
   });
 
   it('selects total tokens from the same bounded final answer as time and tools', () => {
-    expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'total_tokens' AS total_tokens");
+    expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'total_tokens'");
+    expect(MONITORING_QUESTIONS_QUERY).toContain("trace'->'token_invocations') = 'array'");
+    expect(MONITORING_QUESTIONS_QUERY).toContain('END AS total_tokens');
     expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'totalMs' AS total_ms");
     expect(MONITORING_QUESTIONS_QUERY).toContain("a.response_json->'trace'->>'toolCalls' AS tool_calls");
     expect(MONITORING_QUESTIONS_QUERY).toContain("ORDER BY (m.response_json->'trace'->>'totalMs') IS NOT NULL DESC");

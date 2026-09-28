@@ -111,9 +111,24 @@ export const USER_SPEND_RUNS_QUERY = `
            m.response_json->'trace' AS trace,
            CASE
              WHEN COALESCE(m.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+              AND (
+                (m.response_json->'trace'->>'total_tokens')::bigint > 0
+                OR (
+                  jsonb_typeof(m.response_json->'trace'->'token_invocations') = 'array'
+                  AND jsonb_array_length(m.response_json->'trace'->'token_invocations') > 0
+                )
+              )
                THEN (m.response_json->'trace'->>'total_tokens')::bigint
              WHEN COALESCE(m.response_json->'trace'->>'prompt_tokens', '') ~ '^[0-9]+$'
               AND COALESCE(m.response_json->'trace'->>'completion_tokens', '') ~ '^[0-9]+$'
+              AND (
+                (m.response_json->'trace'->>'prompt_tokens')::bigint
+                  + (m.response_json->'trace'->>'completion_tokens')::bigint > 0
+                OR (
+                  jsonb_typeof(m.response_json->'trace'->'token_invocations') = 'array'
+                  AND jsonb_array_length(m.response_json->'trace'->'token_invocations') > 0
+                )
+              )
                THEN (m.response_json->'trace'->>'prompt_tokens')::bigint
                   + (m.response_json->'trace'->>'completion_tokens')::bigint
              ELSE NULL

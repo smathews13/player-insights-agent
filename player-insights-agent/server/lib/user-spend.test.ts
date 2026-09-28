@@ -313,6 +313,8 @@ describe('individual user spend attribution', () => {
     expect(USER_SPEND_RUNS_QUERY).toContain(
       'COUNT(DISTINCT turn_id) FILTER (WHERE total_tokens IS NOT NULL)::int AS token_covered_questions'
     );
+    expect(USER_SPEND_RUNS_QUERY).toContain("trace'->>'total_tokens')::bigint > 0");
+    expect(USER_SPEND_RUNS_QUERY).toContain("trace'->'token_invocations') = 'array'");
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('active_minute >=');
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('active_minute <');
     expect(USER_ACTIVE_MINUTES_QUERY).toContain('GROUP BY selected.user_email');

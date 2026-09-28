@@ -317,7 +317,18 @@ export const MONITORING_QUESTIONS_QUERY = `
          a.execution_mode, a.execution_identity_verified, a.access_mode,
          a.response_json->'trace'->>'totalMs' AS total_ms,
          a.response_json->'trace'->>'toolCalls' AS tool_calls,
-         a.response_json->'trace'->>'total_tokens' AS total_tokens,
+         CASE
+           WHEN COALESCE(a.response_json->'trace'->>'total_tokens', '') ~ '^[0-9]+$'
+            AND (
+              (a.response_json->'trace'->>'total_tokens')::bigint > 0
+              OR (
+                jsonb_typeof(a.response_json->'trace'->'token_invocations') = 'array'
+                AND jsonb_array_length(a.response_json->'trace'->'token_invocations') > 0
+              )
+            )
+           THEN a.response_json->'trace'->>'total_tokens'
+           ELSE NULL
+         END AS total_tokens,
          jsonb_path_exists(a.response_json->'trace', '$.stages[*] ? (@.status == "failed" ${VERDICT_STAGE_EXEMPTION_SQL})') AS trace_failed,
          jsonb_path_exists(
            a.response_json->'trace',
