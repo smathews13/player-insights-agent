@@ -215,3 +215,14 @@ env:
   #
   - name: PLAYER_INSIGHTS_USER_API_SCOPES
     value: 'serving.serving-endpoints,model-serving,sql,dashboards.genie,workspace.workspace:read,postgres'
+  # Boot-time check that a user-authorization model is not answering as the app
+  # service principal. Empty means enforce in production and skip in development
+  # and tests. Set "false" to disable the serving probe; set "true" to require it
+  # outside production too.
+  - name: ENFORCE_IDENTITY_READINESS
+    value: ''
+  # Whether the logged model requires signed-in-user execution. Empty or any
+  # truthy value means user-authorization. Only an explicit falsey value treats
+  # the model as service-principal-only and skips the OBO probe.
+  - name: PLAYER_INSIGHTS_USER_AUTHORIZATION
+    value: ''
