@@ -27,7 +27,13 @@ export interface ContractFailure {
   traceId: string | null;
   messageId: string | null;
   occurredAt: string;
-  kind: 'schema-violation' | 'undeclared-fields';
+  kind:
+    | 'schema-violation'
+    | 'undeclared-fields'
+    | 'missing-stored-trace'
+    | 'terminal-message-mismatch'
+    | 'unreadable-stored-document'
+    | 'token-evidence-missing';
   code: string;
   fields: string[];
   detail: string;
@@ -36,8 +42,10 @@ export interface ContractFailure {
 export interface ContractObservatoryPayload {
   generatedAt: string;
   backend: ContractSide;
+  observedBackend: ContractSide;
   frontend: ContractSide;
   differences: ContractDifference[];
+  observedDifferences: ContractDifference[];
   failures: ContractFailure[];
   failureReadState: 'ready' | 'unavailable';
   failureReadReason: string;

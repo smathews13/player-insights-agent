@@ -1098,27 +1098,19 @@ ol.answer-list {
   letter-spacing: var(--ast-tracking-eyebrow);
   text-transform: uppercase;
   color: var(--ast-text-secondary);
-  /* A column name is one or two words and belongs on one line above its
-     numbers. The wrapper scrolls if that makes the table wide. */
-  white-space: nowrap;
   text-align: left;
   vertical-align: bottom;
 }
-/*
- * A phone cannot afford to reserve a whole line for a long generated field
- * name. Keep body values whole where their data type requires it, but let the
- * column label wrap -- including identifiers with no spaces -- before the
- * table decides it needs a horizontal scrollbar.
- */
-@media (max-width: 800px) {
-  .answer-table thead th,
-  .answer-table thead th[data-wrap='atomic'],
-  .answer-table thead th[data-wrap='prose'] {
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
-  }
+/* Generated headers are not guaranteed to be short. Let words and long
+   identifiers wrap at every width, including headers over atomic columns.
+   Body cells still decide whether their data needs the horizontal scroller. */
+.answer-table thead th,
+.answer-table thead th[data-wrap='atomic'],
+.answer-table thead th[data-wrap='prose'] {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 .answer-table tbody td {
   padding: 9px 14px;

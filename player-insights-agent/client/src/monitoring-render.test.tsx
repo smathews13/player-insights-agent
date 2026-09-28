@@ -1773,7 +1773,7 @@ describe('the per-user panel', () => {
 
     expect(rendered).toContain('Total user spend Estimated 12.50 USD');
     expect(rendered).toContain('Cost / question Estimated 2.50 USD 5 submitted questions');
-    expect(rendered).toContain('Average tokens Estimated');
+    expect(rendered).toContain('Average tokens Estimated Unmeasured');
     expect(rendered).toContain('Average daily spend Estimated 3.125 USD');
     expect(rendered).toContain('Share of app spend Estimated 25%');
     expect(rendered).not.toContain('of comparable app spend');

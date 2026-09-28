@@ -21,6 +21,18 @@ function sectionById(sections: readonly ContractSection[], id: string): Contract
   return sections.find((section) => section.id === id);
 }
 
+function failureLabel(kind: ContractObservatoryPayload['failures'][number]['kind']): string {
+  const labels = {
+    'schema-violation': 'Rejected payload',
+    'undeclared-fields': 'Undeclared fields',
+    'missing-stored-trace': 'Missing stored trace',
+    'terminal-message-mismatch': 'Missing terminal message',
+    'unreadable-stored-document': 'Unreadable stored document',
+    'token-evidence-missing': 'Token evidence unmeasured',
+  } as const;
+  return labels[kind];
+}
+
 function FieldCell({ field, present, side }: { field: string; present: boolean; side: 'backend' | 'frontend' }) {
   const missingLabel = side === 'backend' ? 'Not declared by backend reference' : 'Not accepted by frontend';
   return (
@@ -130,6 +142,18 @@ export function ContractPage() {
         : [],
     [payload]
   );
+  const observedSectionIds = useMemo(
+    () =>
+      payload && payload.observedBackend.sections.length > 0
+        ? [
+            ...new Set([
+              ...payload.observedBackend.sections.map((section) => section.id),
+              ...payload.frontend.sections.map((section) => section.id),
+            ]),
+          ]
+        : [],
+    [payload]
+  );
   const backendOnly = payload?.differences.filter((difference) => difference.kind === 'backend-only').length ?? 0;
   const frontendOnly = payload?.differences.filter((difference) => difference.kind === 'frontend-only').length ?? 0;
 
@@ -180,12 +204,21 @@ export function ContractPage() {
               <strong className="ast-num">{payload.failures.length}</strong>
               <small>Latest 200 runs inspected</small>
             </article>
+            <article>
+              <span>Observed envelope types</span>
+              <strong className="ast-num">{payload.observedBackend.sections.length}</strong>
+              <small>Safe field names from stored live responses</small>
+            </article>
           </div>
 
           <div className="contract-side-notes">
             <p>
               <strong>{payload.backend.label}</strong> <code>{payload.backend.revision}</code>
               <span>{payload.backend.note}</span>
+            </p>
+            <p>
+              <strong>{payload.observedBackend.label}</strong> <code>{payload.observedBackend.revision}</code>
+              <span>{payload.observedBackend.note}</span>
             </p>
             <p>
               <strong>{payload.frontend.label}</strong> <code>{payload.frontend.revision}</code>
@@ -214,6 +247,26 @@ export function ContractPage() {
             ))}
           </section>
 
+          {observedSectionIds.length > 0 ? (
+            <section className="contract-comparison" aria-labelledby="contract-observed-title">
+              <div className="contract-section-heading">
+                <FileDiff aria-hidden="true" />
+                <div>
+                  <h3 id="contract-observed-title">Observed readback comparison</h3>
+                  <p>Live stored field names compared with the reader contract; response values remain private.</p>
+                </div>
+              </div>
+              {observedSectionIds.map((sectionId) => (
+                <ContractSectionDiff
+                  key={sectionId}
+                  backend={sectionById(payload.observedBackend.sections, sectionId)}
+                  frontend={sectionById(payload.frontend.sections, sectionId)}
+                  differences={differencesFor(payload.observedDifferences, sectionId)}
+                />
+              ))}
+            </section>
+          ) : null}
+
           <section className="contract-failures" aria-labelledby="contract-failures-title">
             <div className="contract-section-heading">
               <AlertTriangle aria-hidden="true" />
@@ -237,16 +290,16 @@ export function ContractPage() {
                 {payload.failures.map((failure) => (
                   <article key={`${failure.runId}:${failure.kind}`} className="contract-failure-card">
                     <div>
-                      <span className="ast-pill ast-pill--danger">
-                        {failure.kind === 'schema-violation' ? 'Rejected payload' : 'Undeclared fields'}
-                      </span>
+                      <span className="ast-pill ast-pill--danger">{failureLabel(failure.kind)}</span>
                       <time dateTime={failure.occurredAt}>
                         {failure.occurredAt ? new Date(failure.occurredAt).toLocaleString() : 'Time unavailable'}
                       </time>
                     </div>
                     <p>{failure.detail}</p>
                     <code>{failure.fields.join(', ')}</code>
-                    <Link to={`/runs?run=${encodeURIComponent(failure.runId)}`}>Open in Run Explorer</Link>
+                    {failure.runId ? (
+                      <Link to={`/runs?run=${encodeURIComponent(failure.runId)}`}>Open in Run Explorer</Link>
+                    ) : null}
                   </article>
                 ))}
               </div>
