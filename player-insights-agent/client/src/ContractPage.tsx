@@ -8,6 +8,7 @@ import type {
   ContractSection,
 } from '../../shared/contract-observatory';
 import { loadContractObservatory } from './contract-api';
+import { contractFailureKey } from './contract-view';
 import { ExperimentalBadge } from './ExperimentalBadge';
 import { PageHeading } from './page-chrome';
 import { Alert, AlertDescription, Button } from './ui';
@@ -33,8 +34,17 @@ function failureLabel(kind: ContractObservatoryPayload['failures'][number]['kind
   return labels[kind];
 }
 
-function FieldCell({ field, present, side }: { field: string; present: boolean; side: 'backend' | 'frontend' }) {
-  const missingLabel = side === 'backend' ? 'Not declared by backend reference' : 'Not accepted by frontend';
+function FieldCell({
+  field,
+  present,
+  side,
+  missingLabel,
+}: {
+  field: string;
+  present: boolean;
+  side: 'backend' | 'frontend';
+  missingLabel: string;
+}) {
   return (
     <div
       className={`contract-field-cell ${
@@ -62,10 +72,18 @@ export function ContractSectionDiff({
   backend,
   frontend,
   differences,
+  backendLabel = 'Backend',
+  frontendLabel = 'Frontend',
+  backendMissingLabel = 'Not declared by backend reference',
+  frontendMissingLabel = 'Not accepted by frontend',
 }: {
   backend?: ContractSection;
   frontend?: ContractSection;
   differences: readonly ContractDifference[];
+  backendLabel?: string;
+  frontendLabel?: string;
+  backendMissingLabel?: string;
+  frontendMissingLabel?: string;
 }) {
   const label = backend?.label ?? frontend?.label ?? 'Contract section';
   const fields = [...new Set([...(backend?.fields ?? []), ...(frontend?.fields ?? [])])].sort();
@@ -81,25 +99,35 @@ export function ContractSectionDiff({
       </summary>
       <div className="contract-version-row">
         <span>
-          Backend version <code>{backend?.schemaVersion ?? 'unversioned'}</code>
+          {backendLabel} version <code>{backend?.schemaVersion ?? 'unversioned'}</code>
         </span>
         <span>
-          Frontend version <code>{frontend?.schemaVersion ?? 'unversioned'}</code>
+          {frontendLabel} version <code>{frontend?.schemaVersion ?? 'unversioned'}</code>
         </span>
       </div>
       <div className="contract-diff-grid" role="table" aria-label={`${label} contract comparison`}>
         <div className="contract-diff-header" role="row">
           <div className="contract-diff-heading" role="columnheader">
-            Backend
+            {backendLabel}
           </div>
           <div className="contract-diff-heading" role="columnheader">
-            Frontend
+            {frontendLabel}
           </div>
         </div>
         {fields.map((field) => (
           <div className="contract-diff-row" role="row" key={field}>
-            <FieldCell field={field} present={backendFields.has(field)} side="backend" />
-            <FieldCell field={field} present={frontendFields.has(field)} side="frontend" />
+            <FieldCell
+              field={field}
+              present={backendFields.has(field)}
+              side="backend"
+              missingLabel={backendMissingLabel}
+            />
+            <FieldCell
+              field={field}
+              present={frontendFields.has(field)}
+              side="frontend"
+              missingLabel={frontendMissingLabel}
+            />
           </div>
         ))}
       </div>
@@ -262,6 +290,8 @@ export function ContractPage() {
                   backend={sectionById(payload.observedBackend.sections, sectionId)}
                   frontend={sectionById(payload.frontend.sections, sectionId)}
                   differences={differencesFor(payload.observedDifferences, sectionId)}
+                  backendLabel="Observed stored"
+                  backendMissingLabel="Not observed in stored envelopes"
                 />
               ))}
             </section>
@@ -287,8 +317,8 @@ export function ContractPage() {
               </div>
             ) : (
               <div className="contract-failure-list">
-                {payload.failures.map((failure) => (
-                  <article key={`${failure.runId}:${failure.kind}`} className="contract-failure-card">
+                {payload.failures.map((failure, index) => (
+                  <article key={contractFailureKey(failure, index)} className="contract-failure-card">
                     <div>
                       <span className="ast-pill ast-pill--danger">{failureLabel(failure.kind)}</span>
                       <time dateTime={failure.occurredAt}>

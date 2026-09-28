@@ -13,6 +13,11 @@ export interface DocumentRunRepairResult {
   remaining: number;
 }
 
+export const DOCUMENT_TRACE_MISSING_SQL = `(
+  jsonb_typeof(m.response_json->'trace') IS DISTINCT FROM 'object'
+  OR m.response_json->'trace' = '{}'::jsonb
+)`;
+
 export const DOCUMENT_RUN_REPAIR_CANDIDATES = `
   SELECT m.id AS message_id, r.run_id, r.trace_id, r.created_at, r.completed_at,
          COALESCE(
@@ -25,7 +30,7 @@ export const DOCUMENT_RUN_REPAIR_CANDIDATES = `
     ON e.run_id = r.run_id AND e.event_type = 'stage'
   WHERE m.role = 'assistant'
     AND m.response_json->>'type' IN ('dashboard', 'report')
-    AND jsonb_typeof(m.response_json->'trace') IS DISTINCT FROM 'object'
+    AND ${DOCUMENT_TRACE_MISSING_SQL}
   GROUP BY m.id, r.run_id, r.trace_id, r.created_at, r.completed_at
   ORDER BY MIN(m.created_at)
   LIMIT 200`;
@@ -35,7 +40,7 @@ export const DOCUMENT_RUN_REPAIR_REMAINING = `
   FROM ${APP_SCHEMA}.messages m
   WHERE m.role = 'assistant'
     AND m.response_json->>'type' IN ('dashboard', 'report')
-    AND jsonb_typeof(m.response_json->'trace') IS DISTINCT FROM 'object'`;
+    AND ${DOCUMENT_TRACE_MISSING_SQL}`;
 
 const DOCUMENT_RUN_REPAIR_UPDATE = `
   UPDATE ${APP_SCHEMA}.messages
@@ -43,7 +48,10 @@ const DOCUMENT_RUN_REPAIR_UPDATE = `
   WHERE id = $1
     AND role = 'assistant'
     AND response_json->>'type' IN ('dashboard', 'report')
-    AND jsonb_typeof(response_json->'trace') IS DISTINCT FROM 'object'
+    AND (
+      jsonb_typeof(response_json->'trace') IS DISTINCT FROM 'object'
+      OR response_json->'trace' = '{}'::jsonb
+    )
   RETURNING id`;
 
 function text(value: unknown): string {

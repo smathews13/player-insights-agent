@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   DOCUMENT_RUN_REPAIR_CANDIDATES,
   DOCUMENT_RUN_REPAIR_REMAINING,
+  DOCUMENT_TRACE_MISSING_SQL,
   repairHistoricalDocumentRuns,
 } from './document-run-repair';
 
@@ -21,6 +22,12 @@ function stage(id: string, status = 'complete') {
 }
 
 describe('historical document run repair', () => {
+  it('treats an empty trace object as missing evidence', () => {
+    expect(DOCUMENT_TRACE_MISSING_SQL).toContain("m.response_json->'trace' = '{}'::jsonb");
+    expect(DOCUMENT_RUN_REPAIR_CANDIDATES).toContain(DOCUMENT_TRACE_MISSING_SQL);
+    expect(DOCUMENT_RUN_REPAIR_REMAINING).toContain(DOCUMENT_TRACE_MISSING_SQL);
+  });
+
   it('reconstructs only the sidecar trace from linked run and stage evidence', async () => {
     let written: Record<string, unknown> | null = null;
     const query = vi.fn((sql: string, params: unknown[] = []) => {
@@ -39,6 +46,7 @@ describe('historical document run repair', () => {
         });
       }
       if (sql === DOCUMENT_RUN_REPAIR_REMAINING) return Promise.resolve({ rows: [{ count: 0 }] });
+      expect(sql).toContain("response_json->'trace' = '{}'::jsonb");
       written = JSON.parse(String(params[1])) as Record<string, unknown>;
       return Promise.resolve({ rows: [{ id: params[0] }] });
     });
