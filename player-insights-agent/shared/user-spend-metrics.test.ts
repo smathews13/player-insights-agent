@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveCoreUserSpendMetrics } from './user-spend-metrics';
+import { deriveCoreUserSpendMetrics, deriveUserTokenAverages } from './user-spend-metrics';
 
 describe('core user spend metrics', () => {
   it('computes the production screenshot ratios without a comparability gate', () => {
@@ -25,5 +25,28 @@ describe('core user spend metrics', () => {
     expect(metrics.costPerQuestion.state).toBe('unavailable');
     expect(metrics.averageDaily.state).toBe('unavailable');
     expect(JSON.stringify(metrics)).not.toMatch(/covered days?|days? covered|covered billing days?/i);
+  });
+
+  it('treats an uncovered zero token sum as unmeasured rather than measured zero', () => {
+    expect(
+      deriveUserTokenAverages({
+        totalTokens: 0,
+        coveredRuns: 0,
+        coveredQuestions: 0,
+      })
+    ).toEqual({
+      totalTokens: null,
+      coveredRuns: 0,
+      coveredQuestions: 0,
+      perRun: null,
+      perQuestion: null,
+    });
+    expect(
+      deriveUserTokenAverages({
+        totalTokens: 0,
+        coveredRuns: 1,
+        coveredQuestions: 1,
+      }).totalTokens
+    ).toBe(0);
   });
 });

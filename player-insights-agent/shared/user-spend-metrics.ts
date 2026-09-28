@@ -14,10 +14,6 @@ export function deriveUserTokenAverages(input: {
   coveredRuns: number | null;
   coveredQuestions: number | null;
 }): UserTokenAverages {
-  const totalTokens =
-    input.totalTokens !== null && Number.isFinite(input.totalTokens)
-      ? Math.max(0, Math.trunc(input.totalTokens))
-      : null;
   const coveredRuns =
     input.coveredRuns !== null && Number.isFinite(input.coveredRuns)
       ? Math.max(0, Math.trunc(input.coveredRuns))
@@ -25,6 +21,10 @@ export function deriveUserTokenAverages(input: {
   const coveredQuestions =
     input.coveredQuestions !== null && Number.isFinite(input.coveredQuestions)
       ? Math.max(0, Math.trunc(input.coveredQuestions))
+      : null;
+  const totalTokens =
+    coveredRuns !== null && coveredRuns > 0 && input.totalTokens !== null && Number.isFinite(input.totalTokens)
+      ? Math.max(0, Math.trunc(input.totalTokens))
       : null;
   return {
     totalTokens,

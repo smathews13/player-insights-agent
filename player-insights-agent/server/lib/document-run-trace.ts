@@ -25,10 +25,20 @@ export function documentRunTrace(
     return isMlflowTraceId(parsed.data.id) || !platformId ? parsed.data : { ...parsed.data, id: platformId };
   }
 
+  return recordedDocumentRunTrace(collectedStages, platformTraceId);
+}
+
+/** Build a valid trace only from durable run evidence, without inventing token measurements. */
+export function recordedDocumentRunTrace(
+  collectedStages: readonly Record<string, unknown>[],
+  platformTraceId: string | null | undefined,
+  ledgerDurationMs = 0
+): Record<string, unknown> {
   const folded = foldRecordedStages(collectedStages);
+  const stageDuration = documentWallClockMs(folded.stages, collectedStages);
   return {
     id: isMlflowTraceId(platformTraceId) ? platformTraceId : '',
-    totalMs: documentWallClockMs(folded.stages, collectedStages),
+    totalMs: stageDuration > 0 ? stageDuration : Math.max(0, ledgerDurationMs),
     toolCalls: folded.toolCalls,
     stages: folded.stages,
   };

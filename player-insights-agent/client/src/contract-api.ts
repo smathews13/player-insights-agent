@@ -5,8 +5,10 @@ function isContractPayload(value: unknown): value is ContractObservatoryPayload 
   const record = value as Record<string, unknown>;
   return (
     Boolean(record.backend && typeof record.backend === 'object') &&
+    Boolean(record.observedBackend && typeof record.observedBackend === 'object') &&
     Boolean(record.frontend && typeof record.frontend === 'object') &&
     Array.isArray(record.differences) &&
+    Array.isArray(record.observedDifferences) &&
     Array.isArray(record.failures)
   );
 }

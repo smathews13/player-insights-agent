@@ -22,6 +22,8 @@ describe('contract observatory', () => {
       field: 'schema_version',
       kind: 'frontend-only',
     });
+    expect(payload.observedBackend.sections).toEqual([]);
+    expect(payload.observedDifferences).toEqual([]);
   });
 
   it('lists schema refusals and undeclared fields without exposing answer contents', () => {
@@ -59,6 +61,62 @@ describe('contract observatory', () => {
       fields: ['future_answer_field', 'trace.stages[0].future_stage_field'],
     });
     expect(JSON.stringify(payload.failures)).not.toContain('not returned by this API');
+    expect(payload.observedBackend.sections.find((section) => section.id === 'answer')?.fields).toContain(
+      'future_answer_field'
+    );
+  });
+
+  it('distinguishes persistence and readback failures without returning document content', () => {
+    const payload = buildContractComparison([
+      {
+        run_id: 'run-missing-message',
+        conversation_id: 'conv-1',
+        terminal_message_id: 'msg-gone',
+        message_id: null,
+        created_at: '2026-09-24T18:00:00.000Z',
+      },
+      {
+        run_id: 'run-missing-trace',
+        conversation_id: 'conv-2',
+        terminal_message_id: 'msg-dashboard',
+        message_id: 'msg-dashboard',
+        response_json: {
+          type: 'dashboard',
+          dashboard: { schema_version: 'pia.dashboard/1', title: 'Private title', html: '<html>private</html>' },
+        },
+      },
+      {
+        run_id: 'run-invalid-report',
+        conversation_id: 'conv-3',
+        terminal_message_id: 'msg-report',
+        message_id: 'msg-report',
+        response_json: {
+          type: 'report',
+          report: { schema_version: 'pia.report/1', title: '', sections: [] },
+          trace: { id: 'tr-1', stages: [] },
+        },
+      },
+      {
+        run_id: 'run-unmeasured',
+        conversation_id: 'conv-4',
+        terminal_message_id: 'msg-unmeasured',
+        message_id: 'msg-unmeasured',
+        response_json: {
+          type: 'report',
+          report: { schema_version: 'pia.report/1', title: 'Private report', sections: [{ body: 'private' }] },
+          trace: { id: 'tr-2', totalMs: 10, toolCalls: 1, stages: [{ id: 'orchestrator', status: 'complete' }] },
+        },
+      },
+    ]);
+    expect(payload.failures.map((failure) => failure.kind)).toEqual([
+      'terminal-message-mismatch',
+      'missing-stored-trace',
+      'unreadable-stored-document',
+      'token-evidence-missing',
+    ]);
+    expect(JSON.stringify(payload)).not.toContain('Private title');
+    expect(JSON.stringify(payload)).not.toContain('<html>private</html>');
+    expect(JSON.stringify(payload)).not.toContain('Private report');
   });
 
   it('registers only when the guard covers the route and returns a readable payload', async () => {

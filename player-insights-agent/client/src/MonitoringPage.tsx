@@ -1372,10 +1372,10 @@ function AverageTokensMetric({ metrics }: { metrics: ReturnType<typeof deriveUse
         aria-label={
           perRun !== null
             ? `Average tokens per run: ${Math.round(perRun).toLocaleString()}`
-            : 'Average tokens: token evidence unavailable'
+            : 'Average tokens: unmeasured'
         }
       >
-        {perRun === null ? 'Token evidence unavailable' : `${compactTokens(perRun)} / run`}
+        {perRun === null ? 'Unmeasured' : `${compactTokens(perRun)} / run`}
       </strong>
       {perQuestion !== null ? (
         <span

@@ -2,6 +2,8 @@ import type { Application } from 'express';
 
 import backendTemplate from './__fixtures__/backend-app-handoff/template.json';
 import { APP_SCHEMA } from '../../shared/app-schema';
+import { normalizeDashboard } from '../../shared/dashboard-contract';
+import { normalizeReport } from '../../shared/report-contract';
 import {
   compareContractSections,
   type ContractFailure,
@@ -14,16 +16,35 @@ import { frontendContractSections, type InsightsAppKit } from './insights-routes
 export const CONTRACT_ROUTES = ['/api/admin/contract'] as const;
 
 const RECENT_CONTRACT_RUNS_QUERY = `
-  SELECT r.run_id, r.conversation_id, r.trace_id, r.terminal_code, r.created_at, r.completed_at,
-         m.id AS message_id, m.response_json
-  FROM (
+  WITH recent_runs AS (
     SELECT run_id, conversation_id, trace_id, terminal_code, terminal_message_id, created_at, completed_at
     FROM ${APP_SCHEMA}.runs
     ORDER BY created_at DESC
     LIMIT 200
-  ) r
-  LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
-  ORDER BY r.created_at DESC`;
+  ),
+  run_rows AS (
+    SELECT r.run_id, r.conversation_id, r.trace_id, r.terminal_code, r.created_at, r.completed_at,
+           r.terminal_message_id, m.id AS message_id, m.response_json
+    FROM recent_runs r
+    LEFT JOIN ${APP_SCHEMA}.messages m ON m.id = r.terminal_message_id
+  ),
+  orphan_documents AS (
+    SELECT NULL::text AS run_id, m.conversation_id, NULL::text AS trace_id, NULL::text AS terminal_code,
+           m.created_at, NULL::timestamptz AS completed_at, NULL::text AS terminal_message_id,
+           m.id AS message_id, m.response_json
+    FROM ${APP_SCHEMA}.messages m
+    WHERE m.role = 'assistant'
+      AND m.response_json->>'type' IN ('dashboard', 'report')
+      AND NOT EXISTS (
+        SELECT 1 FROM ${APP_SCHEMA}.runs r WHERE r.terminal_message_id = m.id
+      )
+    ORDER BY m.created_at DESC
+    LIMIT 200
+  )
+  SELECT * FROM run_rows
+  UNION ALL
+  SELECT * FROM orphan_documents
+  ORDER BY created_at DESC`;
 
 type TemplateRecord = Record<string, unknown>;
 
@@ -132,6 +153,47 @@ function storedAnswerDrift(payload: TemplateRecord, frontend: readonly ContractS
   return [...new Set(found)].sort();
 }
 
+function observedContractSections(rows: readonly TemplateRecord[]): ContractSection[] {
+  const observed = new Map<string, { label: string; version: string | null; fields: Set<string> }>();
+  for (const row of rows) {
+    const payload = storedPayload(row.response_json);
+    if (!payload) continue;
+    const type = text(payload.type);
+    const answer = 'takeaway' in payload && 'trace' in payload;
+    const id = answer ? 'answer' : type === 'dashboard' || type === 'report' ? `${type}-envelope` : '';
+    if (!id) continue;
+    const label = answer ? 'Observed answer' : `Observed ${type} envelope`;
+    const document = type ? record(payload[type]) : {};
+    const version =
+      text(payload.schema_version) || text(document.schema_version) || text(document.schemaVersion) || null;
+    const current = observed.get(id) ?? { label, version, fields: new Set<string>() };
+    Object.keys(payload).forEach((field) => current.fields.add(field));
+    if (!current.version && version) current.version = version;
+    observed.set(id, current);
+  }
+  return [...observed.entries()]
+    .map(([id, section]) => ({
+      id,
+      label: section.label,
+      schemaVersion: section.version,
+      fields: [...section.fields].sort(),
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function hasTokenEvidence(trace: TemplateRecord): boolean {
+  const total = trace.total_tokens;
+  const prompt = trace.prompt_tokens;
+  const completion = trace.completion_tokens;
+  return (
+    (typeof total === 'number' && Number.isFinite(total)) ||
+    (typeof prompt === 'number' &&
+      Number.isFinite(prompt) &&
+      typeof completion === 'number' &&
+      Number.isFinite(completion))
+  );
+}
+
 function contractFailures(rows: readonly TemplateRecord[], frontend: readonly ContractSection[]): ContractFailure[] {
   const failures: ContractFailure[] = [];
   for (const row of rows) {
@@ -143,6 +205,17 @@ function contractFailures(rows: readonly TemplateRecord[], frontend: readonly Co
       messageId: text(row.message_id) || null,
       occurredAt: timestamp(row.completed_at) || timestamp(row.created_at),
     };
+    const terminalMessageId = text(row.terminal_message_id);
+    if (terminalMessageId && !base.messageId) {
+      failures.push({
+        ...base,
+        kind: 'terminal-message-mismatch',
+        code: 'STORED_TERMINAL_MESSAGE_MISSING',
+        fields: ['runs.terminal_message_id'],
+        detail: 'The run names a terminal message that is not readable from the message store.',
+      });
+      continue;
+    }
     if (terminalCode === 'OUTPUT_SCHEMA_VIOLATION') {
       failures.push({
         ...base,
@@ -154,7 +227,55 @@ function contractFailures(rows: readonly TemplateRecord[], frontend: readonly Co
       continue;
     }
     const payload = storedPayload(row.response_json);
-    if (!payload) continue;
+    if (!payload) {
+      if (terminalMessageId) {
+        failures.push({
+          ...base,
+          kind: 'unreadable-stored-document',
+          code: 'STORED_ENVELOPE_UNREADABLE',
+          fields: ['messages.response_json'],
+          detail: 'The terminal message exists, but its stored response envelope is unreadable.',
+        });
+      }
+      continue;
+    }
+    const type = text(payload.type);
+    if (type === 'dashboard' || type === 'report') {
+      const document = payload[type] ?? payload;
+      const readable =
+        type === 'dashboard' ? normalizeDashboard(document) !== null : normalizeReport(document) !== null;
+      if (!readable) {
+        failures.push({
+          ...base,
+          kind: 'unreadable-stored-document',
+          code: 'STORED_DOCUMENT_INVALID',
+          fields: [type],
+          detail: `The stored ${type} envelope no longer satisfies this app's reader contract.`,
+        });
+        continue;
+      }
+      const trace = record(payload.trace);
+      if (Object.keys(trace).length === 0) {
+        failures.push({
+          ...base,
+          kind: 'missing-stored-trace',
+          code: 'STORED_DOCUMENT_TRACE_MISSING',
+          fields: ['trace'],
+          detail: `The stored ${type} is valid, but its run trace is missing from the sidecar envelope.`,
+        });
+        continue;
+      }
+      if (!hasTokenEvidence(trace)) {
+        failures.push({
+          ...base,
+          kind: 'token-evidence-missing',
+          code: 'DOCUMENT_TOKEN_EVIDENCE_MISSING',
+          fields: ['trace.total_tokens'],
+          detail: `The stored ${type} is readable, but token usage is unmeasured and must not be reported as zero.`,
+        });
+      }
+      continue;
+    }
     const fields = storedAnswerDrift(payload, frontend);
     if (fields.length === 0) continue;
     failures.push({
@@ -174,6 +295,13 @@ export function buildContractComparison(
 ): ContractObservatoryPayload {
   const backendSections = backendContractSections();
   const frontendSections = frontendContractSections();
+  const observedSections = observedContractSections(rows);
+  const observedTimestamps = rows
+    .filter((row) => storedPayload(row.response_json) !== null)
+    .map((row) => timestamp(row.completed_at) || timestamp(row.created_at))
+    .filter(Boolean)
+    .sort();
+  const observedAt = observedTimestamps[observedTimestamps.length - 1] ?? 'No stored response observed';
   const backend: ContractSide = {
     label: 'Backend handoff reference',
     revision: backendRevision(),
@@ -186,11 +314,19 @@ export function buildContractComparison(
     note: 'Generated from the schemas and normalizers in the running app build.',
     sections: frontendSections,
   };
+  const observedBackend: ContractSide = {
+    label: 'Recently observed stored envelopes',
+    revision: observedAt,
+    note: 'Field names observed after app validation and persistence; no answer values are exposed.',
+    sections: observedSections,
+  };
   return {
     generatedAt,
     backend,
+    observedBackend,
     frontend,
     differences: compareContractSections(backendSections, frontendSections),
+    observedDifferences: observedSections.length > 0 ? compareContractSections(observedSections, frontendSections) : [],
     failures: contractFailures(rows, frontendSections),
     failureReadState: 'ready',
     failureReadReason: '',

@@ -104,6 +104,7 @@ import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
 import { documentRunTrace } from '../lib/document-run-trace';
+import { repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
@@ -766,6 +767,12 @@ export function frontendContractSections(): ContractSection[] {
       ],
     },
     {
+      id: 'report-envelope',
+      label: 'Stored report envelope',
+      schemaVersion: null,
+      fields: ['id', 'mode', 'report', 'runtime_settings', 'trace', 'trace_session_basis', 'trace_session_id', 'type'],
+    },
+    {
       id: 'dashboard',
       label: 'Dashboard',
       schemaVersion: 'pia.dashboard/1',
@@ -778,6 +785,21 @@ export function frontendContractSections(): ContractSection[] {
         'schema_version',
         'title',
         'truncated',
+      ],
+    },
+    {
+      id: 'dashboard-envelope',
+      label: 'Stored dashboard envelope',
+      schemaVersion: null,
+      fields: [
+        'dashboard',
+        'id',
+        'mode',
+        'runtime_settings',
+        'trace',
+        'trace_session_basis',
+        'trace_session_id',
+        'type',
       ],
     },
   ];
@@ -3747,6 +3769,20 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
     console.warn(
       `[lakebase] The conversation-title repair did not run: ${(error as Error).message}. Titles cut to ` +
         '80 characters by an older version stay cut; nothing else is affected.'
+    );
+  }
+  try {
+    const repaired = await repairHistoricalDocumentRuns(appkit.lakebase);
+    if (repaired.candidates > 0 || repaired.remaining > 0) {
+      console.log(
+        `[contract-readback] Historical document traces: repaired ${repaired.repaired}, ` +
+          `unrepairable ${repaired.unrepairable}, remaining ${repaired.remaining}.`
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[contract-readback] Historical report/dashboard repair did not run: ${(error as Error).message}. ` +
+        'New document turns are unaffected.'
     );
   }
 }

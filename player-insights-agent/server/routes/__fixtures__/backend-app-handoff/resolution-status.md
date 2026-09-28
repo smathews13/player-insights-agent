@@ -29,6 +29,15 @@ note is controlling: the `agent/` folder here is not the backend served by
 | 17  | Fixed: a declared future response type cannot fall through to its text duplicate; unknown contracts fail visibly during rolling deploys.    | App support must ship before backend emission.                                                                                  |
 | 18  | Fixed: unknown answer and plan fields are preserved and emit `PIA_CONTRACT_DRIFT` with field paths but no payload values.                   | Backend owns contract changes and updates `template.json` with them.                                                            |
 
+## Post-persistence readback
+
+The original 18 points end while the app is reading the endpoint response. A
+later boundary can fail after a valid response has already been stored:
+
+| #   | App status                                                                                                                                                                                                                                                                       | Backend status / boundary                                                                                                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 19  | Fixed: report and dashboard envelopes store a sidecar run trace; historical rows self-repair only from their matching run ledger and stage events; Contract diagnostics report missing traces, terminal-message mismatches, unreadable documents, and unmeasured token evidence. | Reports and dashboards remain reader-facing and trace-free inside the document. Current backends may send `custom_outputs.trace` beside the document; older responses use the app's recorded-stage fallback. |
+
 The offline tests consume the real sanitized request and stream examples. Rich
 charts, Markdown tables, reports, and dashboards remain covered by their own
 fixtures because this recorded answer intentionally contains empty `charts` and
