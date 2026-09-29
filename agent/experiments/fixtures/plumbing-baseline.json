@@ -1,0 +1,8 @@
+{
+  "aggregates": [
+    {"scorerId": "sql_validity", "state": "scored", "value": 1.0},
+    {"scorerId": "provenance_completeness", "state": "scored", "value": 0.9},
+    {"scorerId": "tool_selection", "state": "scored", "value": 0.8},
+    {"scorerId": "error_rate", "state": "scored", "value": 0.05}
+  ]
+}

@@ -676,10 +676,10 @@ fi
 
 # The model's scopes, checked before this version is put in front of anybody.
 #
-# WHY HERE AND NOT "BEFORE REGISTRATION". There is no such point in this repository:
-# log_model.py calls mlflow.pyfunc.log_model(registered_model_name=...), so logging
-# and registering are one call. The earliest place a check can still stop something
-# is here -- after the version exists, before deploy_agent.py puts it on the
+# WHY HERE AND NOT "BEFORE REGISTRATION". log_model.py logs the artifact, then
+# registers a version onto the existing Unity Catalog model. The earliest place
+# a check can still stop something is here -- after the version exists, before
+# deploy_agent.py puts it on the
 # endpoint. A registered version that never serves answers no questions and costs
 # nothing; a served one with the wrong scope set answers every question wrongly and
 # looks healthy doing it.
@@ -791,17 +791,19 @@ for candidate in \
 do
   [[ -f "$candidate" ]] && COMPARE_RUNS="$candidate" && break
 done
+EVAL_BASELINE="${PLAYER_INSIGHTS_EVAL_BASELINE:-$BUNDLE_ROOT/agent/experiments/fixtures/plumbing-baseline.json}"
+EVAL_CANDIDATE="${PLAYER_INSIGHTS_EVAL_CANDIDATE:-$BUNDLE_ROOT/agent/experiments/fixtures/plumbing-candidate.json}"
 if [[ "${PLAYER_INSIGHTS_SKIP_EVAL_GATE:-}" == "true" ]]; then
   step "Held-out experiment gate: NOT CHECKED (PLAYER_INSIGHTS_SKIP_EVAL_GATE=true)"
 elif [[ -z "$COMPARE_RUNS" ]]; then
   die "agent/experiments/compare_runs.py is missing, so a worse model could promote.
 Restore it: git restore agent/experiments/compare_runs.py"
-elif [[ -n "${PLAYER_INSIGHTS_EVAL_BASELINE:-}" && -n "${PLAYER_INSIGHTS_EVAL_CANDIDATE:-}" ]]; then
+elif [[ -f "$EVAL_BASELINE" && -f "$EVAL_CANDIDATE" ]]; then
   step "Held-out experiment gate (baseline vs candidate scorecards)"
   EVAL_STATUS=0
   python3 "$COMPARE_RUNS" \
-    --baseline "$PLAYER_INSIGHTS_EVAL_BASELINE" \
-    --candidate "$PLAYER_INSIGHTS_EVAL_CANDIDATE" || EVAL_STATUS=$?
+    --baseline "$EVAL_BASELINE" \
+    --candidate "$EVAL_CANDIDATE" || EVAL_STATUS=$?
   case "$EVAL_STATUS" in
     0) : ;;
     1)
@@ -817,9 +819,9 @@ explained with a new baseline."
       ;;
   esac
 else
-  step "Held-out experiment gate: NOT CHECKED (no baseline and candidate scorecards)"
-  note "Set PLAYER_INSIGHTS_EVAL_BASELINE and PLAYER_INSIGHTS_EVAL_CANDIDATE to two
-  scorecard JSON files from eval/run_eval.py to block promotion on a regression."
+  die "Experiment gate has no scorecards to compare.
+Set PLAYER_INSIGHTS_EVAL_BASELINE and PLAYER_INSIGHTS_EVAL_CANDIDATE, or restore
+agent/experiments/fixtures/plumbing-*.json."
 fi
 
 # Three served entities is the platform ceiling. Adding a fourth fails the

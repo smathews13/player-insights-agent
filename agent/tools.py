@@ -17,7 +17,7 @@ import copy
 import json
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,6 +36,7 @@ from evidence import EvidenceGateway, EvidenceRefused, Verdict
 # SAME objects rather than on a second policy that resembles them. Re-exported
 # here because this module has been the guard's address since it was written, and
 # a move that renamed every caller's import would be a move nobody could review.
+from generated_answer_contract import ANSWER_CONTRACT_FIELDS as ANSWER_WIRE_FIELDS
 from sql_policy import (  # noqa: F401 - re-exported for callers and tests
     BLOCKED_COLUMNS,
     SQL_DIALECT,
@@ -2699,3 +2700,9 @@ LIST_DATA_ASSETS_TOOL = {
         },
     },
 }
+
+
+def unknown_answer_fields(payload: Mapping[str, Any]) -> list[str]:
+    """Names on an answer dict that are not AnswerContract wire fields."""
+
+    return sorted(key for key in payload if key not in ANSWER_WIRE_FIELDS)

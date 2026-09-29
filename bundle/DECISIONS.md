@@ -438,6 +438,17 @@ prior snapshot running.
 The deploy command also states `--mode SNAPSHOT` rather than relying on a
 platform default.
 
+### D18. Warehouse warmup is on arrival, not a keepalive job
+
+**Decided 2026-09-29.** The app starts the warehouse when someone opens it, and
+Ask waits until it is runnable. A periodic job would hold the warehouse up
+overnight against a five-minute auto-stop, which is the cost the arrival path
+exists to avoid.
+
+Warmup status is on `/api/warehouse-ready`, not a pill on the answer.
+
+**Enforced by `server/lib/warehouse-warmup.ts`.**
+
 ---
 
 ## Decisions recorded elsewhere, not repeated here

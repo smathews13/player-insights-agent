@@ -48,6 +48,7 @@ RELEASE_ONLY = {
     "deploy_agent",
     "host_metadata_probe",
     "log_model",
+    "register_uc_model_version",
     "manifest_dryrun",
     "semantic_layer_build",
 }

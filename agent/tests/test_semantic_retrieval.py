@@ -547,11 +547,24 @@ class TestRendering:
 
 
 class TestConfiguredIndex:
+    @pytest.fixture(autouse=True)
+    def _enable_retrieval(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sr, "SEMANTIC_RETRIEVAL_ENABLED", True)
+
     def test_a_deployment_with_no_flag_has_no_index(self):
         """The default, and the reason the tool is absent rather than broken in
         every deployment nobody has bought an endpoint for."""
 
         assert sr.configured_index(settings_for(), {}, {}) == ""
+
+    def test_retirement_ignores_a_baked_index(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(sr, "SEMANTIC_RETRIEVAL_ENABLED", False)
+        assert (
+            sr.configured_index(
+                settings_for(), {sr.MODEL_CONFIG_KEY: "baked.sem.idx"}, {}
+            )
+            == ""
+        )
 
     def test_the_derived_name_matches_what_the_bundle_declares(self):
         """Two places name this index, and they are a YAML file and a Python
@@ -602,6 +615,10 @@ class TestConfigurationEntry:
     report it at all. The first is a healthy deployment, the second is unknown, and
     collapsing them makes every index-free release look like a blind spot.
     """
+
+    @pytest.fixture(autouse=True)
+    def _enable_retrieval(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(sr, "SEMANTIC_RETRIEVAL_ENABLED", True)
 
     def test_it_reports_the_index_a_release_searches(self):
         entry = sr.configuration_entry(
