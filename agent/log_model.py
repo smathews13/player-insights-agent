@@ -28,12 +28,16 @@ from preflight import (
     BUILD_SHA_VAR,
     DIRTY_SUFFIX,
     WideningCheckUnavailable,
+    genie_curated_tables,
     newly_granted_tables,
     resolve_build_stamp,
     resolve_declared_manifest,
     resolve_franchise_tags,
     widening_refusal,
 )
+from space_fingerprint import SPACE_FINGERPRINTS_KEY
+from space_fingerprint import dumps as dumps_space_fingerprints
+from space_fingerprint import records_from_genie
 from semantic_retrieval import MODEL_CONFIG_KEY as SEMANTIC_INDEX_KEY
 from semantic_retrieval import (
     SEMANTIC_INDEX_ENV,
@@ -89,6 +93,15 @@ mlflow.set_experiment(experiment)
 # short manifest produces an endpoint that advertises tables it cannot read.
 workspace = WorkspaceClient()
 manifest, manifest_notes = resolve_declared_manifest(settings, workspace)
+space_fingerprint_records = records_from_genie(settings, workspace, genie_curated_tables)
+space_fingerprints = dumps_space_fingerprints(space_fingerprint_records)
+if space_fingerprint_records:
+    print(
+        "Genie space fingerprints: "
+        + ", ".join(
+            f"{row['role']}={row['sha256'][:12]}" for row in space_fingerprint_records
+        )
+    )
 
 
 def _genie_title(space_id: str, role_label: str) -> str:
@@ -285,6 +298,7 @@ print(
             # In the machine-readable summary as well as in the announcement, so a
             # release record can be diffed rather than read.
             "evidence_gateway": allow_unattributed.mode,
+            SPACE_FINGERPRINTS_KEY: space_fingerprints,
         },
         indent=2,
     )
@@ -305,6 +319,7 @@ release_decisions = {
     # answerable from the artifact months later, not from whatever a deployer's
     # environment happens to hold at the time somebody asks.
     ALLOW_UNATTRIBUTED_KEY: allow_unattributed.enabled,
+    SPACE_FINGERPRINTS_KEY: space_fingerprints,
 }
 
 # The serving container inherits none of this script's environment, so the

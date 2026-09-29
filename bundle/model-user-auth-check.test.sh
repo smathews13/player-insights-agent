@@ -221,6 +221,44 @@ check_says "asking for no source at all is refused rather than defaulted" 2 \
   "one of the arguments" \
   python3 "$GATE" --logged "$GOOD" --user-authorization true
 
+printf '\n==> deploy-time serving probe (synthetic token)\n'
+probe() {
+  local file="$WORK/$1"; shift
+  python3 - "$file" "$@" <<'PY'
+import json, sys
+json.dump(json.loads(sys.argv[2]), open(sys.argv[1], "w"))
+PY
+  printf '%s' "$file"
+}
+FORWARDED="$(probe forwarded.json '{"error":"Unable to authenticate using user_credentials in Databricks Model Serving Environment"}')"
+SP_SILENT="$(probe sp.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_REQUIRED","message":"no invoker token"}}}')"
+UNKNOWN="$(probe unknown.json '{"result":{"output":"hello"}}')"
+
+check_says "a synthetic-token user_credentials 400 means the endpoint forwarded OBO" 0 \
+  "the endpoint accepted a user token" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$FORWARDED"
+
+check_says "and then it no longer claims the endpoint forwarding is unverified" 0 \
+  "the app still has to forward the real one" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$FORWARDED"
+
+check_says "IDENTITY_REQUIRED on the synthetic probe fails deploy as OBO not wired" 1 \
+  "OBO not wired" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$SP_SILENT"
+
+check_says "an inconclusive serving probe fails rather than passing" 1 \
+  "could not tell whether OBO is wired" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$UNKNOWN"
+
+check_says "an unreadable serving fixture is exit 2, not a pass" 2 \
+  "not readable JSON" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$WORK/bad.json"
+
 printf '\n==> Unity Catalog registry routing\n'
 python3 - "$GATE" <<'PY'
 import importlib.util
@@ -274,7 +312,11 @@ done
 # judgement every assertion above already proved. Skipped visibly rather than
 # silently: a bare CI runner loses the thin call, not the suite, and says so.
 printf '\n==> the MLflow doors (the release path), if an agent environment exists\n'
-PY="$(cd "$REPO/agent" && uv run --python 3.13 python -c 'import mlflow, sys; print(sys.executable)' 2>/dev/null | tail -n 1)"
+PY="$(
+  AGENT_ENV="$REPO/platform/agent"
+  [[ -d "$AGENT_ENV" ]] || AGENT_ENV="$REPO/agent"
+  cd "$AGENT_ENV" && uv run --python 3.13 python -c 'import mlflow, sys; print(sys.executable)' 2>/dev/null | tail -n 1
+)"
 if [[ -z "$PY" || ! -x "$PY" ]]; then
   printf '  --    no environment with mlflow; --mlmodel and --registered not exercised\n'
 else
@@ -313,8 +355,8 @@ if (( FAIL )); then
 fi
 # The floor counts only the assertions that need nothing installed, because those
 # are the ones a CI runner will really make.
-if (( PASS < 29 )); then
-  printf 'FAIL  only %d assertions ran; this suite has 29 that need no dependency.\n' "$PASS"
+if (( PASS < 34 )); then
+  printf 'FAIL  only %d assertions ran; this suite has 34 that need no dependency.\n' "$PASS"
   exit 1
 fi
 printf 'PASS  %d assertions.\n' "$PASS"
