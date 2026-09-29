@@ -137,6 +137,14 @@ def facts(required: Any, settings: Any = None) -> dict[str, str]:
     warehouse = _text(getattr(settings, "warehouse_id", ""))
     if warehouse:
         recorded["deployment.warehouse_id"] = warehouse
+    try:
+        from config import baked_config
+
+        fingerprints = baked_config().get("genie_space_fingerprints")
+        if isinstance(fingerprints, str) and fingerprints:
+            recorded["genie.space_fingerprints"] = fingerprints
+    except Exception:  # noqa: BLE001 - no baked config outside a served model
+        pass
     return recorded
 
 

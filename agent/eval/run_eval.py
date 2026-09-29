@@ -10,10 +10,10 @@ only shared resources it touches are the ones any analytical question touches:
 the Genie spaces, the SQL warehouse, and the model endpoints behind the
 orchestrator.
 
-NOTHING IT PRODUCES GATES ANYTHING. The exit status is 0 whenever the run
-completed, whatever the scores were. There is deliberately no threshold flag and
-no `--fail-under`: X3 is a non-gating lane by decision, and the way to keep a
-scorecard non-gating is for it to have no mechanism by which it could gate.
+NOTHING IT PRODUCES GATES ANYTHING ON ITS OWN. The exit status is 0 whenever the
+run completed, whatever the scores were. Promotion is gated by
+`experiments/compare_runs.py`, which reads two scorecards and fails a release
+when a guardrail regresses. This runner still has no `--fail-under`.
 
 THE IDENTITY CAVEAT, WHICH IS THE BIGGEST ONE. This harness is not the app. It
 has no forwarded caller credential, so the run does not read governed data as a

@@ -752,6 +752,76 @@ above before deploying it to $ENDPOINT."
 esac
 fi
 
+if [[ -n "$LOG_SUMMARY" ]]; then
+  step "Genie space fingerprint vs the live space"
+  FINGERPRINT_CHECK="$BUNDLE_ROOT/bundle/genie-fingerprint-check.py"
+  [[ -f "$FINGERPRINT_CHECK" ]] || die "bundle/genie-fingerprint-check.py is missing, so a re-curated
+Genie space would not fail this release. Restore it:
+  git restore bundle/genie-fingerprint-check.py"
+  FINGERPRINT_ARGS=(--logged "$LOG_SUMMARY")
+  if [[ -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
+    FINGERPRINT_ARGS+=(--peer-logged "$PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY")
+  fi
+  FINGERPRINT_STATUS=0
+  (
+    cd "$BUNDLE_ROOT/agent"
+    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+      uv run --python 3.13 python "$FINGERPRINT_CHECK" "${FINGERPRINT_ARGS[@]}"
+  ) || FINGERPRINT_STATUS=$?
+  case "$FINGERPRINT_STATUS" in
+    0) : ;;
+    1)
+      die "The live Genie space no longer matches the fingerprint baked into version $MODEL_VERSION.
+Re-curation after log time is a new grant set. Re-log the model, then release again."
+      ;;
+    2)
+      die "The Genie space fingerprint could not be compared. That is not a pass.
+Read the COULD NOT RUN line above."
+      ;;
+    *)
+      die "bundle/genie-fingerprint-check.py exited $FINGERPRINT_STATUS, which it has no documented meaning for."
+      ;;
+  esac
+fi
+
+COMPARE_RUNS=""
+for candidate in \
+  "$BUNDLE_ROOT/agent/experiments/compare_runs.py" \
+  "$BUNDLE_ROOT/platform/agent/experiments/compare_runs.py"
+do
+  [[ -f "$candidate" ]] && COMPARE_RUNS="$candidate" && break
+done
+if [[ "${PLAYER_INSIGHTS_SKIP_EVAL_GATE:-}" == "true" ]]; then
+  step "Held-out experiment gate: NOT CHECKED (PLAYER_INSIGHTS_SKIP_EVAL_GATE=true)"
+elif [[ -z "$COMPARE_RUNS" ]]; then
+  die "agent/experiments/compare_runs.py is missing, so a worse model could promote.
+Restore it: git restore agent/experiments/compare_runs.py"
+elif [[ -n "${PLAYER_INSIGHTS_EVAL_BASELINE:-}" && -n "${PLAYER_INSIGHTS_EVAL_CANDIDATE:-}" ]]; then
+  step "Held-out experiment gate (baseline vs candidate scorecards)"
+  EVAL_STATUS=0
+  python3 "$COMPARE_RUNS" \
+    --baseline "$PLAYER_INSIGHTS_EVAL_BASELINE" \
+    --candidate "$PLAYER_INSIGHTS_EVAL_CANDIDATE" || EVAL_STATUS=$?
+  case "$EVAL_STATUS" in
+    0) : ;;
+    1)
+      die "The candidate scorecard is worse than the baseline on a guardrail.
+Read the FAIL lines above. Promotion is blocked until the regression is fixed or
+explained with a new baseline."
+      ;;
+    2)
+      die "The experiment gate could not compare these scorecards. That is not a pass."
+      ;;
+    *)
+      die "compare_runs.py exited $EVAL_STATUS, which it has no documented meaning for."
+      ;;
+  esac
+else
+  step "Held-out experiment gate: NOT CHECKED (no baseline and candidate scorecards)"
+  note "Set PLAYER_INSIGHTS_EVAL_BASELINE and PLAYER_INSIGHTS_EVAL_CANDIDATE to two
+  scorecard JSON files from eval/run_eval.py to block promotion on a regression."
+fi
+
 # Three served entities is the platform ceiling. Adding a fourth fails the
 # deploy, so idle ones are pruned first when we are already at it. Traffic-
 # bearing entities are never removed; if all three still carry traffic, stop.
@@ -865,7 +935,8 @@ $MODEL_VERSION can act as the person asking. A missing checker is not a pass:
     DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
       uv run --python 3.13 python "$USER_AUTH_CHECK" \
         --logged "$LOG_SUMMARY" --registered \
-        --user-authorization "$USER_AUTHORIZATION"
+        --user-authorization "$USER_AUTHORIZATION" \
+        --serving-endpoint "$ENDPOINT"
   ) || USER_AUTH_STATUS=$?
   case "$USER_AUTH_STATUS" in
     0) : ;;
