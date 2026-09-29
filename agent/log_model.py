@@ -24,6 +24,7 @@ from config import (
     Settings,
 )
 from host_metadata_probe import bound as bound_host_metadata_probe
+from register_uc_model_version import register_logged_model_as_version
 from preflight import (
     BUILD_SHA_VAR,
     DIRTY_SUFFIX,
@@ -41,6 +42,7 @@ from space_fingerprint import records_from_genie
 from semantic_retrieval import MODEL_CONFIG_KEY as SEMANTIC_INDEX_KEY
 from semantic_retrieval import (
     SEMANTIC_INDEX_ENV,
+    SEMANTIC_RETRIEVAL_ENABLED,
     VECTOR_SEARCH_SCOPES,
     resolve_index,
 )
@@ -98,9 +100,7 @@ space_fingerprints = dumps_space_fingerprints(space_fingerprint_records)
 if space_fingerprint_records:
     print(
         "Genie space fingerprints: "
-        + ", ".join(
-            f"{row['role']}={row['sha256'][:12]}" for row in space_fingerprint_records
-        )
+        + ", ".join(f"{row['role']}={row['sha256'][:12]}" for row in space_fingerprint_records)
     )
 
 
@@ -211,7 +211,11 @@ elif build_sha.endswith(DIRTY_SUFFIX):
 # is the default: the index is an hourly charge nobody acquires by upgrading.
 # Read here rather than in the container for the usual reason, and a typo fails
 # THIS script rather than the model load, which is the cheaper of the two.
-semantic_index = resolve_index(settings, os.environ.get(SEMANTIC_INDEX_ENV, ""))
+semantic_index = (
+    resolve_index(settings, os.environ.get(SEMANTIC_INDEX_ENV, ""))
+    if SEMANTIC_RETRIEVAL_ENABLED
+    else ""
+)
 
 # The escape valve for a missing semantic metric layer, resolved and ANNOUNCED
 # here so a release that relaxes the evidence gateway says so on the way past
@@ -357,6 +361,9 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             # absence indistinguishable from any other import error.
             str(ROOT / "evidence.py"),
             str(ROOT / "failures.py"),
+            # tools.py imports this at module scope. A version logged without it
+            # fails to LOAD in the serving container.
+            str(ROOT / "generated_answer_contract.py"),
             # Stable operating guidance travels with the artifact. The payload
             # deliberately contains no customer facts; knowledge.py reads these
             # markdown files at model load and the prompts keep governed tools
@@ -399,7 +406,6 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             str(ROOT / "user_authorization.py"),
         ],
         **authorization,
-        registered_model_name=model_name,
         input_example={
             "input": [
                 {
@@ -454,13 +460,11 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
 #
 # Reading it back: Unity Catalog omits `aliases` from GetRegisteredModel unless
 # include_aliases=true, so a plain `registered-models get` reports none.
-version = model_info.registered_model_version
-if version is None:
-    raise RuntimeError(
-        f"log_model did not register a version of {model_name}; refusing to move the "
-        "'prod' alias, because the alias would then point at some earlier run's version."
-    )
-version = str(version)
+# Register as a new version of the existing UC model. Passing
+# registered_model_name into log_model always create_registered_model first,
+# which a full metastore rejects even when this name already exists.
+client = MlflowClient(registry_uri="databricks-uc")
+version = register_logged_model_as_version(client, name=model_name, model_info=model_info)
 print(
     json.dumps(
         {
@@ -473,13 +477,13 @@ print(
             "api_scopes": list(scopes),
             "model_uri": model_info.model_uri,
             "experiment": experiment,
+            SPACE_FINGERPRINTS_KEY: space_fingerprints,
         }
     )
 )
 # Alias and tag are signposts. The version is already registered; a 401 here
 # used to look like a failed log, which is how a successful registration got
 # retried into duplicate versions. Deploy uses the version number, not the alias.
-client = MlflowClient(registry_uri="databricks-uc")
 try:
     client.set_registered_model_tag(model_name, "system_billing", "player-insights-agent")
     client.set_registered_model_alias(model_name, "prod", version)

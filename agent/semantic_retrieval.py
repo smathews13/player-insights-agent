@@ -93,6 +93,11 @@ SEMANTIC_INDEX_ENV = "PLAYER_INSIGHTS_SEMANTIC_INDEX"
 #: The key `log_model.py` writes into `model_config` and this module reads back.
 MODEL_CONFIG_KEY = "semantic_index"
 
+#: Retired for now. The tool, the Vector Search endpoint, and the index stay
+#: out of the served model and out of the bundle until this is flipped and the
+#: example overlay fills the resource maps again.
+SEMANTIC_RETRIEVAL_ENABLED = False
+
 #: What the flag accepts as "derive the name from the deployment".
 DERIVE = "true"
 
@@ -197,6 +202,8 @@ def configured_index(settings: Settings, baked: Any = None, env: Any = None) -> 
 
     import os
 
+    if not SEMANTIC_RETRIEVAL_ENABLED:
+        return ""
     artifact = (baked if baked is not None else {}).get(MODEL_CONFIG_KEY)
     if artifact not in (None, ""):
         return resolve_index(settings, artifact)

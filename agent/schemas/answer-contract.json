@@ -1,0 +1,433 @@
+{
+  "$defs": {
+    "Chart": {
+      "description": "One Plotly panel, as produced by `charts.new_plot`.\n\n`data` and `layout` are Plotly's own free-form shapes, carried opaquely to the\nbrowser. Only the envelope is a contract, and `kind` is derived from the\ntraces rather than supplied, so it cannot disagree with `data`.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "data": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Data",
+          "type": "array"
+        },
+        "layout": {
+          "additionalProperties": true,
+          "title": "Layout",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "data"
+      ],
+      "title": "Chart",
+      "type": "object"
+    },
+    "Derivation": {
+      "description": "What one statement measured, over what, from where.\n\nFour labelled facts, each derived from the parse of the statement that ran\n(`provenance.py`), never from what the model wrote. Together they answer the\nquestion a table name and a figure cannot: \"8,413 active players\" means one\nthing over thirty days and another over a year, and something different again\nwith one title filtered out.\n\nEVERY FIELD MAY BE EMPTY, and empty means the statement did not say. A query\nwith no WHERE clause covers everything and has no window, which is a fact\nabout it; a Genie statement whose tables could not be resolved has no source.\nA reader must render an empty field as nothing rather than as \"unknown\" or as\n\"all time\" -- the second is a claim about the population that nothing here\nchecked.\n\n`filter` never carries the VALUE of a column that identifies a person; the\ncolumn is named and the literal is withheld. See `provenance.py`, which does\nthe withholding, for why the column name itself is published.",
+      "properties": {
+        "source": {
+          "default": "",
+          "title": "Source",
+          "type": "string"
+        },
+        "metric": {
+          "default": "",
+          "title": "Metric",
+          "type": "string"
+        },
+        "window": {
+          "default": "",
+          "title": "Window",
+          "type": "string"
+        },
+        "filter": {
+          "default": "",
+          "title": "Filter",
+          "type": "string"
+        }
+      },
+      "title": "Derivation",
+      "type": "object"
+    },
+    "DocumentSnippet": {
+      "description": "A short, verbatim footnote from an attached document used in the answer.",
+      "properties": {
+        "filename": {
+          "title": "Filename",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        },
+        "supports": {
+          "title": "Supports",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "quote",
+        "supports"
+      ],
+      "title": "DocumentSnippet",
+      "type": "object"
+    },
+    "Figure": {
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        },
+        "display": {
+          "title": "Display",
+          "type": "string"
+        },
+        "comparison": {
+          "default": "",
+          "title": "Comparison",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "display"
+      ],
+      "title": "Figure",
+      "type": "object"
+    },
+    "GenieSpace": {
+      "description": "A Genie space this run put a question to.\n\nRecorded per run because the space is chosen at request time from settings\nbaked into the model artifact, so it is a fact only the run itself knows: the\napp cannot read the orchestrator's configuration, and a deployment can be\nre-logged against different spaces without the app noticing. Without this,\nnothing anywhere records which space answered a given question.\n\nBoth halves, because they answer different questions. `id` is what an admin\nneeds to open the space or match it against the bundle; `title` is what a\nreader should be shown, since a 32-character hex id names infrastructure and\ntells a person nothing. `title` is empty when no title was baked at log time,\nand a reader with an empty title has to fall back rather than print a blank.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "GenieSpace",
+      "type": "object"
+    },
+    "ResourceCall": {
+      "description": "Calls this run dispatched to one configured external resource.\n\nThis is deliberately identifier-only telemetry. It carries no prompt,\nresult, query text, or token contents. `calls` is incremented on dispatch,\nincluding a request that later fails, because the external service was\nstill asked and may still have billed it.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "genie-space",
+            "vector-index"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "tool": {
+          "enum": [
+            "data_genie",
+            "genie_mcp",
+            "dictionary_genie",
+            "search_semantics"
+          ],
+          "title": "Tool",
+          "type": "string"
+        },
+        "calls": {
+          "default": 1,
+          "title": "Calls",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "tool"
+      ],
+      "title": "ResourceCall",
+      "type": "object"
+    },
+    "Source": {
+      "description": "One table the run read, and what it read it for.\n\n`role` is the distinction the run already draws internally and used not to\npublish. A table queried for values is `reading`; a table read to look up\nwhat a term means, or to see what columns it has, is `reference`. Both are\nsources of the answer and only the first is a source of its numbers, so a\nflat list presented the dictionary the agent consulted as though the figures\nhad come out of it.\n\nEmpty means unstated, which is what an answer stored before this field\nexisted carries. Readers must say so rather than assuming either role: the\napp has no way to tell from a name, and guessing is how the dictionary came\nto be labelled as the source of the numbers in the first place.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "freshness": {
+          "title": "Freshness",
+          "type": "string"
+        },
+        "role": {
+          "default": "",
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "freshness"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "TraceStage": {
+      "description": "One step of a run, as the timeline reads it.\n\n`input` and `output` are the allowlisted reader projection. Tool stages keep\ntheir arguments and concrete result, with agent-only retry and safety\nguidance removed. Agent stages keep only a compact task and outcome, never\ntheir model prompt or internal handoff. The size cap lives in `agent.py`.\n\n`depth` and `parent_id` express nesting. A tool-calling loop is a tree, and a\nflat list of siblings misrepresents it as a sequence of equals.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "number"
+        },
+        "duration": {
+          "title": "Duration",
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "running",
+            "partial",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "calls": {
+          "default": 1,
+          "title": "Calls",
+          "type": "integer"
+        },
+        "input": {
+          "default": "",
+          "title": "Input",
+          "type": "string"
+        },
+        "output": {
+          "default": "",
+          "title": "Output",
+          "type": "string"
+        },
+        "tables": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "depth": {
+          "default": 0,
+          "title": "Depth",
+          "type": "integer"
+        },
+        "parent_id": {
+          "default": "",
+          "title": "Parent Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "start",
+        "duration",
+        "status"
+      ],
+      "title": "TraceStage",
+      "type": "object"
+    },
+    "TraceSummary": {
+      "description": "What one run did, as the app reads it back.\n\n`toolCalls` counts EXTERNAL CALLS THE RUN MADE: dictionary Genie, data Genie,\nthe read-only SQL fallback, the synthesis model call, the plotting call. It is\nNOT the number of stages tagged `kind=\"tool\"` and is normally larger, because\n`discover` and `synthesis` are tagged `\"agent\"` and the SQL fallback produces\nno stage of its own.\n\nThe two are different quantities, reported separately: the app exposes the\ntagged stages as `toolStages`. Do not make one derivable from the other.\n\n`prompt_tokens` / `completion_tokens` / `total_tokens` are the sum of every\nchat-completions `usage` block recorded this turn. Zero when the endpoint\ndid not return usage, not when the run made no model calls: the two are not\ndistinguishable from the totals alone, and a missing meter must not look\nlike a free run.\n\n`genie_spaces` are the spaces this run actually called, in the order it first\nreached each, and it is empty for a run that asked Genie nothing. Recorded on\ndispatch rather than on a successful reply, so a run refused by a space it was\nnever shared with still says which space refused it -- which is the run whose\nrouting someone most needs to see.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "totalMs": {
+          "title": "Totalms",
+          "type": "number"
+        },
+        "toolCalls": {
+          "title": "Toolcalls",
+          "type": "integer"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/$defs/TraceStage"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "genie_spaces": {
+          "items": {
+            "$ref": "#/$defs/GenieSpace"
+          },
+          "title": "Genie Spaces",
+          "type": "array"
+        },
+        "resource_calls": {
+          "items": {
+            "$ref": "#/$defs/ResourceCall"
+          },
+          "title": "Resource Calls",
+          "type": "array"
+        },
+        "genie_transport": {
+          "default": "direct",
+          "enum": [
+            "direct",
+            "mcp"
+          ],
+          "title": "Genie Transport",
+          "type": "string"
+        },
+        "prompt_tokens": {
+          "default": 0,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "default": 0,
+          "title": "Completion Tokens",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "totalMs",
+        "toolCalls",
+        "stages"
+      ],
+      "title": "TraceSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "pia.answer/1",
+      "default": "pia.answer/1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "takeaway": {
+      "title": "Takeaway",
+      "type": "string"
+    },
+    "narrative": {
+      "title": "Narrative",
+      "type": "string"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "figures": {
+      "items": {
+        "$ref": "#/$defs/Figure"
+      },
+      "title": "Figures",
+      "type": "array"
+    },
+    "charts": {
+      "items": {
+        "$ref": "#/$defs/Chart"
+      },
+      "title": "Charts",
+      "type": "array"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "document_snippets": {
+      "items": {
+        "$ref": "#/$defs/DocumentSnippet"
+      },
+      "title": "Document Snippets",
+      "type": "array"
+    },
+    "caveats": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Caveats",
+      "type": "array"
+    },
+    "derivation": {
+      "items": {
+        "$ref": "#/$defs/Derivation"
+      },
+      "title": "Derivation",
+      "type": "array"
+    },
+    "sql": {
+      "default": "",
+      "title": "Sql",
+      "type": "string"
+    },
+    "trace": {
+      "$ref": "#/$defs/TraceSummary"
+    }
+  },
+  "required": [
+    "id",
+    "takeaway",
+    "narrative",
+    "trace"
+  ],
+  "title": "AnswerContract",
+  "type": "object"
+}
