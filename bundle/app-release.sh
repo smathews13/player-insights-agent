@@ -9,7 +9,7 @@
 # Usage:
 #   TARGET=<your-target>                             bundle/app-release.sh          # dry run
 #   TARGET=<your-target>                             bundle/app-release.sh --apply
-#   TARGET=customer PROFILE=<their-profile>  bundle/app-release.sh --apply
+#   TARGET=prod PROFILE=<prod-profile>      bundle/app-release.sh --apply
 #   TARGET=<your-target> bundle/app-release.sh --apply --certify   # also issue a certificate
 #   TARGET=<your-target> bundle/app-release.sh --apply --rollback-to /Workspace/.../previous-src
 #

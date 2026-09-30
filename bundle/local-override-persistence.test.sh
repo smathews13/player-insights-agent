@@ -89,10 +89,16 @@ variables:
     default: tracked-opaque-default
 
 targets:
-  customer:
+  dev:
+    mode: development
     workspace:
       host: TEST_HOST_PLACEHOLDER
-      root_path: /Workspace/Users/operator@example.invalid/.bundle/local-override-contract
+      root_path: /Workspace/Users/operator@example.invalid/.bundle/local-override-contract/dev
+  prod:
+    mode: production
+    workspace:
+      host: TEST_HOST_PLACEHOLDER
+      root_path: /Workspace/Users/operator@example.invalid/.bundle/local-override-contract/prod
 YAML
 python3 - "$AUTHOR/databricks.yml" "$TEST_HOST" <<'PY'
 from pathlib import Path
@@ -107,28 +113,37 @@ git -C "$AUTHOR" commit --quiet -m "public revision one"
 git -C "$WORK" clone --quiet --bare "$AUTHOR" "$REMOTE"
 git clone --quiet "$REMOTE" "$CLONE"
 
-OVERRIDE="$CLONE/.databricks/bundle/customer/variable-overrides.json"
-mkdir -p "$(dirname "$OVERRIDE")"
-cat >"$OVERRIDE" <<'JSON'
+DEV_OVERRIDE="$CLONE/.databricks/bundle/dev/variable-overrides.json"
+PROD_OVERRIDE="$CLONE/.databricks/bundle/prod/variable-overrides.json"
+mkdir -p "$(dirname "$DEV_OVERRIDE")" "$(dirname "$PROD_OVERRIDE")"
+cat >"$DEV_OVERRIDE" <<'JSON'
 {
-  "persistence_marker": "LOCAL_SENTINEL_7f75c1",
-  "opaque_local_value": "LOCAL_BYTES_46d8a0"
+  "persistence_marker": "DEV_SENTINEL_7f75c1",
+  "opaque_local_value": "DEV_BYTES_46d8a0"
 }
 JSON
-cp "$OVERRIDE" "$WORK/expected-overrides.json"
+cat >"$PROD_OVERRIDE" <<'JSON'
+{
+  "persistence_marker": "PROD_SENTINEL_7f75c1",
+  "opaque_local_value": "PROD_BYTES_46d8a0"
+}
+JSON
+cp "$DEV_OVERRIDE" "$WORK/expected-dev-overrides.json"
+cp "$PROD_OVERRIDE" "$WORK/expected-prod-overrides.json"
 
-git -C "$CLONE" check-ignore -q .databricks/bundle/customer/variable-overrides.json
+git -C "$CLONE" check-ignore -q .databricks/bundle/dev/variable-overrides.json
+git -C "$CLONE" check-ignore -q .databricks/bundle/prod/variable-overrides.json
 [[ -z "$(git -C "$CLONE" status --porcelain)" ]]
 [[ -z "$(git -C "$REMOTE" ls-tree -r --name-only HEAD -- .databricks)" ]]
 
 validate_marker() {
-  local output="$WORK/validate.json"
+  local target="$1" expected="$2" output="$WORK/validate-$1.json"
   (
     cd "$CLONE"
     DATABRICKS_TOKEN=fake-offline-token \
-      databricks bundle validate -t customer -o json >"$output"
+      databricks bundle validate -t "$target" -o json >"$output"
   )
-  python3 - "$output" <<'PY'
+  python3 - "$output" "$expected" <<'PY'
 import json
 import sys
 
@@ -137,15 +152,17 @@ entry = document["variables"]["persistence_marker"]
 value = entry.get("value")
 if value is None:
     value = entry.get("default")
-if value != "LOCAL_SENTINEL_7f75c1":
+if value != sys.argv[2]:
     raise SystemExit(f"local override lost precedence: {value!r}")
 PY
 }
 
 # `bundle validate` is the read-only preparation path used by every release
 # script through bundle/_lib.sh. It must consume, not mutate, the local file.
-validate_marker
-cmp -s "$WORK/expected-overrides.json" "$OVERRIDE"
+validate_marker dev DEV_SENTINEL_7f75c1
+validate_marker prod PROD_SENTINEL_7f75c1
+cmp -s "$WORK/expected-dev-overrides.json" "$DEV_OVERRIDE"
+cmp -s "$WORK/expected-prod-overrides.json" "$PROD_OVERRIDE"
 
 python3 - "$AUTHOR/databricks.yml" <<'PY'
 from pathlib import Path
@@ -161,9 +178,12 @@ git -C "$AUTHOR" commit --quiet -m "public revision two"
 git -C "$AUTHOR" push --quiet "$REMOTE" HEAD:main
 
 git -C "$CLONE" pull --ff-only --quiet
-cmp -s "$WORK/expected-overrides.json" "$OVERRIDE"
+cmp -s "$WORK/expected-dev-overrides.json" "$DEV_OVERRIDE"
+cmp -s "$WORK/expected-prod-overrides.json" "$PROD_OVERRIDE"
 [[ -z "$(git -C "$CLONE" status --porcelain)" ]]
-validate_marker
-cmp -s "$WORK/expected-overrides.json" "$OVERRIDE"
+validate_marker dev DEV_SENTINEL_7f75c1
+validate_marker prod PROD_SENTINEL_7f75c1
+cmp -s "$WORK/expected-dev-overrides.json" "$DEV_OVERRIDE"
+cmp -s "$WORK/expected-prod-overrides.json" "$PROD_OVERRIDE"
 
 printf 'PASS  public clone, pull, and bundle validation preserved local overrides byte-for-byte.\n'

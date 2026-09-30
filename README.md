@@ -95,16 +95,18 @@ cd player-insights-agent
 databricks auth login --profile "<profile>"
 ```
 
-Copy the committed customer template into the git-ignored target path, then
-replace every placeholder:
+Copy the committed customer template into separate git-ignored paths for
+development and production, then replace every placeholder independently:
 
 ```bash
-mkdir -p .databricks/bundle/customer
+mkdir -p .databricks/bundle/dev .databricks/bundle/prod
 cp bundle/customer-variable-overrides.example.json \
-  .databricks/bundle/customer/variable-overrides.json
+  .databricks/bundle/dev/variable-overrides.json
+cp bundle/customer-variable-overrides.example.json \
+  .databricks/bundle/prod/variable-overrides.json
 ```
 
-The resulting `.databricks/bundle/customer/variable-overrides.json` contains:
+Each resulting `variable-overrides.json` contains:
 
 ```json
 {
@@ -126,7 +128,7 @@ The resulting `.databricks/bundle/customer/variable-overrides.json` contains:
 This ignored file is the supported persistent configuration for one local
 checkout. Databricks Bundle commands resolve variables in this order, highest
 precedence first: `--var`, `BUNDLE_VAR_*`,
-`.databricks/bundle/customer/variable-overrides.json`, target variables, then
+`.databricks/bundle/<target>/variable-overrides.json`, target variables, then
 tracked defaults. `git pull`, branch checkout, bundle validation, and the
 release scripts do not rewrite the ignored file.
 
@@ -140,12 +142,19 @@ catalog entry permits discovery within its non-system schemas; a
 `catalog.schema` entry narrows that boundary to one schema. Review this list
 before every model release.
 
-Run the three deployment stages in order:
+Run the three deployment stages in order for each workspace. Profiles supply
+the workspace hosts, keeping development and production URLs out of Git:
 
 ```bash
-TARGET=customer PROFILE="<profile>" bash bundle/deploy.sh
-TARGET=customer PROFILE="<profile>" bash bundle/agent-release.sh --apply
-TARGET=customer PROFILE="<profile>" bash bundle/app-release.sh --apply
+# Development
+TARGET=dev PROFILE="<dev-profile>" bash bundle/deploy.sh
+TARGET=dev PROFILE="<dev-profile>" bash bundle/agent-release.sh --apply
+TARGET=dev PROFILE="<dev-profile>" bash bundle/app-release.sh --apply
+
+# Production
+TARGET=prod PROFILE="<prod-profile>" bash bundle/deploy.sh
+TARGET=prod PROFILE="<prod-profile>" bash bundle/agent-release.sh --apply
+TARGET=prod PROFILE="<prod-profile>" bash bundle/app-release.sh --apply
 ```
 
 The bundle deploy is interactive. Read its proposed changes before approving
@@ -210,7 +219,8 @@ roles. Use the bundle scripts for resource or model changes.
 
 This is the established one-step update path. Do not run a local app release
 before or after it. The Git importer does not read
-`.databricks/bundle/customer/variable-overrides.json` from a laptop, but it also
+`.databricks/bundle/dev/variable-overrides.json` or
+`.databricks/bundle/prod/variable-overrides.json` from a laptop, but it also
 does not replace the existing App, service principal, resource bindings, OAuth
 scopes, telemetry destinations, or Lakebase state that those bundle inputs
 configured.

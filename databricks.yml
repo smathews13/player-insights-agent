@@ -97,7 +97,7 @@ variables:
       cold start on the first request after the endpoint has scaled down --
       seconds to about a minute for this Small CPU workload. A production
       target that must answer the first request instantly overrides this to
-      "false" to keep the endpoint always-on (see the customer target). A
+      "false" to keep the endpoint always-on (see the prod target). A
       string rather than a YAML boolean so bundle_var reads it as "true" /
       "false" and deploy_agent.py parses it; only an explicit true-ish value
       enables scale-to-zero, so a blank or mistyped value stays always-on.
@@ -315,27 +315,23 @@ sync:
 
 targets:
 
-  # Production target. Set all required variables in the git-ignored
-  # `.databricks/bundle/<target>/variable-overrides.json`.
-  customer:
-    default: true
-    mode: production
+  # Customer development target. The CLI profile supplies the workspace host,
+  # so dev and prod can live in different workspaces without committing either
+  # customer's URL. Each target has its own git-ignored variable-overrides.json.
+  dev:
+    mode: development
     workspace:
       root_path: ${var.bundle_root_path}
-    variables:
+    variables: &customer_target_variables
       # Declare only tables curated by the Genie spaces.
       manifest_source: genie
       # Run governed data calls as the signed-in user. Release matching app and
       # model versions together.
       execution_identity: user-authorization
-      # Keep the serving endpoint always-on for production. Scale-to-zero saves
-      # standing cost on an idle demo, but a production endpoint that scaled
-      # down would make the first real question of a quiet period wait for a
-      # cold start. The base default is "true"; this target opts back to
-      # always-on deliberately.
-      serving_scale_to_zero: "false"
+      # Development may scale to zero between test sessions.
+      serving_scale_to_zero: "true"
     resources:
-      jobs:
+      jobs: &customer_target_jobs
         player_insights_semantic_rebuild:
           name: "[${bundle.target}] ${var.product_display_name} semantic layer rebuild"
           description: Rebuilds app-owned semantic metadata and syncs its index.
@@ -390,3 +386,18 @@ targets:
                 client: "2"
                 dependencies:
                   - databricks-sdk>=0.81.0
+
+  # Customer production target. Keep its state and private values separate from
+  # dev even when one operator deploys both.
+  prod:
+    default: true
+    mode: production
+    workspace:
+      root_path: ${var.bundle_root_path}
+    variables:
+      <<: *customer_target_variables
+      # Production stays warm so the first real question after an idle period
+      # does not wait for a serving cold start.
+      serving_scale_to_zero: "false"
+    resources:
+      jobs: *customer_target_jobs
