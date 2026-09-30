@@ -78,6 +78,11 @@ for forbidden in ("agent-release.sh", "log_model.py", "genie-fingerprint-check.p
         f"bundle/deploy.sh must not invoke {forbidden}; fingerprints belong to "
         "the later model release, not fresh infrastructure reconciliation"
     )
+sync = text.index("sync-dev-prod-endpoints.sh")
+signing_key = text.index("genie-mcp-signing-key.sh")
+bundle_deploy = text.index('ARGS=(bundle deploy')
+assert sync < signing_key < bundle_deploy
+assert '"$TARGET" == "dev" || "$TARGET" == "prod"' in text
 PY
 
 set +e

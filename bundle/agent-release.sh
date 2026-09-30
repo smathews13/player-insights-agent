@@ -762,8 +762,10 @@ if [[ -n "$LOG_SUMMARY" ]]; then
 else
   # A pinned rollback/production version gets the same gate. `--skip-log` used
   # to skip fingerprints entirely, allowing an older artifact to be deployed
-  # after its Genie spaces had been re-curated.
-  FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION")
+  # after its Genie spaces had been re-curated. Versions logged before the
+  # feature remain deployable: absence is advisory, while a present-but-drifted
+  # fingerprint still blocks.
+  FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION" --allow-missing)
 fi
 if [[ -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
   FINGERPRINT_ARGS+=(--peer-logged "$PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY")

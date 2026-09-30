@@ -83,6 +83,14 @@ fi
 resolve_profile
 seed_bundle_cache
 
+# Apps bind endpoint names, not model versions. Reconcile the shared registered
+# model automatically before creating either App: Dev=N, Prod=N-1. Existing
+# endpoints already on those versions are left untouched.
+if [[ "$TARGET" == "dev" || "$TARGET" == "prod" ]]; then
+  step "Reconciling Dev and Prod model endpoints"
+  PROFILE="$PROFILE" bash "$BUNDLE_ROOT/bundle/sync-dev-prod-endpoints.sh" --apply
+fi
+
 # The App resource binds the private Genie MCP signing key on its first bundle
 # creation, so the key must exist before `bundle deploy` tries to create the App.
 # Agent release calls the same helper again and receives the public half; the

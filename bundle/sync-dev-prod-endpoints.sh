@@ -49,6 +49,8 @@ bundle_var_for() {
 
 DEV_MODEL="$(bundle_var_for dev "$DEV_PROFILE" model_name)"
 PROD_MODEL="$(bundle_var_for prod "$PROD_PROFILE" model_name)"
+DEV_ENDPOINT="$(bundle_var_for dev "$DEV_PROFILE" serving_endpoint_name)"
+PROD_ENDPOINT="$(bundle_var_for prod "$PROD_PROFILE" serving_endpoint_name)"
 [[ "$DEV_MODEL" == "$PROD_MODEL" ]] || {
   printf 'ERROR: Dev model %s and Prod model %s differ; one-model promotion is impossible.\n' \
     "$DEV_MODEL" "$PROD_MODEL" >&2
@@ -74,16 +76,52 @@ if [[ "$APPLY" != true ]]; then
   exit 0
 fi
 
+endpoint_matches() {
+  local endpoint="$1" profile="$2" version="$3" document
+  document="$(mktemp "${TMPDIR:-/tmp}/pia-endpoint-state.XXXXXX")"
+  if ! databricks serving-endpoints get "$endpoint" --profile "$profile" -o json \
+      >"$document" 2>/dev/null; then
+    rm -f "$document"
+    return 1
+  fi
+  local status=0
+  python3 - "$document" "$version" <<'PY' || status=$?
+import json
+import sys
+
+body = json.load(open(sys.argv[1], encoding="utf-8"))
+want = sys.argv[2]
+config = body.get("config") or {}
+update = ((body.get("state") or {}).get("config_update") or "NONE").upper()
+routes = ((config.get("traffic_config") or {}).get("routes") or [])
+shares = {}
+for route in routes:
+    version = str(route.get("served_model_name") or "").rsplit("_", 1)[-1]
+    shares[version] = shares.get(version, 0) + int(route.get("traffic_percentage") or 0)
+raise SystemExit(0 if update in {"NONE", "NOT_UPDATING"} and shares == {want: 100} else 1)
+PY
+  rm -f "$document"
+  return "$status"
+}
+
 # Prod first: if its safety gates fail, Dev remains on the previously approved
 # version rather than advancing and leaving a two-version gap.
-TARGET=prod PROFILE="$PROD_PROFILE" \
-  PLAYER_INSIGHTS_RELEASE_RESULT_JSON= \
-  bash "$AGENT_RELEASE" --apply --skip-log --model-version "$PROD_VERSION"
+if endpoint_matches "$PROD_ENDPOINT" "$PROD_PROFILE" "$PROD_VERSION"; then
+  printf 'Prod endpoint already serves version %s; no update needed.\n' "$PROD_VERSION"
+else
+  TARGET=prod PROFILE="$PROD_PROFILE" \
+    PLAYER_INSIGHTS_RELEASE_RESULT_JSON= \
+    bash "$AGENT_RELEASE" --apply --skip-log --model-version "$PROD_VERSION"
+fi
 
 if [[ "$SKIP_DEV" != true ]]; then
-  TARGET=dev PROFILE="$DEV_PROFILE" \
-    PLAYER_INSIGHTS_RELEASE_RESULT_JSON= \
-    bash "$AGENT_RELEASE" --apply --skip-log --model-version "$DEV_VERSION"
+  if endpoint_matches "$DEV_ENDPOINT" "$DEV_PROFILE" "$DEV_VERSION"; then
+    printf 'Dev endpoint already serves version %s; no update needed.\n' "$DEV_VERSION"
+  else
+    TARGET=dev PROFILE="$DEV_PROFILE" \
+      PLAYER_INSIGHTS_RELEASE_RESULT_JSON= \
+      bash "$AGENT_RELEASE" --apply --skip-log --model-version "$DEV_VERSION"
+  fi
 fi
 
 printf '\nEndpoint reconciliation complete: Dev=%s, Prod=%s.\n' \

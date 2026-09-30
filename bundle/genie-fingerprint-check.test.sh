@@ -71,9 +71,9 @@ check_says "a pinned registered version's model config is checked" 0 \
   python3 "$GATE" --model-config-json "$WORK/model-config.json" \
     --fixture-live "$WORK/live-ok.json"
 
-check_says "a pinned version predating fingerprints is refused" 2 \
-  "predates Genie fingerprinting" \
-  python3 "$GATE" --model-config-json "$WORK/model-config-no-fp.json" --skip-live
+check_says "a pinned version predating fingerprints is advisory" 0 \
+  "Fingerprint comparison is advisory" \
+  python3 "$GATE" --model-config-json "$WORK/model-config-no-fp.json" --allow-missing --skip-live
 
 check_says "model logging and release wire the fingerprint before promotion" 0 \
   "fingerprint release wiring is ordered" \
@@ -93,7 +93,7 @@ parsed_summary = release.index('LOG_SUMMARY="$(mktemp')
 fingerprint_gate = release.index('step "Genie space fingerprint vs the live space"')
 endpoint_deploy = release.index('python deploy_agent.py --model-version "$MODEL_VERSION"')
 assert parsed_summary < fingerprint_gate < endpoint_deploy
-assert 'FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION")' in release
+assert 'FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION" --allow-missing)' in release
 assert 'case "$FINGERPRINT_STATUS" in' in release
 assert '1)' in release[fingerprint_gate:endpoint_deploy]
 assert '2)' in release[fingerprint_gate:endpoint_deploy]

@@ -47,10 +47,9 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-For the two-App promotion topology, run
-`PROFILE='<profile>' bash bundle/sync-dev-prod-endpoints.sh --apply`.
-Every successful Dev model log invokes the same reconciler automatically:
-Prod moves to N-1 before Dev moves to N.
+For the two-App promotion topology, `bundle/deploy.sh` creates or reconciles
+both endpoints automatically before creating either App: Prod moves to N-1 and
+Dev moves to N. Every successful Dev model log invokes the same reconciler.
 An external logger must make the same one-time integration after registration:
 `PROFILE='<profile>' bash bundle/sync-dev-prod-endpoints.sh --apply --latest-version "$MODEL_VERSION"`.
 
