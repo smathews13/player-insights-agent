@@ -47,10 +47,12 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
-For the two-App promotion topology where Dev serves the newest registered
-version and Prod serves the previous approved version, use
-[`DEV_PROD_PROMOTION.md`](DEV_PROD_PROMOTION.md). That flow creates two
-endpoints before the Apps because an App binding cannot select a model version.
+For the two-App promotion topology, run
+`PROFILE='<profile>' bash bundle/sync-dev-prod-endpoints.sh --apply`.
+Every successful Dev model log invokes the same reconciler automatically:
+Prod moves to N-1 before Dev moves to N.
+An external logger must make the same one-time integration after registration:
+`PROFILE='<profile>' bash bundle/sync-dev-prod-endpoints.sh --apply --latest-version "$MODEL_VERSION"`.
 
 Internal and customer targets use the same sequence. Start with one complete,
 interactive bundle reconciliation, including the App, then release the model
