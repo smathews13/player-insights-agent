@@ -66,6 +66,19 @@ OUTPUT="$(run_wrapper 2>&1)"
 [[ "$OUTPUT" == *"Ensuring the app-to-model signing key exists"* ]]
 [[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
 [[ ! -e "$TMP/tag-calls" || "$(cat "$TMP/tag-calls")" == *"--lakebase-project project-one --warehouse-id warehouse-one"* ]]
+[[ "$OUTPUT" != *"fingerprint"* ]]
+
+python3 - "$HERE/deploy.sh" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text()
+for forbidden in ("agent-release.sh", "log_model.py", "genie-fingerprint-check.py"):
+    assert forbidden not in text, (
+        f"bundle/deploy.sh must not invoke {forbidden}; fingerprints belong to "
+        "the later model release, not fresh infrastructure reconciliation"
+    )
+PY
 
 set +e
 OUTPUT="$(run_wrapper --auto-approve 2>&1)"
