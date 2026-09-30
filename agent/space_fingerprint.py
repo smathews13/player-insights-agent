@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 SPACE_FINGERPRINTS_KEY = "genie_space_fingerprints"
 
@@ -130,7 +131,11 @@ def compare_targets(
     extra_right = sorted((right_tables - left_tables) - allowed)
     findings: list[str] = []
     if extra_left:
-        findings.append("left target curates tables the right target does not: " + ", ".join(extra_left))
+        findings.append(
+            "left target curates tables the right target does not: " + ", ".join(extra_left)
+        )
     if extra_right:
-        findings.append("right target curates tables the left target does not: " + ", ".join(extra_right))
+        findings.append(
+            "right target curates tables the left target does not: " + ", ".join(extra_right)
+        )
     return findings

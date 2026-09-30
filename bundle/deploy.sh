@@ -32,6 +32,7 @@ an older bundle state destroyed an attached Lakebase project when approval was s
 done
 
 require_cmd databricks
+require_cmd node
 require_cmd python3
 require_cmd uv
 require_target
@@ -81,6 +82,17 @@ fi
 
 resolve_profile
 seed_bundle_cache
+
+# The App resource binds the private Genie MCP signing key on its first bundle
+# creation, so the key must exist before `bundle deploy` tries to create the App.
+# Agent release calls the same helper again and receives the public half; the
+# helper is idempotent and never exports the private value.
+SIGNING_KEY_HELPER="$BUNDLE_ROOT/bundle/genie-mcp-signing-key.sh"
+[[ -f "$SIGNING_KEY_HELPER" ]] || die "$SIGNING_KEY_HELPER is missing. Refusing to create an App whose
+declared secret binding cannot be satisfied."
+step "Ensuring the app-to-model signing key exists"
+TARGET="$TARGET" PROFILE="$PROFILE" PIA_BUNDLE_JSON_CACHE="$PIA_BUNDLE_JSON_CACHE" \
+  bash "$SIGNING_KEY_HELPER" >/dev/null
 
 VECTOR_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
 

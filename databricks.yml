@@ -306,16 +306,12 @@ variables:
 # Exclude local build and test artifacts from bundle sync.
 sync:
   exclude:
-    - "**/node_modules/**"
-    - "**/.venv/**"
+    # Dependencies and local/test output are already excluded by the tracked
+    # root and app .gitignore files. Keep only committed build products here;
+    # unmatched optional exclusions make `bundle validate --strict` fail in a
+    # clean customer clone.
     - "**/dist/**"
     - "**/build/**"
-    - "**/.smoke-test/**"
-    - "**/.ui-test-artifacts/**"
-    - "**/playwright-report/**"
-    - "**/test-results/**"
-    - agent/mlruns/**
-    - agent/mlflow.db
 
 targets:
 

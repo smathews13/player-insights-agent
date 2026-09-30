@@ -58,6 +58,28 @@ check_says() {
   PASS=$((PASS + 1))
 }
 
+# Vector Search is an optional, retired integration for the shipped targets. A
+# disabled target has no endpoint to probe and must stop before reading any
+# canned or live response. Keep the historical probe cases below for an
+# explicitly configured target, but do not fabricate an index just to exercise
+# them in the normal no-Vector-Search release.
+DISABLED_OUTPUT="$(python3 "$GATE" --target "$TARGET" --responses "$WORK" 2>&1)"
+if printf '%s' "$DISABLED_OUTPUT" | grep -qF "configures no semantic index endpoint"; then
+  printf '\n==> Vector Search is disabled for this target\n'
+  check_says "a disabled target performs no Vector Search probe" 2 \
+    "there is no Vector Search scope for this target to need" \
+    python3 "$GATE" --target "$TARGET" --responses "$WORK"
+  check_says "an unknown target remains unreadable, not disabled" 2 \
+    "COULD NOT RUN" python3 "$GATE" --target no-such-target --responses "$WORK"
+  printf '\n'
+  if (( FAIL )); then
+    printf 'FAIL  %d of %d assertions failed.\n' "$FAIL" "$((PASS + FAIL))"
+    exit 1
+  fi
+  printf 'PASS  %d assertions. No Vector Search resource is configured or probed.\n' "$PASS"
+  exit 0
+fi
+
 GOOD="$WORK/good"
 mkdir -p "$GOOD"
 cat > "$GOOD/endpoint.json" <<'JSON'

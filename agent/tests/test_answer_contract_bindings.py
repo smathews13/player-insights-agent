@@ -7,6 +7,7 @@ from pathlib import Path
 from contracts import AnswerContract
 from generate_answer_contract import field_names, render_python, render_typescript
 
+
 def _agent_root() -> Path:
     here = Path(__file__).resolve()
     for parent in here.parents:
@@ -20,7 +21,10 @@ def _agent_root() -> Path:
 
 AGENT = _agent_root()
 REPO = AGENT.parent
-if not (REPO / "player-insights-agent").is_dir() and (AGENT.parent.parent / "player-insights-agent").is_dir():
+if (
+    not (REPO / "player-insights-agent").is_dir()
+    and (AGENT.parent.parent / "player-insights-agent").is_dir()
+):
     REPO = AGENT.parent.parent
 # Harness: extensions/sample-neutral/agent -> repo root two levels up
 if not any(

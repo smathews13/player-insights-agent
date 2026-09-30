@@ -24,7 +24,6 @@ from config import (
     Settings,
 )
 from host_metadata_probe import bound as bound_host_metadata_probe
-from register_uc_model_version import register_logged_model_as_version
 from preflight import (
     BUILD_SHA_VAR,
     DIRTY_SUFFIX,
@@ -36,9 +35,7 @@ from preflight import (
     resolve_franchise_tags,
     widening_refusal,
 )
-from space_fingerprint import SPACE_FINGERPRINTS_KEY
-from space_fingerprint import dumps as dumps_space_fingerprints
-from space_fingerprint import records_from_genie
+from register_uc_model_version import register_logged_model_as_version
 from semantic_retrieval import MODEL_CONFIG_KEY as SEMANTIC_INDEX_KEY
 from semantic_retrieval import (
     SEMANTIC_INDEX_ENV,
@@ -46,6 +43,8 @@ from semantic_retrieval import (
     VECTOR_SEARCH_SCOPES,
     resolve_index,
 )
+from space_fingerprint import SPACE_FINGERPRINTS_KEY, records_from_genie
+from space_fingerprint import dumps as dumps_space_fingerprints
 from unattributed_figures import ALLOW_UNATTRIBUTED_FIGURES_ENV
 from unattributed_figures import MODEL_CONFIG_KEY as ALLOW_UNATTRIBUTED_KEY
 from unattributed_figures import announce as announce_waiver

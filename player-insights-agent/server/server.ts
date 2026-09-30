@@ -126,6 +126,7 @@ createApp({
     // authoritative roster to be settled.
     const readiness: { roles?: Promise<void> } = {};
     const { storeReady } = await setupInsightsRoutes(appkit, {
+      eagerIdentityReadiness: true,
       rolesReady: () =>
         readiness.roles ?? Promise.reject(new Error('Role bootstrap was requested before it was scheduled.')),
       onRequestLatencyRecorder: (recorder) => appkit.requestLatencyShutdown.setRecorder(recorder),

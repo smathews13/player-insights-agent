@@ -93,9 +93,9 @@ describe('runIdentityReadinessProbe', () => {
     let invoked = 0;
     const verdict = await runIdentityReadinessProbe({
       env: { ENFORCE_IDENTITY_READINESS: 'false', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
-      invoke: async () => {
+      invoke: () => {
         invoked += 1;
-        return {};
+        return Promise.resolve({});
       },
     });
     expect(invoked).toBe(0);
@@ -106,9 +106,9 @@ describe('runIdentityReadinessProbe', () => {
     let invoked = 0;
     const verdict = await runIdentityReadinessProbe({
       env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'false', NODE_ENV: 'production' },
-      invoke: async () => {
+      invoke: () => {
         invoked += 1;
-        return {};
+        return Promise.resolve({});
       },
     });
     expect(invoked).toBe(0);
@@ -118,9 +118,9 @@ describe('runIdentityReadinessProbe', () => {
   it('fails when a user-auth model answers as the service principal', async () => {
     const verdict = await runIdentityReadinessProbe({
       env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
-      invoke: async ({ userToken }) => {
+      invoke: ({ userToken }) => {
         expect(userToken).toBeTruthy();
-        return {
+        return Promise.resolve({
           result: {
             custom_outputs: {
               type: 'unavailable',
@@ -128,7 +128,7 @@ describe('runIdentityReadinessProbe', () => {
               execution_identity: { mode: 'service_principal', verified: false },
             },
           },
-        };
+        });
       },
     });
     expect(verdict).toMatchObject({ ok: false, reason: 'obo_not_wired', observed: 'service_principal' });
@@ -137,9 +137,8 @@ describe('runIdentityReadinessProbe', () => {
   it('passes when serving rejects the synthetic token as user_credentials', async () => {
     const verdict = await runIdentityReadinessProbe({
       env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
-      invoke: async () => {
-        throw new Error('model_serving_user_credentials auth: Unable to authenticate using user_credentials');
-      },
+      invoke: () =>
+        Promise.reject(new Error('model_serving_user_credentials auth: Unable to authenticate using user_credentials')),
     });
     expect(verdict).toMatchObject({ ok: true, reason: 'aligned', observed: 'token_forwarded' });
   });
