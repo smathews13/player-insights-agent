@@ -329,10 +329,8 @@ targets:
       experiment_path: /Shared/player-insights-agent-dev
       lakebase_app_schema: pia_dev
       app_telemetry_schema: player_insights_agent_dev_telemetry
-      # Declare only tables curated by the Genie spaces.
-      manifest_source: genie
-      # Run governed data calls as the signed-in user. Release matching app and
-      # model versions together.
+      # Run governed data calls as the signed-in user. Pinned existing versions
+      # are checked for this policy; cloning an App never re-logs the model.
       execution_identity: user-authorization
       # Development may scale to zero between test sessions.
       serving_scale_to_zero: "true"
