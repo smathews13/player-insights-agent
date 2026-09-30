@@ -166,9 +166,9 @@ The bundle deploy is interactive. Read its proposed changes before approving
 them. Do not use auto-approval for a first deployment. Detailed deployment,
 grant, recovery, and verification guidance is in
 [bundle/README.md](bundle/README.md). To run Dev on the newest registered model
-version and Prod on the previous approved version, run
-`PROFILE="<profile>" bash bundle/sync-dev-prod-endpoints.sh --apply`.
-Subsequent Dev model logs reconcile both endpoints automatically.
+version and Prod on the previous approved version, use the normal bundle
+deployment. It reconciles both endpoints before creating either App, and
+subsequent Dev model logs do the same automatically.
 
 ## Use Player Insights Agent
 

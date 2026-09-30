@@ -15,13 +15,18 @@ if [[ "$1 $2" == "bundle validate" ]]; then
   done
   model="catalog.schema.player_insights_agent"
   [[ "${MISMATCH:-}" == 1 && "$target" == prod ]] && model="catalog.schema.other"
-  printf '{"variables":{"model_name":{"value":"%s"}}}\n' "$model"
+  printf '{"variables":{"model_name":{"value":"%s"},"serving_endpoint_name":{"value":"player-insights-agent-%s"}}}\n' "$model" "$target"
 elif [[ "$1 $2" == "model-versions list" ]]; then
   if [[ -n "${VERSIONS_JSON:-}" ]]; then
     printf '%s\n' "$VERSIONS_JSON"
   else
     printf '%s\n' '{"model_versions":[{"version":"6","status":"READY"},{"version":"5","status":"READY"},{"version":"4","status":"FAILED_REGISTRATION"}]}'
   fi
+elif [[ "$1 $2" == "serving-endpoints get" ]]; then
+  [[ "${ENDPOINT_MATCH:-}" == 1 ]] || exit 1
+  version=6
+  [[ "$3" == "player-insights-agent-prod" ]] && version=5
+  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"traffic_config":{"routes":[{"served_model_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version"
 else
   printf 'unexpected databricks call: %s\n' "$*" >&2
   exit 2
@@ -54,6 +59,10 @@ run_sync --apply --latest-version 6 >/dev/null
 : >"$WORK/calls"
 run_sync --apply --skip-dev --latest-version 6 >/dev/null
 [[ "$(cat "$WORK/calls")" == "prod|test-profile|--apply --skip-log --model-version 5" ]]
+
+: >"$WORK/calls"
+ENDPOINT_MATCH=1 run_sync --apply --latest-version 6 >/dev/null
+[[ ! -s "$WORK/calls" ]]
 
 set +e
 OUTPUT="$(

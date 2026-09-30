@@ -130,6 +130,11 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--fixture-baked", metavar="PATH")
     ap.add_argument("--fixture-live", metavar="PATH")
     ap.add_argument("--skip-live", action="store_true")
+    ap.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Report but do not block a registered version that predates fingerprints.",
+    )
     args = ap.parse_args(argv)
 
     try:
@@ -156,17 +161,31 @@ def main(argv: list[str]) -> int:
         elif args.logged:
             baked = records_from_summary(read_json(Path(args.logged)), fingerprints)
         elif args.model_uri:
-            baked = records_from_model_config(
-                model_config_from_uri(args.model_uri),
-                fingerprints,
-                f"the MLmodel at {args.model_uri}",
-            )
+            try:
+                baked = records_from_model_config(
+                    model_config_from_uri(args.model_uri),
+                    fingerprints,
+                    f"the MLmodel at {args.model_uri}",
+                )
+            except Unreadable as exc:
+                if args.allow_missing and "predates Genie fingerprinting" in str(exc):
+                    print(f"  WARNING: {exc}")
+                    print("  Fingerprint comparison is advisory for this legacy version.")
+                    return EXIT_OK
+                raise
         else:
-            baked = records_from_model_config(
-                read_json(Path(args.model_config_json)),
-                fingerprints,
-                f"the model config at {args.model_config_json}",
-            )
+            try:
+                baked = records_from_model_config(
+                    read_json(Path(args.model_config_json)),
+                    fingerprints,
+                    f"the model config at {args.model_config_json}",
+                )
+            except Unreadable as exc:
+                if args.allow_missing and "predates Genie fingerprinting" in str(exc):
+                    print(f"  WARNING: {exc}")
+                    print("  Fingerprint comparison is advisory for this legacy version.")
+                    return EXIT_OK
+                raise
 
         if args.fixture_live:
             live = fingerprints.loads(read_json(Path(args.fixture_live)))
