@@ -47,6 +47,11 @@ quoted wherever you pass it.
 
 ## Deployment order on a fresh workspace
 
+For the two-App promotion topology where Dev serves the newest registered
+version and Prod serves the previous approved version, use
+[`DEV_PROD_PROMOTION.md`](DEV_PROD_PROMOTION.md). That flow creates two
+endpoints before the Apps because an App binding cannot select a model version.
+
 Internal and customer targets use the same sequence. Start with one complete,
 interactive bundle reconciliation, including the App, then release the model
 and app code:

@@ -6,6 +6,7 @@ bump. The artifact still grants SELECT on yesterday's tables; today's questions
 read a different set. This gate re-reads the live spaces and compares hashes.
 
     bundle/genie-fingerprint-check.py --logged summary.json
+    bundle/genie-fingerprint-check.py --model-uri models:/catalog.schema.model/12
     bundle/genie-fingerprint-check.py --logged summary.json --peer-logged other.json
     bundle/genie-fingerprint-check.py --fixture-baked baked.json --fixture-live live.json
 
@@ -73,6 +74,41 @@ def records_from_summary(summary: dict[str, Any], fingerprints) -> list[dict[str
     return fingerprints.loads(raw)
 
 
+def records_from_model_config(
+    config: dict[str, Any], fingerprints, where: str
+) -> list[dict[str, Any]]:
+    raw = config.get(fingerprints.SPACE_FINGERPRINTS_KEY)
+    if raw is None:
+        raise Unreadable(
+            f"{where} carries no {fingerprints.SPACE_FINGERPRINTS_KEY} key, so the "
+            "registered version predates Genie fingerprinting or was logged by another path"
+        )
+    return fingerprints.loads(raw)
+
+
+def model_config_from_uri(uri: str) -> dict[str, Any]:
+    """Read the pyfunc model_config from one registered model version."""
+    try:
+        import mlflow
+        from mlflow.models.model import Model
+    except ImportError as exc:
+        raise Unreadable(
+            f"mlflow is not importable, so {uri} cannot be inspected: {exc}. Run this "
+            "under the agent environment."
+        ) from exc
+    try:
+        if uri.startswith("models:/"):
+            mlflow.set_registry_uri("databricks-uc")
+        model = Model.load(uri)
+    except Exception as exc:
+        raise Unreadable(f"the MLmodel at {uri} could not be read: {exc}") from exc
+    for flavor in model.flavors.values():
+        config = flavor.get("model_config") if isinstance(flavor, dict) else None
+        if isinstance(config, dict):
+            return config
+    raise Unreadable(f"the MLmodel at {uri} carries no readable pyfunc model_config")
+
+
 def live_records(fingerprints, preflight) -> list[dict[str, Any]]:
     from databricks.sdk import WorkspaceClient
 
@@ -87,6 +123,8 @@ def live_records(fingerprints, preflight) -> list[dict[str, Any]]:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--logged", metavar="SUMMARY_JSON")
+    ap.add_argument("--model-uri", metavar="MODELS_URI")
+    ap.add_argument("--model-config-json", metavar="PATH")
     ap.add_argument("--peer-logged", metavar="SUMMARY_JSON")
     ap.add_argument("--allow-table-diff", metavar="TABLE", action="append", default=[])
     ap.add_argument("--fixture-baked", metavar="PATH")
@@ -101,13 +139,34 @@ def main(argv: list[str]) -> int:
         return EXIT_COULD_NOT_RUN
 
     try:
+        sources = [
+            bool(args.fixture_baked),
+            bool(args.logged),
+            bool(args.model_uri),
+            bool(args.model_config_json),
+        ]
+        if sum(sources) != 1:
+            print(
+                "  COULD NOT RUN. Pass exactly one of --logged, --model-uri, "
+                "--model-config-json, or --fixture-baked."
+            )
+            return EXIT_COULD_NOT_RUN
         if args.fixture_baked:
             baked = fingerprints.loads(read_json(Path(args.fixture_baked)))
         elif args.logged:
             baked = records_from_summary(read_json(Path(args.logged)), fingerprints)
+        elif args.model_uri:
+            baked = records_from_model_config(
+                model_config_from_uri(args.model_uri),
+                fingerprints,
+                f"the MLmodel at {args.model_uri}",
+            )
         else:
-            print("  COULD NOT RUN. Pass --logged or --fixture-baked.")
-            return EXIT_COULD_NOT_RUN
+            baked = records_from_model_config(
+                read_json(Path(args.model_config_json)),
+                fingerprints,
+                f"the model config at {args.model_config_json}",
+            )
 
         if args.fixture_live:
             live = fingerprints.loads(read_json(Path(args.fixture_live)))

@@ -40,6 +40,8 @@ json.dump(live_drift, open(f"{work}/live-drift.json", "w"))
 json.dump({"api_scopes": ["sql"], "genie_space_fingerprints": json.dumps(baked)}, open(f"{work}/summary.json", "w"))
 json.dump({"api_scopes": ["sql"], "genie_space_fingerprints": json.dumps(peer)}, open(f"{work}/peer-summary.json", "w"))
 json.dump({"api_scopes": ["sql"]}, open(f"{work}/no-fp.json", "w"))
+json.dump({"genie_space_fingerprints": json.dumps(baked)}, open(f"{work}/model-config.json", "w"))
+json.dump({}, open(f"{work}/model-config-no-fp.json", "w"))
 PY
 
 check_says "matching live and baked fingerprints pass" 0 \
@@ -64,6 +66,15 @@ check_says "a summary with no fingerprint key is exit 2" 2 \
   "no genie_space_fingerprints key" \
   python3 "$GATE" --logged "$WORK/no-fp.json" --skip-live
 
+check_says "a pinned registered version's model config is checked" 0 \
+  "matches the artifact" \
+  python3 "$GATE" --model-config-json "$WORK/model-config.json" \
+    --fixture-live "$WORK/live-ok.json"
+
+check_says "a pinned version predating fingerprints is refused" 2 \
+  "predates Genie fingerprinting" \
+  python3 "$GATE" --model-config-json "$WORK/model-config-no-fp.json" --skip-live
+
 check_says "model logging and release wire the fingerprint before promotion" 0 \
   "fingerprint release wiring is ordered" \
   python3 - "$HERE/../agent/log_model.py" "$HERE/agent-release.sh" <<'PY'
@@ -82,6 +93,7 @@ parsed_summary = release.index('LOG_SUMMARY="$(mktemp')
 fingerprint_gate = release.index('step "Genie space fingerprint vs the live space"')
 endpoint_deploy = release.index('python deploy_agent.py --model-version "$MODEL_VERSION"')
 assert parsed_summary < fingerprint_gate < endpoint_deploy
+assert 'FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION")' in release
 assert 'case "$FINGERPRINT_STATUS" in' in release
 assert '1)' in release[fingerprint_gate:endpoint_deploy]
 assert '2)' in release[fingerprint_gate:endpoint_deploy]
@@ -92,7 +104,7 @@ if (( FAIL )); then
   printf 'FAIL  %d of %d assertions failed.\n' "$FAIL" "$((PASS + FAIL))"
   exit 1
 fi
-if (( PASS < 6 )); then
+if (( PASS < 8 )); then
   printf 'FAIL  only %d assertions ran.\n' "$PASS"
   exit 1
 fi

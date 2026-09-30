@@ -1,14 +1,29 @@
 # Unity Catalog schema for objects owned by this deployment. Production data is
 # read from the separate scopes in data_catalogs and is never created here.
 # Bundle plans may show platform-managed schema properties as updates; do not
-# copy those workspace-specific properties into this file.
+# copy those workspace-specific properties into this file. The map is a variable
+# so one target can own a shared schema while another target attaches to the
+# registered model and data in it without becoming a second state owner.
+
+variables:
+  app_schema_resources:
+    description: >-
+      Bundle-managed app schema resources. Set to {} only for a target that
+      deliberately reuses a schema owned by another target.
+    type: complex
+    default:
+      player_insights_schema:
+        catalog_name: ${var.app_catalog}
+        name: ${var.app_schema}
+        comment: "${var.product_display_name}: model, semantic layer, and app-owned assets."
+        lifecycle:
+          prevent_destroy: true
+      player_insights_telemetry_schema:
+        catalog_name: ${var.app_catalog}
+        name: ${var.app_telemetry_schema}
+        comment: "${var.product_display_name}: optional OpenTelemetry logs, metrics, and traces."
+        lifecycle:
+          prevent_destroy: true
 
 resources:
-  schemas:
-    player_insights_schema:
-      catalog_name: ${var.app_catalog}
-      name: ${var.app_schema}
-      comment: "${var.product_display_name}: model, semantic layer, and app-owned assets."
-      lifecycle:
-        # Destroying this schema permanently removes its tables and model.
-        prevent_destroy: true
+  schemas: ${var.app_schema_resources}

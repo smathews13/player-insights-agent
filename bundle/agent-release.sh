@@ -752,37 +752,42 @@ above before deploying it to $ENDPOINT."
 esac
 fi
 
-if [[ -n "$LOG_SUMMARY" ]]; then
-  step "Genie space fingerprint vs the live space"
-  FINGERPRINT_CHECK="$BUNDLE_ROOT/bundle/genie-fingerprint-check.py"
-  [[ -f "$FINGERPRINT_CHECK" ]] || die "bundle/genie-fingerprint-check.py is missing, so a re-curated
+step "Genie space fingerprint vs the live space"
+FINGERPRINT_CHECK="$BUNDLE_ROOT/bundle/genie-fingerprint-check.py"
+[[ -f "$FINGERPRINT_CHECK" ]] || die "bundle/genie-fingerprint-check.py is missing, so a re-curated
 Genie space would not fail this release. Restore it:
   git restore bundle/genie-fingerprint-check.py"
+if [[ -n "$LOG_SUMMARY" ]]; then
   FINGERPRINT_ARGS=(--logged "$LOG_SUMMARY")
-  if [[ -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
-    FINGERPRINT_ARGS+=(--peer-logged "$PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY")
-  fi
-  FINGERPRINT_STATUS=0
-  (
-    cd "$BUNDLE_ROOT/agent"
-    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-      uv run --python 3.13 python "$FINGERPRINT_CHECK" "${FINGERPRINT_ARGS[@]}"
-  ) || FINGERPRINT_STATUS=$?
-  case "$FINGERPRINT_STATUS" in
-    0) : ;;
-    1)
-      die "The live Genie space no longer matches the fingerprint baked into version $MODEL_VERSION.
-Re-curation after log time is a new grant set. Re-log the model, then release again."
-      ;;
-    2)
-      die "The Genie space fingerprint could not be compared. That is not a pass.
-Read the COULD NOT RUN line above."
-      ;;
-    *)
-      die "bundle/genie-fingerprint-check.py exited $FINGERPRINT_STATUS, which it has no documented meaning for."
-      ;;
-  esac
+else
+  # A pinned rollback/production version gets the same gate. `--skip-log` used
+  # to skip fingerprints entirely, allowing an older artifact to be deployed
+  # after its Genie spaces had been re-curated.
+  FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION")
 fi
+if [[ -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
+  FINGERPRINT_ARGS+=(--peer-logged "$PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY")
+fi
+FINGERPRINT_STATUS=0
+(
+  cd "$BUNDLE_ROOT/agent"
+  DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+    uv run --python 3.13 python "$FINGERPRINT_CHECK" "${FINGERPRINT_ARGS[@]}"
+) || FINGERPRINT_STATUS=$?
+case "$FINGERPRINT_STATUS" in
+  0) : ;;
+  1)
+    die "The live Genie space no longer matches the fingerprint baked into version $MODEL_VERSION.
+Re-curation after log time is a new grant set. Re-log the model, then release again."
+    ;;
+  2)
+    die "The Genie space fingerprint could not be compared. That is not a pass.
+Read the COULD NOT RUN line above."
+    ;;
+  *)
+    die "bundle/genie-fingerprint-check.py exited $FINGERPRINT_STATUS, which it has no documented meaning for."
+    ;;
+esac
 
 COMPARE_RUNS=""
 for candidate in \

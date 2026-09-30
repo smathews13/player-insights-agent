@@ -174,6 +174,27 @@ def test_serving_scale_to_zero_is_wired_end_to_end() -> None:
     assert "scale_to_zero=scale_to_zero" in deploy
 
 
+def test_dev_and_prod_use_distinct_apps_endpoints_and_state_schemas() -> None:
+    bundle = yaml.safe_load((ROOT / "databricks.yml").read_text())
+    targets = bundle["targets"]
+
+    assert targets["dev"]["variables"]["app_name"] == "player-insights-agent-dev"
+    assert targets["prod"]["variables"]["app_name"] == "player-insights-agent-prod"
+    assert targets["dev"]["variables"]["serving_endpoint_name"] == "player-insights-agent-dev"
+    assert targets["prod"]["variables"]["serving_endpoint_name"] == "player-insights-agent-prod"
+    assert targets["dev"]["variables"]["lakebase_app_schema"] == "pia_dev"
+    assert targets["prod"]["variables"]["lakebase_app_schema"] == "pia_prod"
+
+    # Dev owns the shared UC containers. Prod points at the same registered
+    # model/schema but cannot become a second independent owner of those objects.
+    assert "app_schema_resources" not in targets["dev"]["variables"]
+    assert set(targets["prod"]["variables"]["app_schema_resources"]) == {
+        "player_insights_telemetry_schema"
+    }
+    assert "player_insights_schema" not in targets["prod"]["variables"]["app_schema_resources"]
+    assert targets["prod"]["variables"]["app_volume_resources"] == {}
+
+
 def _load_deploy_agent() -> Any:
     spec = importlib.util.spec_from_file_location(
         "deploy_agent", ROOT / "agent" / "deploy_agent.py"

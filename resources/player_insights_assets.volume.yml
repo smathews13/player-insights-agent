@@ -1,12 +1,22 @@
 # Empty managed volume for raw snapshots. Bundle deployment does not write to it.
+# Like the app schema, this has exactly one bundle-state owner when dev and prod
+# share the same Unity Catalog objects.
+
+variables:
+  app_volume_resources:
+    description: >-
+      Bundle-managed app volume resources. Set to {} only for a target that
+      deliberately reuses the volume owned by another target.
+    type: complex
+    default:
+      player_insights_volume:
+        catalog_name: ${var.app_catalog}
+        schema_name: ${var.app_schema}
+        name: ${var.volume}
+        volume_type: MANAGED
+        comment: "${var.product_display_name} raw snapshots."
+        lifecycle:
+          prevent_destroy: true
 
 resources:
-  volumes:
-    player_insights_volume:
-      catalog_name: ${var.app_catalog}
-      schema_name: ${var.app_schema}
-      name: ${var.volume}
-      volume_type: MANAGED
-      comment: "${var.product_display_name} raw snapshots."
-      lifecycle:
-        prevent_destroy: true
+  volumes: ${var.app_volume_resources}
