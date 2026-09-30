@@ -47,7 +47,7 @@ def load(name: str, path: Path):
         sys.path.insert(0, sibling)
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         del sys.modules[name]
         raise Unreadable(f"{path} could not be imported: {exc}") from exc
     finally:
