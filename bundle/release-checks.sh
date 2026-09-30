@@ -65,6 +65,7 @@ run_full() {
     return 0
   }
 
+  full_check "Production deploy build and artifact audit" npm --prefix "$APP" run build:deploy
   full_check "Complete application unit suite" npm --prefix "$APP" test
   full_check "Complete application typecheck" npm --prefix "$APP" run typecheck
   full_check "Complete application lint" npm --prefix "$APP" run lint
@@ -78,7 +79,6 @@ run_full() {
   full_check "Complete bundle checker suites" bash "$HERE/run-checks.sh"
   full_check "Bundle runner control-flow meta-test" bash "$HERE/run-checks.test.sh"
   full_check "Complete mirror derivation regression suite" bash "$ROOT/mirror/sync-mirror.test.sh"
-  full_check "Production deploy build and artifact audit" npm --prefix "$APP" run build:deploy
 
   if (( ${#failed[@]} )); then
     printf '\nFull audit failed in %d command(s):\n' "${#failed[@]}" >&2

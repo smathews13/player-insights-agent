@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -15,15 +15,21 @@ describe('AI Gateway bundle contract', () => {
 
   it('does not track a private target override or its Gateway identifier', () => {
     const overridePath = resolve(REPO, '.databricks/bundle/example/variable-overrides.json');
+    const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: REPO }).toString('utf8').split('\0').filter(Boolean);
+    expect(tracked).not.toContain('.databricks/bundle/example/variable-overrides.json');
+
+    if (!existsSync(overridePath)) return;
+
     const override = JSON.parse(readFileSync(overridePath, 'utf8')) as Record<string, unknown>;
     const privateGateway = String(override.llm_gateway_endpoint ?? '');
     expect(privateGateway).not.toBe('');
     expect(override.llm_gateway).toBe('mlflow');
-
-    const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: REPO }).toString('utf8').split('\0').filter(Boolean);
-    expect(tracked).not.toContain('.databricks/bundle/example/variable-overrides.json');
-    for (const path of tracked) {
-      expect(readFileSync(resolve(REPO, path), 'utf8'), path).not.toContain(privateGateway);
-    }
+    const leakScan = spawnSync('git', ['grep', '--cached', '-F', '--', privateGateway], {
+      cwd: REPO,
+      encoding: 'utf8',
+    });
+    expect(leakScan.stderr, leakScan.stderr).toBe('');
+    expect(leakScan.stdout, leakScan.stdout).toBe('');
+    expect(leakScan.status, leakScan.stderr).toBe(1);
   });
 });

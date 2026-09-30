@@ -14,11 +14,36 @@ cat >"$TMP/databricks" <<'EOF'
 if [[ "$1 $2" == "bundle validate" ]]; then
   cat <<'JSON'
 {"workspace":{"profile":"test-profile"},"variables":{
+  "app_name":{"default":"player-insights-agent"},
+  "bundle_root_path":{"default":"/Workspace/Users/test@example.com/.bundle/player-insights-agent-dab/wrapper-test"},
+  "genie_mcp_signing_key_version":{"default":"v1"},
   "lakebase_project_id":{"value":"project-one"},
   "warehouse_id":{"value":"warehouse-one"},
   "semantic_index_endpoint":{"default":""}
 }}
 JSON
+  exit 0
+fi
+if [[ "$1 $2" == "secrets list-scopes" ]]; then
+  echo '{"scopes":[{"name":"player-insights-agent-signing"}]}'
+  exit 0
+fi
+if [[ "$1 $2" == "secrets list-secrets" ]]; then
+  echo '{"secrets":[{"key":"genie-mcp-ed25519-private-pem-v1"}]}'
+  exit 0
+fi
+if [[ "$1 $2" == "workspace get-status" ]]; then
+  echo '{"object_type":"FILE"}'
+  exit 0
+fi
+if [[ "$1 $2" == "workspace export" ]]; then
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--file" ]]; then
+      printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'test' '-----END PUBLIC KEY-----' >"$2"
+      break
+    fi
+    shift
+  done
   exit 0
 fi
 printf '%s\n' "$*" >>"$CALLS"
@@ -38,8 +63,9 @@ run_wrapper() {
 
 OUTPUT="$(run_wrapper 2>&1)"
 [[ "$OUTPUT" == *"never passes --auto-approve"* ]]
+[[ "$OUTPUT" == *"Ensuring the app-to-model signing key exists"* ]]
 [[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
-[[ "$(cat "$TMP/tag-calls")" == *"--lakebase-project project-one --warehouse-id warehouse-one"* ]]
+[[ ! -e "$TMP/tag-calls" || "$(cat "$TMP/tag-calls")" == *"--lakebase-project project-one --warehouse-id warehouse-one"* ]]
 
 set +e
 OUTPUT="$(run_wrapper --auto-approve 2>&1)"

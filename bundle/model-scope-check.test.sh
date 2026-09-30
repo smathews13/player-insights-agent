@@ -95,9 +95,8 @@ printf '\n==> the baseline this repository is actually in\n'
 check_says "configured and documented agree" 0 "scopes agree" \
   python3 "$GATE" --target "$TARGET"
 
-# shellcheck disable=SC2086
 check_says "and agree with a logged model that baked exactly them" 0 "and logged scopes agree" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary good.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary good.json "$GENIE" "$GENIE_MCP" "$SQL")"
 
 # THE DIRECTORY THE GATE IS INVOKED FROM MUST NOT DECIDE WHETHER IT RUNS. Three of
 # the gate's four inputs are siblings of itself -- drift-check.py, scope-contract.py
@@ -116,13 +115,14 @@ for from in / "$HERE"; do
 done
 
 printf '\n==> the logged leg: what the release actually baked\n'
-# The VS pair, not the SQL scope: the warehouse id is not in the tracked file, so
-# the SQL scope is undecidable here and a logged model that omits it is not a
-# finding. The semantic index IS declared in the resource file, so the VS pair is
-# the scope this target really does ask for.
-check_says "a logged model missing a scope this target asks for fails" 1 \
-  "will not carry the scope" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" "$GENIE_MCP" "$SQL")"
+# Give the target one concrete required scope for this negative case. Vector
+# Search is retired and disabled, so a fixture must not pretend that its pair is
+# part of the healthy model.
+edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: abc123def4567890\n    description:}" && \
+  check_says "a logged model missing a scope this target asks for fails" 1 \
+    "will not carry the scope" \
+    python3 "$GATE" --target "$TARGET" --logged "$(summary short.json "$GENIE" "$GENIE_MCP")"
+restore
 
 check_says "a logged model carrying a scope nothing asks for fails" 1 \
   "one more API the agent could be made to call" \
@@ -141,37 +141,32 @@ printf '\n==> the configured leg: the target really is read\n'
 # claiming the SQL scope was baked and unasked-for. These two assertions are what
 # stops that reading coming back: an absent value and one still written as an
 # interpolation must BOTH pass a model that baked the scope.
-# shellcheck disable=SC2086
 check_says "an unresolvable warehouse leaves the SQL scope undecided, not unasked-for" 0 \
   "$SQL: undecidable statically, and the logged model carries it" \
-  python3 "$GATE" --target "$TARGET" --logged "$(summary undecided.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
+  python3 "$GATE" --target "$TARGET" --logged "$(summary undecided.json "$GENIE" "$GENIE_MCP" "$SQL")"
 
-# shellcheck disable=SC2086
 edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: \\\$\\{resources.sql_warehouses.demo.id\\}\n    description:}" && \
   check_says "a warehouse still written as an interpolation is undecided too" 0 \
     "$SQL: undecidable statically, and the logged model carries it" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary interp.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
+    python3 "$GATE" --target "$TARGET" --logged "$(summary interp.json "$GENIE" "$GENIE_MCP" "$SQL")"
 restore
 
 # THE REAL CHECK MUST STILL FIRE. Undecidable is only the unresolvable case: when
 # the file DOES carry a warehouse id, the SQL scope is asked for, and a logged
 # model that did not bake it is the failure this gate exists for -- the agent calls
 # the SQL API and the downscoped token does not carry the scope.
-# shellcheck disable=SC2086
 edit "$BUNDLE" "{\n  warehouse_id:\n    description:}{\n  warehouse_id:\n    default: abc123def4567890\n    description:}" && \
   check_says "a resolvable warehouse whose scope the model did not bake still fails" 1 \
     "will not carry the scope" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary mismatch.json "$GENIE" "$GENIE_MCP" $VS)"
+    python3 "$GATE" --target "$TARGET" --logged "$(summary mismatch.json "$GENIE" "$GENIE_MCP")"
 restore
 
-# A target with no semantic layer must not be told it asks for the Vector Search
-# pair, because that pair is added under a condition api_scopes() cannot see and
-# is the specific place the two lists have drifted apart before.
-edit "$INDEX_YML" "{\n      semantic_index_endpoint: }{\n      semantic_index_endpoint_unset: }" && \
-  check_says "a target with no semantic index does not ask for the VS pair" 1 \
-    "one more API the agent could be made to call" \
-    python3 "$GATE" --target "$TARGET" --logged "$(summary vs.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
-restore
+# A disabled semantic layer must reject a logged model that still carries the
+# retired Vector Search pair.
+# shellcheck disable=SC2086
+check_says "a target with no semantic index does not ask for the VS pair" 1 \
+  "one more API the agent could be made to call" \
+  python3 "$GATE" --target "$TARGET" --logged "$(summary vs.json "$GENIE" "$GENIE_MCP" "$SQL" $VS)"
 
 printf '\n==> the documented leg: the contract really is read\n'
 python3 - "$CONTRACT" <<'PY'

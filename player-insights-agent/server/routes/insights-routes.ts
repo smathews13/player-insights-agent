@@ -3821,6 +3821,8 @@ export function setupInsightsRoutes(
     readBudgetStatus?: typeof readAppBudgetStatus;
     /** Production reads only token-bearing MLflow span metadata; tests inject fixtures. */
     traceTokenEvidenceReader?: TraceTokenEvidenceReader;
+    /** Production eagerly verifies OBO wiring; isolated route harnesses leave this false. */
+    eagerIdentityReadiness?: boolean;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -3834,6 +3836,7 @@ export function setupInsightsRoutes(
   const storeReady = prepareStore(appkit);
   const idleConfig = options.appSessionConfig ?? resolveIdleTimeout();
   const identityProbe = createIdentityReadinessProbe({
+    deployed: options.eagerIdentityReadiness === true,
     invoke: async ({ payload, userToken }) => {
       try {
         return { result: await invokeServing(appkit, payload, undefined, 15_000, userToken) };
@@ -3842,7 +3845,11 @@ export function setupInsightsRoutes(
       }
     },
   });
-  void identityProbe.get();
+  // The production composition opts into the eager check so the first real Ask
+  // is never the probe. Isolated route harnesses stay lazy: probing their mocked
+  // serving transport would become an extra user request and corrupt identity
+  // boundary assertions. `/internal/readiness` still executes the same probe.
+  if (options.eagerIdentityReadiness === true) void identityProbe.get();
 
   // Reads are what the pages depend on, and a `CREATE TABLE IF NOT EXISTS` that
   // succeeds says nothing about whether the store still answers minutes later.

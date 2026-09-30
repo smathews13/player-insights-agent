@@ -68,7 +68,18 @@ function identityModeFrom(value: unknown): RuntimeIdentity | null {
 
 function errorText(error: unknown): string {
   if (error instanceof Error) return `${error.message}\n${error.stack ?? ''}`;
-  return String(error ?? '');
+  if (error == null) return '';
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return error.toString();
+  }
+  if (typeof error === 'symbol') return error.description ?? 'Symbol';
+  if (typeof error === 'function') return error.name ? `[Function ${error.name}]` : '[Function]';
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'Unknown non-serializable error';
+  }
 }
 
 export function observeRuntimeIdentity(input: { result?: unknown; error?: unknown }): RuntimeIdentity {

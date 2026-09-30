@@ -1,0 +1,17 @@
+{
+  "app_catalog": "<app-owned-catalog>",
+  "app_schema": "<app-owned-schema>",
+  "data_catalogs": [
+    "<governed-data-catalog>",
+    "<governed-data-catalog.restricted-schema>"
+  ],
+  "warehouse_id": "<pro-or-serverless-sql-warehouse-id>",
+  "app_source_code_path": "/Workspace/Users/<release-actor>/player-insights-agent-src",
+  "lakebase_project_id": "<existing-lakebase-project-id>",
+  "lakebase_branch_id": "production",
+  "lakebase_database_id": "databricks-postgres",
+  "lakebase_app_schema": "player_insights_agent",
+  "genie_data_space_id": "<existing-data-genie-space-id>",
+  "genie_dictionary_space_id": "<existing-dictionary-genie-space-id>",
+  "admin_emails": "super:<initial-admin@example.com>"
+}

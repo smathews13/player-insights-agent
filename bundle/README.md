@@ -92,6 +92,10 @@ and app code:
    TARGET=<target> PROFILE='<profile>' bundle/app-release.sh --apply
    ```
 
+   The bundle wrapper idempotently creates the app-to-model signing key before
+   the App resource is created. The later agent release reuses it and publishes
+   only the public half into the logged model.
+
    Do not create the App by hand, exclude it with `--select`, or introduce a
    Terraform-engine path. The App is bundle-owned; `app-release.sh` remains the
    code and database-grant release after the bundle creates it.
