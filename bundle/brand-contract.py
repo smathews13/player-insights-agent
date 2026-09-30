@@ -57,7 +57,6 @@ STATE_COMPATIBILITY_KEYS = {
     "resources/player_insights_experiment.experiment.yml": "player_insights_experiment:",
     "resources/player_insights_setup.job.yml": "player_insights_setup:",
     "resources/player_insights_semantic.example.yml": "player_insights_semantic_rebuild:",
-    "resources/player_insights_telemetry.schema.yml": "player_insights_telemetry_schema:",
 }
 
 
@@ -118,6 +117,12 @@ def scan(root: Path, include_generated: bool) -> list[str]:
             findings.append(
                 f"{relative}: stable non-user-facing state key changed without a migration: {key}"
             )
+    if "player_insights_telemetry_schema:" not in (
+        root / "resources/player_insights.schema.yml"
+    ).read_text(encoding="utf-8"):
+        findings.append(
+            "resources/player_insights.schema.yml: telemetry schema state key changed without a migration"
+        )
 
     example = bundle[bundle.index("\n  example:\n") : bundle.index("\n  dev:\n")]
     for literal in (

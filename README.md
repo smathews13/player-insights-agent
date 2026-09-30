@@ -118,12 +118,14 @@ Each resulting `variable-overrides.json` contains:
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
   "lakebase_database_id": "databricks-postgres",
-  "lakebase_app_schema": "player_insights_agent",
   "genie_data_space_id": "<data_genie_space_id>",
   "genie_dictionary_space_id": "<dictionary_genie_space_id>",
   "admin_emails": "super:<initial_admin@example.com>"
 }
 ```
+
+Do not add `lakebase_app_schema` to both files: target defaults isolate App
+state as `pia_dev` and `pia_prod`.
 
 This ignored file is the supported persistent configuration for one local
 checkout. Databricks Bundle commands resolve variables in this order, highest
@@ -144,6 +146,9 @@ before every model release.
 
 Run the three deployment stages in order for each workspace. Profiles supply
 the workspace hosts, keeping development and production URLs out of Git:
+The target defaults create `player-insights-agent-dev` and
+`player-insights-agent-prod` with separate serving endpoints and Lakebase app
+schemas.
 
 ```bash
 # Development
@@ -160,7 +165,9 @@ TARGET=prod PROFILE="<prod-profile>" bash bundle/app-release.sh --apply
 The bundle deploy is interactive. Read its proposed changes before approving
 them. Do not use auto-approval for a first deployment. Detailed deployment,
 grant, recovery, and verification guidance is in
-[bundle/README.md](bundle/README.md).
+[bundle/README.md](bundle/README.md). To run Dev on the newest registered model
+version and Prod on the previous approved version, follow
+[the two-endpoint promotion runbook](bundle/DEV_PROD_PROMOTION.md).
 
 ## Use Player Insights Agent
 

@@ -323,6 +323,12 @@ targets:
     workspace:
       root_path: ${var.bundle_root_path}
     variables: &customer_target_variables
+      app_name: player-insights-agent-dev
+      app_description: ${var.product_display_name} development
+      serving_endpoint_name: player-insights-agent-dev
+      experiment_path: /Shared/player-insights-agent-dev
+      lakebase_app_schema: pia_dev
+      app_telemetry_schema: player_insights_agent_dev_telemetry
       # Declare only tables curated by the Genie spaces.
       manifest_source: genie
       # Run governed data calls as the signed-in user. Release matching app and
@@ -396,6 +402,23 @@ targets:
       root_path: ${var.bundle_root_path}
     variables:
       <<: *customer_target_variables
+      app_name: player-insights-agent-prod
+      app_description: ${var.product_display_name} production
+      serving_endpoint_name: player-insights-agent-prod
+      experiment_path: /Shared/player-insights-agent-prod
+      lakebase_app_schema: pia_prod
+      app_telemetry_schema: player_insights_agent_prod_telemetry
+      # Dev is the single bundle-state owner of the shared app schema and
+      # volume. Prod reads the shared registered model but must not independently
+      # create, update, or destroy those same Unity Catalog objects.
+      app_schema_resources:
+        player_insights_telemetry_schema:
+          catalog_name: ${var.app_catalog}
+          name: ${var.app_telemetry_schema}
+          comment: "${var.product_display_name}: optional OpenTelemetry logs, metrics, and traces."
+          lifecycle:
+            prevent_destroy: true
+      app_volume_resources: {}
       # Production stays warm so the first real question after an idle period
       # does not wait for a serving cold start.
       serving_scale_to_zero: "false"

@@ -32,7 +32,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 BUNDLE = ROOT / "databricks.yml"
 APP_RESOURCE = ROOT / "resources" / "player_insights_app.app.yml"
-TELEMETRY_RESOURCE = ROOT / "resources" / "player_insights_telemetry.schema.yml"
+SCHEMA_RESOURCE = ROOT / "resources" / "player_insights.schema.yml"
 APP_YAML = ROOT / "player-insights-agent" / "app.yaml"
 APP_RELEASE = ROOT / "bundle" / "app-release.sh"
 
@@ -289,8 +289,7 @@ def test_a_target_with_no_telemetry_gives_the_server_an_empty_value():
 def test_a_telemetry_target_creates_the_schema_it_writes_into():
     """Databricks creates the TABLES. Nothing creates the schema for us."""
 
-    schemas = (yaml.safe_load(TELEMETRY_RESOURCE.read_text()).get("resources") or {}).get(
-        "schemas"
-    ) or {}
+    schema_document = yaml.safe_load(SCHEMA_RESOURCE.read_text())
+    schemas = schema_document["variables"]["app_schema_resources"]["default"]
     declared = {schema.get("name") for schema in schemas.values() if isinstance(schema, dict)}
     assert "${var." + SCHEMA_VAR + "}" in declared
