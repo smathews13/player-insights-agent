@@ -95,8 +95,16 @@ cd player-insights-agent
 databricks auth login --profile "<profile>"
 ```
 
-Create the git-ignored file
-`.databricks/bundle/customer/variable-overrides.json`:
+Copy the committed customer template into the git-ignored target path, then
+replace every placeholder:
+
+```bash
+mkdir -p .databricks/bundle/customer
+cp bundle/customer-variable-overrides.example.json \
+  .databricks/bundle/customer/variable-overrides.json
+```
+
+The resulting `.databricks/bundle/customer/variable-overrides.json` contains:
 
 ```json
 {
