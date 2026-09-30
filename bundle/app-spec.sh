@@ -7,7 +7,7 @@
 # Usage:
 #   TARGET=<your-target>                            bundle/app-spec.sh            # print
 #   TARGET=<your-target>                            bundle/app-spec.sh --apply
-#   TARGET=customer PROFILE=<their-profile> bundle/app-spec.sh --apply
+#   TARGET=prod PROFILE=<prod-profile> bundle/app-spec.sh --apply
 #
 # TARGET has no default here, and that is deliberate even though databricks.yml
 # does mark one target as `default: true`. A script that fell through to the

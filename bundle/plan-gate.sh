@@ -59,7 +59,7 @@
 #
 # Usage:
 #   TARGET=<target> bundle/plan-gate.sh
-#   TARGET=customer PROFILE=<their-profile> bundle/plan-gate.sh
+#   TARGET=prod PROFILE=<prod-profile> bundle/plan-gate.sh
 #   TARGET=<target> PIA_PLAN_ALLOW_DESTROY=resources.jobs.old_job bundle/plan-gate.sh
 
 set -euo pipefail
@@ -75,7 +75,7 @@ require_target
 # something the CLI already knows. `bundle plan -t <target>` reads `workspace.profile` from
 # databricks.yml itself, so a target that names one needs nothing passed. PROFILE
 # is forwarded only when the CALLER set it, which is what a target carrying no
-# profile of its own (customer) needs.
+# profile of its own (dev or prod) needs.
 #
 # Keep it that way. `validate` was being run 14 times per release at ~7.5s each
 # before the resolution was cached once, and a gate that re-introduces one for a

@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("tag_resources", ROOT / "bundle" / "tag-resources.py")
 assert SPEC and SPEC.loader
@@ -155,11 +157,13 @@ def test_serving_scale_to_zero_is_wired_end_to_end() -> None:
 
     deploy = (ROOT / "agent" / "deploy_agent.py").read_text()
     release = (ROOT / "bundle" / "agent-release.sh").read_text()
-    bundle = (ROOT / "databricks.yml").read_text()
+    bundle_text = (ROOT / "databricks.yml").read_text()
+    bundle = yaml.safe_load(bundle_text)
 
     # The variable exists with a demo-safe default, and production opts back out.
-    assert "serving_scale_to_zero:" in bundle
-    assert 'serving_scale_to_zero: "false"' in bundle, "customer must stay always-on"
+    assert bundle["variables"]["serving_scale_to_zero"]["default"] == "true"
+    assert bundle["targets"]["dev"]["variables"]["serving_scale_to_zero"] == "true"
+    assert bundle["targets"]["prod"]["variables"]["serving_scale_to_zero"] == "false"
 
     # The release reads the variable and exports it for the deploy step.
     assert 'SCALE_TO_ZERO="$(bundle_var serving_scale_to_zero)"' in release

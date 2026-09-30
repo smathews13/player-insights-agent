@@ -119,7 +119,7 @@ def scan(root: Path, include_generated: bool) -> list[str]:
                 f"{relative}: stable non-user-facing state key changed without a migration: {key}"
             )
 
-    example = bundle[bundle.index("\n  example:\n") : bundle.index("\n  customer:\n")]
+    example = bundle[bundle.index("\n  example:\n") : bundle.index("\n  dev:\n")]
     for literal in (
         "volume: player_insights_assets",
         "lakebase_app_schema: player_insights",

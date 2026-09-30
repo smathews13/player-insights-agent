@@ -18,7 +18,7 @@ chmod +x "$TMP/databricks"
 
 set +e
 OUTPUT="$(
-  PATH="$TMP:$PATH" TARGET=customer PROFILE=customer \
+  PATH="$TMP:$PATH" TARGET=prod PROFILE=prod-profile \
     "$HERE/plan-gate.sh" 2>&1
 )"
 STATUS=$?
@@ -33,8 +33,8 @@ for NEEDLE in \
   "COULD NOT RUN. 'databricks bundle plan' produced no output" \
   "OverrideChangeDesc" \
   "This is NOT a clean plan" \
-  "databricks bundle plan -t customer --profile \"customer\"" \
-  ".databricks/bundle/customer/variable-overrides.json"
+  "databricks bundle plan -t prod --profile \"prod-profile\"" \
+  ".databricks/bundle/prod/variable-overrides.json"
 do
   [[ "$OUTPUT" == *"$NEEDLE"* ]] || {
     printf 'FAIL  recovery output omitted: %s\n%s\n' "$NEEDLE" "$OUTPUT"

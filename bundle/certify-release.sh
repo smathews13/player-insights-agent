@@ -18,7 +18,7 @@
 # Usage:
 #   TARGET=<your-target> bundle/certify-release.sh
 #   TARGET=<your-target> bundle/certify-release.sh --blocking
-#   TARGET=customer PROFILE=<their-profile> bundle/certify-release.sh
+#   TARGET=prod PROFILE=<prod-profile> bundle/certify-release.sh
 #
 #   TARGET=<your-target> bundle/certify-release.sh \
 #     --attest OAUTH_SCOPE_CONSENT_PROVEN --by you@example.com \

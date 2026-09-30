@@ -1691,7 +1691,7 @@ def test_the_empty_denylist_on_the_demo_target_reads_as_a_decision():
     bundle = (Path(__file__).resolve().parents[2] / "databricks.yml").read_text()
     if "\n  example:" not in bundle:
         pytest.skip("the demo target is not declared in this databricks.yml")
-    demo = bundle.split("\n  example:", 1)[1].split("\n  customer:", 1)[0]
+    demo = bundle.split("\n  example:", 1)[1].split("\n  dev:", 1)[0]
 
     assert "catalog_denylist" in demo, "it states its denylist rather than inheriting it"
     assert "needs no additional table exclusions" in demo, (
@@ -1744,13 +1744,15 @@ def test_every_declared_target_asks_questions_as_the_person_who_asked_them():
 
     bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
     targets = bundle.get("targets") or {}
-    if "example" not in targets or "customer" not in targets:
-        pytest.skip("neither target is declared in this databricks.yml")
+    expected = {"dev", "prod"}
+    if "example" in targets:
+        expected.add("example")
+    assert expected <= set(targets)
 
     assert bundle["variables"]["execution_identity"]["default"] == "system-passthrough", (
         "an unconfigured deployment must keep the behaviour it already had"
     )
-    for name in ("example", "customer"):
+    for name in sorted(expected):
         assert targets[name]["variables"]["execution_identity"] == "user-authorization", (
             f"{name} must ask questions as the signed-in user, not as the serving principal"
         )
