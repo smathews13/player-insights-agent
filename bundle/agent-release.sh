@@ -829,6 +829,15 @@ Set PLAYER_INSIGHTS_EVAL_BASELINE and PLAYER_INSIGHTS_EVAL_CANDIDATE, or restore
 agent/experiments/fixtures/plumbing-*.json."
 fi
 
+# One registered model, two automatic promotion lanes. A successful Dev log
+# advances Prod to N-1 before Dev moves to N. The nested release uses --skip-log,
+# so it cannot recurse or create another version.
+if [[ "$SKIP_LOG" != true && "$TARGET" == "dev" ]]; then
+  step "Advancing the Prod endpoint to Dev version minus one"
+  PROFILE="$PROFILE" bash "$BUNDLE_ROOT/bundle/sync-dev-prod-endpoints.sh" \
+    --apply --skip-dev --latest-version "$MODEL_VERSION"
+fi
+
 # Three served entities is the platform ceiling. Adding a fourth fails the
 # deploy, so idle ones are pruned first when we are already at it. Traffic-
 # bearing entities are never removed; if all three still carry traffic, stop.
