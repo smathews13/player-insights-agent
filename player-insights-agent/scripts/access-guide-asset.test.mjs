@@ -11,7 +11,9 @@ const EXPECTED_SOURCE_BYTES = 78_714;
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const source = path.join(repoRoot, 'docs', ACCESS_GUIDE_FILENAME);
 const deployed = path.join(repoRoot, 'build', 'deploy', 'assets', ACCESS_GUIDE_FILENAME);
-const publishExclusions = readFileSync(path.join(repoRoot, '..', 'mirror', 'publish-exclude.txt'), 'utf8');
+const publishExclusionsPath = path.join(repoRoot, '..', 'mirror', 'publish-exclude.txt');
+const internalTree = existsSync(publishExclusionsPath);
+const publishExclusions = internalTree ? readFileSync(publishExclusionsPath, 'utf8') : '';
 const temporary = [];
 
 function classifyAssetPair(sourceBytes, deployedBytes) {
@@ -142,7 +144,7 @@ describe('access guide deploy asset', () => {
     ).toThrow('deploy copy differs from its source');
   });
 
-  it('pins the confidential source and validates a generated deploy copy when present', () => {
+  it.skipIf(!internalTree)('pins the confidential source and validates a generated deploy copy when present', () => {
     const sourceBytes = readOptional(source);
     const deployedBytes = readOptional(deployed);
     expect(sourceBytes).toBeDefined();
@@ -154,17 +156,20 @@ describe('access guide deploy asset', () => {
     expect(validateAssetPair({ sourceBytes, deployedBytes })).toMatchObject({ state: 'both-present' });
   });
 
-  it('keeps the renamed source, deploy copy, and generation inputs out of the public mirror', () => {
-    for (const pathname of [
-      'docs/Player_Insights_Agent_Access_Guide.md',
-      'docs/Player_Insights_Agent_Security_Access_Specification.md',
-      'docs/Player_Insights_Agent_SP_Self_Service_Plan.md',
-      'docs/player-insights-agent-access-guide.css',
-      `player-insights-agent/docs/${ACCESS_GUIDE_FILENAME}`,
-      `player-insights-agent/build/deploy/assets/${ACCESS_GUIDE_FILENAME}`,
-    ]) {
-      expect(publishExclusions).toContain(`${pathname}\n`);
+  it.skipIf(!internalTree)(
+    'keeps the renamed source, deploy copy, and generation inputs out of the public mirror',
+    () => {
+      for (const pathname of [
+        'docs/Player_Insights_Agent_Access_Guide.md',
+        'docs/Player_Insights_Agent_Security_Access_Specification.md',
+        'docs/Player_Insights_Agent_SP_Self_Service_Plan.md',
+        'docs/player-insights-agent-access-guide.css',
+        `player-insights-agent/docs/${ACCESS_GUIDE_FILENAME}`,
+        `player-insights-agent/build/deploy/assets/${ACCESS_GUIDE_FILENAME}`,
+      ]) {
+        expect(publishExclusions).toContain(`${pathname}\n`);
+      }
+      expect(publishExclusions).not.toContain('Astrolabe_Access_Patterns_v2.pdf');
     }
-    expect(publishExclusions).not.toContain('Astrolabe_Access_Patterns_v2.pdf');
-  });
+  );
 });

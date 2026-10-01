@@ -84,9 +84,17 @@ run_full() {
   full_check "Complete Python agent lint" \
     uv run --directory "$ROOT/agent" --python 3.13 ruff check .
 
-  full_check "Complete bundle checker suites" bash "$HERE/run-checks.sh"
-  full_check "Bundle runner control-flow meta-test" bash "$HERE/run-checks.test.sh"
-  full_check "Complete mirror derivation regression suite" bash "$ROOT/mirror/sync-mirror.test.sh"
+  if [[ -f "$HERE/run-checks.sh" && -f "$HERE/run-checks.test.sh" ]]; then
+    full_check "Complete bundle checker suites" bash "$HERE/run-checks.sh"
+    full_check "Bundle runner control-flow meta-test" bash "$HERE/run-checks.test.sh"
+  else
+    printf '  note  internal bundle-checker regression suites are not published.\n'
+  fi
+  if [[ -f "$ROOT/mirror/sync-mirror.test.sh" ]]; then
+    full_check "Complete mirror derivation regression suite" bash "$ROOT/mirror/sync-mirror.test.sh"
+  else
+    printf '  note  mirror derivation regression suite ran before publication.\n'
+  fi
 
   if (( ${#failed[@]} )); then
     printf '\nFull audit failed in %d command(s):\n' "${#failed[@]}" >&2

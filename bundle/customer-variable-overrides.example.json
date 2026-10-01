@@ -6,7 +6,6 @@
     "<governed-data-catalog.restricted-schema>"
   ],
   "warehouse_id": "<pro-or-serverless-sql-warehouse-id>",
-  "app_source_code_path": "/Workspace/Users/<release-actor>/player-insights-agent-src",
   "lakebase_project_id": "<existing-lakebase-project-id>",
   "lakebase_branch_id": "production",
   "lakebase_database_id": "databricks-postgres",

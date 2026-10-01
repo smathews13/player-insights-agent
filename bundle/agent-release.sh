@@ -693,6 +693,29 @@ Continuing to deploy that version rather than logging again."
 fi
 [[ -n "$MODEL_VERSION" ]] || die "--model-version is required when --skip-log is set"
 
+if [[ "$SKIP_LOG" == true ]]; then
+  step "Pinned model configuration vs target"
+  PINNED_CONFIG_CHECK="$BUNDLE_ROOT/bundle/pinned-model-config-check.py"
+  [[ -f "$PINNED_CONFIG_CHECK" ]] || die "bundle/pinned-model-config-check.py is missing."
+  PINNED_EXPECTED="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-config.XXXXXX")"
+  on_exit "rm -f '$PINNED_EXPECTED'"
+  (
+    cd "$BUNDLE_ROOT/agent"
+    uv run --frozen --python 3.13 python - "$PINNED_EXPECTED" <<'PY'
+import json
+import sys
+from config import Settings
+
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(Settings.from_env().as_model_config(), handle)
+PY
+    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+      uv run --frozen --python 3.13 python "$PINNED_CONFIG_CHECK" \
+        --model-uri "models:/$MODEL_NAME/$MODEL_VERSION" \
+        --expected-json "$PINNED_EXPECTED"
+  ) || die "Pinned version $MODEL_VERSION was logged for a different target configuration."
+fi
+
 # The model's scopes, checked before this version is put in front of anybody.
 #
 # WHY HERE AND NOT "BEFORE REGISTRATION". log_model.py logs the artifact, then
@@ -850,15 +873,6 @@ Set PLAYER_INSIGHTS_EVAL_BASELINE and PLAYER_INSIGHTS_EVAL_CANDIDATE, or restore
 agent/experiments/fixtures/plumbing-*.json."
 fi
 
-# One registered model, two automatic promotion lanes. A successful Dev log
-# advances Prod to N-1 before Dev moves to N. The nested release uses --skip-log,
-# so it cannot recurse or create another version.
-if [[ "$SKIP_LOG" != true && "$TARGET" == "dev" ]]; then
-  step "Advancing the Prod endpoint to Dev version minus one"
-  PROFILE="$PROFILE" bash "$BUNDLE_ROOT/bundle/sync-dev-prod-endpoints.sh" \
-    --apply --skip-dev --latest-version "$MODEL_VERSION"
-fi
-
 # Three served entities is the platform ceiling. Adding a fourth fails the
 # deploy, so idle ones are pruned first when we are already at it. Traffic-
 # bearing entities are never removed; if all three still carry traffic, stop.
@@ -958,51 +972,69 @@ echo "  ok, version $MODEL_VERSION is taking traffic"
 #
 # Exit 2 blocks as well as exit 1, for the reason the scope gate a hundred lines
 # up gives: "the question was never answered" is not "the answer was yes".
-if [[ -n "$LOG_SUMMARY" ]]; then
-  step "The served version's user auth policy"
-  USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
-  [[ -f "$USER_AUTH_CHECK" ]] || die "bundle/model-user-auth-check.py is missing, so nothing confirmed that version
+step "The served version's user auth policy"
+USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
+[[ -f "$USER_AUTH_CHECK" ]] || die "bundle/model-user-auth-check.py is missing, so nothing confirmed that version
 $MODEL_VERSION can act as the person asking. A missing checker is not a pass:
   git restore bundle/model-user-auth-check.py"
-  USER_AUTH_STATUS=0
-  # Under the agent's environment: it reads the registered version's MLmodel with
-  # MLflow's own reader rather than parsing YAML a second way.
+AUTH_SUMMARY="$LOG_SUMMARY"
+if [[ -z "$AUTH_SUMMARY" ]]; then
+  AUTH_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-auth-summary.XXXXXX")"
+  on_exit "rm -f '$AUTH_SUMMARY'"
   (
     cd "$BUNDLE_ROOT/agent"
-    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-      uv run --frozen --python 3.13 python "$USER_AUTH_CHECK" \
-        --logged "$LOG_SUMMARY" --registered \
-        --user-authorization "$USER_AUTHORIZATION" \
-        --serving-endpoint "$ENDPOINT"
-  ) || USER_AUTH_STATUS=$?
-  case "$USER_AUTH_STATUS" in
-    0) : ;;
-    1)
-      die "Version $MODEL_VERSION is serving on $ENDPOINT and cannot act as the person asking.
+    MODEL_VERSION="$MODEL_VERSION" uv run --frozen --python 3.13 python - "$AUTH_SUMMARY" <<'PY'
+import json
+import os
+import sys
+from config import Settings
+from user_authorization import api_scopes
+
+settings = Settings.from_env()
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "api_scopes": list(api_scopes(settings)),
+            "model_name": os.environ["PLAYER_INSIGHTS_MODEL_NAME"],
+            "model_version": os.environ["MODEL_VERSION"],
+        },
+        handle,
+    )
+PY
+  )
+fi
+USER_AUTH_STATUS=0
+# Under the agent's environment: it reads the registered version's MLmodel with
+# MLflow's own reader rather than parsing YAML a second way.
+(
+  cd "$BUNDLE_ROOT/agent"
+  DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+    uv run --frozen --python 3.13 python "$USER_AUTH_CHECK" \
+      --logged "$AUTH_SUMMARY" --registered \
+      --user-authorization "$USER_AUTHORIZATION" \
+      --serving-endpoint "$ENDPOINT"
+) || USER_AUTH_STATUS=$?
+case "$USER_AUTH_STATUS" in
+  0) : ;;
+  1)
+    die "Version $MODEL_VERSION is serving on $ENDPOINT and cannot act as the person asking.
 Read the FAIL lines above. This is the fault that reaches a user as an HTTP 400 on
 their first question, and no restart, re-grant or data change can write it: the
 policy is decided when the model is logged. Re-run this script to log and deploy a
 new version, or roll $ENDPOINT back to the previous one at
 $HOST/ml/endpoints/$ENDPOINT/ while you do."
-      ;;
-    2)
-      die "The user auth policy on version $MODEL_VERSION was not established either way.
+    ;;
+  2)
+    die "The user auth policy on version $MODEL_VERSION was not established either way.
 Read the COULD NOT RUN line above: it is not a finding and it is not a pass. The
 version IS deployed and IS taking traffic, so decide from the output whether to
 roll back before anyone asks it a question."
-      ;;
-    *)
-      die "bundle/model-user-auth-check.py exited $USER_AUTH_STATUS, which it has no documented
+    ;;
+  *)
+    die "bundle/model-user-auth-check.py exited $USER_AUTH_STATUS, which it has no documented
 meaning for. Treat version $MODEL_VERSION's ability to run as the caller as unknown."
-      ;;
-  esac
-else
-  step "The served version's user auth policy: NOT CHECKED (--skip-log)"
-  note "This run deployed version $MODEL_VERSION without logging it, so there is no release
-  summary to check it against. The run that logged it checked it. If that run
-  predates this gate, check it by hand:
-    (cd agent && uv run --frozen --python 3.13 python ../bundle/model-user-auth-check.py --help)"
-fi
+    ;;
+esac
 
 # --- Remove superseded serving entities -------------------------------------
 #
@@ -1029,6 +1061,15 @@ else
   "$BUNDLE_ROOT/bundle/prune-served-entities.py" \
     --endpoint "$ENDPOINT" --profile "$PROFILE" \
     --keep-rollbacks "$ROLLBACKS_KEPT" || true
+fi
+
+# Promote only a version that has completed the Dev traffic switch, smoke test,
+# user-auth gate, and pruning above. A merely registered version must never
+# become Prod because the next log happened to increment the registry.
+if [[ "$SKIP_LOG" != true && "$TARGET" == "dev" ]]; then
+  step "Advancing Prod after Dev version $MODEL_VERSION passed"
+  PROFILE="$PROFILE" bash "$BUNDLE_ROOT/bundle/sync-dev-prod-endpoints.sh" \
+    --apply --skip-dev --latest-version "$MODEL_VERSION"
 fi
 
 # Machine-readable handoff for callers such as the approved notebook helper.
