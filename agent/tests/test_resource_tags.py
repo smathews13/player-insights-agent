@@ -188,11 +188,13 @@ def test_dev_and_prod_use_distinct_apps_endpoints_and_state_schemas() -> None:
     # Dev owns the shared UC containers. Prod points at the same registered
     # model/schema but cannot become a second independent owner of those objects.
     assert "app_schema_resources" not in targets["dev"]["variables"]
+    assert "app_experiment_resources" not in targets["dev"]["variables"]
     assert set(targets["prod"]["variables"]["app_schema_resources"]) == {
         "player_insights_telemetry_schema"
     }
     assert "player_insights_schema" not in targets["prod"]["variables"]["app_schema_resources"]
     assert targets["prod"]["variables"]["app_volume_resources"] == {}
+    assert targets["prod"]["variables"]["app_experiment_resources"] == {}
 
 
 def _load_deploy_agent() -> Any:

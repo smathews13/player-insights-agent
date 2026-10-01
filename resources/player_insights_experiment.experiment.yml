@@ -1,16 +1,24 @@
-# MLflow experiment for agent runs and traces.
-# Declaring it creates the experiment and permissions before the first model log.
+# MLflow experiment for agent runs and traces. Dev is the single bundle-state
+# owner when Dev and Prod share the existing experiment; Prod resolves and uses
+# the same path without attempting to create another experiment.
+
+variables:
+  app_experiment_resources:
+    description: >-
+      Bundle-managed MLflow experiment resources. Set to {} only for a target
+      that deliberately reuses the experiment owned by another target.
+    type: complex
+    default:
+      player_insights_experiment:
+        name: ${var.experiment_path}
+        tags:
+          - key: system_billing
+            value: ${var.product_slug}
+        lifecycle:
+          prevent_destroy: true
+        permissions:
+          - level: CAN_EDIT
+            group_name: users
 
 resources:
-  experiments:
-    player_insights_experiment:
-      name: ${var.experiment_path}
-      tags:
-        - key: system_billing
-          value: ${var.product_slug}
-      lifecycle:
-        # Destroying the experiment permanently removes runs and traces.
-        prevent_destroy: true
-      permissions:
-        - level: CAN_EDIT
-          group_name: users
+  experiments: ${var.app_experiment_resources}
