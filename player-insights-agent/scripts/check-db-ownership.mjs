@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Whether the app's Postgres role owns the objects it maintains in the app data
 // schema (PLAYER_INSIGHTS_APP_SCHEMA / DEFAULT_APP_SCHEMA). Not AppKit's cache
-// schema (`appkit`): that one is cache-only and is remediated by dropping it in
-// grant-app-db-access.mjs so the app recreates and owns it.
+// schema (`appkit`): that fixed framework schema requires one database per App,
+// and grant-app-db-access.mjs refuses foreign ownership without dropping it.
 //
 // Ownership, not privileges, and the two are not interchangeable. The app's DDL
 // runs `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` at every boot, and Postgres
@@ -42,9 +42,11 @@ const APP = arg('app');
 const PROFILE = arg('profile');
 
 function cli(args) {
-  return JSON.parse(execFileSync('databricks', [...args, '--profile', PROFILE, '-o', 'json'], {
-    encoding: 'utf8',
-  }));
+  return JSON.parse(
+    execFileSync('databricks', [...args, '--profile', PROFILE, '-o', 'json'], {
+      encoding: 'utf8',
+    })
+  );
 }
 
 /** The schema the app creates: env, else DEFAULT_APP_SCHEMA from shared. */
@@ -83,7 +85,9 @@ async function main() {
   }
 
   const branch = postgres.branch;
-  const databaseId = String(postgres.database ?? '').split('/').pop();
+  const databaseId = String(postgres.database ?? '')
+    .split('/')
+    .pop();
   const endpoints = cli(['postgres', 'list-endpoints', branch]);
   const host = endpoints?.[0]?.status?.hosts?.host;
   const databases = cli(['postgres', 'list-databases', branch]);
@@ -107,7 +111,9 @@ async function main() {
   await client.connect();
 
   const { rows: schemas } = await client.query(
-    `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = $1`, [schema]);
+    `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = $1`,
+    [schema]
+  );
   if (schemas.length === 0) {
     console.log(`ok: ${schema} does not exist yet, so the app will create and own it on its first boot.`);
     await client.end();
@@ -115,7 +121,9 @@ async function main() {
   }
 
   const { rows: tables } = await client.query(
-    `SELECT tablename, tableowner FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`, [schema]);
+    `SELECT tablename, tableowner FROM pg_tables WHERE schemaname = $1 ORDER BY tablename`,
+    [schema]
+  );
   await client.end();
 
   console.log(`app role   ${appRole}`);
@@ -164,8 +172,7 @@ async function main() {
   process.exit(1);
 }
 
-const isDirectRun =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectRun) {
   main().catch((error) => {

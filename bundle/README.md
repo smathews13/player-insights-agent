@@ -57,7 +57,8 @@ Internal and customer targets use the same sequence. Start with one complete,
 interactive bundle reconciliation, including the App, then release the model
 and app code:
 
-0. Provision Lakebase (project / branch / database) and curate the two Genie
+0. Provision one Lakebase project/branch with separate `pia-dev` and `pia-prod`
+   databases, and curate the two Genie
    spaces **outside** this bundle. Name them in
    `.databricks/bundle/<target>/variable-overrides.json`
    (`lakebase_project_id`, `genie_data_space_id`, `genie_dictionary_space_id`,
@@ -178,9 +179,9 @@ input fails validation when skipped; Genie sharing still requires review.
   `DATABRICKS_SUPERUSER`; an unreachable branch or failed grant stops the
   release with the values it could not resolve.
 
-  The hook also drops a misowned AppKit cache schema (`appkit`).
-  `GRANT USAGE, CREATE` alone cannot fix later `CREATE INDEX` ownership
-  failures. It is idempotent and leaves an app-owned cache schema alone.
+  The hook refuses a foreign-owned AppKit cache schema (`appkit`) and never
+  drops it. Each App must bind its own database because AppKit does not expose
+  a configurable cache-schema name.
 
   After a Lakebase detach/reattach when no full app release is otherwise needed,
   run the same hook as the manual escape hatch, then restart the app:
@@ -254,7 +255,8 @@ which an interrupted migration leaves the bundle without ownership state.
 
 Dev and Prod use distinct App names, endpoints, Lakebase schemas, telemetry
 schemas, and staging paths while sharing the registered model, experiment,
-warehouse, governed data, Genie spaces, and Lakebase database. A normal bundle
+warehouse, governed data, Genie spaces, and Lakebase project/branch. Their
+Postgres databases remain separate. A normal bundle
 deploy reconciles endpoint versions before creating or updating either App.
 
 For app rollback, use `bundle/app-release.sh --apply --rollback-to
