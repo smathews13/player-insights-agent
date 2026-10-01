@@ -263,8 +263,9 @@ variables:
 
   # Lakebase
   #
-  # This bundle ATTACHES to a Lakebase instance that already exists. It does not
-  # create or modify the project, branch, endpoint, or database.
+  # This bundle ATTACHES to a Lakebase project/branch that already exists.
+  # bundle/deploy.sh creates missing target databases; DAB itself owns none of
+  # the project, branch, endpoint, or databases.
   lakebase_project_id:
     description: >-
       REQUIRED. ID of an EXISTING Lakebase project. Read it from
@@ -280,6 +281,16 @@ variables:
       ID of an existing database in that branch. Read it from
       `databricks postgres list-databases projects/<project>/branches/<branch>`.
     default: databricks-postgres
+  lakebase_postgres_database:
+    description: >-
+      PostgreSQL database name created inside the Lakebase database resource.
+      Hyphenated resource ids use underscore Postgres names.
+    default: databricks_postgres
+  lakebase_database_owner_role:
+    description: >-
+      Existing full Lakebase role resource path that owns databases created by
+      bundle/deploy.sh. Required for Dev and Prod first deployment.
+    default: ""
   lakebase_app_schema:
     description: >-
       Postgres schema the app creates and owns inside the existing database.
@@ -328,6 +339,7 @@ targets:
       app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-dev-src
       serving_endpoint_name: player-insights-agent-dev
       lakebase_database_id: pia-dev
+      lakebase_postgres_database: pia_dev
       lakebase_app_schema: pia_dev
       app_telemetry_schema: player_insights_agent_dev_telemetry
       # Run governed data calls as the signed-in user. Pinned existing versions
@@ -406,6 +418,7 @@ targets:
       app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-prod-src
       serving_endpoint_name: player-insights-agent-prod
       lakebase_database_id: pia-prod
+      lakebase_postgres_database: pia_prod
       lakebase_app_schema: pia_prod
       app_telemetry_schema: player_insights_agent_prod_telemetry
       # Dev is the single bundle-state owner of the shared app schema and

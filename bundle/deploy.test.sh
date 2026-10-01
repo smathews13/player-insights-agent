@@ -79,10 +79,13 @@ for forbidden in ("agent-release.sh", "log_model.py", "genie-fingerprint-check.p
         "the later model release, not fresh infrastructure reconciliation"
     )
 sync = text.index("sync-dev-prod-endpoints.sh")
+database = text.index("postgres create-database")
 signing_key = text.index("genie-mcp-signing-key.sh")
 bundle_deploy = text.index('ARGS=(bundle deploy')
-assert sync < signing_key < bundle_deploy
+assert database < sync < signing_key < bundle_deploy
 assert '"$TARGET" == "dev" || "$TARGET" == "prod"' in text
+assert '"postgres_database"' in text
+assert '"role"' in text
 experiment_bind = text.index("bundle deployment bind player_insights_experiment")
 assert experiment_bind < sync
 assert "--auto-approve" not in text[experiment_bind:sync]
