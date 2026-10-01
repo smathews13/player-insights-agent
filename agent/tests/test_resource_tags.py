@@ -221,3 +221,61 @@ def test_scale_to_zero_only_true_for_an_explicit_affirmative() -> None:
         assert deploy_agent._scale_to_zero(affirmative) is True
     for keep_on in ("", "false", "False", "no", "0", "off", "ture", "maybe"):
         assert deploy_agent._scale_to_zero(keep_on) is False
+
+
+def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -> None:
+    deploy_agent = _load_deploy_agent()
+    entity = SimpleNamespace(
+        entity_version="12",
+        environment_vars={"MLFLOW_EXPERIMENT_ID": "old"},
+        scale_to_zero_enabled=True,
+    )
+    config = SimpleNamespace(
+        served_entities=[entity],
+        traffic_config=SimpleNamespace(routes=[]),
+        auto_capture_config=None,
+    )
+    updates: list[dict[str, Any]] = []
+    serving = SimpleNamespace(
+        get=lambda _name: SimpleNamespace(config=config),
+        update_config=lambda **kwargs: updates.append(kwargs),
+    )
+    monkeypatch.setattr(
+        deploy_agent,
+        "WorkspaceClient",
+        lambda: SimpleNamespace(serving_endpoints=serving),
+    )
+
+    assert deploy_agent._refresh_existing_version("pia-prod", "12", "new", False)
+    assert entity.environment_vars["MLFLOW_EXPERIMENT_ID"] == "new"
+    assert entity.scale_to_zero_enabled is False
+    assert updates == [
+        {
+            "name": "pia-prod",
+            "served_entities": [entity],
+            "traffic_config": config.traffic_config,
+            "auto_capture_config": None,
+        }
+    ]
+
+
+def test_deploy_summary_names_the_requested_endpoint(monkeypatch, capsys) -> None:
+    deploy_agent = _load_deploy_agent()
+    monkeypatch.setenv("DATABRICKS_HOST", "https://example.cloud.databricks.com")
+    args = SimpleNamespace(
+        endpoint_name="player-insights-agent-prod",
+        model_name="catalog.schema.model",
+        model_version="12",
+    )
+
+    deploy_agent._print_summary(args, False, repaired=False)
+    output = capsys.readouterr().out
+    assert '"endpoint_name": "player-insights-agent-prod"' in output
+    assert "/ml/endpoints/player-insights-agent-prod/" in output
+
+
+def test_endpoint_deploy_refuses_to_create_a_replacement_experiment() -> None:
+    source = (ROOT / "agent" / "deploy_agent.py").read_text()
+    assert "mlflow.get_experiment_by_name(experiment_path)" in source
+    assert "endpoint deployment must not create a replacement experiment" in source
+    assert "mlflow.set_experiment(experiment_id=experiment.experiment_id)" in source

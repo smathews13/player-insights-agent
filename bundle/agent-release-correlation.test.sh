@@ -75,9 +75,14 @@ case "$1 $2" in
     # helpers, and D2 is a `must_be` rule, so an UNDECLARED variable CONTRADICTS it:
     # nothing in such a deployment asserts the decision. A target that omits it is
     # meant to be refused, so the value here is the one a real target carries.
-    cat <<'JSON'
+    if [[ "${FAKE_BUNDLE_NO_HOST:-}" == 1 ]]; then
+      workspace='{"profile":"test-profile"}'
+    else
+      workspace='{"host":"https://fake-workspace.cloud.databricks.com"}'
+    fi
+    cat <<JSON
 {
-  "workspace": { "host": "https://fake-workspace.cloud.databricks.com" },
+  "workspace": $workspace,
   "variables": {
     "app_catalog":              { "value": "test_catalog" },
     "app_schema":               { "value": "test_schema" },
@@ -344,6 +349,15 @@ expect_status nonzero "$status" "the harness stops after inspecting the MLflow s
   && ok "MLflow received the resolved host and minted OAuth token" \
   || bad "MLflow did not receive the standard OAuth environment"
 expect_absent "the short-lived token was never logged"       "fake-token"
+
+echo
+echo "=== 8b. profile host fills the CLI 1.12 bundle-output omission ==="
+AUTH_MARKER="$OUT_DIR/profile-host.marker" EXPECT_APPLY_AUTH=true FAKE_BUNDLE_NO_HOST=1 \
+  FAKE_SETTINGS_BODY="$NOTHING_SAVED" run_release profile-host --apply; status=$?
+expect_status nonzero "$status" "the harness stops after inspecting the profile-host fallback"
+[[ "$(cat "$OUT_DIR/profile-host.marker" 2>/dev/null || true)" == standard-oauth-env ]] \
+  && ok "MLflow received the host resolved from the CLI profile" \
+  || bad "profile host did not reach MLflow"
 
 echo
 echo "=== 9. Apply exports reach model logging instead of bundle baselines ==="

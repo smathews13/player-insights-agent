@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 
 import mlflow
 from databricks import agents
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import ResourceDoesNotExist
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +56,66 @@ def _scale_to_zero(value: str) -> bool:
     return str(value).strip().lower() in {"true", "1", "yes", "on"}
 
 
+def _refresh_existing_version(
+    endpoint_name: str,
+    model_version: str,
+    experiment_id: str,
+    scale_to_zero: bool,
+) -> bool:
+    """Repair one already-served version without adding a colliding entity."""
+    workspace = WorkspaceClient()
+    try:
+        endpoint = workspace.serving_endpoints.get(endpoint_name)
+    except ResourceDoesNotExist:
+        return False
+    config = endpoint.config
+    if config is None:
+        return False
+    entities = list(config.served_entities or [])
+    matching = [
+        entity
+        for entity in entities
+        if str(getattr(entity, "entity_version", "") or "") == str(model_version)
+    ]
+    if not matching:
+        return False
+    for entity in matching:
+        environment = dict(getattr(entity, "environment_vars", None) or {})
+        environment["MLFLOW_EXPERIMENT_ID"] = experiment_id
+        entity.environment_vars = environment
+        if hasattr(entity, "scale_to_zero_enabled"):
+            entity.scale_to_zero_enabled = scale_to_zero
+    workspace.serving_endpoints.update_config(
+        name=endpoint_name,
+        served_entities=entities,
+        traffic_config=config.traffic_config,
+        auto_capture_config=getattr(config, "auto_capture_config", None),
+    )
+    return True
+
+
+def _print_summary(args: argparse.Namespace, scale_to_zero: bool, repaired: bool) -> None:
+    host = (os.getenv("DATABRICKS_HOST") or "").rstrip("/")
+    status_url = f"{host}/ml/endpoints/{args.endpoint_name}/" if host else ""
+    print(
+        json.dumps(
+            {
+                "endpoint_name": args.endpoint_name,
+                "query_endpoint": f"{host}/serving-endpoints/{args.endpoint_name}/invocations"
+                if host
+                else "",
+                "status_url": status_url,
+                "model_name": args.model_name,
+                "model_version": str(args.model_version),
+                "scale_to_zero": scale_to_zero,
+                "repaired_existing_version": repaired,
+            }
+        )
+    )
+    if status_url:
+        print(f"View status: {status_url}")
+
+
 def main() -> None:
     args = parse_args()
     if not args.model_name:
@@ -62,30 +126,37 @@ def main() -> None:
         raise ValueError("--endpoint-name or PLAYER_INSIGHTS_ENDPOINT is required")
     mlflow.set_tracking_uri("databricks")
     mlflow.set_registry_uri("databricks-uc")
-    mlflow.set_experiment(os.getenv("PLAYER_INSIGHTS_EXPERIMENT", "/Shared/player-insights-agent"))
-    scale_to_zero = _scale_to_zero(args.scale_to_zero)
-    deployment = agents.deploy(
-        model_name=args.model_name,
-        model_version=str(args.model_version),
-        endpoint_name=args.endpoint_name,
-        scale_to_zero=scale_to_zero,
-        tags={
-            "system_billing": "player-insights-agent",
-            "project": "player-insights-agent",
-            "environment": args.environment or "unspecified",
-        },
-    )
-    print(
-        json.dumps(
-            {
-                "endpoint_name": deployment.endpoint_name,
-                "query_endpoint": deployment.query_endpoint,
-                "model_name": args.model_name,
-                "model_version": str(args.model_version),
-                "scale_to_zero": scale_to_zero,
-            }
+    experiment_path = os.getenv("PLAYER_INSIGHTS_EXPERIMENT", "/Shared/player-insights-agent")
+    experiment = mlflow.get_experiment_by_name(experiment_path)
+    if experiment is None:
+        raise ValueError(
+            f"Existing MLflow experiment {experiment_path!r} was not found; "
+            "endpoint deployment must not create a replacement experiment."
         )
-    )
+    mlflow.set_experiment(experiment_id=experiment.experiment_id)
+    scale_to_zero = _scale_to_zero(args.scale_to_zero)
+    experiment_id = str(experiment.experiment_id)
+    if _refresh_existing_version(
+        args.endpoint_name, str(args.model_version), experiment_id, scale_to_zero
+    ):
+        _print_summary(args, scale_to_zero, repaired=True)
+        return
+    # MLflow 3.14 can return metadata for the first endpoint already serving a
+    # model version even when this call created a different endpoint. Suppress
+    # those misleading links and print the requested endpoint below.
+    with contextlib.redirect_stdout(io.StringIO()):
+        agents.deploy(
+            model_name=args.model_name,
+            model_version=str(args.model_version),
+            endpoint_name=args.endpoint_name,
+            scale_to_zero=scale_to_zero,
+            tags={
+                "system_billing": "player-insights-agent",
+                "project": "player-insights-agent",
+                "environment": args.environment or "unspecified",
+            },
+        )
+    _print_summary(args, scale_to_zero, repaired=False)
 
 
 if __name__ == "__main__":

@@ -83,6 +83,36 @@ fi
 resolve_profile
 seed_bundle_cache
 
+# Dev is the single bundle-state owner of the existing shared MLflow
+# experiment. Adopt it during the normal deploy instead of trying to create a
+# second experiment with the same path. Bind remains interactive: its diff is
+# part of the deploy review, not an auto-approved bootstrap shortcut.
+if [[ "$TARGET" == "dev" ]]; then
+  EXPERIMENT_PATH="$(bundle_var experiment_path)"
+  EXPERIMENT_ID="$(databricks experiments get-by-name "$EXPERIMENT_PATH" \
+    --profile "$PROFILE" -o json | python3 -c '
+import json,sys
+body=json.load(sys.stdin)
+print((body.get("experiment") or body).get("experiment_id") or "")
+')"
+  [[ -n "$EXPERIMENT_ID" ]] || die "Existing MLflow experiment '$EXPERIMENT_PATH' was not found."
+  BOUND_EXPERIMENT="$(
+    databricks bundle summary -t dev --profile "$PROFILE" -o json 2>/dev/null \
+      | python3 -c '
+import json,sys
+try: body=json.load(sys.stdin)
+except Exception: print(""); raise SystemExit(0)
+print((((body.get("resources") or {}).get("experiments") or {})
+       .get("player_insights_experiment") or {}).get("id") or "")
+' || true
+  )"
+  if [[ "$BOUND_EXPERIMENT" != "$EXPERIMENT_ID" ]]; then
+    step "Adopting the existing shared MLflow experiment"
+    databricks bundle deployment bind player_insights_experiment "$EXPERIMENT_ID" \
+      -t dev --profile "$PROFILE"
+  fi
+fi
+
 # Apps bind endpoint names, not model versions. Reconcile the shared registered
 # model automatically before creating either App: Dev=N, Prod=N-1. Existing
 # endpoints already on those versions are left untouched.

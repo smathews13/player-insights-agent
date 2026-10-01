@@ -75,6 +75,22 @@ check_says "a pinned version predating fingerprints is advisory" 0 \
   "Fingerprint comparison is advisory" \
   python3 "$GATE" --model-config-json "$WORK/model-config-no-fp.json" --allow-missing --skip-live
 
+check_says "MLflow 3.14 config key is accepted" 0 \
+  "mlflow config key accepted" \
+  python3 - "$GATE" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("fingerprint_check", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+config = module.model_config_from_flavors(
+    {"python_function": {"config": {"genie_space_fingerprints": "[]"}}}
+)
+assert config["genie_space_fingerprints"] == "[]"
+print("mlflow config key accepted")
+PY
+
 check_says "model logging and release wire the fingerprint before promotion" 0 \
   "fingerprint release wiring is ordered" \
   python3 - "$HERE/../agent/log_model.py" "$HERE/agent-release.sh" <<'PY'
@@ -104,7 +120,7 @@ if (( FAIL )); then
   printf 'FAIL  %d of %d assertions failed.\n' "$FAIL" "$((PASS + FAIL))"
   exit 1
 fi
-if (( PASS < 8 )); then
+if (( PASS < 9 )); then
   printf 'FAIL  only %d assertions ran.\n' "$PASS"
   exit 1
 fi
