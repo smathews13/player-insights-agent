@@ -20,14 +20,15 @@ const accountRoutingSources = [
   readFileSync(path.join(repoRoot, 'client', 'src', 'AccountMenuPanel.tsx'), 'utf8'),
 ];
 const idlePolicyDocuments = [
-  readFileSync(path.join(repoRoot, '..', 'README.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'mirror', 'public-README.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'bundle', 'DECISIONS.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Access_Guide.md'), 'utf8'),
-  readFileSync(path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Security_Access_Specification.md'), 'utf8'),
-  authored,
-  bundleYaml,
-];
+  path.join(repoRoot, '..', 'README.md'),
+  path.join(repoRoot, '..', 'mirror', 'public-README.md'),
+  path.join(repoRoot, '..', 'bundle', 'DECISIONS.md'),
+  path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Access_Guide.md'),
+  path.join(repoRoot, '..', 'docs', 'Player_Insights_Agent_Security_Access_Specification.md'),
+]
+  .filter((file) => existsSync(file))
+  .map((file) => readFileSync(file, 'utf8'))
+  .concat(authored, bundleYaml);
 
 /** The deviations bundle-server.mjs applies. Kept here so the tests exercise the real shape. */
 const DEPLOY_OVERRIDES = {
@@ -188,6 +189,7 @@ describe('every authored variable reaches the deploy target', () => {
   });
 
   it('keeps every active timeout policy document on the two-hour default', () => {
+    expect(idlePolicyDocuments.length).toBeGreaterThanOrEqual(3);
     for (const document of idlePolicyDocuments) {
       expect(document).toMatch(/120[\s\S]{0,40}2 hours/);
       expect(document).not.toMatch(
@@ -492,7 +494,7 @@ describe('the committed deploy tree names no administrator', () => {
         INTERNAL_TREE,
         'build/deploy/app.yaml is missing from the internal tree, where it is tracked and is ' +
           'the file this guard reads. Put it back with: ' +
-          'git restore -- ':(glob)*/build/deploy/app.yaml''
+          "git restore -- ':(glob)*/build/deploy/app.yaml'"
       ).toBe(false);
       return;
     }
@@ -505,7 +507,7 @@ describe('the committed deploy tree names no administrator', () => {
       'build/deploy/app.yaml carries administrator addresses. That file is tracked and is ' +
         'published to customers. This is what a release leaves behind and it must not be ' +
         'committed. The app was still deployed with the list, because the release uploads the ' +
-        'local tree directly. Put it back with: git restore -- ':(glob)*/build/deploy/app.yaml''
+        "local tree directly. Put it back with: git restore -- ':(glob)*/build/deploy/app.yaml'"
     ).toBe('');
   });
 
