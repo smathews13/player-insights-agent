@@ -1798,7 +1798,11 @@ def test_lakebase_owner_role_is_private_and_used_only_for_database_creation():
         pytest.skip("this databricks.yml declares no variables")
     declared = variables["lakebase_database_owner_role"]
     assert declared["default"] == ""
-    deploy = (Path(__file__).resolve().parents[2] / "bundle" / "deploy.sh").read_text()
+    deploy = (
+        Path(__file__).resolve().parents[2]
+        / "bundle"
+        / "ensure-lakebase-database.sh"
+    ).read_text()
     assert "bundle_var lakebase_database_owner_role" in deploy
     assert "create-database" in deploy
 
