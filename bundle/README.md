@@ -252,48 +252,15 @@ to the live schema, volume, App, experiment, jobs, and AI Search resources.
 Renaming them has no display benefit and would require an unbind/rebind window in
 which an interrupted migration leaves the bundle without ownership state.
 
-The `example` target also keeps `player_insights_assets`,
-`player_insights_telemetry`, and the Lakebase schema `player_insights` as
-target-only compatibility values. Those names identify existing data-bearing
-objects. New deployments receive the canonical
-`player_insights_agent_assets`, `player_insights_agent_telemetry`, and
-`player_insights_agent` defaults.
-
-### Branding rollout and rollback
-
-No resource key or live model/endpoint/experiment identity changes in this
-rollout. Before releasing, change the ignored example
-`app_source_code_path` override to the canonical
-`/Workspace/Users/<release-actor>/player-insights-agent-src`; retired staging
-suffixes are refused.
-
-Then use the normal coordinated sequence:
-
-```bash
-TARGET=example PROFILE='<your profile>' bash bundle/deploy.sh
-TARGET=example PROFILE='<your profile>' bundle/agent-release.sh --apply
-TARGET=example PROFILE='<your profile>' bundle/app-release.sh --apply
-```
-
-At the bundle confirmation, stop if the plan proposes a delete, replace, or a
-second App/model/experiment. The bundle step updates labels, comments, and tags;
-the agent release records the canonical tags on a new model version at the same
-registered model and endpoint; the app release moves query attribution and the
-manifest short name to the same brand.
-
-For model rollback, redeploy the prior registered version without logging a
-duplicate:
-
-```bash
-TARGET=example PROFILE='<your profile>' \
-  bundle/agent-release.sh --apply --skip-log --model-version <previous-version>
-```
+Dev and Prod use distinct App names, endpoints, Lakebase schemas, telemetry
+schemas, and staging paths while sharing the registered model, experiment,
+warehouse, governed data, Genie spaces, and Lakebase database. A normal bundle
+deploy reconciles endpoint versions before creating or updating either App.
 
 For app rollback, use `bundle/app-release.sh --apply --rollback-to
 <known-good-workspace-snapshot>`. Reverting source and rerunning the interactive
 bundle wrapper restores prior comments/tags if needed; it must still show no
-resource deletion or replacement. Lakebase data and the retained target-only
-schema/volume identities are unchanged in either direction.
+resource deletion or replacement.
 
 ## Before a later bundle reconciliation
 

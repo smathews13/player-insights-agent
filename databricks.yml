@@ -325,6 +325,7 @@ targets:
     variables: &customer_target_variables
       app_name: player-insights-agent-dev
       app_description: ${var.product_display_name} development
+      app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-dev-src
       serving_endpoint_name: player-insights-agent-dev
       lakebase_app_schema: pia_dev
       app_telemetry_schema: player_insights_agent_dev_telemetry
@@ -401,6 +402,7 @@ targets:
       <<: *customer_target_variables
       app_name: player-insights-agent-prod
       app_description: ${var.product_display_name} production
+      app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-prod-src
       serving_endpoint_name: player-insights-agent-prod
       lakebase_app_schema: pia_prod
       app_telemetry_schema: player_insights_agent_prod_telemetry

@@ -59,10 +59,9 @@ Model Serving endpoint ───────▶ MLflow experiment
 ```
 
 The Databricks Declarative Automation Bundle creates the application-owned Unity Catalog
-objects, MLflow experiment, app resource, and supporting job definitions. It
-attaches to, rather than creates or owns, the SQL warehouse, Lakebase database,
-and Genie spaces. The model and app code are released separately after the
-initial bundle deployment.
+objects, App resources, and supporting job definitions. It adopts the existing
+MLflow experiment for Dev and attaches to, rather than creates or owns, the SQL
+warehouse, Lakebase database, Genie spaces, and registered model.
 
 ## Prerequisites
 
@@ -70,13 +69,15 @@ You need:
 
 - a Databricks workspace with Apps, Model Serving, Unity Catalog, MLflow, Genie,
   Lakebase, and a Pro or Serverless SQL warehouse available;
-- the Databricks CLI authenticated to that workspace;
+- Node.js/npm, Python 3, `uv`, and the Databricks CLI authenticated to that workspace;
 - an existing Unity Catalog catalog for Player Insights Agent-owned objects;
 - one or more catalogs or schemas containing the governed data Player Insights Agent may
   read;
 - an existing Lakebase project, branch, and database;
 - two curated Genie spaces: one for analytical data and one for data
   definitions;
+- an existing registered model with at least two consecutive READY versions,
+  plus the existing MLflow experiment those versions use;
 - one or more initial application administrator email addresses; and
 - permissions to deploy bundles, apps, models, and serving endpoints and to
   grant the required data access.
@@ -114,7 +115,6 @@ Each resulting `variable-overrides.json` contains:
   "app_schema": "player_insights_agent",
   "data_catalogs": ["<data_catalog>", "<data_catalog>.<restricted_schema>"],
   "warehouse_id": "<sql_warehouse_id>",
-  "app_source_code_path": "/Workspace/Users/<release-actor>/player-insights-agent-src",
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
   "lakebase_database_id": "databricks-postgres",
@@ -126,6 +126,8 @@ Each resulting `variable-overrides.json` contains:
 
 Do not add `lakebase_app_schema` to both files: target defaults isolate App
 state as `pia_dev` and `pia_prod`.
+Target defaults also provide distinct validated workspace staging paths ending
+in `player-insights-agent-dev-src` and `player-insights-agent-prod-src`.
 
 This ignored file is the supported persistent configuration for one local
 checkout. Databricks Bundle commands resolve variables in this order, highest
@@ -144,8 +146,9 @@ catalog entry permits discovery within its non-system schemas; a
 `catalog.schema` entry narrows that boundary to one schema. Review this list
 before every model release.
 
-Run the three deployment stages in order for each workspace. Profiles supply
-the workspace hosts, keeping development and production URLs out of Git:
+Run the three deployment stages in order. Dev and Prod intentionally share one
+workspace profile because they reuse the same model, experiment, warehouse,
+catalog/schema, Genie spaces, and Lakebase database:
 The target defaults create `player-insights-agent-dev` and
 `player-insights-agent-prod` with separate serving endpoints and Lakebase app
 schemas. Both use the existing shared MLflow experiment; only Dev owns that
@@ -153,14 +156,14 @@ experiment in bundle state.
 
 ```bash
 # Development
-TARGET=dev PROFILE="<dev-profile>" bash bundle/deploy.sh
-TARGET=dev PROFILE="<dev-profile>" bash bundle/agent-release.sh --apply
-TARGET=dev PROFILE="<dev-profile>" bash bundle/app-release.sh --apply
+TARGET=dev PROFILE="<profile>" bash bundle/deploy.sh
+TARGET=dev PROFILE="<profile>" bash bundle/agent-release.sh --apply
+TARGET=dev PROFILE="<profile>" bash bundle/app-release.sh --apply
 
 # Production
-TARGET=prod PROFILE="<prod-profile>" bash bundle/deploy.sh
-TARGET=prod PROFILE="<prod-profile>" bash bundle/agent-release.sh --apply
-TARGET=prod PROFILE="<prod-profile>" bash bundle/app-release.sh --apply
+TARGET=prod PROFILE="<profile>" bash bundle/deploy.sh
+TARGET=prod PROFILE="<profile>" bash bundle/agent-release.sh --apply
+TARGET=prod PROFILE="<profile>" bash bundle/app-release.sh --apply
 ```
 
 The bundle deploy is interactive. Read its proposed changes before approving
