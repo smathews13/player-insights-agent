@@ -191,7 +191,17 @@ genie_origin() {
 }
 
 served_entity_count() {
-  databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json | python3 -c '
+  local body
+  if ! body="$(databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json 2>&1)"; then
+    if [[ "$body" == *"does not exist"* || "$body" == *"RESOURCE_DOES_NOT_EXIST"* \
+       || "$body" == *"not found"* ]]; then
+      printf '0\n'
+      return 0
+    fi
+    printf '%s\n' "$body" >&2
+    return 1
+  fi
+  printf '%s' "$body" | python3 -c '
 import json, sys
 body = json.load(sys.stdin)
 print(len((body.get("config") or {}).get("served_entities") or []))
@@ -581,10 +591,10 @@ if [[ "$APPLY" != true ]]; then
 Dry run. Nothing was logged or deployed.
 
 Re-run with --apply to:
-  1. cd agent && uv run --python 3.13 python log_model.py
+  1. cd agent && uv run --frozen --python 3.13 python log_model.py
      (logs a new version, registers it in UC, points the 'prod' alias at it.
       The alias is a signpost; step 2 deploys by explicit version number)
-  2. uv run --python 3.13 python deploy_agent.py --model-version <new>
+  2. uv run --frozen --python 3.13 python deploy_agent.py --model-version <new>
   3. wait 60s for the traffic switch to settle
   4. smoke-test the endpoint
   5. remove superseded entities from the endpoint, keeping what serves plus
@@ -602,7 +612,7 @@ fallback answers anyway, so the endpoint looks healthy while it has stopped usin
 Genie at all.
 See the manifest a log would declare, and every table it excludes with the
 reason, without logging anything:
-  (cd agent && uv run --python 3.13 python manifest_dryrun.py)
+  (cd agent && uv run --frozen --python 3.13 python manifest_dryrun.py)
 
 log_model.py stops if this release would declare tables the live version does not,
 because it cannot tell a widening somebody chose from a catalog_denylist that went
@@ -624,7 +634,16 @@ WORKSPACE_HOST="$(bundle_json | python3 -c '
 import json,sys
 print((json.load(sys.stdin).get("workspace") or {}).get("host") or "")
 ')"
-[[ -n "$WORKSPACE_HOST" ]] || die "The resolved bundle target has no workspace host."
+if [[ -z "$WORKSPACE_HOST" ]]; then
+  WORKSPACE_HOST="$(databricks auth describe --profile "$PROFILE" -o json | python3 -c '
+import json,sys
+body=json.load(sys.stdin)
+details=body.get("details") or {}
+configuration=details.get("configuration") or {}
+print(details.get("host") or ((configuration.get("host") or {}).get("value")) or "")
+')"
+fi
+[[ -n "$WORKSPACE_HOST" ]] || die "The resolved bundle target and profile have no workspace host."
 RELEASE_TOKEN_JSON="$(databricks auth token --profile "$PROFILE")" \
   || die "Could not mint a short-lived OAuth token from profile '$PROFILE'.
 Run: databricks auth login --profile \"$PROFILE\""
@@ -652,7 +671,7 @@ if [[ "$SKIP_LOG" != true ]]; then
   (
     cd "$BUNDLE_ROOT/agent"
     DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-      uv run --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT"
+      uv run --frozen --python 3.13 python log_model.py "${LOG_ARGS[@]+"${LOG_ARGS[@]}"}" > "$LOG_STDOUT"
   )
   LOG_STATUS=$?
   set -e
@@ -774,7 +793,7 @@ FINGERPRINT_STATUS=0
 (
   cd "$BUNDLE_ROOT/agent"
   DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-    uv run --python 3.13 python "$FINGERPRINT_CHECK" "${FINGERPRINT_ARGS[@]}"
+    uv run --frozen --python 3.13 python "$FINGERPRINT_CHECK" "${FINGERPRINT_ARGS[@]}"
 ) || FINGERPRINT_STATUS=$?
 case "$FINGERPRINT_STATUS" in
   0) : ;;
@@ -871,13 +890,13 @@ step "Deploying version $MODEL_VERSION to $ENDPOINT"
 (
   cd "$BUNDLE_ROOT/agent"
   DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-    uv run --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION"
+    uv run --frozen --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION"
 )
 
 step "Applying the Player Insights Agent resource tag"
 (cd "$BUNDLE_ROOT/agent" \
   && DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-     uv run --python 3.13 python ../bundle/tag-resources.py \
+     uv run --frozen --python 3.13 python ../bundle/tag-resources.py \
        --registered-model "$MODEL_NAME" \
        --serving-endpoint "$ENDPOINT")
 
@@ -895,7 +914,7 @@ step "Applying the Player Insights Agent resource tag"
 # served and carry 0% of the traffic, which means every question is still answered
 # by the previous one.
 step "Waiting for the traffic switch to settle, then confirming version $MODEL_VERSION"
-deadline=$(( $(date +%s) + 1200 ))
+deadline=$(( $(date +%s) + 1800 ))
 while :; do
   state=$(databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json \
     | python3 -c "
@@ -913,7 +932,7 @@ print(update, live.get(want, 0), sorted(k for k, v in live.items() if v))
   echo "  update=$update version $MODEL_VERSION at ${share}% traffic"
   [[ "$update" == 'NOT_UPDATING' || "$update" == 'NONE' ]] && (( share > 0 )) && break
   if (( $(date +%s) >= deadline )); then
-    die "version $MODEL_VERSION is not taking traffic after 20 minutes. The endpoint may still be
+    die "version $MODEL_VERSION is not taking traffic after 30 minutes. The endpoint may still be
 updating: check $HOST/ml/endpoints/$ENDPOINT/ before deciding whether to redeploy, and do NOT
 smoke-test yet, because the answers would come from the previous version."
   fi
@@ -951,7 +970,7 @@ $MODEL_VERSION can act as the person asking. A missing checker is not a pass:
   (
     cd "$BUNDLE_ROOT/agent"
     DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-      uv run --python 3.13 python "$USER_AUTH_CHECK" \
+      uv run --frozen --python 3.13 python "$USER_AUTH_CHECK" \
         --logged "$LOG_SUMMARY" --registered \
         --user-authorization "$USER_AUTHORIZATION" \
         --serving-endpoint "$ENDPOINT"
@@ -982,7 +1001,7 @@ else
   note "This run deployed version $MODEL_VERSION without logging it, so there is no release
   summary to check it against. The run that logged it checked it. If that run
   predates this gate, check it by hand:
-    (cd agent && uv run --python 3.13 python ../bundle/model-user-auth-check.py --help)"
+    (cd agent && uv run --frozen --python 3.13 python ../bundle/model-user-auth-check.py --help)"
 fi
 
 # --- Remove superseded serving entities -------------------------------------

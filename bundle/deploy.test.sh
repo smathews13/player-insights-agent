@@ -83,6 +83,9 @@ signing_key = text.index("genie-mcp-signing-key.sh")
 bundle_deploy = text.index('ARGS=(bundle deploy')
 assert sync < signing_key < bundle_deploy
 assert '"$TARGET" == "dev" || "$TARGET" == "prod"' in text
+experiment_bind = text.index("bundle deployment bind player_insights_experiment")
+assert experiment_bind < sync
+assert "--auto-approve" not in text[experiment_bind:sync]
 PY
 
 set +e

@@ -15,7 +15,7 @@ if [[ "$1 $2" == "bundle validate" ]]; then
   done
   model="catalog.schema.player_insights_agent"
   [[ "${MISMATCH:-}" == 1 && "$target" == prod ]] && model="catalog.schema.other"
-  printf '{"variables":{"model_name":{"value":"%s"},"serving_endpoint_name":{"value":"player-insights-agent-%s"}}}\n' "$model" "$target"
+  printf '{"variables":{"model_name":{"value":"%s"},"serving_endpoint_name":{"value":"player-insights-agent-%s"},"experiment_path":{"value":"/Shared/player-insights-agent"}}}\n' "$model" "$target"
 elif [[ "$1 $2" == "model-versions list" ]]; then
   if [[ -n "${VERSIONS_JSON:-}" ]]; then
     printf '%s\n' "$VERSIONS_JSON"
@@ -26,7 +26,11 @@ elif [[ "$1 $2" == "serving-endpoints get" ]]; then
   [[ "${ENDPOINT_MATCH:-}" == 1 ]] || exit 1
   version=6
   [[ "$3" == "player-insights-agent-prod" ]] && version=5
-  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"traffic_config":{"routes":[{"served_model_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version"
+  experiment=42
+  [[ "${BAD_EXPERIMENT:-}" == 1 ]] && experiment=99
+  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"served_entities":[{"entity_version":"%s","environment_vars":{"MLFLOW_EXPERIMENT_ID":"%s"}}],"traffic_config":{"routes":[{"served_model_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version" "$experiment" "$version"
+elif [[ "$1 $2" == "experiments get-by-name" ]]; then
+  printf '%s\n' '{"experiment":{"experiment_id":"42","name":"/Shared/player-insights-agent"}}'
 else
   printf 'unexpected databricks call: %s\n' "$*" >&2
   exit 2
@@ -64,6 +68,10 @@ run_sync --apply --skip-dev --latest-version 6 >/dev/null
 ENDPOINT_MATCH=1 run_sync --apply --latest-version 6 >/dev/null
 [[ ! -s "$WORK/calls" ]]
 
+: >"$WORK/calls"
+ENDPOINT_MATCH=1 BAD_EXPERIMENT=1 run_sync --apply --latest-version 6 >/dev/null
+[[ "$(wc -l < "$WORK/calls" | tr -d ' ')" == 2 ]]
+
 set +e
 OUTPUT="$(
   VERSIONS_JSON='{"model_versions":[{"version":"6","status":"READY"},{"version":"4","status":"READY"}]}' \
@@ -91,6 +99,10 @@ deploy = text.index('SERVED_COUNT="$(served_entity_count)"')
 assert hook < deploy
 assert '"$SKIP_LOG" != true && "$TARGET" == "dev"' in text
 assert '--skip-dev --latest-version "$MODEL_VERSION"' in text
+count = text[text.index("served_entity_count() {"):text.index("print_served_entities() {")]
+assert '"does not exist"' in count
+assert '"RESOURCE_DOES_NOT_EXIST"' in count
+assert "printf '0\\n'" in count
 PY
 
 printf 'PASS  model re-log automatically reconciles Prod=N-1 before Dev=N.\n'

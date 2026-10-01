@@ -36,6 +36,10 @@ class Unreadable(Exception):
     """A source could not be read."""
 
 
+class MissingFingerprint(Unreadable):
+    """A valid legacy model carries no Genie fingerprint."""
+
+
 def load(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
@@ -79,7 +83,7 @@ def records_from_model_config(
 ) -> list[dict[str, Any]]:
     raw = config.get(fingerprints.SPACE_FINGERPRINTS_KEY)
     if raw is None:
-        raise Unreadable(
+        raise MissingFingerprint(
             f"{where} carries no {fingerprints.SPACE_FINGERPRINTS_KEY} key, so the "
             "registered version predates Genie fingerprinting or was logged by another path"
         )
@@ -102,11 +106,24 @@ def model_config_from_uri(uri: str) -> dict[str, Any]:
         model = Model.load(uri)
     except Exception as exc:
         raise Unreadable(f"the MLmodel at {uri} could not be read: {exc}") from exc
-    for flavor in model.flavors.values():
-        config = flavor.get("model_config") if isinstance(flavor, dict) else None
+    return model_config_from_flavors(model.flavors, f"the MLmodel at {uri}")
+
+
+def model_config_from_flavors(
+    flavors: dict[str, Any], where: str = "the MLmodel"
+) -> dict[str, Any]:
+    """Read either MLflow's legacy model_config or 3.14 config key."""
+    for flavor in flavors.values():
+        config = (
+            (flavor.get("model_config") or flavor.get("config"))
+            if isinstance(flavor, dict)
+            else None
+        )
         if isinstance(config, dict):
             return config
-    raise Unreadable(f"the MLmodel at {uri} carries no readable pyfunc model_config")
+    raise MissingFingerprint(
+        f"{where} carries no readable pyfunc config and predates Genie fingerprinting"
+    )
 
 
 def live_records(fingerprints, preflight) -> list[dict[str, Any]]:
@@ -167,8 +184,8 @@ def main(argv: list[str]) -> int:
                     fingerprints,
                     f"the MLmodel at {args.model_uri}",
                 )
-            except Unreadable as exc:
-                if args.allow_missing and "predates Genie fingerprinting" in str(exc):
+            except MissingFingerprint as exc:
+                if args.allow_missing:
                     print(f"  WARNING: {exc}")
                     print("  Fingerprint comparison is advisory for this legacy version.")
                     return EXIT_OK
@@ -180,8 +197,8 @@ def main(argv: list[str]) -> int:
                     fingerprints,
                     f"the model config at {args.model_config_json}",
                 )
-            except Unreadable as exc:
-                if args.allow_missing and "predates Genie fingerprinting" in str(exc):
+            except MissingFingerprint as exc:
+                if args.allow_missing:
                     print(f"  WARNING: {exc}")
                     print("  Fingerprint comparison is advisory for this legacy version.")
                     return EXIT_OK
