@@ -197,6 +197,16 @@ def test_dev_and_prod_use_distinct_apps_endpoints_and_state_schemas() -> None:
     assert targets["prod"]["variables"]["app_experiment_resources"] == {}
 
 
+def test_volume_waits_for_its_declared_schema() -> None:
+    volume_resource = yaml.safe_load(
+        (ROOT / "resources" / "player_insights_assets.volume.yml").read_text()
+    )
+    volume = volume_resource["variables"]["app_volume_resources"]["default"][
+        "player_insights_volume"
+    ]
+    assert volume["schema_name"] == "${resources.schemas.player_insights_schema.name}"
+
+
 def _load_deploy_agent() -> Any:
     spec = importlib.util.spec_from_file_location(
         "deploy_agent", ROOT / "agent" / "deploy_agent.py"

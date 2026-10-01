@@ -11,7 +11,10 @@ variables:
     default:
       player_insights_volume:
         catalog_name: ${var.app_catalog}
-        schema_name: ${var.app_schema}
+        # Direct resource reference creates the dependency edge. A plain
+        # `${var.app_schema}` lets DAB create schema and volume in parallel,
+        # which fails on a fresh workspace when the volume wins the race.
+        schema_name: ${resources.schemas.player_insights_schema.name}
         name: ${var.volume}
         volume_type: MANAGED
         comment: "${var.product_display_name} raw snapshots."
