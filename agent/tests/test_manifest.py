@@ -1789,23 +1789,18 @@ def test_the_bundle_declares_no_genie_space_and_no_lakebase_resource():
     )
 
 
-def test_no_lakebase_owner_role_variable_survives():
-    """Nothing may reintroduce an owner role: only creating a database needed one.
-
-    SKIPPED WHERE THE VARIABLES ARE NOT DECLARED, matching the tests above: the
-    published tree strips them.
-    """
+def test_lakebase_owner_role_is_private_and_used_only_for_database_creation():
+    """The role is required to create isolated databases, never baked into the App."""
 
     bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
     variables = bundle.get("variables") or {}
     if not variables:
         pytest.skip("this databricks.yml declares no variables")
-    for name in ("lakebase_owner_role_id", "postgres_owner_role_name"):
-        assert name not in variables, (
-            f"{name} is back. A database owner role is an input to CREATING a "
-            "database, and this bundle attaches to one that exists. Reintroducing "
-            "it puts a personal role id into a customer-facing deployment input."
-        )
+    declared = variables["lakebase_database_owner_role"]
+    assert declared["default"] == ""
+    deploy = (Path(__file__).resolve().parents[2] / "bundle" / "deploy.sh").read_text()
+    assert "bundle_var lakebase_database_owner_role" in deploy
+    assert "create-database" in deploy
 
 
 # ---------------------------------------------------------------------------

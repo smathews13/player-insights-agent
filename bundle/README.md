@@ -57,12 +57,13 @@ Internal and customer targets use the same sequence. Start with one complete,
 interactive bundle reconciliation, including the App, then release the model
 and app code:
 
-0. Provision one Lakebase project/branch with separate `pia-dev` and `pia-prod`
-   databases, and curate the two Genie
+0. Provision one Lakebase project/branch and owner role, and curate the two Genie
    spaces **outside** this bundle. Name them in
    `.databricks/bundle/<target>/variable-overrides.json`
    (`lakebase_project_id`, `genie_data_space_id`, `genie_dictionary_space_id`,
-   plus `warehouse_id`, `admin_emails`, and the other required inputs).
+   `lakebase_database_owner_role`, plus `warehouse_id`, `admin_emails`, and the
+   other required inputs). `bundle/deploy.sh` creates the isolated `pia-dev`
+   and `pia-prod` databases when absent.
    If this deploy recreates a deleted App against a retained Lakebase database,
    also set `lakebase_app_schema` to a new, unused schema. A recreated App has a
    new service principal and cannot own the prior App's schema. The app release

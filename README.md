@@ -73,9 +73,9 @@ You need:
 - an existing Unity Catalog catalog for Player Insights Agent-owned objects;
 - one or more catalogs or schemas containing the governed data Player Insights Agent may
   read;
-- an existing Lakebase project and branch with separate `pia-dev` and
-  `pia-prod` databases (AppKit uses a fixed `appkit` cache schema, so Apps must
-  not share one Postgres database);
+- an existing Lakebase project/branch and the full resource path of a role that
+  may own databases there; the deploy creates separate `pia-dev` and `pia-prod`
+  databases because AppKit Apps must not share one Postgres database;
 - two curated Genie spaces: one for analytical data and one for data
   definitions;
 - an existing registered model with at least two consecutive READY versions,
@@ -119,7 +119,7 @@ Each resulting `variable-overrides.json` contains:
   "warehouse_id": "<sql_warehouse_id>",
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
-  "lakebase_database_id": "databricks-postgres",
+  "lakebase_database_owner_role": "projects/<project-id>/branches/production/roles/<owner-role-id>",
   "genie_data_space_id": "<data_genie_space_id>",
   "genie_dictionary_space_id": "<dictionary_genie_space_id>",
   "admin_emails": "super:<initial_admin@example.com>"
@@ -129,7 +129,7 @@ Each resulting `variable-overrides.json` contains:
 Do not add `lakebase_app_schema` to both files: target defaults isolate App
 state as `pia_dev` and `pia_prod`.
 Target defaults also bind Dev to database `pia-dev` and Prod to `pia-prod`;
-create both databases before deploying.
+`bundle/deploy.sh` creates either database when it is missing.
 Target defaults also provide distinct validated workspace staging paths ending
 in `player-insights-agent-dev-src` and `player-insights-agent-prod-src`.
 
