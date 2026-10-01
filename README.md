@@ -148,7 +148,8 @@ Run the three deployment stages in order for each workspace. Profiles supply
 the workspace hosts, keeping development and production URLs out of Git:
 The target defaults create `player-insights-agent-dev` and
 `player-insights-agent-prod` with separate serving endpoints and Lakebase app
-schemas.
+schemas. Both use the existing shared MLflow experiment; only Dev owns that
+experiment in bundle state.
 
 ```bash
 # Development
