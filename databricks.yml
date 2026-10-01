@@ -327,6 +327,7 @@ targets:
       app_description: ${var.product_display_name} development
       app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-dev-src
       serving_endpoint_name: player-insights-agent-dev
+      lakebase_database_id: pia-dev
       lakebase_app_schema: pia_dev
       app_telemetry_schema: player_insights_agent_dev_telemetry
       # Run governed data calls as the signed-in user. Pinned existing versions
@@ -404,6 +405,7 @@ targets:
       app_description: ${var.product_display_name} production
       app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-prod-src
       serving_endpoint_name: player-insights-agent-prod
+      lakebase_database_id: pia-prod
       lakebase_app_schema: pia_prod
       app_telemetry_schema: player_insights_agent_prod_telemetry
       # Dev is the single bundle-state owner of the shared app schema and

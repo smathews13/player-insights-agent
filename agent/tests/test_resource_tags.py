@@ -184,6 +184,8 @@ def test_dev_and_prod_use_distinct_apps_endpoints_and_state_schemas() -> None:
     assert targets["prod"]["variables"]["serving_endpoint_name"] == "player-insights-agent-prod"
     assert targets["dev"]["variables"]["lakebase_app_schema"] == "pia_dev"
     assert targets["prod"]["variables"]["lakebase_app_schema"] == "pia_prod"
+    assert targets["dev"]["variables"]["lakebase_database_id"] == "pia-dev"
+    assert targets["prod"]["variables"]["lakebase_database_id"] == "pia-prod"
 
     # Dev owns the shared UC containers. Prod points at the same registered
     # model/schema but cannot become a second independent owner of those objects.

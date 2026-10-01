@@ -27,7 +27,7 @@ export const GRANT_HOOK_PATH = 'bundle/app-db-grant.sh';
  */
 export const GIT_GRANT_COMMAND = [
   "APP_ROLE=$(databricks apps get <app-name> --profile '<profile>' -o json | jq -r .service_principal_client_id)",
-  "databricks psql --project <lakebase-project-id> --profile '<profile>' -- -v app_role=\"$APP_ROLE\" -c 'GRANT CREATE, CONNECT ON DATABASE <postgres-database-name> TO :\"app_role\";'",
+  'databricks psql --project <lakebase-project-id> --profile \'<profile>\' -- -v app_role="$APP_ROLE" -c \'GRANT CREATE, CONNECT ON DATABASE <postgres-database-name> TO :"app_role";\'',
   "databricks apps stop <app-name> --profile '<profile>'",
   "databricks apps start <app-name> --profile '<profile>'",
 ].join('\n');
@@ -42,18 +42,17 @@ export const GRANT_SCRIPT_COMMAND = [
 /**
  * How the release applies this step and when it still needs an operator.
  *
- * Also covers AppKit's cache schema (`appkit`): a bare GRANT USAGE/CREATE is
- * not enough for later CREATE INDEX (needs table ownership), so the script
- * drops a misowned cache-only `appkit` and the app recreates it on next boot.
+ * AppKit's cache schema (`appkit`) is fixed. A foreign owner means this App is
+ * bound to another App's database; the script refuses rather than deleting it.
  */
 export const GRANT_SCRIPT_WHY =
   'For Deploy from Git, grant CREATE and CONNECT on the bound Postgres database to the app service ' +
-  'principal, then restart; the app creates and owns its `astrolabe` schema. The app service principal ' +
+  'principal, then restart; the app creates and owns its target-specific schema. The app service principal ' +
   'does not exist until the app does. The canonical bundle release runs ' +
   `${GRANT_HOOK_PATH} before every code deploy, deriving the direct branch host and the other ` +
   'inputs from the target and live resources; a failed grant stops the release. After a Lakebase ' +
-  'detach/reattach without a full release, run that hook manually and restart the app so it can ' +
-  'recreate a dropped AppKit cache schema (`appkit`) as owner.';
+  'detach/reattach without a full release, run that hook manually. If the fixed `appkit` cache schema ' +
+  'belongs to another App, bind this App to its own database; the hook never drops another App cache.';
 
 export const GRANT_SCRIPT_REMEDY =
   `Re-run the canonical app release, or run ${GRANT_HOOK_PATH} with TARGET and PROFILE after ` +

@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a one-off operator script, deliberately outside the tsconfig projects.
 import {
   APPKIT_CACHE_SCHEMA,
   appSchemaGrantStatements,
+  foreignAppkitCacheOwners,
   quoteIdent,
-  shouldDropAppkitCacheSchema,
 } from './grant-app-db-access.mjs';
 
 /**
@@ -15,25 +16,29 @@ import {
  * so the app recreates and owns it. These cases are the lease against regressing
  * that decision back into a privilege grant.
  */
-describe('shouldDropAppkitCacheSchema', () => {
+describe('foreignAppkitCacheOwners', () => {
   const appRole = 'app-service-principal-client-id';
 
-  it('drops when the schema has no tables yet (absent or empty)', () => {
-    expect(shouldDropAppkitCacheSchema([], appRole)).toBe(true);
+  it('accepts an absent schema or one fully owned by this App', () => {
+    expect(foreignAppkitCacheOwners('', [], appRole)).toEqual([]);
+    expect(foreignAppkitCacheOwners(appRole, [appRole], appRole)).toEqual([]);
   });
 
-  it('drops when any cache table is owned by another role', () => {
-    expect(shouldDropAppkitCacheSchema(['developer@example.com'], appRole)).toBe(true);
-    expect(shouldDropAppkitCacheSchema([appRole, 'developer@example.com'], appRole)).toBe(true);
-  });
-
-  it('keeps the schema only when every cache table is already owned by the app', () => {
-    expect(shouldDropAppkitCacheSchema([appRole], appRole)).toBe(false);
-    expect(shouldDropAppkitCacheSchema([appRole, appRole], appRole)).toBe(false);
+  it('reports every foreign schema or table owner without authorizing a drop', () => {
+    expect(foreignAppkitCacheOwners('astrolabe-role', [appRole, 'other-app-role'], appRole)).toEqual([
+      'astrolabe-role',
+      'other-app-role',
+    ]);
   });
 
   it('names the cache schema appkit, not the app data schema', () => {
     expect(APPKIT_CACHE_SCHEMA).toBe('appkit');
+  });
+
+  it('never drops the fixed AppKit schema owned by another App', () => {
+    expect(readFileSync(new URL('./grant-app-db-access.mjs', import.meta.url), 'utf8')).not.toContain(
+      'DROP SCHEMA IF EXISTS'
+    );
   });
 });
 

@@ -203,8 +203,8 @@ export const CHECKS: CheckDefinition[] = [
     remedy:
       'Re-run bundle/app-release.sh --apply, which resolves the direct branch host and gates its ' +
       'code deploy on bundle/app-db-grant.sh. After Lakebase detach/reattach without a full ' +
-      'release, run that hook with TARGET and PROFILE, then restart the app so a dropped appkit ' +
-      'cache schema is recreated.',
+      'release, run that hook with TARGET and PROFILE. If appkit is foreign-owned, bind the App ' +
+      'to its own Postgres database; the release will not delete another App cache.',
   },
 
   // --- The model and its manifest -------------------------------------------

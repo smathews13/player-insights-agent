@@ -8,7 +8,6 @@
   "warehouse_id": "<pro-or-serverless-sql-warehouse-id>",
   "lakebase_project_id": "<existing-lakebase-project-id>",
   "lakebase_branch_id": "production",
-  "lakebase_database_id": "databricks-postgres",
   "genie_data_space_id": "<existing-data-genie-space-id>",
   "genie_dictionary_space_id": "<existing-dictionary-genie-space-id>",
   "admin_emails": "super:<initial-admin@example.com>"
