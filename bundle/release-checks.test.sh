@@ -54,6 +54,10 @@ done
 [[ "$FAST" == *'check-migration-order.mjs'* ]] || fail "fast tier lost migration ordering"
 [[ "$FAST" == *'check-derived-tree.test.py'* ]] || fail "fast tier lost the derived-tree adversarial canary"
 [[ "$FAST" == *'brand-contract.test.py'* ]] || fail "fast tier lost the Player Insights Agent brand contract"
+[[ "$FAST" == *'if [[ -f "$ROOT/mirror/check-derived-tree.test.py" ]]'* ]] \
+  || fail "public checkout does not treat the internal mirror canary as not applicable"
+[[ "$FAST" == *'if [[ -f "$HERE/brand-contract.test.py" ]]'* ]] \
+  || fail "public checkout does not treat the internal brand contract as not applicable"
 [[ "$FAST" == *'app-source-staging.test.sh'* ]] || fail "fast tier lost guarded App staging cleanup"
 [[ "$FAST" == *'scope-contract.py" --check'* ]] || fail "fast tier lost the target/scope contract"
 if [[ "$FAST" != *'pytest'* && "$FAST" != *'npm run typecheck'* \

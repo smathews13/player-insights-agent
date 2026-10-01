@@ -35,11 +35,19 @@ run_fast() {
     node scripts/check-migration-order.mjs
   )
 
-  step "Release-critical public derivation leak canary"
-  python3 "$ROOT/mirror/check-derived-tree.test.py"
+  if [[ -f "$ROOT/mirror/check-derived-tree.test.py" ]]; then
+    step "Release-critical public derivation leak canary"
+    python3 "$ROOT/mirror/check-derived-tree.test.py"
+  else
+    printf '  note  mirror derivation checks ran before this public tree was published.\n'
+  fi
 
-  step "Release-critical Player Insights Agent brand contract"
-  python3 "$HERE/brand-contract.test.py"
+  if [[ -f "$HERE/brand-contract.test.py" ]]; then
+    step "Release-critical Player Insights Agent brand contract"
+    python3 "$HERE/brand-contract.test.py"
+  else
+    printf '  note  the internal brand/publication contract is not published in this checkout.\n'
+  fi
 
   step "Release-critical App staging cleanup safety"
   bash "$HERE/app-source-staging.test.sh"
