@@ -31,6 +31,12 @@ def findings(expected: dict[str, Any], live: dict[str, Any]) -> list[str]:
             f"user_api_scopes: missing={sorted(declared_scopes-live_scopes)}, "
             f"extra={sorted(live_scopes-declared_scopes)}"
         )
+    effective_scopes = set(live.get("effective_user_api_scopes") or [])
+    missing_effective = declared_scopes - effective_scopes
+    if missing_effective:
+        out.append(
+            f"effective_user_api_scopes: missing required scopes={sorted(missing_effective)}"
+        )
     live_resources = {
         str(resource.get("name") or ""): resource
         for resource in (live.get("resources") or [])

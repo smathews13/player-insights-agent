@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- a one-off operator script, deliberately outside the tsconfig projects.
-import { schemaNeedsNewName } from './check-db-ownership.mjs';
+import { collection, schemaNeedsNewName } from './check-db-ownership.mjs';
 
 describe('schemaNeedsNewName', () => {
   const appRole = 'new-app-service-principal';
@@ -11,5 +11,13 @@ describe('schemaNeedsNewName', () => {
 
   it('keeps the configured schema when the current app owns it', () => {
     expect(schemaNeedsNewName(appRole, appRole)).toBe(false);
+  });
+});
+
+describe('collection', () => {
+  it('accepts both CLI array and wrapped response shapes', () => {
+    expect(collection([{ id: 1 }], 'databases')).toEqual([{ id: 1 }]);
+    expect(collection({ databases: [{ id: 2 }] }, 'databases')).toEqual([{ id: 2 }]);
+    expect(collection({}, 'databases')).toEqual([]);
   });
 });

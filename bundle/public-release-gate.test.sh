@@ -8,7 +8,7 @@ cat >"$WORK/expected.json" <<'JSON'
 {"resources":{"apps":{"player_insights_app":{"name":"pia-dev","user_api_scopes":["sql"],"resources":[{"name":"warehouse","sql_warehouse":{"id":"wh","permission":"CAN_USE"}}]}}}}
 JSON
 cat >"$WORK/live.json" <<'JSON'
-{"name":"pia-dev","user_api_scopes":["sql"],"resources":[{"name":"warehouse","sql_warehouse":{"id":"wh","permission":"CAN_USE","state":"READY"}}]}
+{"name":"pia-dev","user_api_scopes":["sql"],"effective_user_api_scopes":["sql","iam.current-user:read"],"resources":[{"name":"warehouse","sql_warehouse":{"id":"wh","permission":"CAN_USE","state":"READY"}}]}
 JSON
 python3 "$HERE/public-release-gate.py" --expected "$WORK/expected.json" --live "$WORK/live.json" \
   | grep -q "match"
@@ -22,5 +22,15 @@ OUTPUT="$(python3 "$HERE/public-release-gate.py" --expected "$WORK/expected.json
 STATUS=$?
 set -e
 [[ "$STATUS" -eq 1 && "$OUTPUT" == *"not attached"* ]]
+
+python3 - "$WORK/live.json" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d["resources"]=[{"name":"warehouse","sql_warehouse":{"id":"wh","permission":"CAN_USE"}}]; d["effective_user_api_scopes"]=[]; json.dump(d,open(p,"w"))
+PY
+set +e
+OUTPUT="$(python3 "$HERE/public-release-gate.py" --expected "$WORK/expected.json" --live "$WORK/live.json" 2>&1)"
+STATUS=$?
+set -e
+[[ "$STATUS" -eq 1 && "$OUTPUT" == *"effective_user_api_scopes"* ]]
 grep -q "Public release gate" "$HERE/release-gate.sh"
 printf 'PASS  public release gate checks live scopes and bindings.\n'
