@@ -121,6 +121,7 @@ handoff = text.index('# Machine-readable handoff')
 assert dev_confirmed < prune < hook < handoff
 assert '"$SKIP_LOG" != true && "$TARGET" == "dev"' in text
 assert '--skip-dev --latest-version "$MODEL_VERSION"' in text
+assert "pinned-model-config-check" not in text
 count = text[text.index("served_entity_count() {"):text.index("print_served_entities() {")]
 assert '"does not exist"' in count
 assert '"RESOURCE_DOES_NOT_EXIST"' in count
