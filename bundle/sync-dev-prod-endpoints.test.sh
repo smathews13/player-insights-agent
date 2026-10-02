@@ -129,6 +129,9 @@ assert "PINNED_AUTH_ARGS+=(--adopt-registered-scopes)" in text
 assert text.index("if [[ -z \"$AUTH_SUMMARY\" ]]") < text.index(
     "PINNED_AUTH_ARGS+=(--adopt-registered-scopes)"
 )
+assert "App intention correlation: not applicable to a pinned registered model" in text
+assert "Current-source model scope contract: not applicable to a pinned registered model" in text
+assert "--allow-missing\n    --skip-live" in text
 assert 'if str(entity.get("entity_name") or entity.get("model_name") or "") == model' in text
 assert 'and str(entity.get("entity_version") or entity.get("model_version") or "") == want' in text
 assert '(( share == 100 ))' in text

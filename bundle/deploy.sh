@@ -111,10 +111,15 @@ print((((body.get("resources") or {}).get("schemas") or {})
        .get("player_insights_schema") or {}).get("id") or "")
 ' || true
   )"
-  if [[ "$BOUND_SCHEMA" != "$SCHEMA_FULL_NAME" ]]; then
+  if [[ -z "$BOUND_SCHEMA" ]]; then
     step "Adopting the existing registered-model schema"
     databricks bundle deployment bind player_insights_schema "$SCHEMA_FULL_NAME" \
       -t dev --profile "$PROFILE"
+  elif [[ "$BOUND_SCHEMA" != "$SCHEMA_FULL_NAME" ]]; then
+    die "Bundle state already binds player_insights_schema to '$BOUND_SCHEMA', but
+current overrides resolve '$SCHEMA_FULL_NAME'. Refusing to rebind customer-owned
+Unity Catalog state automatically. Restore the matching overrides or perform an
+explicit reviewed state migration."
   fi
 
   EXPERIMENT_PATH="$(bundle_var experiment_path)"
@@ -135,10 +140,15 @@ print((((body.get("resources") or {}).get("experiments") or {})
        .get("player_insights_experiment") or {}).get("id") or "")
 ' || true
   )"
-  if [[ "$BOUND_EXPERIMENT" != "$EXPERIMENT_ID" ]]; then
+  if [[ -z "$BOUND_EXPERIMENT" ]]; then
     step "Adopting the existing shared MLflow experiment"
     databricks bundle deployment bind player_insights_experiment "$EXPERIMENT_ID" \
       -t dev --profile "$PROFILE"
+  elif [[ "$BOUND_EXPERIMENT" != "$EXPERIMENT_ID" ]]; then
+    die "Bundle state already binds player_insights_experiment to '$BOUND_EXPERIMENT',
+but '$EXPERIMENT_PATH' resolves experiment '$EXPERIMENT_ID'. Refusing to rebind
+shared MLflow state automatically. Restore the matching experiment_path or
+perform an explicit reviewed state migration."
   fi
 fi
 

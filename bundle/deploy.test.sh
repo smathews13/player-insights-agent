@@ -90,6 +90,12 @@ experiment_bind = text.index("bundle deployment bind player_insights_experiment"
 schema_bind = text.index("bundle deployment bind player_insights_schema")
 assert schema_bind < experiment_bind < sync
 assert "--auto-approve" not in text[experiment_bind:sync]
+assert 'if [[ -z "$BOUND_SCHEMA" ]]' in text
+assert 'elif [[ "$BOUND_SCHEMA" != "$SCHEMA_FULL_NAME" ]]' in text
+assert 'Refusing to rebind customer-owned' in text
+assert 'if [[ -z "$BOUND_EXPERIMENT" ]]' in text
+assert 'elif [[ "$BOUND_EXPERIMENT" != "$EXPERIMENT_ID" ]]' in text
+assert "shared MLflow state automatically" in text
 PY
 
 set +e

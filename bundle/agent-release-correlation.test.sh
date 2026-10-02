@@ -328,6 +328,14 @@ expect_text  "quotes the stored value"                       "someone_elses_cata
 expect_absent "the run stopped at the gate"                  "Dry run"
 
 echo
+echo "=== 5b. a pinned external model is not judged against current app intentions ==="
+FAKE_READER_STATUS=1 FAKE_SETTINGS_BODY="$DISAGREES" \
+  run_release pinned-disagrees --skip-log --model-version 12; status=$?
+expect_status 0 "$status" "the pinned release proceeds without reading current intentions"
+expect_text "says why correlation is inapplicable" "Nothing is being logged"
+expect_absent "the authoritative reader is not called" "secure app-intention read failed"
+
+echo
 echo "=== 6. app not created yet: a legitimate greenfield pass ==="
 FAKE_APP_EXISTS=false FAKE_READER_STATUS=0 FAKE_SETTINGS_BODY="$AGREES" \
   run_release no-app-url; status=$?

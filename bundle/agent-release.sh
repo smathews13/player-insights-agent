@@ -582,8 +582,13 @@ raise SystemExit(1)
 '
 }
 
-step "Correlating with what the app was told (target: $TARGET)"
-correlate_with_app || exit 1
+if [[ "$SKIP_LOG" == true ]]; then
+  step "App intention correlation: not applicable to a pinned registered model"
+  note "Nothing is being logged, so current checkout settings cannot veto the artifact."
+else
+  step "Correlating with what the app was told (target: $TARGET)"
+  correlate_with_app || exit 1
+fi
 
 if [[ "$APPLY" != true ]]; then
   cat <<EOF
@@ -718,30 +723,33 @@ fi
 # treatment release-gate.sh gets in app-release.sh. Dying here would stop every
 # customer model release on files we deliberately did not give them. In this
 # repository the siblings are present, so the check still runs and still blocks.
-step "The model's scopes: configured vs documented${LOG_SUMMARY:+ vs logged}"
-MODEL_SCOPE_CHECK="$BUNDLE_ROOT/bundle/model-scope-check.py"
-if [[ ! -f "$MODEL_SCOPE_CHECK" ]]; then
-  die "bundle/model-scope-check.py is missing, so what scopes version $MODEL_VERSION
+if [[ "$SKIP_LOG" == true ]]; then
+  step "Current-source model scope contract: not applicable to a pinned registered model"
+  note "The registered artifact's own auth policy is checked below before traffic moves."
+else
+  step "The model's scopes: configured vs documented vs logged"
+  MODEL_SCOPE_CHECK="$BUNDLE_ROOT/bundle/model-scope-check.py"
+  if [[ ! -f "$MODEL_SCOPE_CHECK" ]]; then
+    die "bundle/model-scope-check.py is missing, so what scopes version $MODEL_VERSION
 baked was never compared against what this target documents.
 
 A missing checker is not a pass and there is no flag past this. Restore it:
   git restore bundle/model-scope-check.py"
-fi
-if [[ ! -f "$BUNDLE_ROOT/bundle/drift-check.py" \
-   || ! -f "$BUNDLE_ROOT/bundle/scope-contract.py" \
-   || ! -f "$BUNDLE_ROOT/bundle/scope-contract.json" ]]; then
-  note "This tree carries no scope contract, so the model's scopes were NOT"
-  note "compared against documentation. The version will still be deployed."
-  note "Confirm the endpoint auth policy after the traffic switch."
-else
-MODEL_SCOPE_ARGS=(--target "$TARGET")
-[[ -n "$LOG_SUMMARY" ]] && MODEL_SCOPE_ARGS+=(--logged "$LOG_SUMMARY")
-MODEL_SCOPE_STATUS=0
-python3 "$MODEL_SCOPE_CHECK" "${MODEL_SCOPE_ARGS[@]}" || MODEL_SCOPE_STATUS=$?
-case "$MODEL_SCOPE_STATUS" in
-  0) : ;;
-  1)
-    die "Version $MODEL_VERSION does not carry the scopes this target asks for, or asks
+  fi
+  if [[ ! -f "$BUNDLE_ROOT/bundle/drift-check.py" \
+     || ! -f "$BUNDLE_ROOT/bundle/scope-contract.py" \
+     || ! -f "$BUNDLE_ROOT/bundle/scope-contract.json" ]]; then
+    note "This tree carries no scope contract, so the model's scopes were NOT"
+    note "compared against documentation. The version will still be deployed."
+    note "Confirm the endpoint auth policy after the traffic switch."
+  else
+    MODEL_SCOPE_STATUS=0
+    python3 "$MODEL_SCOPE_CHECK" --target "$TARGET" --logged "$LOG_SUMMARY" \
+      || MODEL_SCOPE_STATUS=$?
+    case "$MODEL_SCOPE_STATUS" in
+      0) : ;;
+      1)
+        die "Version $MODEL_VERSION does not carry the scopes this target asks for, or asks
 for scopes nothing documents. It is registered in Unity Catalog and it has NOT been
 deployed to $ENDPOINT, so nothing is answering questions with it.
 
@@ -752,26 +760,26 @@ which reads to a user as the agent being wrong rather than unauthorised.
 
 Fix the cause and log again. If the contract is simply behind the bundle:
   python3 bundle/scope-contract.py --generate     # then commit the result
-Deploy this version once it agrees:
-  bundle/agent-release.sh --apply --skip-log --model-version $MODEL_VERSION"
-    ;;
-  2)
-    die "What scopes version $MODEL_VERSION carries COULD NOT BE ESTABLISHED, so this
+Do not use --skip-log to bypass a failed fresh-log contract gate."
+        ;;
+      2)
+        die "What scopes version $MODEL_VERSION carries COULD NOT BE ESTABLISHED, so this
 release does not know what the model it is about to serve can reach.
 
 Read the COULD NOT RUN line above: this is not a finding and it is not a pass. The
 version is registered and NOT deployed. Usually it is bundle/scope-contract.json
 being absent, which is the artifact the documented leg compares against."
-    ;;
-  *)
-    die "bundle/model-scope-check.py exited $MODEL_SCOPE_STATUS, which it has no documented
+        ;;
+      *)
+        die "bundle/model-scope-check.py exited $MODEL_SCOPE_STATUS, which it has no documented
 meaning for. Treat version $MODEL_VERSION's scopes as unknown and read the output
 above before deploying it to $ENDPOINT."
-    ;;
-esac
+        ;;
+    esac
+  fi
 fi
 
-step "Genie space fingerprint vs the live space"
+step "Genie space fingerprint"
 FINGERPRINT_CHECK="$BUNDLE_ROOT/bundle/genie-fingerprint-check.py"
 [[ -f "$FINGERPRINT_CHECK" ]] || die "bundle/genie-fingerprint-check.py is missing, so a re-curated
 Genie space would not fail this release. Restore it:
@@ -779,14 +787,17 @@ Genie space would not fail this release. Restore it:
 if [[ -n "$LOG_SUMMARY" ]]; then
   FINGERPRINT_ARGS=(--logged "$LOG_SUMMARY")
 else
-  # A pinned rollback/production version gets the same gate. `--skip-log` used
-  # to skip fingerprints entirely, allowing an older artifact to be deployed
-  # after its Genie spaces had been re-curated. Versions logged before the
-  # feature remain deployable: absence is advisory, while a present-but-drifted
-  # fingerprint still blocks.
-  FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION" --allow-missing)
+  # A pinned artifact is authoritative for its own optional capabilities. Read
+  # its fingerprint so malformed metadata still fails, but do not compare it to
+  # Genie IDs or curation derived from today's checkout. That comparison would
+  # turn a rollback or externally logged version into a forced re-log.
+  FINGERPRINT_ARGS=(
+    --model-uri "models:/$MODEL_NAME/$MODEL_VERSION"
+    --allow-missing
+    --skip-live
+  )
 fi
-if [[ -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
+if [[ -n "$LOG_SUMMARY" && -n "${PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY:-}" ]]; then
   FINGERPRINT_ARGS+=(--peer-logged "$PLAYER_INSIGHTS_PEER_FINGERPRINT_SUMMARY")
 fi
 FINGERPRINT_STATUS=0

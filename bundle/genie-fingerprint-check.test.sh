@@ -106,10 +106,12 @@ summary = log_model.rindex("SPACE_FINGERPRINTS_KEY: space_fingerprints")
 assert capture < model_config < summary
 
 parsed_summary = release.index('LOG_SUMMARY="$(mktemp')
-fingerprint_gate = release.index('step "Genie space fingerprint vs the live space"')
+fingerprint_gate = release.index('step "Genie space fingerprint"')
 endpoint_deploy = release.index('python deploy_agent.py --model-version "$MODEL_VERSION"')
 assert parsed_summary < fingerprint_gate < endpoint_deploy
-assert 'FINGERPRINT_ARGS=(--model-uri "models:/$MODEL_NAME/$MODEL_VERSION" --allow-missing)' in release
+assert '--model-uri "models:/$MODEL_NAME/$MODEL_VERSION"' in release
+assert "--allow-missing" in release[fingerprint_gate:endpoint_deploy]
+assert "--skip-live" in release[fingerprint_gate:endpoint_deploy]
 assert 'case "$FINGERPRINT_STATUS" in' in release
 assert '1)' in release[fingerprint_gate:endpoint_deploy]
 assert '2)' in release[fingerprint_gate:endpoint_deploy]
