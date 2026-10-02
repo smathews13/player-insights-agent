@@ -84,4 +84,47 @@ describe('execution-identity readiness', () => {
       await server.close();
     }
   });
+
+  it('recovers readiness after an inconclusive cold-start response', async () => {
+    const previousEnforce = process.env.ENFORCE_IDENTITY_READINESS;
+    const previousEndpoint = process.env.DATABRICKS_SERVING_ENDPOINT_NAME;
+    process.env.ENFORCE_IDENTITY_READINESS = 'true';
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    let calls = 0;
+    const app = express();
+    app.use(express.json());
+    await setupInsightsRoutes({
+      lakebase: { query: () => Promise.resolve({ rows: [] as Record<string, unknown>[] }) },
+      servingTransport: () => {
+        calls += 1;
+        return Promise.resolve(
+          calls === 1
+            ? {}
+            : {
+                custom_outputs: {
+                  type: 'unavailable',
+                  code: 'IDENTITY_MISMATCH',
+                  execution_identity: { mode: 'signed_in_user', verified: true },
+                },
+              }
+        );
+      },
+      server: { extend: (register) => register(app) },
+    } satisfies InsightsAppKit);
+    const server = await listen(app);
+    try {
+      const first = await fetch(server.url('/internal/readiness'));
+      expect(first.status).toBe(503);
+      expect(await first.json()).toMatchObject({ ok: false, reason: 'unverified' });
+
+      const second = await fetch(server.url('/internal/readiness'));
+      expect(second.status).toBe(200);
+      expect(await second.json()).toMatchObject({ ok: true, reason: 'aligned' });
+      expect(calls).toBe(2);
+    } finally {
+      process.env.ENFORCE_IDENTITY_READINESS = previousEnforce;
+      process.env.DATABRICKS_SERVING_ENDPOINT_NAME = previousEndpoint;
+      await server.close();
+    }
+  });
 });

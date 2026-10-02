@@ -73,11 +73,20 @@ describe('observeRuntimeIdentity', () => {
           custom_outputs: {
             type: 'unavailable',
             code: 'IDENTITY_REQUIRED',
+            message: 'no invoker token',
             execution_identity: { mode: 'signed_in_user', verified: false },
           },
         },
       })
     ).toBe('service_principal');
+  });
+
+  it('keeps a bare identity-required response retryable when it names no missing credential', () => {
+    expect(
+      observeRuntimeIdentity({
+        result: { custom_outputs: { type: 'unavailable', code: 'IDENTITY_REQUIRED' } },
+      })
+    ).toBe('unknown');
   });
 
   it('reads a successful signed-in identity from a live answer', () => {
@@ -99,7 +108,7 @@ describe('observeRuntimeIdentity', () => {
           },
         },
       })
-    ).toBe('signed_in_user');
+    ).toBe('token_forwarded');
   });
 });
 
@@ -130,11 +139,11 @@ describe('runIdentityReadinessProbe', () => {
     expect(verdict).toMatchObject({ ok: true, reason: 'sp_only_model' });
   });
 
-  it('fails when a user-auth model answers as the service principal', async () => {
+  it('treats the deliberate fake-user mismatch as OBO proof regardless of echoed mode', async () => {
     const verdict = await runIdentityReadinessProbe({
       env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
-      invoke: ({ userToken }) => {
-        expect(userToken).toBeTruthy();
+      invoke: ({ forwardedUserToken }) => {
+        expect(forwardedUserToken).toBeTruthy();
         return Promise.resolve({
           result: {
             custom_outputs: {
@@ -146,7 +155,7 @@ describe('runIdentityReadinessProbe', () => {
         });
       },
     });
-    expect(verdict).toMatchObject({ ok: false, reason: 'obo_not_wired', observed: 'service_principal' });
+    expect(verdict).toMatchObject({ ok: true, reason: 'aligned', observed: 'token_forwarded' });
   });
 
   it('passes when serving rejects the synthetic token as user_credentials', async () => {
@@ -184,6 +193,40 @@ describe('runIdentityReadinessProbe', () => {
     await expect(probe.get()).resolves.toMatchObject({ ok: true, reason: 'aligned' });
     expect(attempts).toBe(2);
   });
+
+  it('retries a missing-invoker verdict instead of caching a lifetime outage', async () => {
+    let attempts = 0;
+    const probe = createIdentityReadinessProbe({
+      env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
+      invoke: () => {
+        attempts += 1;
+        return Promise.resolve(
+          attempts === 1
+            ? {
+                result: {
+                  custom_outputs: {
+                    type: 'unavailable',
+                    code: 'IDENTITY_REQUIRED',
+                    message: 'no invoker token',
+                  },
+                },
+              }
+            : {
+                result: {
+                  custom_outputs: {
+                    type: 'unavailable',
+                    code: 'IDENTITY_MISMATCH',
+                  },
+                },
+              }
+        );
+      },
+    });
+
+    await expect(probe.get()).resolves.toMatchObject({ ok: false, reason: 'obo_not_wired' });
+    await expect(probe.get()).resolves.toMatchObject({ ok: true, reason: 'aligned' });
+    expect(attempts).toBe(2);
+  });
 });
 
 describe('env defaults', () => {
@@ -198,5 +241,7 @@ describe('env defaults', () => {
   it('treats unset user-authorization as a user-auth model', () => {
     expect(expectedModelAuthPolicy({})).toBe('signed_in_user');
     expect(expectedModelAuthPolicy({ PLAYER_INSIGHTS_USER_AUTHORIZATION: 'false' })).toBe('service_principal');
+    expect(expectedModelAuthPolicy({ PLAYER_INSIGHTS_USER_AUTHORIZATION: '1' })).toBe('service_principal');
+    expect(expectedModelAuthPolicy({ PLAYER_INSIGHTS_USER_AUTHORIZATION: 'yes' })).toBe('service_principal');
   });
 });

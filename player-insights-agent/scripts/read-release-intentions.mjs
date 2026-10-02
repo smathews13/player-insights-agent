@@ -99,7 +99,8 @@ export async function readReleaseIntentions({ profile, appName, appSchema, cli =
           .at(-1) === databaseId
     );
     const databaseName = required(database?.status?.postgres_database, 'the Lakebase database name');
-    const user = required(cli(['current-user', 'me', '--profile', profile])?.userName, 'the Lakebase operator role');
+    const identity = cli(['current-user', 'me', '--profile', profile]);
+    const user = required(identity?.user_name || identity?.userName, 'the Lakebase operator role');
     token = required(cli(['auth', 'token', '--profile', profile])?.access_token, 'the OAuth database credential');
 
     client = new Client({

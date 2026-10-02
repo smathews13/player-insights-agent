@@ -260,7 +260,14 @@ def observe_runtime_identity(result: Any = None, error: Any = None) -> str:
         # endpoint fail every release.
         return "token_forwarded"
     if kind == "unavailable" and code == "IDENTITY_REQUIRED":
-        return "service_principal"
+        if re.search(
+            r"without working user-authorization credential forwarding|"
+            r"no user credential|no invoker token",
+            combined,
+            re.I,
+        ):
+            return "service_principal"
+        return "unknown"
     if re.search(
         r"without working user-authorization credential forwarding|"
         r"no credential for the signed-in user|no invoker token",

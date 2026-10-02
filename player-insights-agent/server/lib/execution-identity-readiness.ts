@@ -44,9 +44,12 @@ export function identityReadinessEnforced(
 }
 
 export function expectedModelAuthPolicy(env: Record<string, string | undefined> = process.env): ModelAuthPolicy {
-  const logged = flag(env[USER_AUTHORIZATION_ENV]);
-  if (logged === false) return 'service_principal';
-  return 'signed_in_user';
+  const logged = (env[USER_AUTHORIZATION_ENV] ?? '').trim().toLowerCase();
+  // Empty is the committed App default for externally logged user-auth models.
+  // Once a value is explicit, match the agent's log-time rule: only literal
+  // "true" enables user authorization; aliases such as "1" or "yes" do not.
+  if (!logged || logged === 'true') return 'signed_in_user';
+  return 'service_principal';
 }
 
 function customOutputs(value: unknown): Record<string, unknown> | undefined {
@@ -100,10 +103,14 @@ export function observeRuntimeIdentity(input: { result?: unknown; error?: unknow
     // service principal remains a real failure. Older compatible models may
     // omit execution_identity, where the comparison itself still proves an
     // invoker identity was resolved.
-    return fromResult ?? 'token_forwarded';
+    return 'token_forwarded';
   }
   if (type === 'unavailable' && code === 'IDENTITY_REQUIRED') {
-    return 'service_principal';
+    return /without working user-authorization credential forwarding|no user credential|no invoker token/i.test(
+      combined
+    )
+      ? 'service_principal'
+      : 'unknown';
   }
   if (
     /without working user-authorization credential forwarding|no credential for the signed-in user|no invoker token/i.test(
@@ -144,7 +151,7 @@ export function identityProbePayload(): Record<string, unknown> {
 
 export type IdentityProbeInvoke = (input: {
   payload: Record<string, unknown>;
-  userToken: string;
+  forwardedUserToken: string;
 }) => Promise<{ result?: unknown; error?: unknown }>;
 
 export function createIdentityReadinessProbe(input: {
@@ -160,10 +167,10 @@ export function createIdentityReadinessProbe(input: {
       pending = current;
       void current.then(
         (verdict) => {
-          // A cold endpoint, timeout, or unreadable response proves nothing.
-          // Keep definitive aligned/miswired verdicts, but let the next Ask
-          // retry an unverified startup probe instead of caching it forever.
-          if (!verdict.ok && verdict.reason === 'unverified' && pending === current) {
+          // Cache only success. A cold endpoint and a transient missing-invoker
+          // response can look identical to a wiring fault; the next Ask must
+          // retry instead of inheriting a process-lifetime refusal.
+          if (!verdict.ok && pending === current) {
             pending = undefined;
           }
         },
@@ -192,7 +199,7 @@ export async function runIdentityReadinessProbe(input: {
   try {
     const outcome = await input.invoke({
       payload: identityProbePayload(),
-      userToken: 'identity-readiness-synthetic-token',
+      forwardedUserToken: 'identity-readiness-synthetic-token',
     });
     const observed = observeRuntimeIdentity(outcome);
     const verdict = compareExecutionIdentity({ expected, observed, enforce: true });

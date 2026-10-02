@@ -237,6 +237,8 @@ export type ServingTransport = (request: {
    * the benchmark runner, the settings probe) omit it and run as the app.
    */
   userToken?: string;
+  /** Forwarded OBO credential while the App service principal authenticates the request. */
+  forwardedUserToken?: string;
   /** Present only for an explicit Stop; ordinary browser disconnects never set it. */
   signal?: AbortSignal;
 }) => Promise<unknown>;
@@ -3104,7 +3106,7 @@ interface ServingApiClient {
 export function createServingTransport(
   resolveClient: (userToken?: string) => Promise<ServingApiClient>
 ): ServingTransport {
-  return async ({ path, payload, onStage, userToken, signal }) => {
+  return async ({ path, payload, onStage, userToken, forwardedUserToken, signal }) => {
     throwIfRunCancelled(signal);
     const client = await resolveClient(userToken);
     throwIfRunCancelled(signal);
@@ -3115,18 +3117,21 @@ export function createServingTransport(
     // shape of the bug this whole indirection exists to prevent, and a reviewer
     // cannot tell "added one key" from "rebuilt from an allowlist" at a glance.
     const streaming = typeof onStage === 'function';
-    const invoke = (asStream: boolean) =>
-      client.request({
+    const invoke = (asStream: boolean) => {
+      const headers = new Headers({
+        'Content-Type': 'application/json',
+        Accept: asStream ? 'text/event-stream' : 'application/json',
+      });
+      if (forwardedUserToken) headers.set('x-forwarded-access-token', forwardedUserToken);
+      return client.request({
         path,
         method: 'POST',
-        headers: new Headers({
-          'Content-Type': 'application/json',
-          Accept: asStream ? 'text/event-stream' : 'application/json',
-        }),
+        headers,
         payload,
         raw: asStream,
         signal,
       });
+    };
 
     if (!streaming) return invoke(false);
     try {
@@ -3343,7 +3348,8 @@ export async function invokeServing(
   timeoutMs: number = SERVING_INVOKE_TIMEOUT_MS,
   userToken?: string,
   endpointName = process.env.DATABRICKS_SERVING_ENDPOINT_NAME,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  forwardedUserToken?: string
 ) {
   if (!endpointName) {
     throw new Error('DATABRICKS_SERVING_ENDPOINT_NAME is not set.');
@@ -3387,6 +3393,7 @@ export async function invokeServing(
         payload,
         onStage: guardedStage,
         userToken,
+        forwardedUserToken,
         signal: controller.signal,
       }),
       aborted,
@@ -3843,9 +3850,20 @@ export function setupInsightsRoutes(
   const idleConfig = options.appSessionConfig ?? resolveIdleTimeout();
   const identityProbe = createIdentityReadinessProbe({
     deployed: options.eagerIdentityReadiness === true,
-    invoke: async ({ payload, userToken }) => {
+    invoke: async ({ payload, forwardedUserToken }) => {
       try {
-        return { result: await invokeServing(appkit, payload, undefined, IDENTITY_READINESS_TIMEOUT_MS, userToken) };
+        return {
+          result: await invokeServing(
+            appkit,
+            payload,
+            undefined,
+            IDENTITY_READINESS_TIMEOUT_MS,
+            undefined,
+            undefined,
+            undefined,
+            forwardedUserToken
+          ),
+        };
       } catch (error) {
         return { error };
       }
@@ -4973,15 +4991,24 @@ export function setupInsightsRoutes(
         return;
       }
 
-      const identityVerdict = await identityProbe.get();
+      let identityVerdict = await identityProbe.get();
+      if (!identityVerdict.ok && identityVerdict.reason === 'unverified') {
+        identityVerdict = await identityProbe.get();
+      }
       if (!identityVerdict.ok) {
-        reply.status(unavailableHttpStatus('IDENTITY_REQUIRED')).json(
+        const readinessCode =
+          identityVerdict.reason === 'unverified' ? 'DEPENDENCY_UNAVAILABLE' : 'IDENTITY_REQUIRED';
+        reply.status(unavailableHttpStatus(readinessCode)).json(
           unavailableResult({
-            code: 'IDENTITY_REQUIRED',
+            code: readinessCode,
             requestId: identity.correlationId,
             runId: null,
             persistence: 'not_stored',
             executionIdentity: refusedIdentityClaim(),
+            detail:
+              identityVerdict.reason === 'unverified'
+                ? 'The agent endpoint identity check did not complete after retry. Try this question again.'
+                : undefined,
           })
         );
         return;
