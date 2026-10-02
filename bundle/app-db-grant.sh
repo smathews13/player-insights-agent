@@ -53,7 +53,7 @@ DATABASES_JSON="$(databricks postgres list-databases "$POSTGRES_BRANCH" \
   --profile "$PROFILE" -o json)" \
   || die "Could not list databases for '$POSTGRES_BRANCH' with profile '$PROFILE'."
 PGUSER="$(databricks current-user me --profile "$PROFILE" -o json \
-  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("userName") or "")')" \
+  | python3 -c 'import json,sys; body=json.load(sys.stdin); print(body.get("user_name") or body.get("userName") or "")')" \
   || die "Could not resolve the Postgres login from profile '$PROFILE'."
 
 PGHOST="$(printf '%s' "$BRANCH_JSON" | python3 -c '

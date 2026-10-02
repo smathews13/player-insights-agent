@@ -95,7 +95,7 @@ async function main() {
     .pop();
   const endpointBody = cli(['postgres', 'list-endpoints', branch]);
   const endpoints = collection(endpointBody, 'endpoints');
-  const host = endpoints[0]?.status?.hosts?.host;
+  const host = endpoints.map((endpoint) => endpoint?.status?.hosts?.host).find(Boolean);
   const databaseBody = cli(['postgres', 'list-databases', branch]);
   const databases = collection(databaseBody, 'databases');
   const database = databases.find(
@@ -105,7 +105,8 @@ async function main() {
         .split('/')
         .pop() === databaseId
   )?.status?.postgres_database;
-  const me = cli(['current-user', 'me']).userName;
+  const identity = cli(['current-user', 'me']);
+  const me = identity.user_name || identity.userName;
   if (!host || !database || !me) {
     console.error(`could not resolve the Lakebase connection for ${APP} (host, database or caller identity missing).`);
     process.exit(2);

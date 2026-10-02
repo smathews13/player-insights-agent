@@ -50,7 +50,7 @@ describe('execution-identity readiness', () => {
     const askWrites: string[] = [];
     const servingTransport = vi.fn(() =>
       Promise.resolve({
-        custom_outputs: { type: 'unavailable', code: 'IDENTITY_MISMATCH', message: 'no invoker token' },
+        custom_outputs: { type: 'unavailable', code: 'IDENTITY_REQUIRED', message: 'no invoker token' },
       })
     );
     const app = express();

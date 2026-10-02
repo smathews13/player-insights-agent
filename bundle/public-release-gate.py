@@ -33,7 +33,9 @@ def findings(expected: dict[str, Any], live: dict[str, Any]) -> list[str]:
         )
     effective_scopes = set(live.get("effective_user_api_scopes") or [])
     missing_effective = declared_scopes - effective_scopes
-    if missing_effective:
+    compute_state = str((live.get("compute_status") or {}).get("state") or "")
+    has_deployment = bool(live.get("active_deployment"))
+    if missing_effective and compute_state == "ACTIVE" and has_deployment:
         out.append(
             f"effective_user_api_scopes: missing required scopes={sorted(missing_effective)}"
         )

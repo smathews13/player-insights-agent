@@ -30,13 +30,16 @@ case "$*" in
     printf '%s\n' '{"service_principal_client_id":"app-role-123","resources":[{"postgres":{"branch":"projects/p/branches/production","database":"projects/p/branches/production/databases/db-resource"}}]}'
     ;;
   "postgres get-branch projects/p/branches/production --profile test-profile -o json")
-    printf '%s\n' '{"status":{"hosts":{"host":"direct.branch.database.cloud.databricks.com"}}}'
+    printf '%s\n' '{}'
+    ;;
+  "postgres list-endpoints projects/p/branches/production --profile test-profile -o json")
+    printf '%s\n' '{"endpoints":[{"status":{"hosts":{"host":"direct.branch.database.cloud.databricks.com"}}}]}'
     ;;
   "postgres list-databases projects/p/branches/production --profile test-profile -o json")
     printf '%s\n' '[{"database_id":"db-resource","status":{"postgres_database":"app_database"}}]'
     ;;
   "current-user me --profile test-profile -o json")
-    printf '%s\n' '{"userName":"operator@example.com"}'
+    printf '%s\n' '{"user_name":"operator@example.com"}'
     ;;
   *)
     printf 'unexpected databricks call: %s\n' "$*" >&2
@@ -95,10 +98,10 @@ for expected in \
 done
 
 if grep -qF "postgres get-branch projects/p/branches/production" "$CALLS" \
-   && ! grep -qF "list-endpoints" "$CALLS"; then
-  ok "uses the direct branch host and never an endpoint/pooled fallback"
+   && grep -qF "list-endpoints" "$CALLS"; then
+  ok "falls back to the branch endpoint's direct host when get-branch omits it"
 else
-  bad "did not exclusively resolve PGHOST from postgres get-branch"
+  bad "did not resolve PGHOST through the live endpoint response shape"
 fi
 
 printf '\n==> failed grants stop the hook\n'

@@ -10,6 +10,7 @@
 export const ENFORCE_IDENTITY_READINESS_ENV = 'ENFORCE_IDENTITY_READINESS';
 export const USER_AUTHORIZATION_ENV = 'PLAYER_INSIGHTS_USER_AUTHORIZATION';
 export const IDENTITY_READINESS_PROBE_USER = 'readiness-probe@invalid.example';
+export const IDENTITY_READINESS_TIMEOUT_MS = 90_000;
 export const OBO_NOT_WIRED_LOG = 'OBO not wired: x-forwarded-access-token is not reaching the serving endpoint.';
 
 const TRUTHY = new Set(['1', 'true', 'on', 'yes']);
@@ -92,7 +93,16 @@ export function observeRuntimeIdentity(input: { result?: unknown; error?: unknow
   const type = typeof custom?.type === 'string' ? custom.type : '';
   const message = typeof custom?.message === 'string' ? custom.message : '';
   const combined = `${message}\n${text}`;
-  if (type === 'unavailable' && (code === 'IDENTITY_REQUIRED' || code === 'IDENTITY_MISMATCH')) {
+  const fromResult = identityModeFrom(input.result);
+  if (type === 'unavailable' && code === 'IDENTITY_MISMATCH') {
+    // The expected user is deliberately impossible. A signed-in-user identity
+    // reaching this comparison proves OBO is wired; an explicitly observed
+    // service principal remains a real failure. Older compatible models may
+    // omit execution_identity, where the comparison itself still proves an
+    // invoker identity was resolved.
+    return fromResult ?? 'token_forwarded';
+  }
+  if (type === 'unavailable' && code === 'IDENTITY_REQUIRED') {
     return 'service_principal';
   }
   if (
@@ -102,7 +112,6 @@ export function observeRuntimeIdentity(input: { result?: unknown; error?: unknow
   ) {
     return 'service_principal';
   }
-  const fromResult = identityModeFrom(input.result);
   if (fromResult) return fromResult;
   return 'unknown';
 }
@@ -146,7 +155,23 @@ export function createIdentityReadinessProbe(input: {
   let pending: Promise<IdentityReadinessVerdict> | undefined;
   const env = input.env ?? process.env;
   const get = () => {
-    if (!pending) pending = runIdentityReadinessProbe({ invoke: input.invoke, env, deployed: input.deployed });
+    if (!pending) {
+      const current = runIdentityReadinessProbe({ invoke: input.invoke, env, deployed: input.deployed });
+      pending = current;
+      void current.then(
+        (verdict) => {
+          // A cold endpoint, timeout, or unreadable response proves nothing.
+          // Keep definitive aligned/miswired verdicts, but let the next Ask
+          // retry an unverified startup probe instead of caching it forever.
+          if (!verdict.ok && verdict.reason === 'unverified' && pending === current) {
+            pending = undefined;
+          }
+        },
+        () => {
+          if (pending === current) pending = undefined;
+        }
+      );
+    }
     return pending;
   };
   return { get };
