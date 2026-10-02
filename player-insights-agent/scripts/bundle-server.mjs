@@ -486,6 +486,7 @@ async function main() {
   const llmEndpoint = (process.env.PLAYER_INSIGHTS_LLM_ENDPOINT ?? '').trim();
 
   const experimentId = (process.env.PLAYER_INSIGHTS_EXPERIMENT_ID ?? '').trim();
+  const experimentPath = (process.env.PLAYER_INSIGHTS_EXPERIMENT_PATH ?? '').trim();
   if (!experimentId) {
     console.log(
       '\n  note  PLAYER_INSIGHTS_EXPERIMENT_ID not set: the deployed app.yaml will carry an\n' +
@@ -515,6 +516,7 @@ async function main() {
       // empty value stands and Run Explorer simply omits the deep link, which is
       // the documented degradation, far better than shipping our experiment id.
       ...(experimentId ? [{ name: 'PLAYER_INSIGHTS_EXPERIMENT_ID', value: `'${experimentId}'` }] : []),
+      ...(experimentPath ? [{ name: 'PLAYER_INSIGHTS_EXPERIMENT_PATH', value: `'${experimentPath}'` }] : []),
       // Resolved from git here rather than passed in by the release, because this
       // is the step that turns source into the artifact being stamped. Nothing
       // else knows what went into it.

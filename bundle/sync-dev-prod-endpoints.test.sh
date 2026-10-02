@@ -34,7 +34,9 @@ elif [[ "$1 $2" == "serving-endpoints get" ]]; then
   experiment=42
   [[ "${BAD_EXPERIMENT:-}" == 1 ]] && experiment=99
   [[ "${BAD_MODEL:-}" == 1 ]] && model=catalog.schema.other
-  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"served_entities":[{"name":"pia_%s","entity_name":"%s","entity_version":"%s","scale_to_zero_enabled":%s,"environment_vars":{"MLFLOW_EXPERIMENT_ID":"%s"}}],"traffic_config":{"routes":[{"served_entity_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version" "$model" "$version" "$scale" "$experiment" "$version"
+  tracking=databricks
+  [[ "${BAD_TRACING:-}" == 1 ]] && tracking=missing
+  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"served_entities":[{"name":"pia_%s","entity_name":"%s","entity_version":"%s","scale_to_zero_enabled":%s,"environment_vars":{"MLFLOW_EXPERIMENT_ID":"%s","MLFLOW_EXPERIMENT_NAME":"/Shared/player-insights-agent","MLFLOW_TRACKING_URI":"%s","MLFLOW_TRACE_SAMPLING_RATIO":"1.0"}}],"traffic_config":{"routes":[{"served_entity_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version" "$model" "$version" "$scale" "$experiment" "$tracking" "$version"
 elif [[ "$1 $2" == "experiments get-by-name" ]]; then
   printf '%s\n' '{"experiment":{"experiment_id":"42","name":"/Shared/player-insights-agent"}}'
 else
@@ -80,6 +82,10 @@ ENDPOINT_MATCH=1 BAD_EXPERIMENT=1 run_sync --apply --latest-version 6 >/dev/null
 
 : >"$WORK/calls"
 ENDPOINT_MATCH=1 BAD_MODEL=1 run_sync --apply --latest-version 6 >/dev/null
+[[ "$(wc -l < "$WORK/calls" | tr -d ' ')" == 2 ]]
+
+: >"$WORK/calls"
+ENDPOINT_MATCH=1 BAD_TRACING=1 run_sync --apply --latest-version 6 >/dev/null
 [[ "$(wc -l < "$WORK/calls" | tr -d ' ')" == 2 ]]
 
 set +e

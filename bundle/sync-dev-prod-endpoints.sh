@@ -111,7 +111,7 @@ if [[ "$APPLY" != true ]]; then
 fi
 
 endpoint_matches() {
-  local endpoint="$1" profile="$2" model="$3" version="$4" experiment_id="$5" scale_to_zero="$6" document
+  local endpoint="$1" profile="$2" model="$3" version="$4" experiment_id="$5" experiment_path="$6" scale_to_zero="$7" document
   document="$(mktemp "${TMPDIR:-/tmp}/pia-endpoint-state.XXXXXX")"
   if ! databricks serving-endpoints get "$endpoint" --profile "$profile" -o json \
       >"$document" 2>/dev/null; then
@@ -119,7 +119,7 @@ endpoint_matches() {
     return 1
   fi
   local status=0
-  python3 - "$document" "$model" "$version" "$experiment_id" "$scale_to_zero" <<'PY' || status=$?
+  python3 - "$document" "$model" "$version" "$experiment_id" "$experiment_path" "$scale_to_zero" <<'PY' || status=$?
 import json
 import sys
 
@@ -127,7 +127,8 @@ body = json.load(open(sys.argv[1], encoding="utf-8"))
 model = sys.argv[2]
 want = sys.argv[3]
 experiment_id = sys.argv[4]
-scale_to_zero = sys.argv[5].strip().lower() in {"true", "1", "yes", "on"}
+experiment_path = sys.argv[5]
+scale_to_zero = sys.argv[6].strip().lower() in {"true", "1", "yes", "on"}
 config = body.get("config") or {}
 update = ((body.get("state") or {}).get("config_update") or "NONE").upper()
 routes = ((config.get("traffic_config") or {}).get("routes") or [])
@@ -152,6 +153,12 @@ other_traffic = sum(share for name, share in traffic.items() if name not in matc
 environment_matches = any(
     str((entity.get("environment_vars") or {}).get("MLFLOW_EXPERIMENT_ID") or "")
     == experiment_id
+    and str((entity.get("environment_vars") or {}).get("MLFLOW_EXPERIMENT_NAME") or "")
+    == experiment_path
+    and str((entity.get("environment_vars") or {}).get("MLFLOW_TRACKING_URI") or "")
+    == "databricks"
+    and str((entity.get("environment_vars") or {}).get("MLFLOW_TRACE_SAMPLING_RATIO") or "")
+    == "1.0"
     for entity in matching
 )
 scale_matches = any(
@@ -175,7 +182,7 @@ PY
 # Prod first: if its safety gates fail, Dev remains on the previously approved
 # version rather than advancing and leaving a two-version gap.
 if endpoint_matches "$PROD_ENDPOINT" "$PROD_PROFILE" "$PROD_MODEL" "$PROD_VERSION" \
-    "$PROD_EXPERIMENT_ID" "$PROD_SCALE_TO_ZERO"; then
+    "$PROD_EXPERIMENT_ID" "$PROD_EXPERIMENT" "$PROD_SCALE_TO_ZERO"; then
   printf 'Prod endpoint already serves version %s; no update needed.\n' "$PROD_VERSION"
 else
   TARGET=prod PROFILE="$PROD_PROFILE" \
@@ -185,7 +192,7 @@ fi
 
 if [[ "$SKIP_DEV" != true ]]; then
   if endpoint_matches "$DEV_ENDPOINT" "$DEV_PROFILE" "$DEV_MODEL" "$DEV_VERSION" \
-      "$DEV_EXPERIMENT_ID" "$DEV_SCALE_TO_ZERO"; then
+      "$DEV_EXPERIMENT_ID" "$DEV_EXPERIMENT" "$DEV_SCALE_TO_ZERO"; then
     printf 'Dev endpoint already serves version %s; no update needed.\n' "$DEV_VERSION"
   else
     TARGET=dev PROFILE="$DEV_PROFILE" \
