@@ -545,7 +545,14 @@ async function main() {
       // Git-deploy contract; renderDeployAppYaml replaces this entry only when a
       // release supplies the App resource's exact declaration.
       ...(declaredScopes ? [{ name: 'PLAYER_INSIGHTS_USER_API_SCOPES', value: `'${declaredScopes}'` }] : []),
-      ...(adminEmails ? [{ name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: `'${adminEmails}'` }] : []),
+      ...(adminEmails
+        ? [
+            {
+              name: 'PLAYER_INSIGHTS_ADMIN_EMAILS',
+              value: `'${adminEmails.replaceAll("'", "''").replace(/\r?\n/g, ' ')}'`,
+            },
+          ]
+        : []),
       ...(organizations
         ? [{ name: 'PLAYER_INSIGHTS_ORGANIZATIONS', value: `'${organizations.replaceAll("'", "''")}'` }]
         : []),

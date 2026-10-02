@@ -481,7 +481,7 @@ else
   note "conversation rail    per-user (shared_conversation_rail=${SHARED_RAIL:-<empty>})"
 fi
 
-# THE RELEASE PUTS THE GENERATED app.yaml BACK, rather than printing a reminder.
+# THE RELEASE PUTS THE WHOLE GENERATED TREE BACK, rather than only app.yaml.
 #
 # build/deploy/app.yaml is TRACKED and PUBLISHES, and the build below writes this
 # deployment's administrators, experiment id, telemetry schema and scopes into it.
@@ -498,28 +498,29 @@ fi
 # NOT RESTORED IF IT WAS ALREADY MODIFIED. Another agent may be mid-rebuild in
 # this working copy, and `git restore` over their in-flight edit would be a worse
 # failure than the one this prevents. Then it says so instead.
-DEPLOY_APP_YAML_REL="player-insights-agent/build/deploy/app.yaml"
-DEPLOY_APP_YAML_PREBUILT_DIRTY=false
+DEPLOY_TREE_REL="player-insights-agent/build/deploy"
+DEPLOY_TREE_RESTORED=false
 if git -C "$BUNDLE_ROOT" rev-parse --git-dir >/dev/null 2>&1 \
-   && git -C "$BUNDLE_ROOT" ls-files --error-unmatch "$DEPLOY_APP_YAML_REL" >/dev/null 2>&1; then
-  git -C "$BUNDLE_ROOT" diff --quiet -- "$DEPLOY_APP_YAML_REL" \
-    || DEPLOY_APP_YAML_PREBUILT_DIRTY=true
-  restore_deploy_app_yaml() {
-    git -C "$BUNDLE_ROOT" diff --quiet -- "$DEPLOY_APP_YAML_REL" && return 0
-    if [[ "$DEPLOY_APP_YAML_PREBUILT_DIRTY" == true ]]; then
-      printf '\n  %s\n' "$DEPLOY_APP_YAML_REL was already modified before this release, so it"
-      printf '  %s\n' "was left alone. If it carries administrator addresses, do not commit it:"
-      printf '  %s\n' "git restore $DEPLOY_APP_YAML_REL"
-      return 0
-    fi
-    git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_APP_YAML_REL" 2>/dev/null \
-      || git -C "$BUNDLE_ROOT" checkout -- "$DEPLOY_APP_YAML_REL" 2>/dev/null \
-      || { printf '\n  %s\n' "could not restore $DEPLOY_APP_YAML_REL. Do it by hand before committing:"
-           printf '  %s\n' "git restore $DEPLOY_APP_YAML_REL"; return 0; }
-    printf '\n  %s\n' "restored $DEPLOY_APP_YAML_REL (it carried this deployment's own values,"
-    printf '  %s\n' "and it is a tracked file that publishes to customers)"
+   && git -C "$BUNDLE_ROOT" ls-files --error-unmatch "$DEPLOY_TREE_REL/app.yaml" >/dev/null 2>&1; then
+  [[ -z "$(git -C "$BUNDLE_ROOT" status --porcelain -- "$DEPLOY_TREE_REL")" ]] \
+    || die "$DEPLOY_TREE_REL is already modified. Refusing to build over another change."
+  restore_deploy_tree() {
+    [[ "$DEPLOY_TREE_RESTORED" == true ]] && return 0
+    git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_TREE_REL" || return 1
+    git -C "$BUNDLE_ROOT" clean -fd -- "$DEPLOY_TREE_REL" >/dev/null || return 1
+    [[ -z "$(git -C "$BUNDLE_ROOT" status --porcelain -- "$DEPLOY_TREE_REL")" ]] \
+      || return 1
+    DEPLOY_TREE_RESTORED=true
+    printf '\n  %s\n' "restored $DEPLOY_TREE_REL after uploading its generated deployment values"
   }
-  on_exit restore_deploy_app_yaml
+  restore_deploy_tree_on_exit() {
+    restore_deploy_tree || {
+      printf '\nERROR: could not restore %s; it may contain deployment-private values.\n' \
+        "$DEPLOY_TREE_REL" >&2
+      return 1
+    }
+  }
+  on_exit restore_deploy_tree_on_exit
 fi
 
 step "Building the dependency-free deploy tree"
@@ -567,10 +568,8 @@ note "source manifest sha  $SOURCE_MANIFEST_SHA"
 # over it means shipping a deployment whose next schema change silently will not
 # apply.
 #
-# Two failure modes, told apart on purpose: exit 1 is a finding and stops the
-# release, exit 2 is a check that could not run and does not. A check that is
-# unavailable is not evidence of a problem, and blocking a release on one
-# teaches people to skip the step.
+# A finding and an unreadable check both stop the release. Ownership is required
+# for boot DDL; "could not establish" is not evidence that deployment is safe.
 step "Postgres ownership"
 OWNERSHIP_STATUS=0
 OWNERSHIP_OUT="$(cd "$APP_DIR" \
@@ -583,10 +582,8 @@ if [[ "$OWNERSHIP_STATUS" -eq 1 ]]; then
 Nothing has been uploaded or deployed. Follow the steps printed above, then
 re-run this release."
 elif [[ "$OWNERSHIP_STATUS" -ne 0 ]]; then
-  note ""
-  note "Ownership could not be established, which is not the same as it being wrong."
-  note "Continuing with the release. If the app's schema turns out to be owned by a"
-  note "developer role, its boot log will say so on the next start."
+  die "Postgres ownership could not be established. Nothing has been uploaded or deployed.
+Fix the checker/API error printed above, then rerun this release."
 fi
 
 run_app_db_grant
@@ -660,4 +657,9 @@ elif ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$CERTIFY"; then
   note ""
   note "Certification did not run to completion. The release itself is unaffected:"
   note "everything above already happened, and this step only records what it found."
+fi
+
+if declare -F restore_deploy_tree >/dev/null 2>&1; then
+  restore_deploy_tree \
+    || die "Release succeeded, but the tracked deploy tree could not be restored safely."
 fi

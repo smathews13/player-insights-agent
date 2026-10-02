@@ -18,10 +18,19 @@ if [[ "$1 $2" == "bundle validate" ]]; then
 }}
 JSON
 elif [[ "$1 $2" == "postgres get-database" ]]; then
-  [[ "${DATABASE_EXISTS:-}" == 1 ]] || exit 1
+  if [[ "${LOOKUP_REFUSED:-}" == 1 ]]; then
+    echo "PERMISSION_DENIED" >&2
+    exit 1
+  fi
+  if [[ "${DATABASE_EXISTS:-}" != 1 ]]; then
+    echo "RESOURCE_DOES_NOT_EXIST" >&2
+    exit 1
+  fi
   printf '{"name":"%s"}\n' "$3"
 elif [[ "$1 $2" == "postgres create-database" ]]; then
   printf '%s\0' "$@" >"$CALL"
+elif [[ "$1 $2" == "postgres get-role" ]]; then
+  printf '%s\n' '{"name":"projects/p/branches/production/roles/owner"}'
 else
   printf 'unexpected command: %s\n' "$*" >&2
   exit 2
@@ -47,6 +56,15 @@ PY
 
 rm -f "$WORK/call"
 DATABASE_EXISTS=1 run_ensure >/dev/null
+[[ ! -e "$WORK/call" ]]
+
+set +e
+OUTPUT="$(LOOKUP_REFUSED=1 run_ensure 2>&1)"
+STATUS=$?
+set -e
+[[ "$STATUS" -ne 0 ]]
+[[ "$OUTPUT" == *"PERMISSION_DENIED"* ]]
+[[ "$OUTPUT" == *"refusing to treat"* ]]
 [[ ! -e "$WORK/call" ]]
 
 printf 'PASS  Lakebase database create request matches the CLI API contract and is idempotent.\n'

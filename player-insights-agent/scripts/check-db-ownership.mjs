@@ -49,6 +49,11 @@ function cli(args) {
   );
 }
 
+export function collection(body, key) {
+  if (Array.isArray(body)) return body;
+  return Array.isArray(body?.[key]) ? body[key] : [];
+}
+
 /** The schema the app creates: env, else DEFAULT_APP_SCHEMA from shared. */
 function appSchema() {
   const fromEnv = (process.env.PLAYER_INSIGHTS_APP_SCHEMA ?? '').trim();
@@ -88,10 +93,18 @@ async function main() {
   const databaseId = String(postgres.database ?? '')
     .split('/')
     .pop();
-  const endpoints = cli(['postgres', 'list-endpoints', branch]);
-  const host = endpoints?.[0]?.status?.hosts?.host;
-  const databases = cli(['postgres', 'list-databases', branch]);
-  const database = (databases ?? []).find((d) => d.database_id === databaseId)?.status?.postgres_database;
+  const endpointBody = cli(['postgres', 'list-endpoints', branch]);
+  const endpoints = collection(endpointBody, 'endpoints');
+  const host = endpoints[0]?.status?.hosts?.host;
+  const databaseBody = cli(['postgres', 'list-databases', branch]);
+  const databases = collection(databaseBody, 'databases');
+  const database = databases.find(
+    (d) =>
+      d.database_id === databaseId ||
+      String(d.name ?? '')
+        .split('/')
+        .pop() === databaseId
+  )?.status?.postgres_database;
   const me = cli(['current-user', 'me']).userName;
   if (!host || !database || !me) {
     console.error(`could not resolve the Lakebase connection for ${APP} (host, database or caller identity missing).`);

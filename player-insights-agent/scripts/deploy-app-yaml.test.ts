@@ -324,6 +324,21 @@ describe('every authored variable reaches the deploy target', () => {
     expect(generated.match(/name: PLAYER_INSIGHTS_ADMIN_EMAILS/g)).toHaveLength(1);
   });
 
+  it('single-quotes administrator identities safely for YAML', () => {
+    expect(bundleServer).toContain(`adminEmails.replaceAll("'", "''").replace(/\\r?\\n/g, ' ')`);
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [
+        ...DEPLOY_OVERRIDES.env,
+        { name: 'PLAYER_INSIGHTS_ADMIN_EMAILS', value: "'owner''s@example.com second@example.com'" },
+      ],
+    });
+
+    expect(generated).toContain(
+      "name: PLAYER_INSIGHTS_ADMIN_EMAILS\n    value: 'owner''s@example.com second@example.com'"
+    );
+  });
+
   it('keeps account routing deployment-only and carries explicit release values without swapping routes', () => {
     for (const name of [
       'PLAYER_INSIGHTS_FEEDBACK_SLACK_URL',
@@ -358,8 +373,9 @@ describe('every authored variable reaches the deploy target', () => {
       "name: PLAYER_INSIGHTS_ESCALATION_SLACK_LABEL\n    value: 'Find Customer Admin in Slack'"
     );
     expect(generated.indexOf(feedbackUrl)).toBeLessThan(generated.indexOf(escalationUrl));
-    expect(appRelease).toContain('on_exit restore_deploy_app_yaml');
-    expect(appRelease).toContain('git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_APP_YAML_REL"');
+    expect(appRelease).toContain('on_exit restore_deploy_tree_on_exit');
+    expect(appRelease).toContain('git -C "$BUNDLE_ROOT" restore -- "$DEPLOY_TREE_REL"');
+    expect(appRelease).toContain('git -C "$BUNDLE_ROOT" clean -fd -- "$DEPLOY_TREE_REL"');
   });
 
   it('keeps people, team ids, and member ids out of neutral build sources', () => {
