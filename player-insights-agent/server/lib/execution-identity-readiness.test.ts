@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareExecutionIdentity,
+  createIdentityReadinessProbe,
   expectedModelAuthPolicy,
   identityReadinessEnforced,
   observeRuntimeIdentity,
@@ -86,6 +87,20 @@ describe('observeRuntimeIdentity', () => {
       })
     ).toBe('signed_in_user');
   });
+
+  it('treats a fake-user mismatch with signed-in-user evidence as aligned OBO', () => {
+    expect(
+      observeRuntimeIdentity({
+        result: {
+          custom_outputs: {
+            type: 'unavailable',
+            code: 'IDENTITY_MISMATCH',
+            execution_identity: { mode: 'signed_in_user', verified: true },
+          },
+        },
+      })
+    ).toBe('signed_in_user');
+  });
 });
 
 describe('runIdentityReadinessProbe', () => {
@@ -141,6 +156,33 @@ describe('runIdentityReadinessProbe', () => {
         Promise.reject(new Error('model_serving_user_credentials auth: Unable to authenticate using user_credentials')),
     });
     expect(verdict).toMatchObject({ ok: true, reason: 'aligned', observed: 'token_forwarded' });
+  });
+
+  it('retries an inconclusive cold-start probe instead of caching it for the process lifetime', async () => {
+    let attempts = 0;
+    const probe = createIdentityReadinessProbe({
+      env: { ENFORCE_IDENTITY_READINESS: 'true', PLAYER_INSIGHTS_USER_AUTHORIZATION: 'true' },
+      invoke: () => {
+        attempts += 1;
+        return Promise.resolve(
+          attempts === 1
+            ? {}
+            : {
+                result: {
+                  custom_outputs: {
+                    type: 'unavailable',
+                    code: 'IDENTITY_MISMATCH',
+                    execution_identity: { mode: 'signed_in_user', verified: true },
+                  },
+                },
+              }
+        );
+      },
+    });
+
+    await expect(probe.get()).resolves.toMatchObject({ ok: false, reason: 'unverified' });
+    await expect(probe.get()).resolves.toMatchObject({ ok: true, reason: 'aligned' });
+    expect(attempts).toBe(2);
   });
 });
 

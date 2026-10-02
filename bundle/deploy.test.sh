@@ -134,13 +134,18 @@ text = Path(sys.argv[1]).read_text()
 assert 'if [[ ! -d "$APP_DIR/node_modules" ]]' in text
 assert '(cd "$APP_DIR" && npm ci)' in text
 assert text.index('(cd "$APP_DIR" && npm ci)') < text.rindex('npm run build:deploy)')
-deploy = text.index('databricks apps deploy "$APP_NAME"')
+deploy = text.rindex('databricks apps deploy "$APP_NAME"')
 health = text.index('APP_HEALTH_DEADLINE=')
+effective = text.index('verify_effective_scopes "$APP_JSON"')
+assert effective < deploy
 assert deploy < health
+assert 'STARTING/UPDATING' in text
 assert '"$APP_STATE" == "RUNNING"' in text
 assert '"$COMPUTE_STATE" == "ACTIVE"' in text
 assert '"$DEPLOYMENT_STATE" == "SUCCEEDED"' in text
 assert 'did not become RUNNING/ACTIVE/SUCCEEDED' in text
+terminal = text[text.index('[[ "$APP_STATE" == "CRASHED"'):text.index('if (( $(date +%s) >= APP_HEALTH_DEADLINE ))')]
+assert "UNAVAILABLE" not in terminal
 PY
 
 printf 'PASS  bundle deploy wrapper blocks unsafe state and flags.\n'

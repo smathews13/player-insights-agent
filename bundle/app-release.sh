@@ -82,6 +82,37 @@ run_app_acl_self_grant() {
   fi
 }
 
+get_app_json() {
+  local attempt output
+  for attempt in 1 2 3 4 5; do
+    if output="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json 2>/dev/null)"; then
+      printf '%s' "$output"
+      return 0
+    fi
+    printf '  App status read failed (attempt %s/5); retrying.\n' "$attempt" >&2
+    sleep 3
+  done
+  die "Could not read App '$APP_NAME' after five attempts with profile '$PROFILE'."
+}
+
+verify_effective_scopes() {
+  local app_json="$1"
+  printf '%s' "$app_json" | python3 -c '
+import json,sys
+app=json.load(sys.stdin)
+required={s for s in sys.argv[1].split(",") if s}
+effective=set(app.get("effective_user_api_scopes") or [])
+missing=sorted(required-effective)
+if missing:
+    raise SystemExit(
+        "required user API scopes are still not effective after App start: "
+        + ", ".join(missing)
+    )
+print("  ok, every declared user API scope is effective")
+' "$DECLARED_SCOPES" || die "App OAuth scopes did not activate. Stop and start the App,
+then sign in again before retrying this release."
+}
+
 step "App release configuration (target: $TARGET)"
 note "app            $APP_NAME"
 note "profile        $PROFILE"
@@ -592,16 +623,43 @@ run_app_acl_self_grant
 step "Replacing validated staging source at $SRC_PATH"
 clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"
 
-# A bundle-created app has no active deployment yet. Its compute commonly
-# settles at STOPPED, and `apps deploy` then refuses with "start the app first".
-# Existing apps are already ACTIVE, so this is a greenfield-only transition.
-APP_COMPUTE_STATE="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json \
+# A bundle-created App commonly settles at STOPPED before its first code
+# release. Do not issue a duplicate start while the platform is already moving
+# through STARTING/UPDATING; wait on the state in either case.
+APP_JSON="$(get_app_json)"
+APP_COMPUTE_STATE="$(printf '%s' "$APP_JSON" \
   | python3 -c 'import json,sys; print((json.load(sys.stdin).get("compute_status") or {}).get("state") or "")')"
-if [[ "$APP_COMPUTE_STATE" != "ACTIVE" ]]; then
-  step "Starting app compute for the first deployment"
-  note "compute state is ${APP_COMPUTE_STATE:-unknown}; apps deploy requires ACTIVE compute"
-  databricks apps start "$APP_NAME" --profile "$PROFILE" --timeout 20m
-fi
+case "$APP_COMPUTE_STATE" in
+  ACTIVE) ;;
+  STOPPED|ERROR|"")
+    step "Starting app compute"
+    note "compute state is ${APP_COMPUTE_STATE:-unknown}; apps deploy requires ACTIVE compute"
+    databricks apps start "$APP_NAME" --profile "$PROFILE" --timeout 20m
+    ;;
+  *)
+    step "Waiting for app compute already in transition"
+    note "compute state is $APP_COMPUTE_STATE"
+    ;;
+esac
+
+COMPUTE_DEADLINE=$(( $(date +%s) + 1200 ))
+while [[ "$APP_COMPUTE_STATE" != "ACTIVE" ]]; do
+  APP_JSON="$(get_app_json)"
+  APP_COMPUTE_STATE="$(printf '%s' "$APP_JSON" \
+    | python3 -c 'import json,sys; print((json.load(sys.stdin).get("compute_status") or {}).get("state") or "")')"
+  APP_STATE="$(printf '%s' "$APP_JSON" \
+    | python3 -c 'import json,sys; print((json.load(sys.stdin).get("app_status") or {}).get("state") or "")')"
+  printf '  app=%s compute=%s\n' "${APP_STATE:-unknown}" "${APP_COMPUTE_STATE:-unknown}"
+  [[ "$APP_COMPUTE_STATE" == "ERROR" || "$APP_STATE" == "CRASHED" ]] \
+    && die "App $APP_NAME cannot be started: app=$APP_STATE compute=$APP_COMPUTE_STATE"
+  (( $(date +%s) < COMPUTE_DEADLINE )) \
+    || die "App $APP_NAME compute did not become ACTIVE within 20 minutes."
+  [[ "$APP_COMPUTE_STATE" == "ACTIVE" ]] || sleep 15
+done
+
+APP_JSON="$(get_app_json)"
+step "Effective App OAuth scopes"
+verify_effective_scopes "$APP_JSON"
 
 step "Deploying app $APP_NAME"
 databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --mode SNAPSHOT --profile "$PROFILE"
@@ -609,7 +667,7 @@ databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --mode SNAPSHO
 step "Waiting for the deployed app to be healthy"
 APP_HEALTH_DEADLINE=$(( $(date +%s) + 1200 ))
 while :; do
-  APP_JSON="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json)"
+  APP_JSON="$(get_app_json)"
   APP_STATE="$(printf '%s' "$APP_JSON" | python3 -c '
 import json,sys
 a=json.load(sys.stdin)
@@ -631,12 +689,10 @@ print((((a.get("active_deployment") or {}).get("status") or {}).get("state")) or
      && "$DEPLOYMENT_STATE" == "SUCCEEDED" ]]; then
     break
   fi
-  case "$APP_STATE:$COMPUTE_STATE:$DEPLOYMENT_STATE" in
-    *CRASHED*|*FAILED*|*ERROR*|*UNAVAILABLE*)
-      die "App $APP_NAME reached a terminal unhealthy state after deploy:
+  [[ "$APP_STATE" == "CRASHED" || "$COMPUTE_STATE" == "ERROR" \
+     || "$DEPLOYMENT_STATE" == "FAILED" || "$DEPLOYMENT_STATE" == "CANCELLED" ]] \
+    && die "App $APP_NAME reached a terminal unhealthy state after deploy:
 app=$APP_STATE compute=$COMPUTE_STATE deployment=$DEPLOYMENT_STATE"
-      ;;
-  esac
   if (( $(date +%s) >= APP_HEALTH_DEADLINE )); then
     die "App $APP_NAME did not become RUNNING/ACTIVE/SUCCEEDED within 20 minutes:
 app=$APP_STATE compute=$COMPUTE_STATE deployment=$DEPLOYMENT_STATE"
@@ -649,10 +705,9 @@ a=json.load(sys.stdin)
 print("  url             :", a.get("url"))
 '
 
-# release-gate.sh already compared declared, documented, and effective scopes
-# before this code upload. `apps deploy` does not mutate the App resource or its
-# OAuth policy, so repeating the same checker on the same contract here added no
-# safety. The status read above remains the one post-deploy platform read.
+# The pre-upload gate compares authored and attached scopes. Effective scopes
+# are checked after compute reaches ACTIVE above, because a never-started App
+# cannot have activated them yet.
 
 # LAST, and in SHADOW, on purpose.
 #

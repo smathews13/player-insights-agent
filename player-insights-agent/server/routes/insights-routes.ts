@@ -103,7 +103,11 @@ import { createStageRecorder, readStageEvents } from '../lib/run-stage-events';
 import { isUsableIdempotencyKey } from '../lib/run-request-hash';
 import { terminalStateFor } from '../lib/run-state';
 import { answerRatherThanExit } from '../lib/handler-failures';
-import { createIdentityReadinessProbe, identityReadinessHttp } from '../lib/execution-identity-readiness';
+import {
+  createIdentityReadinessProbe,
+  IDENTITY_READINESS_TIMEOUT_MS,
+  identityReadinessHttp,
+} from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
 import { repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { requestLatencyRecorder } from '../lib/request-latency';
@@ -3841,7 +3845,7 @@ export function setupInsightsRoutes(
     deployed: options.eagerIdentityReadiness === true,
     invoke: async ({ payload, userToken }) => {
       try {
-        return { result: await invokeServing(appkit, payload, undefined, 15_000, userToken) };
+        return { result: await invokeServing(appkit, payload, undefined, IDENTITY_READINESS_TIMEOUT_MS, userToken) };
       } catch (error) {
         return { error };
       }
