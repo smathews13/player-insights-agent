@@ -100,6 +100,12 @@ and app code:
    TARGET=<target> PROFILE='<profile>' bundle/app-release.sh --apply
    ```
 
+   If GlobalProtect is active, it can intercept workspace or Lakebase traffic
+   and return proxy content behind an apparent HTTP 200. An unexpected 200 that
+   cannot be parsed, or a workspace/database connection failure, should be
+   retried with GlobalProtect disconnected before changing credentials,
+   resources, or bundle variables.
+
    The bundle wrapper idempotently creates the app-to-model signing key before
    the App resource is created. The later agent release reuses it and publishes
    only the public half into the logged model.

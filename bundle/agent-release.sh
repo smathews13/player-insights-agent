@@ -1018,7 +1018,7 @@ print(update, share, sorted(matching))
   [[ "$update" == 'NOT_UPDATING' || "$update" == 'NONE' ]] && (( share == 100 )) && break
   if (( $(date +%s) >= deadline )); then
     die "version $MODEL_VERSION is not taking traffic after 30 minutes. The endpoint may still be
-updating: check $HOST/ml/endpoints/$ENDPOINT/ before deciding whether to redeploy, and do NOT
+updating: check $WORKSPACE_HOST/ml/endpoints/$ENDPOINT/ before deciding whether to redeploy, and do NOT
 smoke-test yet, because the answers would come from the previous version."
   fi
   sleep 30
@@ -1037,7 +1037,7 @@ case "$USER_AUTH_STATUS" in
   1)
     die "Version $MODEL_VERSION is serving on $ENDPOINT, but the endpoint did not prove
 that it forwards the caller's credential. Read the FAIL lines above and roll
-$ENDPOINT back at $HOST/ml/endpoints/$ENDPOINT/ before users ask questions."
+$ENDPOINT back at $WORKSPACE_HOST/ml/endpoints/$ENDPOINT/ before users ask questions."
     ;;
   2)
     die "The runtime user-auth probe for version $MODEL_VERSION could not run.

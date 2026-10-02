@@ -170,6 +170,12 @@ TARGET=prod PROFILE="<profile>" bash bundle/agent-release.sh --apply
 TARGET=prod PROFILE="<profile>" bash bundle/app-release.sh --apply
 ```
 
+> **Corporate VPN note:** GlobalProtect can intercept Databricks workspace or
+> Lakebase traffic and return a proxy response even when the transport reports
+> HTTP 200. If a release fails parsing an unexpected 200 response or cannot
+> reach the workspace/database, disconnect GlobalProtect and retry the same
+> command before changing credentials, resources, or bundle variables.
+
 The bundle deploy is interactive. Read its proposed changes before approving
 them. Do not use auto-approval for a first deployment. Detailed deployment,
 grant, recovery, and verification guidance is in

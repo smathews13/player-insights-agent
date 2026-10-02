@@ -247,6 +247,7 @@ PY
   printf '%s' "$file"
 }
 FORWARDED="$(probe forwarded.json '{"error":"Unable to authenticate using user_credentials in Databricks Model Serving Environment"}')"
+MISMATCH="$(probe mismatch.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_MISMATCH","message":"expected readiness-probe@invalid.example but observed caller@example.com"}}}')"
 SP_SILENT="$(probe sp.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_REQUIRED","message":"no invoker token"}}}')"
 UNKNOWN="$(probe unknown.json '{"result":{"output":"hello"}}')"
 
@@ -259,6 +260,11 @@ check_says "and then it no longer claims the endpoint forwarding is unverified" 
   "the app still has to forward the real one" \
   python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
     --serving-probe-json "$FORWARDED"
+
+check_says "identity mismatch against the deliberately fake expected user proves OBO" 0 \
+  "the endpoint accepted a user token" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$MISMATCH"
 
 check_says "IDENTITY_REQUIRED on the synthetic probe fails deploy as OBO not wired" 1 \
   "OBO not wired" \
