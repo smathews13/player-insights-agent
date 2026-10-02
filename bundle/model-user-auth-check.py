@@ -229,9 +229,10 @@ def read_auth_policy_mlflow(source: str) -> dict[str, Any] | None:
 def observe_runtime_identity(result: Any = None, error: Any = None) -> str:
     """What the serving probe actually met, from a body or an HTTP error.
 
-    `token_forwarded` is the synthetic-token success: Model Serving tried to
-    downscope junk and said `user_credentials`. `service_principal` is the
-    silent-SP failure the boot-time readiness check also names IDENTITY_*.
+    `token_forwarded` is either the synthetic-token failure at Model Serving or
+    the model resolving a real caller and rejecting the deliberately fake
+    `expected_user` with IDENTITY_MISMATCH. `service_principal` is the
+    no-invoker failure the boot-time readiness check names IDENTITY_REQUIRED.
     Envelope `execution_identity.mode` is not trusted as the runtime principal.
     """
     text = f"{error or ''}\n{result if isinstance(result, str) else json.dumps(result or '')}"
@@ -251,7 +252,14 @@ def observe_runtime_identity(result: Any = None, error: Any = None) -> str:
     kind = str((nested or {}).get("type") or "")
     message = str((nested or {}).get("message") or "")
     combined = f"{message}\n{text}"
-    if kind == "unavailable" and code in {"IDENTITY_REQUIRED", "IDENTITY_MISMATCH"}:
+    if kind == "unavailable" and code == "IDENTITY_MISMATCH":
+        # The probe intentionally names a user who cannot be the caller. Reaching
+        # this comparison proves the model resolved an invoker identity; a
+        # deployment with no forwarded credential fails earlier as
+        # IDENTITY_REQUIRED. Treating both codes alike made a working OBO
+        # endpoint fail every release.
+        return "token_forwarded"
+    if kind == "unavailable" and code == "IDENTITY_REQUIRED":
         return "service_principal"
     if re.search(
         r"without working user-authorization credential forwarding|"
