@@ -5,6 +5,8 @@ import {
   forgetBakedModelConfig,
   parseModelConfigDocument,
   readBakedModelConfig,
+  servedModelSupportsGenieMcp,
+  userAuthScopesFromModelDocument,
   type BakedConfigTransport,
 } from './baked-model-config';
 
@@ -32,6 +34,17 @@ flavors:
       - a_catalog.a_schema.extra_six
       catalog: a_catalog
       schema: a_schema
+`;
+
+const MCP_AUTH_POLICY = `
+auth_policy:
+  system_auth_policy:
+    resources: {}
+  user_auth_policy:
+    api_scopes:
+    - dashboards.genie
+    - genie
+    - sql
 `;
 
 function serving(version = '39') {
@@ -112,6 +125,25 @@ describe('reading model_config out of an MLmodel document', () => {
     expect(parseModelConfigDocument('')).toEqual({});
     expect(parseModelConfigDocument('flavors:\n  python_function:\n    python_version: 3.11\n')).toEqual({});
   });
+
+  it('reads the exact user-auth scopes that determine managed Genie compatibility', () => {
+    expect(userAuthScopesFromModelDocument(MLMODEL + MCP_AUTH_POLICY)).toEqual([
+      'dashboards.genie',
+      'genie',
+      'sql',
+    ]);
+    expect(userAuthScopesFromModelDocument(MLMODEL)).toEqual([]);
+  });
+
+  it('reads user-auth scopes from JSON MLmodel documents too', () => {
+    expect(
+      userAuthScopesFromModelDocument(
+        JSON.stringify({
+          auth_policy: { user_auth_policy: { api_scopes: ['dashboards.genie', 'sql'] } },
+        })
+      )
+    ).toEqual(['dashboards.genie', 'sql']);
+  });
 });
 
 describe('turning the map into configuration entries', () => {
@@ -135,6 +167,24 @@ describe('turning the map into configuration entries', () => {
 });
 
 describe('reading the served version as the app', () => {
+  it('enables managed Genie only when the served artifact itself declares its scope', async () => {
+    await expect(
+      servedModelSupportsGenieMcp({
+        endpointName: 'an-endpoint',
+        readEndpoint: () => Promise.resolve(serving()),
+        transport: transport({ document: MLMODEL }),
+      })
+    ).resolves.toBe(false);
+    forgetBakedModelConfig();
+    await expect(
+      servedModelSupportsGenieMcp({
+        endpointName: 'an-endpoint',
+        readEndpoint: () => Promise.resolve(serving()),
+        transport: transport({ document: MLMODEL + MCP_AUTH_POLICY }),
+      })
+    ).resolves.toBe(true);
+  });
+
   it('follows endpoint → model version → MLmodel without invoking serving', async () => {
     const entries = await readBakedModelConfig({
       endpointName: 'an-endpoint',

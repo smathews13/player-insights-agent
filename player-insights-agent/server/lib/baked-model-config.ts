@@ -84,6 +84,28 @@ export function parseModelConfigDocument(source: string): Record<string, unknown
   return block ? parseYamlMap(block) : {};
 }
 
+/** OAuth scopes baked into the served MLmodel's user auth policy. */
+export function userAuthScopesFromModelDocument(source: string): string[] {
+  const trimmed = source.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('{')) {
+    try {
+      const document = asRecord(JSON.parse(trimmed));
+      const policy = asRecord(document.auth_policy);
+      const userPolicy = asRecord(policy.user_auth_policy);
+      return Array.isArray(userPolicy.api_scopes)
+        ? userPolicy.api_scopes.map((scope) => text(scope)).filter(Boolean)
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  const block = yamlBlock(source, ['user_auth_policy:']);
+  if (!block) return [];
+  const scopes = parseYamlMap(block).api_scopes;
+  return Array.isArray(scopes) ? scopes.map((scope) => text(scope)).filter(Boolean) : [];
+}
+
 function yamlBlock(source: string, headers: readonly string[]): string {
   const lines = source.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
@@ -435,6 +457,7 @@ let cache: {
   entityName: string;
   version: string;
   entries: PreflightConfiguration[];
+  userAuthScopes: string[];
 } | null = null;
 
 /** Forget the cached baked config. Exported for tests. */
@@ -532,6 +555,7 @@ export async function readBakedModelConfig(
       entityName: served.entityName,
       version: served.version,
       entries,
+      userAuthScopes: userAuthScopesFromModelDocument(document),
     };
     return entries;
   } catch (error) {
@@ -541,4 +565,19 @@ export async function readBakedModelConfig(
     );
     return [];
   }
+}
+
+/**
+ * Whether the exact served model version declared the managed Genie MCP scope.
+ *
+ * Failure is false: the experimental route falls back to direct Genie rather
+ * than discovering an incompatible pinned model through a failed user Ask.
+ */
+export async function servedModelSupportsGenieMcp(
+  input: Parameters<typeof readBakedModelConfig>[0] = {}
+): Promise<boolean> {
+  const endpointName = (input.endpointName ?? process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
+  if (!endpointName) return false;
+  await readBakedModelConfig(input);
+  return cache?.endpoint === endpointName && cache.userAuthScopes.includes('genie');
 }

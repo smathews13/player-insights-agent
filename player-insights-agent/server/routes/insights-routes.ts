@@ -50,7 +50,7 @@ export { TraceSchema } from '../../shared/run-trace-contract';
 import { classifiedRunStatusSql, DEADLINE_TRUNCATED_SQL } from '../../shared/run-verdict';
 import { overlayFeedbackSql, overlayJoinSql, overlayStatusSql } from '../lib/run-label-overrides';
 import { DEFAULT_TURN_TIMEOUT_MS, parseServedModel, startBenchmarkRun } from '../lib/benchmark-runner';
-import { readBakedModelConfig } from '../lib/baked-model-config';
+import { readBakedModelConfig, servedModelSupportsGenieMcp } from '../lib/baked-model-config';
 import { configurationForSettings } from '../lib/release-configuration';
 import { requestServedConfiguration } from '../lib/served-configuration-recovery';
 import { credentialLifetime } from '../lib/benchmark-identity';
@@ -3823,6 +3823,8 @@ export function setupInsightsRoutes(
     traceTokenEvidenceReader?: TraceTokenEvidenceReader;
     /** Production eagerly verifies OBO wiring; isolated route harnesses leave this false. */
     eagerIdentityReadiness?: boolean;
+    /** Test seam; production reads the exact served MLmodel auth policy. */
+    genieMcpModelSupport?: () => Promise<boolean>;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -5369,6 +5371,9 @@ export function setupInsightsRoutes(
             readGenieMcpEnabled(appkit),
             resolveRole(appkit.lakebase, email),
           ]);
+          const genieMcpModelCompatible = genieMcpEnabled
+            ? await (options.genieMcpModelSupport ?? servedModelSupportsGenieMcp)()
+            : false;
           askRuntime = runtime;
           const evalGuidance = await resolveAskGuidance(appkit);
           const payload = buildAskServingBody({
@@ -5388,7 +5393,7 @@ export function setupInsightsRoutes(
             llmRoute: aiGatewayEnabled ? 'ai_gateway' : 'direct',
             priorEvidence,
             genieMcpCapability: managedGenieMcpCapability({
-              enabled: genieMcpEnabled,
+              enabled: genieMcpEnabled && genieMcpModelCompatible,
               role: role.role,
               identityMode: identity.mode,
               user: email,
