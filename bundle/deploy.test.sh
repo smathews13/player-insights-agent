@@ -140,6 +140,10 @@ effective = text.index('verify_effective_scopes "$APP_JSON"')
 assert effective < deploy
 assert deploy < health
 assert 'STARTING/UPDATING' in text
+assert 'compute settled at ${APP_COMPUTE_STATE:-unknown}; requesting start again' in text
+scope_block = text[text.index('DECLARED_SCOPES="$('):text.index('# The deployment\'s seed administrators')]
+assert "|| true" not in scope_block
+assert "declares no user_api_scopes" in scope_block
 assert '"$APP_STATE" == "RUNNING"' in text
 assert '"$COMPUTE_STATE" == "ACTIVE"' in text
 assert '"$DEPLOYMENT_STATE" == "SUCCEEDED"' in text

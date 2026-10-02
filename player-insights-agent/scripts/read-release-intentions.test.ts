@@ -24,7 +24,7 @@ function fixtureCli(options: { tokenError?: Error } = {}) {
     if (command === 'postgres list-databases') {
       return [{ database_id: 'app', status: { postgres_database: 'app_database' } }];
     }
-    if (command === 'current-user me') return { userName: 'release@example.com' };
+    if (command === 'current-user me') return { user_name: 'release@example.com' };
     if (command === 'auth token') {
       if (options.tokenError) throw options.tokenError;
       return { access_token: 'oauth-secret' };

@@ -435,20 +435,15 @@ fi
 # missing from one person's token is about that person's session rather than about
 # the app's own restart state.
 #
-# Empty is a working release. The app reports "undetermined" and says nothing to
-# anybody, which is the honest degradation.
 DECLARED_SCOPES="$(bundle_json | python3 -c '
 import json, sys
 app = json.load(sys.stdin).get("resources", {}).get("apps", {}).get("player_insights_app", {})
 print(",".join(app.get("user_api_scopes") or []))
-' 2>/dev/null || true)"
-if [[ -n "$DECLARED_SCOPES" ]]; then
-  note "user API scopes      $DECLARED_SCOPES"
-else
-  note "user API scopes      could not be resolved from the bundle. The app will not be"
-  note "                     able to tell a reader that their sign-in is short of a"
-  note "                     permission it asks for, and will say so rather than guess."
-fi
+' 2>/dev/null)" || die "Could not resolve user_api_scopes from the bundle App resource."
+[[ -n "$DECLARED_SCOPES" ]] \
+  || die "The resolved App resource declares no user_api_scopes; refusing a release
+whose post-start scope check would otherwise compare against an empty requirement."
+note "user API scopes      $DECLARED_SCOPES"
 
 # The deployment's seed administrators, as addresses. THE VALUE IS NEVER IN A
 # TRACKED FILE, which is why this is the one variable read from two places.
@@ -650,7 +645,14 @@ while [[ "$APP_COMPUTE_STATE" != "ACTIVE" ]]; do
   APP_STATE="$(printf '%s' "$APP_JSON" \
     | python3 -c 'import json,sys; print((json.load(sys.stdin).get("app_status") or {}).get("state") or "")')"
   printf '  app=%s compute=%s\n' "${APP_STATE:-unknown}" "${APP_COMPUTE_STATE:-unknown}"
-  [[ "$APP_COMPUTE_STATE" == "ERROR" || "$APP_STATE" == "CRASHED" ]] \
+  case "$APP_COMPUTE_STATE" in
+    STOPPED|ERROR|"")
+      note "compute settled at ${APP_COMPUTE_STATE:-unknown}; requesting start again"
+      databricks apps start "$APP_NAME" --profile "$PROFILE" --timeout 20m
+      APP_COMPUTE_STATE="STARTING"
+      ;;
+  esac
+  [[ "$APP_STATE" == "CRASHED" ]] \
     && die "App $APP_NAME cannot be started: app=$APP_STATE compute=$APP_COMPUTE_STATE"
   (( $(date +%s) < COMPUTE_DEADLINE )) \
     || die "App $APP_NAME compute did not become ACTIVE within 20 minutes."

@@ -115,6 +115,19 @@ describe('the production serving transport, exercised as shipped', () => {
       attachment_text: '## brief.txt\nRetirement scheduled for 2026-11-15.',
     });
   });
+
+  it('forwards the readiness credential while authenticating through the App client', async () => {
+    recorded.length = 0;
+    const { servingInvocationPath, workspaceServingTransport } = await import('./insights-routes');
+    await workspaceServingTransport({
+      path: servingInvocationPath('player-insights-agent'),
+      payload: { input: [{ role: 'user', content: 'identity readiness probe' }] },
+      forwardedUserToken: 'identity-readiness-synthetic-token',
+    });
+
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]?.headers.get('x-forwarded-access-token')).toBe('identity-readiness-synthetic-token');
+  });
 });
 
 /**

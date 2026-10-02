@@ -249,6 +249,7 @@ PY
 FORWARDED="$(probe forwarded.json '{"error":"Unable to authenticate using user_credentials in Databricks Model Serving Environment"}')"
 MISMATCH="$(probe mismatch.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_MISMATCH","message":"expected readiness-probe@invalid.example but observed caller@example.com"}}}')"
 SP_SILENT="$(probe sp.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_REQUIRED","message":"no invoker token"}}}')"
+BARE_REQUIRED="$(probe bare-required.json '{"result":{"custom_outputs":{"type":"unavailable","code":"IDENTITY_REQUIRED"}}}')"
 UNKNOWN="$(probe unknown.json '{"result":{"output":"hello"}}')"
 
 check_says "a synthetic-token user_credentials 400 means the endpoint forwarded OBO" 0 \
@@ -270,6 +271,11 @@ check_says "IDENTITY_REQUIRED on the synthetic probe fails deploy as OBO not wir
   "OBO not wired" \
   python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
     --serving-probe-json "$SP_SILENT"
+
+check_says "bare IDENTITY_REQUIRED stays unknown rather than inventing an OBO failure" 1 \
+  "could not tell whether OBO is wired" \
+  python3 "$GATE" --logged "$GOOD" --auth-policy-json "$WHOLE" --user-authorization true \
+    --serving-probe-json "$BARE_REQUIRED"
 
 check_says "an inconclusive serving probe fails rather than passing" 1 \
   "could not tell whether OBO is wired" \
