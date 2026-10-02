@@ -163,6 +163,22 @@ check_says "a release that derived no scopes fails even against a whole policy" 
   "derived NO api_scopes" \
   python3 "$GATE" --logged "$(summary empty.json)" --auth-policy-json "$WHOLE" --user-authorization true
 
+printf '\n==> externally logged pinned versions keep their own scope contract\n'
+check_says "a pinned version adopts the scopes declared by its registered artifact" 0 \
+  "covers every scope the registered artifact declares" \
+  python3 "$GATE" --logged "$(summary pinned.json)" --auth-policy-json "$WHOLE" \
+    --user-authorization true --adopt-registered-scopes
+
+check_says "adoption does not make an empty registered policy valid" 1 \
+  "EMPTY api_scopes" \
+  python3 "$GATE" --logged "$(summary pinned-empty.json)" --auth-policy-json "$EMPTY_SCOPES" \
+    --user-authorization true --adopt-registered-scopes
+
+check_says "scope adoption is restricted to registered artifacts" 2 \
+  "valid only with --registered or an auth-policy fixture" \
+  python3 "$GATE" --logged "$GOOD" --mlmodel "$WORK/not-registered" \
+    --user-authorization true --adopt-registered-scopes
+
 printf '\n==> the flag: only "true" asks for a policy, and off is stated not assumed\n'
 check_says "a release with the flag off is not failed for having no policy" 0 \
   "NOT CHECKED" \

@@ -24,17 +24,14 @@ WHAT IT VERIFIES, on the registered version itself:
   the model version has an auth_policy at all      MLmodel `auth_policy`
   it has a user_auth_policy under it               MLmodel `auth_policy.user_auth_policy`
   whose api_scopes is not empty                    the downscoped token's whole reach
-  and covers every scope THIS release derived      the release summary's `api_scopes`
+  and covers the expected scopes                   release summary, or the pinned artifact
   and a system_auth_policy sits beside it          a bare WorkspaceClient needs one
 
-The fourth line is where "at least dashboards.genie and sql when those are
-configured" is enforced, and it is enforced WITHOUT a second list: the release
-summary's `api_scopes` is what
-`extensions/sample-neutral/agent/user_authorization.py::api_scopes` derived from
-this target's Genie spaces and warehouse, plus the Vector Search pair when an
-index is configured. Requiring the policy to cover it means a target with a
-Genie space must carry the Genie scope and a target with a warehouse must carry
-the SQL scope, with the spellings owned by the agent rather than repeated here.
+For a version logged by this release, the expected list is the exact
+`api_scopes` emitted by `log_model.py`. For an externally logged pinned version,
+`--adopt-registered-scopes` makes the registered artifact authoritative. That is
+the no-re-log boundary: a capability added to newer source must not become a
+retroactive scope requirement on an older model this repository did not log.
 
 WHAT IT CANNOT VERIFY, printed on every run rather than left to be assumed:
 
@@ -245,7 +242,11 @@ def observe_runtime_identity(result: Any = None, error: Any = None) -> str:
     ):
         return "token_forwarded"
     custom = result if isinstance(result, dict) else {}
-    nested = custom.get("custom_outputs") if isinstance(custom.get("custom_outputs"), dict) else custom
+    nested = (
+        custom.get("custom_outputs")
+        if isinstance(custom.get("custom_outputs"), dict)
+        else custom
+    )
     code = str((nested or {}).get("code") or "")
     kind = str((nested or {}).get("type") or "")
     message = str((nested or {}).get("message") or "")
@@ -361,6 +362,15 @@ def main(argv: list[str]) -> int:
         default=os.environ.get(USER_AUTH_ENV),
         help=f"what this release set {USER_AUTH_ENV} to; defaults to that variable",
     )
+    ap.add_argument(
+        "--adopt-registered-scopes",
+        action="store_true",
+        help=(
+            "for an externally logged pinned version, validate the scopes already "
+            "declared by that registered artifact instead of requiring current source "
+            "capabilities that would need a re-log"
+        ),
+    )
     serving = ap.add_mutually_exclusive_group()
     serving.add_argument(
         "--serving-endpoint",
@@ -375,6 +385,14 @@ def main(argv: list[str]) -> int:
         help="fixture {result,error,status} for the serving probe; needs no workspace",
     )
     args = ap.parse_args(argv)
+
+    if args.adopt_registered_scopes and not (args.registered or args.auth_policy_json):
+        print(
+            "  COULD NOT RUN. --adopt-registered-scopes is valid only with "
+            "--registered or an auth-policy fixture."
+        )
+        print("  A local MLmodel must state the expected scopes in its summary.")
+        return EXIT_COULD_NOT_RUN
 
     if args.user_authorization is None:
         print("  COULD NOT RUN. Nothing said whether this was a user-authorization")
@@ -439,6 +457,15 @@ def main(argv: list[str]) -> int:
         return EXIT_COULD_NOT_RUN
 
     has_user_policy, baked = scopes_of(policy)
+    scope_expectation = "this release derived"
+    if args.adopt_registered_scopes:
+        # A pinned external version is intentionally not re-logged by this
+        # repository. Its artifact is therefore authoritative for which
+        # optional transports exist. Requiring scopes derived from today's
+        # source would turn every newly added capability into a retroactive
+        # migration and make a no-re-log deployment impossible.
+        derived = list(baked)
+        scope_expectation = "the registered artifact declares"
     findings: list[str] = []
 
     if not derived:
@@ -505,7 +532,7 @@ def main(argv: list[str]) -> int:
     sql = [s for s in baked if s == "sql" or s.startswith("sql")]
     print(f"  ok    {where} carries a user auth policy")
     print(f"        api_scopes: {', '.join(sorted(baked))}")
-    print(f"        covers every scope this release derived: {', '.join(sorted(derived))}")
+    print(f"        covers every scope {scope_expectation}: {', '.join(sorted(derived))}")
     if genie:
         print(f"        Genie is reachable as the invoker ({', '.join(sorted(genie))})")
     if sql:

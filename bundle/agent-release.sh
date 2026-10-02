@@ -818,35 +818,30 @@ USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
 $MODEL_VERSION can act as the person asking. A missing checker is not a pass:
   git restore bundle/model-user-auth-check.py"
 AUTH_SUMMARY="$LOG_SUMMARY"
+PINNED_AUTH_ARGS=()
 if [[ -z "$AUTH_SUMMARY" ]]; then
   AUTH_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-auth-summary.XXXXXX")"
   on_exit "rm -f '$AUTH_SUMMARY'"
-  (
-    cd "$BUNDLE_ROOT/agent"
-    MODEL_VERSION="$MODEL_VERSION" uv run --frozen --python 3.13 python - "$AUTH_SUMMARY" <<'PY'
+  MODEL_VERSION="$MODEL_VERSION" python3 - "$AUTH_SUMMARY" <<'PY'
 import json
 import os
 import sys
-from config import Settings
-from user_authorization import api_scopes
 
-settings = Settings.from_env()
 with open(sys.argv[1], "w", encoding="utf-8") as handle:
     json.dump(
         {
-            "api_scopes": list(
-                api_scopes(
-                    settings,
-                    semantic_index=os.environ.get("PLAYER_INSIGHTS_SEMANTIC_INDEX", ""),
-                )
-            ),
+            "api_scopes": [],
             "model_name": os.environ["PLAYER_INSIGHTS_MODEL_NAME"],
             "model_version": os.environ["MODEL_VERSION"],
         },
         handle,
     )
 PY
-  )
+  # This checkout did not log the pinned external artifact. Its own policy,
+  # rather than optional capabilities added to current source later, defines
+  # what scopes it needs. The checker still requires a non-empty user policy,
+  # its system half, and the live OBO probe after cutover.
+  PINNED_AUTH_ARGS+=(--adopt-registered-scopes)
 fi
 
 run_user_auth_check() {
@@ -855,6 +850,7 @@ run_user_auth_check() {
     --logged "$AUTH_SUMMARY"
     --registered
     --user-authorization "$USER_AUTHORIZATION"
+    "${PINNED_AUTH_ARGS[@]}"
   )
   [[ "$probe" == true ]] && args+=(--serving-endpoint "$ENDPOINT")
   (

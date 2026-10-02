@@ -125,6 +125,10 @@ assert pre_auth < deploy < dev_confirmed < runtime_probe < prune < hook < handof
 assert '"$SKIP_LOG" != true && "$TARGET" == "dev"' in text
 assert '--skip-dev --latest-version "$MODEL_VERSION"' in text
 assert "pinned-model-config-check" not in text
+assert "PINNED_AUTH_ARGS+=(--adopt-registered-scopes)" in text
+assert text.index("if [[ -z \"$AUTH_SUMMARY\" ]]") < text.index(
+    "PINNED_AUTH_ARGS+=(--adopt-registered-scopes)"
+)
 assert 'if str(entity.get("entity_name") or entity.get("model_name") or "") == model' in text
 assert 'and str(entity.get("entity_version") or entity.get("model_version") or "") == want' in text
 assert '(( share == 100 ))' in text
