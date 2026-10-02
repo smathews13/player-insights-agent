@@ -115,13 +115,19 @@ import sys
 
 text = Path(sys.argv[1]).read_text()
 hook = text.index('sync-dev-prod-endpoints.sh')
+pre_auth = text.index('The registered version\'s user auth policy (before traffic)')
+deploy = text.index('step "Deploying version $MODEL_VERSION to $ENDPOINT"')
 dev_confirmed = text.index('echo "  ok, version $MODEL_VERSION is taking traffic"')
+runtime_probe = text.index('The served version\'s on-behalf-of-user runtime probe')
 prune = text.index('# --- Remove superseded serving entities')
 handoff = text.index('# Machine-readable handoff')
-assert dev_confirmed < prune < hook < handoff
+assert pre_auth < deploy < dev_confirmed < runtime_probe < prune < hook < handoff
 assert '"$SKIP_LOG" != true && "$TARGET" == "dev"' in text
 assert '--skip-dev --latest-version "$MODEL_VERSION"' in text
 assert "pinned-model-config-check" not in text
+assert 'if str(entity.get("entity_name") or entity.get("model_name") or "") == model' in text
+assert 'and str(entity.get("entity_version") or entity.get("model_version") or "") == want' in text
+assert '(( share == 100 ))' in text
 count = text[text.index("served_entity_count() {"):text.index("print_served_entities() {")]
 assert '"does not exist"' in count
 assert '"RESOURCE_DOES_NOT_EXIST"' in count

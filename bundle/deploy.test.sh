@@ -17,6 +17,8 @@ if [[ "$1 $2" == "bundle validate" ]]; then
   "app_name":{"default":"player-insights-agent"},
   "bundle_root_path":{"default":"/Workspace/Users/test@example.com/.bundle/player-insights-agent-dab/wrapper-test"},
   "genie_mcp_signing_key_version":{"default":"v1"},
+  "genie_mcp_signing_scope":{"default":"player-insights-agent-signing"},
+  "genie_mcp_signing_public_path":{"default":"/Workspace/Users/test@example.com/.bundle/player-insights-agent-dab/shared/security/genie-mcp-ed25519-public-v1.pem"},
   "lakebase_project_id":{"value":"project-one"},
   "warehouse_id":{"value":"warehouse-one"},
   "semantic_index_endpoint":{"default":""}
@@ -85,7 +87,8 @@ bundle_deploy = text.index('ARGS=(bundle deploy')
 assert database < sync < signing_key < bundle_deploy
 assert '"$TARGET" == "dev" || "$TARGET" == "prod"' in text
 experiment_bind = text.index("bundle deployment bind player_insights_experiment")
-assert experiment_bind < sync
+schema_bind = text.index("bundle deployment bind player_insights_schema")
+assert schema_bind < experiment_bind < sync
 assert "--auto-approve" not in text[experiment_bind:sync]
 PY
 
@@ -125,6 +128,13 @@ text = Path(sys.argv[1]).read_text()
 assert 'if [[ ! -d "$APP_DIR/node_modules" ]]' in text
 assert '(cd "$APP_DIR" && npm ci)' in text
 assert text.index('(cd "$APP_DIR" && npm ci)') < text.rindex('npm run build:deploy)')
+deploy = text.index('databricks apps deploy "$APP_NAME"')
+health = text.index('APP_HEALTH_DEADLINE=')
+assert deploy < health
+assert '"$APP_STATE" == "RUNNING"' in text
+assert '"$COMPUTE_STATE" == "ACTIVE"' in text
+assert '"$DEPLOYMENT_STATE" == "SUCCEEDED"' in text
+assert 'did not become RUNNING/ACTIVE/SUCCEEDED' in text
 PY
 
 printf 'PASS  bundle deploy wrapper blocks unsafe state and flags.\n'

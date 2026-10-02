@@ -50,7 +50,7 @@ STUB
 chmod +x "$WORK/bin/databricks"
 
 cat > "$WORK/bundle.json" <<'JSON'
-{"variables":{"app_name":{"default":"pia-test"},"bundle_root_path":{"default":"/Workspace/test"},"genie_mcp_signing_key_version":{"default":"v1"}}}
+{"variables":{"genie_mcp_signing_scope":{"default":"pia-test-signing"},"genie_mcp_signing_public_path":{"default":"/Workspace/test/security/genie-mcp-ed25519-public-v1.pem"},"genie_mcp_signing_key_version":{"default":"v1"}}}
 JSON
 printf 'test\tprofile' > "$WORK/bundle.json.key"
 
@@ -70,6 +70,7 @@ import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 body = json.loads(path.read_text())
 body["variables"]["genie_mcp_signing_key_version"]["default"] = "v2"
+body["variables"]["genie_mcp_signing_public_path"]["default"] = "/Workspace/test/security/genie-mcp-ed25519-public-v2.pem"
 path.write_text(json.dumps(body))
 PY
 bash "$ROOT/bundle/genie-mcp-signing-key.sh" > "$WORK/rotated.pem"

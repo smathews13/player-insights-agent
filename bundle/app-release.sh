@@ -606,15 +606,48 @@ fi
 step "Deploying app $APP_NAME"
 databricks apps deploy "$APP_NAME" --source-code-path "$SRC_PATH" --mode SNAPSHOT --profile "$PROFILE"
 
-step "Status"
-APP_JSON="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json)"
-printf '%s' "$APP_JSON" | python3 -c "
+step "Waiting for the deployed app to be healthy"
+APP_HEALTH_DEADLINE=$(( $(date +%s) + 1200 ))
+while :; do
+  APP_JSON="$(databricks apps get "$APP_NAME" --profile "$PROFILE" -o json)"
+  APP_STATE="$(printf '%s' "$APP_JSON" | python3 -c '
 import json,sys
 a=json.load(sys.stdin)
-print('  app_status      :', a.get('app_status',{}).get('state'))
-print('  deployment      :', a.get('active_deployment',{}).get('status',{}).get('state'))
-print('  url             :', a.get('url'))
-"
+print((a.get("app_status") or {}).get("state") or "")
+')"
+  COMPUTE_STATE="$(printf '%s' "$APP_JSON" | python3 -c '
+import json,sys
+a=json.load(sys.stdin)
+print((a.get("compute_status") or {}).get("state") or "")
+')"
+  DEPLOYMENT_STATE="$(printf '%s' "$APP_JSON" | python3 -c '
+import json,sys
+a=json.load(sys.stdin)
+print((((a.get("active_deployment") or {}).get("status") or {}).get("state")) or "")
+')"
+  printf '  app=%s compute=%s deployment=%s\n' \
+    "${APP_STATE:-unknown}" "${COMPUTE_STATE:-unknown}" "${DEPLOYMENT_STATE:-unknown}"
+  if [[ "$APP_STATE" == "RUNNING" && "$COMPUTE_STATE" == "ACTIVE" \
+     && "$DEPLOYMENT_STATE" == "SUCCEEDED" ]]; then
+    break
+  fi
+  case "$APP_STATE:$COMPUTE_STATE:$DEPLOYMENT_STATE" in
+    *CRASHED*|*FAILED*|*ERROR*|*UNAVAILABLE*)
+      die "App $APP_NAME reached a terminal unhealthy state after deploy:
+app=$APP_STATE compute=$COMPUTE_STATE deployment=$DEPLOYMENT_STATE"
+      ;;
+  esac
+  if (( $(date +%s) >= APP_HEALTH_DEADLINE )); then
+    die "App $APP_NAME did not become RUNNING/ACTIVE/SUCCEEDED within 20 minutes:
+app=$APP_STATE compute=$COMPUTE_STATE deployment=$DEPLOYMENT_STATE"
+  fi
+  sleep 15
+done
+printf '%s' "$APP_JSON" | python3 -c '
+import json,sys
+a=json.load(sys.stdin)
+print("  url             :", a.get("url"))
+'
 
 # release-gate.sh already compared declared, documented, and effective scopes
 # before this code upload. `apps deploy` does not mutate the App resource or its

@@ -93,6 +93,8 @@ case "$1 $2" in
     "serving_scale_to_zero":    { "value": "true" },
     "bundle_root_path":         { "value": "/Workspace/test" },
     "genie_mcp_signing_key_version": { "value": "v1" },
+    "genie_mcp_signing_scope":  { "value": "test-app-signing" },
+    "genie_mcp_signing_public_path": { "value": "/Workspace/test/security/genie-mcp-ed25519-public-v1.pem" },
     "experiment_path":          { "value": "/Shared/test" },
     "llm_endpoint":             { "value": "test-llm" },
     "llm_direct_endpoint":      { "value": "test-llm" },

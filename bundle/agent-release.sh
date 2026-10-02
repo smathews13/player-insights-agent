@@ -810,6 +810,81 @@ Read the COULD NOT RUN line above."
     ;;
 esac
 
+# Validate the registered artifact before anything can move endpoint traffic.
+# The runtime probe remains after cutover because only a live endpoint can prove
+# that on-behalf-of-user credentials reach the serving container.
+USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
+[[ -f "$USER_AUTH_CHECK" ]] || die "bundle/model-user-auth-check.py is missing, so nothing confirmed that version
+$MODEL_VERSION can act as the person asking. A missing checker is not a pass:
+  git restore bundle/model-user-auth-check.py"
+AUTH_SUMMARY="$LOG_SUMMARY"
+if [[ -z "$AUTH_SUMMARY" ]]; then
+  AUTH_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-auth-summary.XXXXXX")"
+  on_exit "rm -f '$AUTH_SUMMARY'"
+  (
+    cd "$BUNDLE_ROOT/agent"
+    MODEL_VERSION="$MODEL_VERSION" uv run --frozen --python 3.13 python - "$AUTH_SUMMARY" <<'PY'
+import json
+import os
+import sys
+from config import Settings
+from user_authorization import api_scopes
+
+settings = Settings.from_env()
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(
+        {
+            "api_scopes": list(
+                api_scopes(
+                    settings,
+                    semantic_index=os.environ.get("PLAYER_INSIGHTS_SEMANTIC_INDEX", ""),
+                )
+            ),
+            "model_name": os.environ["PLAYER_INSIGHTS_MODEL_NAME"],
+            "model_version": os.environ["MODEL_VERSION"],
+        },
+        handle,
+    )
+PY
+  )
+fi
+
+run_user_auth_check() {
+  local probe="${1:-false}"
+  local args=(
+    --logged "$AUTH_SUMMARY"
+    --registered
+    --user-authorization "$USER_AUTHORIZATION"
+  )
+  [[ "$probe" == true ]] && args+=(--serving-endpoint "$ENDPOINT")
+  (
+    cd "$BUNDLE_ROOT/agent"
+    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
+      uv run --frozen --python 3.13 python "$USER_AUTH_CHECK" "${args[@]}"
+  )
+}
+
+step "The registered version's user auth policy (before traffic)"
+USER_AUTH_STATUS=0
+run_user_auth_check false || USER_AUTH_STATUS=$?
+case "$USER_AUTH_STATUS" in
+  0) : ;;
+  1)
+    die "Version $MODEL_VERSION cannot act as the person asking and has NOT been deployed to
+$ENDPOINT. Read the FAIL lines above. Re-log the model through this release path,
+then retry; a restart, re-grant, or endpoint repair cannot add an auth policy."
+    ;;
+  2)
+    die "The user auth policy on registered version $MODEL_VERSION could not be established.
+It has NOT been deployed. Read the COULD NOT RUN line above; unknown is not safe
+enough to move endpoint traffic."
+    ;;
+  *)
+    die "bundle/model-user-auth-check.py exited $USER_AUTH_STATUS, which it has no documented
+meaning for. Version $MODEL_VERSION remains registered but undeployed."
+    ;;
+esac
+
 COMPARE_RUNS=""
 for candidate in \
   "$BUNDLE_ROOT/agent/experiments/compare_runs.py" \
@@ -908,20 +983,32 @@ step "Waiting for the traffic switch to settle, then confirming version $MODEL_V
 deadline=$(( $(date +%s) + 1800 ))
 while :; do
   state=$(databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json \
-    | python3 -c "
+    | python3 -c '
 import json,sys
 body=json.load(sys.stdin)
-cfg=body.get('config') or {}
-update=((body.get('state') or {}).get('config_update')) or 'NONE'
-routes=((cfg.get('traffic_config') or {}).get('routes')) or []
-live={r.get('served_model_name','').rsplit('_',1)[-1]: r.get('traffic_percentage') or 0 for r in routes}
-want='$MODEL_VERSION'
-print(update, live.get(want, 0), sorted(k for k, v in live.items() if v))
-")
+model,want=sys.argv[1:3]
+cfg=body.get("config") or {}
+update=((body.get("state") or {}).get("config_update")) or "NONE"
+routes=((cfg.get("traffic_config") or {}).get("routes")) or []
+entities=cfg.get("served_entities") or cfg.get("served_models") or []
+matching={
+    str(entity.get("name") or entity.get("served_entity_name") or "")
+    for entity in entities
+    if str(entity.get("entity_name") or entity.get("model_name") or "") == model
+    and str(entity.get("entity_version") or entity.get("model_version") or "") == want
+}
+share=sum(
+    int(route.get("traffic_percentage") or 0)
+    for route in routes
+    if str(route.get("served_entity_name") or route.get("served_model_name") or "")
+    in matching
+)
+print(update, share, sorted(matching))
+' "$MODEL_NAME" "$MODEL_VERSION")
   update=${state%% *}
   share=$(printf '%s' "$state" | awk '{print $2}')
   echo "  update=$update version $MODEL_VERSION at ${share}% traffic"
-  [[ "$update" == 'NOT_UPDATING' || "$update" == 'NONE' ]] && (( share > 0 )) && break
+  [[ "$update" == 'NOT_UPDATING' || "$update" == 'NONE' ]] && (( share == 100 )) && break
   if (( $(date +%s) >= deadline )); then
     die "version $MODEL_VERSION is not taking traffic after 30 minutes. The endpoint may still be
 updating: check $HOST/ml/endpoints/$ENDPOINT/ before deciding whether to redeploy, and do NOT
@@ -931,81 +1018,24 @@ smoke-test yet, because the answers would come from the previous version."
 done
 echo "  ok, version $MODEL_VERSION is taking traffic"
 
-# --- The model half of the on-behalf-of-user wiring ---------------------------
-#
-# A customer's deployment failed on the FIRST question anyone asked, with an HTTP
-# 400 carrying the SDK's `model_serving_user_credentials auth: Unable to
-# authenticate using user_credentials` and nothing else. Model Serving had no user
-# credential to hand the container. Nothing was wrong with the app, the data, the
-# grants or Lakebase; the wiring around the model was wrong, and the first person
-# to notice was a customer asking a question.
-#
-# HERE RATHER THAN BEFORE THE DEPLOY, because the claim is about the version that
-# is ACTUALLY TAKING TRAFFIC, which the loop above has just established and which
-# nothing earlier can. The policy itself is fixed at log time, so this cannot fail
-# because of anything the deploy did -- when it fails, it is telling you that the
-# thing now in front of people cannot answer, and it is better to hear that here
-# than from a customer.
-#
-# Exit 2 blocks as well as exit 1, for the reason the scope gate a hundred lines
-# up gives: "the question was never answered" is not "the answer was yes".
-step "The served version's user auth policy"
-USER_AUTH_CHECK="$BUNDLE_ROOT/bundle/model-user-auth-check.py"
-[[ -f "$USER_AUTH_CHECK" ]] || die "bundle/model-user-auth-check.py is missing, so nothing confirmed that version
-$MODEL_VERSION can act as the person asking. A missing checker is not a pass:
-  git restore bundle/model-user-auth-check.py"
-AUTH_SUMMARY="$LOG_SUMMARY"
-if [[ -z "$AUTH_SUMMARY" ]]; then
-  AUTH_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-auth-summary.XXXXXX")"
-  on_exit "rm -f '$AUTH_SUMMARY'"
-  (
-    cd "$BUNDLE_ROOT/agent"
-    MODEL_VERSION="$MODEL_VERSION" uv run --frozen --python 3.13 python - "$AUTH_SUMMARY" <<'PY'
-import json
-import os
-import sys
-from config import Settings
-from user_authorization import api_scopes
-
-settings = Settings.from_env()
-with open(sys.argv[1], "w", encoding="utf-8") as handle:
-    json.dump(
-        {
-            "api_scopes": list(api_scopes(settings)),
-            "model_name": os.environ["PLAYER_INSIGHTS_MODEL_NAME"],
-            "model_version": os.environ["MODEL_VERSION"],
-        },
-        handle,
-    )
-PY
-  )
-fi
+# The artifact policy was already established before deployment. This second
+# pass adds the fact only a live endpoint can supply: whether a synthetic caller
+# token reaches the serving container instead of silently falling back to the
+# endpoint principal.
+step "The served version's on-behalf-of-user runtime probe"
 USER_AUTH_STATUS=0
-# Under the agent's environment: it reads the registered version's MLmodel with
-# MLflow's own reader rather than parsing YAML a second way.
-(
-  cd "$BUNDLE_ROOT/agent"
-  DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-    uv run --frozen --python 3.13 python "$USER_AUTH_CHECK" \
-      --logged "$AUTH_SUMMARY" --registered \
-      --user-authorization "$USER_AUTHORIZATION" \
-      --serving-endpoint "$ENDPOINT"
-) || USER_AUTH_STATUS=$?
+run_user_auth_check true || USER_AUTH_STATUS=$?
 case "$USER_AUTH_STATUS" in
   0) : ;;
   1)
-    die "Version $MODEL_VERSION is serving on $ENDPOINT and cannot act as the person asking.
-Read the FAIL lines above. This is the fault that reaches a user as an HTTP 400 on
-their first question, and no restart, re-grant or data change can write it: the
-policy is decided when the model is logged. Re-run this script to log and deploy a
-new version, or roll $ENDPOINT back to the previous one at
-$HOST/ml/endpoints/$ENDPOINT/ while you do."
+    die "Version $MODEL_VERSION is serving on $ENDPOINT, but the endpoint did not prove
+that it forwards the caller's credential. Read the FAIL lines above and roll
+$ENDPOINT back at $HOST/ml/endpoints/$ENDPOINT/ before users ask questions."
     ;;
   2)
-    die "The user auth policy on version $MODEL_VERSION was not established either way.
-Read the COULD NOT RUN line above: it is not a finding and it is not a pass. The
-version IS deployed and IS taking traffic, so decide from the output whether to
-roll back before anyone asks it a question."
+    die "The runtime user-auth probe for version $MODEL_VERSION could not run.
+The version IS deployed and taking traffic; treat forwarding as unknown and roll
+back before use unless the output establishes a safe operator action."
     ;;
   *)
     die "bundle/model-user-auth-check.py exited $USER_AUTH_STATUS, which it has no documented

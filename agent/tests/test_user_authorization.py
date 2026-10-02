@@ -30,6 +30,7 @@ from user_authorization import (
     SYSTEM_PASSTHROUGH,
     USER_AUTHORIZATION,
     USER_AUTHORIZATION_ENV,
+    VECTOR_SEARCH_SCOPES,
     UserCredentialsUnavailable,
     announcement,
     api_scopes,
@@ -199,6 +200,15 @@ def test_the_model_serving_scope_is_not_requested():
     scopes = api_scopes(settings())
     assert not any("serving" in scope or "model-serving" == scope for scope in scopes)
     assert not any("vector" in scope or "files" in scope or "iam" in scope for scope in scopes)
+
+
+def test_semantic_index_scopes_are_derived_by_the_shared_scope_helper():
+    scopes = api_scopes(
+        settings(),
+        semantic_index="catalog.schema.player_insights_semantic",
+    )
+    assert scopes[-2:] == VECTOR_SEARCH_SCOPES
+    assert not set(VECTOR_SEARCH_SCOPES) & set(api_scopes(settings(), semantic_index=""))
 
 
 def test_gateway_capability_bakes_the_two_invoker_scopes():

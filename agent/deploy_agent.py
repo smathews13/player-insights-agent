@@ -10,6 +10,7 @@ import mlflow
 from databricks import agents
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import ResourceDoesNotExist
+from databricks.sdk.service.serving import Route, TrafficConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +59,7 @@ def _scale_to_zero(value: str) -> bool:
 
 def _refresh_existing_version(
     endpoint_name: str,
+    model_name: str,
     model_version: str,
     experiment_id: str,
     scale_to_zero: bool,
@@ -75,10 +77,25 @@ def _refresh_existing_version(
     matching = [
         entity
         for entity in entities
+        if str(getattr(entity, "entity_name", "") or "") == model_name
         if str(getattr(entity, "entity_version", "") or "") == str(model_version)
     ]
     if not matching:
         return False
+    matching_names = [
+        str(
+            getattr(entity, "name", "")
+            or getattr(entity, "served_entity_name", "")
+            or ""
+        )
+        for entity in matching
+    ]
+    if any(not name for name in matching_names):
+        raise ValueError(
+            f"Endpoint {endpoint_name!r} serves {model_name!r} version "
+            f"{model_version}, but its served-entity name is missing; refusing "
+            "to guess which entity should receive traffic."
+        )
     for entity in matching:
         environment = dict(getattr(entity, "environment_vars", None) or {})
         environment["MLFLOW_EXPERIMENT_ID"] = experiment_id
@@ -88,7 +105,16 @@ def _refresh_existing_version(
     workspace.serving_endpoints.update_config(
         name=endpoint_name,
         served_entities=entities,
-        traffic_config=config.traffic_config,
+        # A version can already exist at 0%. Repair means making it active, not
+        # merely rewriting its environment while old traffic remains in place.
+        traffic_config=TrafficConfig(
+            routes=[
+                Route(
+                    served_entity_name=matching_names[0],
+                    traffic_percentage=100,
+                )
+            ]
+        ),
         auto_capture_config=getattr(config, "auto_capture_config", None),
     )
     return True
@@ -137,7 +163,11 @@ def main() -> None:
     scale_to_zero = _scale_to_zero(args.scale_to_zero)
     experiment_id = str(experiment.experiment_id)
     if _refresh_existing_version(
-        args.endpoint_name, str(args.model_version), experiment_id, scale_to_zero
+        args.endpoint_name,
+        args.model_name,
+        str(args.model_version),
+        experiment_id,
+        scale_to_zero,
     ):
         _print_summary(args, scale_to_zero, repaired=True)
         return
