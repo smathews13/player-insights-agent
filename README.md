@@ -117,6 +117,7 @@ Each resulting `variable-overrides.json` contains:
   "app_schema": "player_insights_agent",
   "data_catalogs": ["<data_catalog>", "<data_catalog>.<restricted_schema>"],
   "warehouse_id": "<sql_warehouse_id>",
+  "experiment_path": "<existing_shared_mlflow_experiment_path>",
   "lakebase_project_id": "<lakebase_project_id>",
   "lakebase_branch_id": "production",
   "lakebase_database_owner_role": "projects/<project-id>/branches/production/roles/<owner-role-id>",
@@ -125,6 +126,10 @@ Each resulting `variable-overrides.json` contains:
   "admin_emails": "super:<initial_admin@example.com>"
 }
 ```
+
+Use the same existing `experiment_path` in both files. Dev and Prod have
+separate Apps and endpoints but intentionally share one MLflow experiment.
+The release refuses to create a replacement experiment.
 
 Do not add `lakebase_app_schema` to both files: target defaults isolate App
 state as `pia_dev` and `pia_prod`.

@@ -6,6 +6,7 @@
     "<governed-data-catalog.restricted-schema>"
   ],
   "warehouse_id": "<pro-or-serverless-sql-warehouse-id>",
+  "experiment_path": "<existing-shared-mlflow-experiment-path>",
   "lakebase_project_id": "<existing-lakebase-project-id>",
   "lakebase_branch_id": "production",
   "lakebase_database_owner_role": "projects/<project-id>/branches/production/roles/<owner-role-id>",

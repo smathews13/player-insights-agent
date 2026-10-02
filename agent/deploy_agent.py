@@ -62,6 +62,7 @@ def _refresh_existing_version(
     model_name: str,
     model_version: str,
     experiment_id: str,
+    experiment_path: str,
     scale_to_zero: bool,
 ) -> bool:
     """Repair one already-served version without adding a colliding entity."""
@@ -99,6 +100,9 @@ def _refresh_existing_version(
     for entity in matching:
         environment = dict(getattr(entity, "environment_vars", None) or {})
         environment["MLFLOW_EXPERIMENT_ID"] = experiment_id
+        environment["MLFLOW_EXPERIMENT_NAME"] = experiment_path
+        environment["MLFLOW_TRACKING_URI"] = "databricks"
+        environment["MLFLOW_TRACE_SAMPLING_RATIO"] = "1.0"
         entity.environment_vars = environment
         if hasattr(entity, "scale_to_zero_enabled"):
             entity.scale_to_zero_enabled = scale_to_zero
@@ -167,6 +171,7 @@ def main() -> None:
         args.model_name,
         str(args.model_version),
         experiment_id,
+        experiment_path,
         scale_to_zero,
     ):
         _print_summary(args, scale_to_zero, repaired=True)
@@ -180,6 +185,12 @@ def main() -> None:
             model_version=str(args.model_version),
             endpoint_name=args.endpoint_name,
             scale_to_zero=scale_to_zero,
+            environment_vars={
+                "MLFLOW_EXPERIMENT_ID": experiment_id,
+                "MLFLOW_EXPERIMENT_NAME": experiment_path,
+                "MLFLOW_TRACKING_URI": "databricks",
+                "MLFLOW_TRACE_SAMPLING_RATIO": "1.0",
+            },
             tags={
                 "system_billing": "player-insights-agent",
                 "project": "player-insights-agent",

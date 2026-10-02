@@ -261,9 +261,12 @@ def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -
     )
 
     assert deploy_agent._refresh_existing_version(
-        "pia-prod", "catalog.schema.model", "12", "new", False
+        "pia-prod", "catalog.schema.model", "12", "new", "/Shared/player-insights-agent", False
     )
     assert entity.environment_vars["MLFLOW_EXPERIMENT_ID"] == "new"
+    assert entity.environment_vars["MLFLOW_EXPERIMENT_NAME"] == "/Shared/player-insights-agent"
+    assert entity.environment_vars["MLFLOW_TRACKING_URI"] == "databricks"
+    assert entity.environment_vars["MLFLOW_TRACE_SAMPLING_RATIO"] == "1.0"
     assert entity.scale_to_zero_enabled is False
     assert len(updates) == 1
     assert updates[0]["name"] == "pia-prod"
@@ -301,7 +304,7 @@ def test_existing_version_repair_matches_model_and_version(monkeypatch) -> None:
     )
 
     assert not deploy_agent._refresh_existing_version(
-        "pia-prod", "catalog.schema.model", "12", "new", False
+        "pia-prod", "catalog.schema.model", "12", "new", "/Shared/player-insights-agent", False
     )
     assert updates == []
 
@@ -326,3 +329,10 @@ def test_endpoint_deploy_refuses_to_create_a_replacement_experiment() -> None:
     assert "mlflow.get_experiment_by_name(experiment_path)" in source
     assert "endpoint deployment must not create a replacement experiment" in source
     assert "mlflow.set_experiment(experiment_id=experiment.experiment_id)" in source
+    assert '"MLFLOW_EXPERIMENT_ID": experiment_id' in source
+    assert '"MLFLOW_EXPERIMENT_NAME": experiment_path' in source
+
+    log_source = (ROOT / "agent" / "log_model.py").read_text()
+    assert "mlflow.get_experiment_by_name(experiment)" in log_source
+    assert "Refusing to create a replacement during model logging" in log_source
+    assert "mlflow.set_experiment(experiment_id=existing_experiment.experiment_id)" in log_source

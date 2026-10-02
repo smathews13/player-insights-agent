@@ -81,7 +81,13 @@ model_name = os.getenv(
 
 mlflow.set_tracking_uri("databricks")
 mlflow.set_registry_uri("databricks-uc")
-mlflow.set_experiment(experiment)
+existing_experiment = mlflow.get_experiment_by_name(experiment)
+if existing_experiment is None:
+    raise SystemExit(
+        f"Existing MLflow experiment {experiment!r} was not found. "
+        "Refusing to create a replacement during model logging."
+    )
+mlflow.set_experiment(experiment_id=existing_experiment.experiment_id)
 
 # Passthrough grants the serving principal only the tables named in `resources`,
 # and a Genie space fails outright if ONE table it curates is missing, so the list

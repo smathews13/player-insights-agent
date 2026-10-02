@@ -99,6 +99,19 @@ describe('every authored variable reaches the deploy target', () => {
     expect(experimentId?.[1], 'the MLflow deep link needs the id the release resolved').toBe('424242');
   });
 
+  it('takes an overridden shared experiment path from the release too', () => {
+    const generated = renderDeployAppYaml(authored, {
+      ...DEPLOY_OVERRIDES,
+      env: [
+        ...DEPLOY_OVERRIDES.env,
+        { name: 'PLAYER_INSIGHTS_EXPERIMENT_PATH', value: "'/Shared/player-insights-agent-prod'" },
+      ],
+    });
+    expect(generated).toContain(
+      "- name: PLAYER_INSIGHTS_EXPERIMENT_PATH\n    value: '/Shared/player-insights-agent-prod'"
+    );
+  });
+
   it('takes the bundle-owned rebuild job id from the release', () => {
     const generated = renderDeployAppYaml(authored, {
       ...DEPLOY_OVERRIDES,
