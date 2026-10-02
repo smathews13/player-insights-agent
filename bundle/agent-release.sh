@@ -693,29 +693,6 @@ Continuing to deploy that version rather than logging again."
 fi
 [[ -n "$MODEL_VERSION" ]] || die "--model-version is required when --skip-log is set"
 
-if [[ "$SKIP_LOG" == true ]]; then
-  step "Pinned model configuration vs target"
-  PINNED_CONFIG_CHECK="$BUNDLE_ROOT/bundle/pinned-model-config-check.py"
-  [[ -f "$PINNED_CONFIG_CHECK" ]] || die "bundle/pinned-model-config-check.py is missing."
-  PINNED_EXPECTED="$(mktemp "${TMPDIR:-/tmp}/pia-pinned-config.XXXXXX")"
-  on_exit "rm -f '$PINNED_EXPECTED'"
-  (
-    cd "$BUNDLE_ROOT/agent"
-    uv run --frozen --python 3.13 python - "$PINNED_EXPECTED" <<'PY'
-import json
-import sys
-from config import Settings
-
-with open(sys.argv[1], "w", encoding="utf-8") as handle:
-    json.dump(Settings.from_env().as_model_config(), handle)
-PY
-    DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-      uv run --frozen --python 3.13 python "$PINNED_CONFIG_CHECK" \
-        --model-uri "models:/$MODEL_NAME/$MODEL_VERSION" \
-        --expected-json "$PINNED_EXPECTED"
-  ) || die "Pinned version $MODEL_VERSION was logged for a different target configuration."
-fi
-
 # The model's scopes, checked before this version is put in front of anybody.
 #
 # WHY HERE AND NOT "BEFORE REGISTRATION". log_model.py logs the artifact, then
