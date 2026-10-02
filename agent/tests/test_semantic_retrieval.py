@@ -708,8 +708,8 @@ class TestLogTimeWiring:
         to call, so an unconfigured release must not carry these."""
 
         source = self._source("log_model.py")
-        assert "if user_auth.enabled and semantic_index:" in source
-        assert "scopes = (*scopes, *VECTOR_SEARCH_SCOPES)" in source
+        assert "api_scopes(settings, semantic_index=semantic_index)" in source
+        assert "if user_auth.enabled else ()" in source
 
     def test_both_modules_are_packaged(self):
         """They are imported at `agent.py` module scope, so a missing one fails

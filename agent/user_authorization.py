@@ -89,6 +89,12 @@ SQL_SCOPE = "sql"
 #: configured, even though the experimental setting defaults to the direct route.
 AI_GATEWAY_SCOPE = "ai-gateway"
 MODEL_SERVING_SCOPE = "model-serving"
+#: AI Search needs both endpoint and index APIs. Kept here with every other
+#: invoker-token scope so log and pinned-version validation derive one list.
+VECTOR_SEARCH_SCOPES = (
+    "vectorsearch.vector-search-endpoints",
+    "vectorsearch.vector-search-indexes",
+)
 
 
 @dataclass(frozen=True)
@@ -197,7 +203,7 @@ def announce(resolution: Resolution, *, at_log_time: bool) -> Resolution:
     return resolution
 
 
-def api_scopes(settings: Any) -> tuple[str, ...]:
+def api_scopes(settings: Any, *, semantic_index: str | None = None) -> tuple[str, ...]:
     """The REST API scopes the agent genuinely needs, derived from what it uses.
 
     Derived rather than listed so a deployment with no Genie space, or no
@@ -214,6 +220,13 @@ def api_scopes(settings: Any) -> tuple[str, ...]:
         scopes.append(SQL_SCOPE)
     if getattr(settings, "llm_gateway", "") and getattr(settings, "llm_gateway_endpoint", ""):
         scopes.extend((AI_GATEWAY_SCOPE, MODEL_SERVING_SCOPE))
+    configured_index = (
+        semantic_index
+        if semantic_index is not None
+        else str(getattr(settings, "semantic_index", "") or "")
+    )
+    if configured_index:
+        scopes.extend(VECTOR_SEARCH_SCOPES)
     return tuple(scopes)
 
 

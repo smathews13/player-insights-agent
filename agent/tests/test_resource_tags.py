@@ -238,6 +238,8 @@ def test_scale_to_zero_only_true_for_an_explicit_affirmative() -> None:
 def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -> None:
     deploy_agent = _load_deploy_agent()
     entity = SimpleNamespace(
+        name="catalog_schema_model_12",
+        entity_name="catalog.schema.model",
         entity_version="12",
         environment_vars={"MLFLOW_EXPERIMENT_ID": "old"},
         scale_to_zero_enabled=True,
@@ -258,17 +260,50 @@ def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -
         lambda: SimpleNamespace(serving_endpoints=serving),
     )
 
-    assert deploy_agent._refresh_existing_version("pia-prod", "12", "new", False)
+    assert deploy_agent._refresh_existing_version(
+        "pia-prod", "catalog.schema.model", "12", "new", False
+    )
     assert entity.environment_vars["MLFLOW_EXPERIMENT_ID"] == "new"
     assert entity.scale_to_zero_enabled is False
-    assert updates == [
-        {
-            "name": "pia-prod",
-            "served_entities": [entity],
-            "traffic_config": config.traffic_config,
-            "auto_capture_config": None,
-        }
-    ]
+    assert len(updates) == 1
+    assert updates[0]["name"] == "pia-prod"
+    assert updates[0]["served_entities"] == [entity]
+    assert updates[0]["auto_capture_config"] is None
+    routes = updates[0]["traffic_config"].routes
+    assert len(routes) == 1
+    assert routes[0].served_entity_name == entity.name
+    assert routes[0].traffic_percentage == 100
+
+
+def test_existing_version_repair_matches_model_and_version(monkeypatch) -> None:
+    deploy_agent = _load_deploy_agent()
+    wrong_model = SimpleNamespace(
+        name="other_model_12",
+        entity_name="catalog.schema.other",
+        entity_version="12",
+        environment_vars={"MLFLOW_EXPERIMENT_ID": "old"},
+        scale_to_zero_enabled=True,
+    )
+    config = SimpleNamespace(
+        served_entities=[wrong_model],
+        traffic_config=SimpleNamespace(routes=[]),
+        auto_capture_config=None,
+    )
+    updates: list[dict[str, Any]] = []
+    serving = SimpleNamespace(
+        get=lambda _name: SimpleNamespace(config=config),
+        update_config=lambda **kwargs: updates.append(kwargs),
+    )
+    monkeypatch.setattr(
+        deploy_agent,
+        "WorkspaceClient",
+        lambda: SimpleNamespace(serving_endpoints=serving),
+    )
+
+    assert not deploy_agent._refresh_existing_version(
+        "pia-prod", "catalog.schema.model", "12", "new", False
+    )
+    assert updates == []
 
 
 def test_deploy_summary_names_the_requested_endpoint(monkeypatch, capsys) -> None:

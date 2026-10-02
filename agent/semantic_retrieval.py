@@ -211,16 +211,6 @@ def configured_index(settings: Settings, baked: Any = None, env: Any = None) -> 
     return resolve_index(settings, environment.get(SEMANTIC_INDEX_ENV, ""))
 
 
-#: The on-behalf-of-user API scopes a semantic search needs, added to the
-#: downscoped token only when a release configures an index. Both are required:
-#: querying an index reaches the index API through its endpoint, and a token
-#: holding one without the other fails at serve time rather than at log time,
-#: because MLflow does not validate scope strings.
-VECTOR_SEARCH_SCOPES = (
-    "vectorsearch.vector-search-endpoints",
-    "vectorsearch.vector-search-indexes",
-)
-
 #: Codes from the shared taxonomy in `agent/failures.py`. Spelled as literals
 #: rather than imported so this module keeps working against a model version
 #: logged before that module existed; `tests/test_semantic_retrieval.py` asserts

@@ -108,6 +108,18 @@ variables:
       v1. Rotate by changing this value and running the normal agent and app
       release; older versioned keys remain available for rollback.
     default: v1
+  genie_mcp_signing_scope:
+    description: >-
+      Secret scope containing the app-to-model private signing key. Dev and
+      Prod override this to one shared scope because both endpoints promote
+      versions of the same registered model.
+    default: ${var.app_name}-signing
+  genie_mcp_signing_public_path:
+    description: >-
+      Workspace path for the matching public key baked into model versions.
+      Dev and Prod override this to one shared path so promotion never changes
+      which key a model version trusts.
+    default: ${var.bundle_root_path}/security/genie-mcp-ed25519-public-${var.genie_mcp_signing_key_version}.pem
   llm_direct_endpoint:
     description: >-
       Direct foundation-model serving endpoint. This remains available when an
@@ -338,6 +350,8 @@ targets:
       app_description: ${var.product_display_name} development
       app_source_code_path: /Workspace/Users/${workspace.current_user.userName}/player-insights-agent-dev-src
       serving_endpoint_name: player-insights-agent-dev
+      genie_mcp_signing_scope: ${var.product_slug}-signing
+      genie_mcp_signing_public_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}-dab/shared/security/genie-mcp-ed25519-public-${var.genie_mcp_signing_key_version}.pem
       lakebase_database_id: pia-dev
       lakebase_postgres_database: pia_dev
       lakebase_app_schema: pia_dev

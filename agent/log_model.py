@@ -40,7 +40,6 @@ from semantic_retrieval import MODEL_CONFIG_KEY as SEMANTIC_INDEX_KEY
 from semantic_retrieval import (
     SEMANTIC_INDEX_ENV,
     SEMANTIC_RETRIEVAL_ENABLED,
-    VECTOR_SEARCH_SCOPES,
     resolve_index,
 )
 from space_fingerprint import SPACE_FINGERPRINTS_KEY, records_from_genie
@@ -252,13 +251,9 @@ resources = [
 # The manifest becomes an upper bound rather than a floor, which is why
 # `list_data_assets` and every answer's caveats say so: a row filter does not
 # fail, it returns fewer rows.
-scopes = api_scopes(settings) if user_auth.enabled else ()
-# Added here rather than inside `api_scopes`, which derives its list from
-# `settings` and cannot see a release decision that is not one. Both scopes, and
-# only when an index is configured: the downscoped token is the user's, so every
-# scope it carries is one more API the agent could be made to call with it.
-if user_auth.enabled and semantic_index:
-    scopes = (*scopes, *VECTOR_SEARCH_SCOPES)
+scopes = (
+    api_scopes(settings, semantic_index=semantic_index) if user_auth.enabled else ()
+)
 if user_auth.enabled and not scopes:
     raise SystemExit(
         "Refusing to log with user authorization and no API scopes. A "

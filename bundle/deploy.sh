@@ -91,11 +91,32 @@ if [[ "$TARGET" == "dev" || "$TARGET" == "prod" ]]; then
     bash "$BUNDLE_ROOT/bundle/ensure-lakebase-database.sh"
 fi
 
-# Dev is the single bundle-state owner of the existing shared MLflow
-# experiment. Adopt it during the normal deploy instead of trying to create a
-# second experiment with the same path. Bind remains interactive: its diff is
-# part of the deploy review, not an auto-approved bootstrap shortcut.
+# Dev is the single bundle-state owner of the existing shared model schema and
+# MLflow experiment. Adopt both during the normal deploy instead of trying to
+# create replacements with names that already exist. Bind remains interactive:
+# its diff is part of the deploy review, not an auto-approved bootstrap shortcut.
 if [[ "$TARGET" == "dev" ]]; then
+  APP_CATALOG="$(bundle_var app_catalog)"
+  APP_SCHEMA="$(bundle_var app_schema)"
+  SCHEMA_FULL_NAME="${APP_CATALOG}.${APP_SCHEMA}"
+  databricks schemas get "$SCHEMA_FULL_NAME" --profile "$PROFILE" -o json >/dev/null \
+    || die "Existing model schema '$SCHEMA_FULL_NAME' was not found."
+  BOUND_SCHEMA="$(
+    databricks bundle summary -t dev --profile "$PROFILE" -o json 2>/dev/null \
+      | python3 -c '
+import json,sys
+try: body=json.load(sys.stdin)
+except Exception: print(""); raise SystemExit(0)
+print((((body.get("resources") or {}).get("schemas") or {})
+       .get("player_insights_schema") or {}).get("id") or "")
+' || true
+  )"
+  if [[ "$BOUND_SCHEMA" != "$SCHEMA_FULL_NAME" ]]; then
+    step "Adopting the existing registered-model schema"
+    databricks bundle deployment bind player_insights_schema "$SCHEMA_FULL_NAME" \
+      -t dev --profile "$PROFILE"
+  fi
+
   EXPERIMENT_PATH="$(bundle_var experiment_path)"
   EXPERIMENT_ID="$(databricks experiments get-by-name "$EXPERIMENT_PATH" \
     --profile "$PROFILE" -o json | python3 -c '

@@ -16,14 +16,12 @@ require_target
 resolve_profile
 seed_bundle_cache
 
-APP_NAME="$(bundle_var app_name)"
-ROOT_PATH="$(bundle_var bundle_root_path)"
 KEY_VERSION="$(bundle_var genie_mcp_signing_key_version)"
 [[ "$KEY_VERSION" =~ ^v[1-9][0-9]*$ ]] ||
   die "genie_mcp_signing_key_version must look like v1, v2, ..."
-SCOPE="${APP_NAME}-signing"
+SCOPE="$(bundle_var genie_mcp_signing_scope)"
 PRIVATE_KEY="genie-mcp-ed25519-private-pem-${KEY_VERSION}"
-PUBLIC_PATH="${ROOT_PATH}/security/genie-mcp-ed25519-public-${KEY_VERSION}.pem"
+PUBLIC_PATH="$(bundle_var genie_mcp_signing_public_path)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/pia-genie-signing.XXXXXX")"
 on_exit 'rm -rf "$WORK"'
 PRIVATE_FILE="$WORK/private.pem"

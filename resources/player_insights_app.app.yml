@@ -64,7 +64,7 @@ resources:
         # public key and cannot mint administrator capabilities.
         - name: genie-mcp-signing-key
           secret:
-            scope: ${var.app_name}-signing
+            scope: ${var.genie_mcp_signing_scope}
             key: genie-mcp-ed25519-private-pem-${var.genie_mcp_signing_key_version}
             permission: READ
         # This binding supplies the warehouse ID and grants app access.
