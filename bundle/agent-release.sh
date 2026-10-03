@@ -208,6 +208,24 @@ print(len((body.get("config") or {}).get("served_entities") or []))
 '
 }
 
+serves_target_version() {
+  local body
+  if ! body="$(databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json 2>/dev/null)"; then
+    return 1
+  fi
+  printf '%s' "$body" | python3 -c '
+import json,sys
+body=json.load(sys.stdin)
+model,version=sys.argv[1:3]
+entities=(body.get("config") or {}).get("served_entities") or []
+raise SystemExit(0 if any(
+    str(entity.get("entity_name") or entity.get("model_name") or "") == model
+    and str(entity.get("entity_version") or entity.get("model_version") or "") == version
+    for entity in entities
+) else 1)
+' "$MODEL_NAME" "$MODEL_VERSION"
+}
+
 print_served_entities() {
   databricks serving-endpoints get "$ENDPOINT" --profile "$PROFILE" -o json | python3 -c '
 import json, sys
@@ -936,7 +954,7 @@ fi
 # deploy, so idle ones are pruned first when we are already at it. Traffic-
 # bearing entities are never removed; if all three still carry traffic, stop.
 SERVED_COUNT="$(served_entity_count)"
-if (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then
+if ! serves_target_version && (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then
   if [[ "$PRUNE" == true ]]; then
     step "Endpoint is at $SERVED_COUNT served entities (ceiling $MAX_SERVED_ENTITIES); pruning idle ones so version $MODEL_VERSION can be added"
     prune_idle "$ROLLBACKS_KEPT"

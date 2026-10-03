@@ -267,6 +267,7 @@ def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -
     assert entity.environment_vars["MLFLOW_EXPERIMENT_NAME"] == "/Shared/player-insights-agent"
     assert entity.environment_vars["MLFLOW_TRACKING_URI"] == "databricks"
     assert entity.environment_vars["MLFLOW_TRACE_SAMPLING_RATIO"] == "1.0"
+    assert entity.environment_vars["ENABLE_MLFLOW_TRACING"] == "true"
     assert entity.scale_to_zero_enabled is False
     assert len(updates) == 1
     assert updates[0]["name"] == "pia-prod"

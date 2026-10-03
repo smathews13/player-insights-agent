@@ -159,6 +159,8 @@ environment_matches = any(
     == "databricks"
     and str((entity.get("environment_vars") or {}).get("MLFLOW_TRACE_SAMPLING_RATIO") or "")
     == "1.0"
+    and str((entity.get("environment_vars") or {}).get("ENABLE_MLFLOW_TRACING") or "")
+    == "true"
     for entity in matching
 )
 scale_matches = any(
