@@ -36,7 +36,7 @@ elif [[ "$1 $2" == "serving-endpoints get" ]]; then
   [[ "${BAD_MODEL:-}" == 1 ]] && model=catalog.schema.other
   tracking=databricks
   [[ "${BAD_TRACING:-}" == 1 ]] && tracking=missing
-  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"served_entities":[{"name":"pia_%s","entity_name":"%s","entity_version":"%s","scale_to_zero_enabled":%s,"environment_vars":{"MLFLOW_EXPERIMENT_ID":"%s","MLFLOW_EXPERIMENT_NAME":"/Shared/player-insights-agent","MLFLOW_TRACKING_URI":"%s","MLFLOW_TRACE_SAMPLING_RATIO":"1.0"}}],"traffic_config":{"routes":[{"served_entity_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version" "$model" "$version" "$scale" "$experiment" "$tracking" "$version"
+  printf '{"state":{"config_update":"NOT_UPDATING"},"config":{"served_entities":[{"name":"pia_%s","entity_name":"%s","entity_version":"%s","scale_to_zero_enabled":%s,"environment_vars":{"MLFLOW_EXPERIMENT_ID":"%s","MLFLOW_EXPERIMENT_NAME":"/Shared/player-insights-agent","MLFLOW_TRACKING_URI":"%s","MLFLOW_TRACE_SAMPLING_RATIO":"1.0","ENABLE_MLFLOW_TRACING":"true"}}],"traffic_config":{"routes":[{"served_entity_name":"pia_%s","traffic_percentage":100}]}}}\n' "$version" "$model" "$version" "$scale" "$experiment" "$tracking" "$version"
 elif [[ "$1 $2" == "experiments get-by-name" ]]; then
   printf '%s\n' '{"experiment":{"experiment_id":"42","name":"/Shared/player-insights-agent"}}'
 else
@@ -140,6 +140,8 @@ assert "Current-source model scope contract: not applicable to a pinned register
 assert "--allow-missing\n    --skip-live" in text
 assert "$HOST/ml/endpoints" not in text
 assert "$WORKSPACE_HOST/ml/endpoints" in text
+assert "serves_target_version()" in text
+assert "if ! serves_target_version && (( SERVED_COUNT >= MAX_SERVED_ENTITIES )); then" in text
 assert 'if str(entity.get("entity_name") or entity.get("model_name") or "") == model' in text
 assert 'and str(entity.get("entity_version") or entity.get("model_version") or "") == want' in text
 assert '(( share == 100 ))' in text

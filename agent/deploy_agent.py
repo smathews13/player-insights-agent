@@ -103,6 +103,7 @@ def _refresh_existing_version(
         environment["MLFLOW_EXPERIMENT_NAME"] = experiment_path
         environment["MLFLOW_TRACKING_URI"] = "databricks"
         environment["MLFLOW_TRACE_SAMPLING_RATIO"] = "1.0"
+        environment["ENABLE_MLFLOW_TRACING"] = "true"
         entity.environment_vars = environment
         if hasattr(entity, "scale_to_zero_enabled"):
             entity.scale_to_zero_enabled = scale_to_zero
@@ -190,6 +191,7 @@ def main() -> None:
                 "MLFLOW_EXPERIMENT_NAME": experiment_path,
                 "MLFLOW_TRACKING_URI": "databricks",
                 "MLFLOW_TRACE_SAMPLING_RATIO": "1.0",
+                "ENABLE_MLFLOW_TRACING": "true",
             },
             tags={
                 "system_billing": "player-insights-agent",
