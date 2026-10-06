@@ -672,6 +672,9 @@ export type AdminAction =
   | 'connection-setting-saved'
   | 'connection-setting-cleared'
   | 'group-role-mapped'
+  /** An admin renamed an organization, or reset it to its built-in label. */
+  | 'organization-profile-saved'
+  | 'organization-profile-reset'
   /** An admin atomically staged a validated Gateway mode + model pair. */
   | 'ai-gateway-selection-staged'
   /** An admin asked the app identity to backfill the canonical Player Insights Agent tag. */

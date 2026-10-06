@@ -9,11 +9,8 @@ import {
   type MonitoringFeedbackRow,
 } from '../../shared/monitoring-feedback-contract';
 import { isRole, type Role } from '../../shared/user-roster-contract';
-import {
-  organizationForEmail,
-  organizationSuffixesForDomainSelection,
-  parseOrganizationMappings,
-} from '../../shared/organization-mapping';
+import { organizationForEmail, organizationSuffixesForDomainSelection } from '../../shared/organization-mapping';
+import { currentOrganizationMappings } from '../lib/organization-profiles';
 import { ADDED_ADMINS_TABLE } from '../lib/admin-roles-schema';
 import { readStored, markResponse, noSubstitution } from '../lib/lakebase-store';
 import { ROLE_COLUMN } from '../lib/user-roster';
@@ -286,7 +283,7 @@ export const MONITORING_FEEDBACK_QUERY = `
 
 export function monitoringFeedbackRow(
   row: Record<string, unknown>,
-  organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS)
+  organizations = currentOrganizationMappings()
 ): MonitoringFeedbackRow | null {
   const id = text(row.feedback_id);
   const direction = text(row.direction);
@@ -341,7 +338,7 @@ export function setupMonitoringFeedbackRoutes(
         res.status(400).json({ error: request.error });
         return;
       }
-      const organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      const organizations = currentOrganizationMappings();
       const organizationDomains = organizationSuffixesForDomainSelection(request.filters.organization, organizations);
       let disconnected = false;
       const onDisconnect = () => {

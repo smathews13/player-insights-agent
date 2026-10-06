@@ -39,6 +39,7 @@ import {
   type SettingsSection,
 } from './settings-sections';
 import { UserRoleEditor } from './UserRoleEditor';
+import { OrganizationProfileEditor } from './OrganizationProfileEditor';
 import { AppGroupEditor } from './AppGroupEditor';
 import { Button, Switch } from './ui';
 import { Dialog } from './Dialog';
@@ -345,6 +346,7 @@ export function SettingsPage({
                   showHumanRoster={showsUserRoster(role.state)}
                   canManageHumanRoles={managesUserRoster(role.state)}
                 />
+                <OrganizationProfileEditor canManage={showsAdminSurfaces(role.state)} />
                 <AppGroupEditor canManage={showsAdminSurfaces(role.state)} />
               </div>
             ) : null}

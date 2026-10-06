@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ORGANIZATION_MANIFEST,
+  applyOrganizationProfiles,
   organizationDomainMatchesSuffixes,
   organizationForEmail,
   organizationMappingsFromFilterOptions,
@@ -188,5 +189,61 @@ describe('organization mapping', () => {
     expect(organizationForEmail('reader@partner.example', organizationMappingsFromFilterOptions([option]))).toEqual(
       multiDomainOrganization
     );
+  });
+
+  describe('admin-edited profiles', () => {
+    it('renames a built-in organization by domain without changing its id, logo or other domains', () => {
+      const mappings = parseOrganizationMappings(undefined, [
+        { domain: 'northwindlondon.com', name: 'Studio Games', monogram: 'SG' },
+      ]);
+      const entry = mappings.find((candidate) => candidate.id === 'northwind-games');
+      expect(entry).toMatchObject({
+        name: 'Studio Games',
+        monogram: 'SG',
+        ariaLabel: 'Organization: Studio Games',
+        logoKey: 'northwind',
+        domain: 'northwindgames.com',
+      });
+      expect(entry?.domainSuffixes).toEqual(['northwindgames.com', 'northwindnewengland.com', 'northwindlondon.com']);
+      expect(organizationForEmail('dev@northwindnewengland.com', mappings).name).toBe('Studio Games');
+    });
+
+    it('survives the client re-merge, where the built-in entry must not shadow the edit', () => {
+      const server = parseOrganizationMappings(undefined, [
+        { domain: 'databricks.com', name: 'Databricks Inc', monogram: 'DB' },
+      ]);
+      expect(organizationForEmail('someone@example.com', server).name).toBe('Databricks Inc');
+      expect(organizationForEmail('someone@example.com', []).name).toBe('Databricks');
+    });
+
+    it('adds a monogram organization for a domain nothing registers, and resolves subdomains', () => {
+      const mappings = parseOrganizationMappings(undefined, [
+        { domain: 'studio2games.example', name: 'Studio Two', monogram: 'S2' },
+      ]);
+      expect(organizationForEmail('a@north.studio2games.example', mappings)).toMatchObject({
+        id: 'domain:studio2games.example',
+        name: 'Studio Two',
+        logoKey: 'monogram',
+      });
+    });
+
+    it('ignores a malformed profile instead of corrupting the list', () => {
+      const base = parseOrganizationMappings(undefined);
+      expect(
+        applyOrganizationProfiles(base, [
+          { domain: 'bad domain', name: 'X', monogram: 'X' },
+          { domain: 'ok.example', name: '', monogram: 'X' },
+          { domain: 'ok.example', name: 'Fine', monogram: 'TOOLONG' },
+        ])
+      ).toEqual(base);
+    });
+
+    it('lets a deployment overlay replace a built-in label by id', () => {
+      const [databricks] = ORGANIZATION_MANIFEST;
+      const overlay = JSON.stringify([
+        { ...databricks, name: 'Databricks EMEA', ariaLabel: 'Organization: Databricks EMEA' },
+      ]);
+      expect(organizationForEmail('a@example.com', parseOrganizationMappings(overlay)).name).toBe('Databricks EMEA');
+    });
   });
 });

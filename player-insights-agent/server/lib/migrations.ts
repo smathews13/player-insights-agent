@@ -27,6 +27,7 @@ import {
 } from './app-deployment-lifetime';
 import { LAKEBASE_BINDING_PLAN_DDL, LAKEBASE_BINDING_PLAN_TABLE } from './lakebase-binding-plan';
 import { GROUP_ROLE_MAPPINGS_DDL, GROUP_ROLE_MAPPINGS_TABLE } from './group-role-mappings';
+import { ORGANIZATION_PROFILES_DDL, ORGANIZATION_PROFILES_TABLE } from './organization-profiles';
 import { APP_GROUPS_DDL, APP_GROUPS_TABLE } from './app-groups-store';
 /**
  * The numbered schema versions, and the rules for adding one.
@@ -1018,6 +1019,12 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     name: 'monitoring teams',
     statements: [APP_GROUPS_DDL],
     down: [`DROP TABLE IF EXISTS ${APP_GROUPS_TABLE}`],
+  },
+  {
+    version: 43,
+    name: 'organization profiles',
+    statements: [ORGANIZATION_PROFILES_DDL],
+    down: [`DROP TABLE IF EXISTS ${ORGANIZATION_PROFILES_TABLE}`],
   },
 ];
 

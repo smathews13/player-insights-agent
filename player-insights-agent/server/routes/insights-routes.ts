@@ -77,7 +77,8 @@ import {
 } from '../lib/deployment-decisions';
 import type { RuntimeSettings } from '../../shared/runtime-settings';
 import { runRuntimeUsedFromStored, type RunRuntimeUsed } from '../../shared/run-runtime-used';
-import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
+import { organizationForEmail } from '../../shared/organization-mapping';
+import { currentOrganizationMappings, organizationProfileRefresh } from '../lib/organization-profiles';
 import {
   isAdminRoute,
   recordAdminAction,
@@ -3938,6 +3939,9 @@ export function setupInsightsRoutes(
     // Identity roster; this second guard refuses only non-GET role mutations
     // from plain administrators. Consumers are already refused by the first gate.
     app.use(requireSuperAdmin(appkit.lakebase, userEmail));
+    // Loads admin-edited organization labels ahead of every API route below, so the
+    // synchronous email-to-organization lookups see them.
+    app.use('/api', organizationProfileRefresh(appkit.lakebase));
     // One recorder for every API route registered below or by later modules.
     // It runs after identity/role gates, so rejected requests are not presented
     // as routes the app served, and it stores canonical Express route templates
@@ -4010,7 +4014,7 @@ export function setupInsightsRoutes(
         readRosterForRequest(appkit.lakebase, req).catch(() => ({ rows: [], roleColumnPresent: true })),
       ]);
       const canonicalIdentity = resolveCanonicalUserIdentity(signedInAs, roster.rows);
-      const organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      const organizations = currentOrganizationMappings();
       const organization = organizationForEmail(canonicalIdentity.canonicalEmail ?? signedInAs, organizations);
       res.json({
         ...identityPayload(req),
@@ -4996,8 +5000,7 @@ export function setupInsightsRoutes(
         identityVerdict = await identityProbe.get();
       }
       if (!identityVerdict.ok) {
-        const readinessCode =
-          identityVerdict.reason === 'unverified' ? 'DEPENDENCY_UNAVAILABLE' : 'IDENTITY_REQUIRED';
+        const readinessCode = identityVerdict.reason === 'unverified' ? 'DEPENDENCY_UNAVAILABLE' : 'IDENTITY_REQUIRED';
         reply.status(unavailableHttpStatus(readinessCode)).json(
           unavailableResult({
             code: readinessCode,

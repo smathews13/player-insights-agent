@@ -59,7 +59,7 @@ import {
 import { runnerFor } from './admin-routes';
 import { userEmail, type InsightsAppKit } from './insights-routes';
 import type { Request, Response } from 'express';
-import { parseOrganizationMappings } from '../../shared/organization-mapping';
+import { currentOrganizationMappings } from '../lib/organization-profiles';
 import { deploymentOwnerEmail } from '../lib/app-deployment-lifetime';
 import {
   alignRosterWithAppAccess,
@@ -363,7 +363,7 @@ export function setupUserRoutes(
         reader: userEmail(req),
         deploymentOwner,
       });
-      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      payload.organizations = currentOrganizationMappings();
       const appAccess = await appAccessService.read(req);
       res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
     });
@@ -584,7 +584,7 @@ export function setupUserRoutes(
         reader,
         deploymentOwner,
       });
-      payload.organizations = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      payload.organizations = currentOrganizationMappings();
       const appAccess = await appAccessService.read(req);
       res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
     }
