@@ -269,6 +269,77 @@ export const workspaceExperimentIdResolver: ExperimentIdResolver = async (experi
   }
 };
 
+/** The experiment a serving endpoint's traffic-bearing entities are pinned to trace into. */
+export interface ServedExperiment {
+  id: string;
+  name: string;
+}
+
+/**
+ * Resolves the experiment an endpoint actually traces into. Injected, so the
+ * resolution can be tested without a workspace.
+ */
+export type EndpointExperimentResolver = (endpointName: string) => Promise<ServedExperiment | null>;
+
+function recordsOf(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+    : [];
+}
+
+/**
+ * The experiment every traffic-bearing served entity agrees on, or null.
+ *
+ * The release pins MLFLOW_EXPERIMENT_ID and MLFLOW_EXPERIMENT_NAME on each served
+ * entity, so the endpoint itself is the truth about where traces land. Idle
+ * rollback entities are ignored: they may still carry an older experiment and
+ * receive no traffic. Entities that disagree, or that carry no id, answer null
+ * rather than a guess.
+ */
+export function servedExperimentOf(body: Record<string, unknown>): ServedExperiment | null {
+  const config = (body.config as Record<string, unknown> | undefined) ?? {};
+  const entities = recordsOf(config.served_entities ?? config.served_models);
+  const routes = recordsOf((config.traffic_config as Record<string, unknown> | undefined)?.routes);
+  const serving = new Set(
+    routes
+      .filter((route) => Number(route.traffic_percentage ?? 0) > 0)
+      .map((route) => textOf(route.served_entity_name ?? route.served_model_name))
+      .filter(Boolean)
+  );
+  const live = serving.size > 0 ? entities.filter((entity) => serving.has(textOf(entity.name))) : entities;
+  if (live.length === 0) return null;
+  const pinned = live.map((entity) => {
+    const environment = (entity.environment_vars as Record<string, unknown> | undefined) ?? {};
+    return { id: textOf(environment.MLFLOW_EXPERIMENT_ID), name: textOf(environment.MLFLOW_EXPERIMENT_NAME) };
+  });
+  const [first] = pinned;
+  if (!first.id || pinned.some((entry) => entry.id !== first.id)) return null;
+  return { id: first.id, name: pinned.find((entry) => entry.name)?.name ?? '' };
+}
+
+/**
+ * Production resolver: the serving endpoint read as the application, which needs
+ * only CAN_VIEW on an endpoint it is already bound to. Never throws; null means
+ * the endpoint could not say, and the caller falls back to configuration.
+ */
+export const workspaceEndpointExperimentResolver: EndpointExperimentResolver = async (endpointName) => {
+  const name = endpointName.trim();
+  if (!name) return null;
+  try {
+    const { WorkspaceClient } = await import('@databricks/sdk-experimental');
+    const client = new WorkspaceClient({});
+    const body = (await client.apiClient.request({
+      path: `/api/2.0/serving-endpoints/${encodeURIComponent(name)}`,
+      method: 'GET',
+      headers: new Headers({ Accept: 'application/json' }),
+      raw: false,
+    })) as Record<string, unknown>;
+    return servedExperimentOf(body ?? {});
+  } catch {
+    return null;
+  }
+};
+
 /**
  * A thrown SDK error, read back into a refusal where it carries one.
  *
