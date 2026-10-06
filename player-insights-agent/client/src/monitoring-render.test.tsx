@@ -63,10 +63,10 @@ const TEST_ORGANIZATIONS: readonly OrganizationMapping[] = [
     id: 'acme-interactive',
     domain: 'take2games.com',
     domainSuffixes: ['take2games.com'],
-    name: 'Acme Interactive',
+    name: 'Take-Two Interactive',
     monogram: 'T2',
     logoKey: 'monogram',
-    ariaLabel: 'Organization: Acme Interactive',
+    ariaLabel: 'Organization: Take-Two Interactive',
     fallback: 'monogram',
   },
 ];
@@ -2196,14 +2196,14 @@ describe('the per-user panel', () => {
 
     expect(markup).toContain('class="identity-chip organization-user-badge user-profile-modal-identity-chip"');
     expect(markup).toContain('data-organization-id="acme-interactive"');
-    expect(markup).toContain('aria-label="Organization: Acme Interactive"');
+    expect(markup).toContain('aria-label="Organization: Take-Two Interactive"');
     expect(markup).toMatch(/data-organization-id="acme-interactive"[^>]*data-organization-mark="raw"[^>]*><img/);
     expect(markup.indexOf('data-organization-mark="raw"')).toBeLessThan(markup.indexOf('identity-chip-name'));
     expect(markup).toContain('roster-organization-logo-image');
     expect(markup).toContain('customer.admin@take2games.com');
     expect(markup).toContain('user-profile-modal-identity-chip');
     expect(markup).not.toContain('user-profile-modal-organization');
-    expect(occurrences(markup, 'Organization: Acme Interactive')).toBe(1);
+    expect(occurrences(markup, 'Organization: Take-Two Interactive')).toBe(1);
     expect(markup).not.toContain('lucide-user-round');
     expect(markup).not.toContain('>FP<');
   });

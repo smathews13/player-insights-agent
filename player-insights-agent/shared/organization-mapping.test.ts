@@ -45,7 +45,7 @@ describe('organization mapping', () => {
       },
       {
         id: 'acme-interactive',
-        name: 'Acme Interactive',
+        name: 'Take-Two Interactive',
         domain: 'take2games.com',
         logoKey: 'acme',
         fallback: 'monogram',

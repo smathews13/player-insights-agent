@@ -84,11 +84,7 @@ def _refresh_existing_version(
     if not matching:
         return False
     matching_names = [
-        str(
-            getattr(entity, "name", "")
-            or getattr(entity, "served_entity_name", "")
-            or ""
-        )
+        str(getattr(entity, "name", "") or getattr(entity, "served_entity_name", "") or "")
         for entity in matching
     ]
     if any(not name for name in matching_names):
@@ -107,19 +103,30 @@ def _refresh_existing_version(
         entity.environment_vars = environment
         if hasattr(entity, "scale_to_zero_enabled"):
             entity.scale_to_zero_enabled = scale_to_zero
+    # Databricks rejects a traffic map that omits any served entity, so every
+    # entity the endpoint keeps (the idle rollback included) is named, at 0%.
+    # An idle one serves nobody, so it also scales to zero rather than billing
+    # an always-on replica; the repaired version keeps the caller's setting.
+    target = matching[0]
+    routes = [Route(served_entity_name=matching_names[0], traffic_percentage=100)]
+    for entity in entities:
+        if entity is target:
+            continue
+        name = str(getattr(entity, "name", "") or getattr(entity, "served_entity_name", "") or "")
+        if not name:
+            raise ValueError(
+                f"Endpoint {endpoint_name!r} has a served entity with no name; "
+                "refusing to write a traffic map that cannot name it."
+            )
+        routes.append(Route(served_entity_name=name, traffic_percentage=0))
+        if hasattr(entity, "scale_to_zero_enabled"):
+            entity.scale_to_zero_enabled = True
     workspace.serving_endpoints.update_config(
         name=endpoint_name,
         served_entities=entities,
         # A version can already exist at 0%. Repair means making it active, not
         # merely rewriting its environment while old traffic remains in place.
-        traffic_config=TrafficConfig(
-            routes=[
-                Route(
-                    served_entity_name=matching_names[0],
-                    traffic_percentage=100,
-                )
-            ]
-        ),
+        traffic_config=TrafficConfig(routes=routes),
         auto_capture_config=getattr(config, "auto_capture_config", None),
     )
     return True

@@ -543,7 +543,7 @@ describe('what the app says about itself at boot', () => {
   it('includes only sanitized organization mappings on /api/identity', async () => {
     process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
       { domain: 'NORTHWINDGAMES.COM', name: 'Northwind Games', monogram: 'R*' },
-      { domain: 'take2.example', name: 'Acme Interactive', monogram: 'T2' },
+      { domain: 'take2.example', name: 'Take-Two Interactive', monogram: 'T2' },
     ]);
     const app = await startApp(recordingStore().lakebase);
 

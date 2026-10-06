@@ -37,10 +37,10 @@ export const ORGANIZATION_MANIFEST: readonly OrganizationMapping[] = [
     id: 'acme-interactive',
     domain: 'take2games.com',
     domainSuffixes: ['take2games.com'],
-    name: 'Acme Interactive',
+    name: 'Take-Two Interactive',
     monogram: 'T2',
     logoKey: 'acme',
-    ariaLabel: 'Organization: Acme Interactive',
+    ariaLabel: 'Organization: Take-Two Interactive',
     fallback: 'monogram',
   },
   {

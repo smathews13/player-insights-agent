@@ -137,7 +137,7 @@ describe('User Monitoring response decoding', () => {
 
   it.each([
     ['person@example.com', 'databricks', 'Databricks', 'databricks'],
-    ['person@take2games.com', 'acme-interactive', 'Acme Interactive', 'acme'],
+    ['person@take2games.com', 'acme-interactive', 'Take-Two Interactive', 'acme'],
     ['person@2k.com', '2k', 'Contoso', '2k'],
     ['person@northwindlondon.com', 'northwind-games', 'Northwind Games', 'northwind'],
   ])('preserves the canonical fallback for %s', (email, id, name, logoKey) => {
