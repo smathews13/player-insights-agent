@@ -3,6 +3,10 @@ import {
   sanitizeOrganizationMappings,
   type OrganizationFilterOption,
   type OrganizationMapping,
+  type OrganizationProfile,
+  organizationProfileDomain,
+  organizationProfileMonogram,
+  organizationProfileName,
 } from './organization-contract';
 
 export {
@@ -12,6 +16,12 @@ export {
   type OrganizationFilterOption,
   type OrganizationLogoKey,
   type OrganizationMapping,
+  type OrganizationProfile,
+  type OrganizationProfileRow,
+  type OrganizationProfilesPayload,
+  organizationProfileDomain,
+  organizationProfileMonogram,
+  organizationProfileName,
 } from './organization-contract';
 
 /**
@@ -65,22 +75,87 @@ export const ORGANIZATION_MANIFEST: readonly OrganizationMapping[] = [
   },
 ] as const;
 
+/**
+ * Canonical entries first, then configured ones. A configured entry that reuses a
+ * canonical id may relabel it (name, mark, accessible label) and nothing else: the
+ * id, domains, logo and fallback stay canonical, so an edited label reaches every
+ * reader without a configuration being able to swap a company's logo or claim its
+ * domains. Among configured entries the first one for an id wins.
+ */
 function mergedOrganizationManifest(configured: readonly OrganizationMapping[]): OrganizationMapping[] {
-  const byId = new Map<string, OrganizationMapping>();
-  for (const organization of [...ORGANIZATION_MANIFEST, ...configured]) {
-    if (!byId.has(organization.id)) byId.set(organization.id, organization);
+  const byId = new Map<string, OrganizationMapping>(ORGANIZATION_MANIFEST.map((entry) => [entry.id, entry]));
+  const seen = new Set<string>();
+  for (const organization of configured) {
+    if (seen.has(organization.id)) continue;
+    seen.add(organization.id);
+    const canonical = byId.get(organization.id);
+    byId.set(
+      organization.id,
+      canonical
+        ? {
+            ...canonical,
+            name: organization.name,
+            monogram: organization.monogram,
+            ariaLabel: organization.ariaLabel,
+          }
+        : organization
+    );
   }
   return [...byId.values()];
 }
 
-/** Canonical entries plus safe deployment-provided organizations. */
-export function parseOrganizationMappings(raw: string | undefined | null): OrganizationMapping[] {
-  if (!raw?.trim()) return [...ORGANIZATION_MANIFEST];
-  try {
-    return mergedOrganizationManifest(sanitizeOrganizationMappings(JSON.parse(raw)));
-  } catch {
-    return [...ORGANIZATION_MANIFEST];
+/**
+ * Lay admin-edited profiles over a merged list.
+ *
+ * A profile addresses an organization by one of its registered domains. When an
+ * entry already registers that exact domain, only its label and mark change; its
+ * id, logo and other domains stay, so conversation attribution and filters keep
+ * resolving to the same organization. A domain nothing registers becomes a new
+ * monogram organization.
+ */
+export function applyOrganizationProfiles(
+  base: readonly OrganizationMapping[],
+  profiles: readonly OrganizationProfile[]
+): OrganizationMapping[] {
+  const result = [...base];
+  for (const profile of profiles) {
+    const domain = organizationProfileDomain(profile.domain);
+    const name = organizationProfileName(profile.name);
+    const monogram = organizationProfileMonogram(profile.monogram);
+    if (!domain || !name || !monogram) continue;
+    const index = result.findIndex((entry) => entry.domainSuffixes.includes(domain));
+    if (index >= 0) {
+      result[index] = { ...result[index], name, monogram, ariaLabel: `Organization: ${name}` };
+    } else {
+      result.push({
+        id: `domain:${domain}`,
+        domain,
+        domainSuffixes: [domain],
+        name,
+        monogram,
+        logoKey: 'monogram',
+        ariaLabel: `Organization: ${name}`,
+        fallback: 'monogram',
+      });
+    }
   }
+  return result;
+}
+
+/** Canonical entries plus safe deployment-provided organizations, then admin-edited profiles. */
+export function parseOrganizationMappings(
+  raw: string | undefined | null,
+  profiles: readonly OrganizationProfile[] = []
+): OrganizationMapping[] {
+  let base: OrganizationMapping[] = [...ORGANIZATION_MANIFEST];
+  if (raw?.trim()) {
+    try {
+      base = mergedOrganizationManifest(sanitizeOrganizationMappings(JSON.parse(raw)));
+    } catch {
+      base = [...ORGANIZATION_MANIFEST];
+    }
+  }
+  return profiles.length > 0 ? applyOrganizationProfiles(base, profiles) : base;
 }
 
 export function emailDomain(email: string): string {

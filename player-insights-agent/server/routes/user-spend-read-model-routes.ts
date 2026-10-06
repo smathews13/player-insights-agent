@@ -5,10 +5,10 @@ import {
   organizationForEmail,
   organizationOptionsForEmails,
   organizationSuffixesForSelection,
-  parseOrganizationMappings,
   type OrganizationFilterOption,
   type OrganizationMapping,
 } from '../../shared/organization-mapping';
+import { currentOrganizationMappings } from '../lib/organization-profiles';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload, UserSpendAmount, UserSpendReconciliation } from '../../shared/user-spend-contract';
 import {
@@ -382,7 +382,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
         ? dayRangeForHours(window)
         : opsDayRange(queryText(req, 'from'), queryText(req, 'to'), clock());
       const source = sourceFor(req);
-      const manifest = parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS);
+      const manifest = currentOrganizationMappings();
       let organizations: OrganizationFilterOption[];
       try {
         const personaFilter = queryText(req, 'persona');

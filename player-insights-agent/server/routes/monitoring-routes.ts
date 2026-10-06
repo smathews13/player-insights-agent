@@ -58,7 +58,8 @@ import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { APP_ACTIVITY_TABLE } from '../lib/app-activity';
 import { APP_SESSION_TABLE, appSessionDeployment } from '../lib/app-session';
 import { invalidAdminEmail, resolveRole } from '../lib/admin-roles';
-import { organizationForEmail, parseOrganizationMappings } from '../../shared/organization-mapping';
+import { organizationForEmail } from '../../shared/organization-mapping';
+import { currentOrganizationMappings } from '../lib/organization-profiles';
 import {
   appGroupOptions,
   appGroupsForEmail,
@@ -1577,10 +1578,7 @@ export function setupMonitoringRoutes(appkit: InsightsAppKit, deps: MonitoringDe
         email: person,
         role,
         persona,
-        organization: organizationForEmail(
-          person,
-          parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS)
-        ),
+        organization: organizationForEmail(person, currentOrganizationMappings()),
         firstSeen,
         lastSeen,
         summary: summarize(questions, totals.threads),

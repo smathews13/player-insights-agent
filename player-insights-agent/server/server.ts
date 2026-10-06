@@ -84,6 +84,7 @@ createApp({
       { setupRunLabelRoutes },
       { setupSpIdentityRoutes },
       { setupAppGroupsRoutes },
+      { setupOrganizationRoutes },
       { bootstrapSeedRoles, isAdminRoute },
       { respondToHandlerFailures },
     ] = await Promise.all([
@@ -117,6 +118,7 @@ createApp({
       import('./routes/run-label-routes'),
       import('./routes/sp-identity-routes'),
       import('./routes/app-groups-routes'),
+      import('./routes/organization-routes'),
       import('./lib/admin-roles'),
       import('./lib/handler-failures'),
     ]);
@@ -205,6 +207,8 @@ createApp({
     // and remove administrators, which is the one thing the rank exists to reserve.
     setupUserRoutes(appkit);
     setupAppGroupsRoutes(appkit);
+    // Under `/api/admin`, so the admin gate above already covers it.
+    setupOrganizationRoutes(appkit);
     // After the insights routes for the same reason as the two above: the admin
     // guard is registered in there, and Express applies middleware to what is
     // added afterwards. Registered first, Monitoring would serve every person's

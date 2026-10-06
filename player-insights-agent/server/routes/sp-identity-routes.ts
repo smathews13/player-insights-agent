@@ -17,7 +17,7 @@ import {
   type SpIdentityRosterRow,
 } from '../../shared/sp-identity';
 import { accountConsoleUrlForWorkspace } from '../../shared/databricks-links';
-import { parseOrganizationMappings } from '../../shared/organization-mapping';
+import { currentOrganizationMappings } from '../lib/organization-profiles';
 import { invalidAdminEmail, normalizeAdminEmail, recordAdminAction } from '../lib/admin-roles';
 import { describeSpTokenMinting, forgetSpTokens } from '../lib/sp-token';
 import { boundedSpGrantResources, discoverSpGrantResources } from '../lib/sp-grant-resources';
@@ -101,7 +101,7 @@ async function adminPayload(
     personaTemplateWarning: templateConfig.warning,
     grantResourceDiscovery,
     accountConsoleUrl: accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST),
-    organizations: parseOrganizationMappings(process.env.PLAYER_INSIGHTS_ORGANIZATIONS),
+    organizations: currentOrganizationMappings(),
     assignments,
     roster,
   };
