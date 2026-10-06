@@ -80,6 +80,7 @@ import {
 } from '../lib/workspace-group-members';
 import type { GroupMembersResponse } from '../../shared/user-roster-contract';
 import { workspaceControlPlaneReader } from '../lib/control-plane-identity';
+import { configuredAdminGroup, isConfiguredAdminGroup } from '../lib/workspace-group-roles';
 
 const RoleBody = z.object({ role: z.string().trim().max(32) });
 const AddBody = RoleBody.extend({ email: z.string().trim().max(320) });
@@ -87,6 +88,12 @@ const GroupMappingBody = z.object({
   groupName: z.string().trim().min(1).max(255),
   role: z.enum(['admin', 'consumer']),
 });
+
+const CONFIGURED_ADMIN_GROUP_REFUSAL = {
+  error: 'group_role_deployment_managed',
+  detail:
+    'This deployment configures that group as Player Insights Agent admin. Change PLAYER_INSIGHTS_ADMIN_GROUP to change it.',
+};
 
 function appAccessOptions(req: Request): AppAccessOptions | null {
   const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
@@ -213,19 +220,32 @@ export function setupUserRoutes(
       return [];
     });
     const storedByName = new Map(mappings.map((mapping) => [mapping.groupName.toLocaleLowerCase(), mapping]));
-    const appGroups = (payload.appAccessPrincipals ?? []).filter((principal) => principal.kind === 'group');
-    const confirmations = await Promise.all(appGroups.map((group) => confirmWorkspaceGroup(group.name)));
+    const appGroupNames = (payload.appAccessPrincipals ?? [])
+      .filter((principal) => principal.kind === 'group')
+      .map((principal) => principal.name);
+    // The deployment admin group makes its members Admin whether or not it is on
+    // the App ACL (members may reach the App through another group), so it always
+    // gets a row; otherwise nothing in Identity would explain those admins.
+    const adminGroup = configuredAdminGroup();
+    const adminGroupOnAcl = appGroupNames.some((name) => isConfiguredAdminGroup(name));
+    const groupNames = adminGroup && !adminGroupOnAcl ? [...appGroupNames, adminGroup] : appGroupNames;
+    const confirmations = await Promise.all(groupNames.map((name) => confirmWorkspaceGroup(name)));
     const identityManagementUrl = accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST);
-    payload.groupRoleMappings = appGroups.map((group, index) => {
-      const mapping = storedByName.get(group.name.toLocaleLowerCase());
+    payload.groupRoleMappings = groupNames.map((groupName, index) => {
       const scimConfirmed = confirmations[index].readable && confirmations[index].exists;
+      const mapping = storedByName.get(groupName.toLocaleLowerCase());
+      // A stored row for the deployment admin group is inert while it is
+      // configured, but stays visible so it can be cleared before the
+      // configuration changes and it would apply again.
+      const deploymentManaged = isConfiguredAdminGroup(groupName);
       return {
-        groupName: group.name,
-        role: mapping?.role ?? 'consumer',
+        groupName,
+        role: deploymentManaged ? ('admin' as const) : (mapping?.role ?? 'consumer'),
         setBy: mapping?.setBy ?? '',
         setAt: mapping?.setAt ?? '',
         scimConfirmed,
         identityManagementUrl: scimConfirmed ? identityManagementUrl : '',
+        ...(deploymentManaged ? { deploymentManaged: true, onAppAccess: adminGroupOnAcl } : {}),
       };
     });
     return payload;
@@ -257,6 +277,9 @@ export function setupUserRoutes(
 
     app.delete('/api/users/groups/:groupName', async (req, res) => {
       const groupName = req.params.groupName.trim();
+      // Allowed for the deployment admin group too: it clears only the stored
+      // row, and the deployment's Admin floor is unaffected.
+      const deploymentManaged = isConfiguredAdminGroup(groupName);
       const actor = userEmail(req);
       try {
         await deleteGroupRoleMapping(appkit.lakebase, groupName);
@@ -264,7 +287,9 @@ export function setupUserRoutes(
           actor,
           action: 'group-role-mapped',
           subject: groupName,
-          detail: `${actor} reset Databricks App group ${groupName} to Player Insights Agent consumer.`,
+          detail: deploymentManaged
+            ? `${actor} cleared the stored role for Databricks App group ${groupName}; the deployment keeps it Player Insights Agent admin.`
+            : `${actor} reset Databricks App group ${groupName} to Player Insights Agent consumer.`,
         });
         await replyWithRoster(req, res, appkit.lakebase, actor);
       } catch (error) {
@@ -283,6 +308,10 @@ export function setupUserRoutes(
           error: 'invalid_group_mapping_body',
           detail: 'Select one existing workspace group and a Player Insights Agent role.',
         });
+        return;
+      }
+      if (isConfiguredAdminGroup(parsed.data.groupName)) {
+        res.status(409).json(CONFIGURED_ADMIN_GROUP_REFUSAL);
         return;
       }
       const appAccess = await appAccessService.read(req);

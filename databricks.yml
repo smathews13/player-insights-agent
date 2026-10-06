@@ -201,6 +201,23 @@ variables:
   app_description:
     description: App description shown in the workspace.
     default: ${var.product_display_name}, governed player intelligence and repeatable benchmarking
+  # Customer access groups. bundle/app-user-access.sh (run by app-release.sh)
+  # grants each CAN_USE on the App and bundle/endpoint-user-access.sh (run by
+  # agent-release.sh) grants each CAN_QUERY on the serving endpoint. Both PATCH,
+  # so no other App or endpoint permission is replaced. Engineer and Exec members
+  # sign in as Consumers; app-release.sh makes the admin group the in-app Admin
+  # floor (PLAYER_INSIGHTS_ADMIN_GROUP). Keep their case: SCIM names are exact.
+  # Super Admin and Executive stay explicit in-app assignments. An empty value
+  # drops that group everywhere.
+  app_engineer_group:
+    description: Workspace group granted App CAN_USE and the in-app Consumer role.
+    default: <engineer-group>
+  app_exec_group:
+    description: Workspace group granted App CAN_USE and the in-app Consumer role.
+    default: <exec-group>
+  app_admin_group:
+    description: Workspace group granted App CAN_USE and the in-app Admin role floor.
+    default: <admin-group>
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to

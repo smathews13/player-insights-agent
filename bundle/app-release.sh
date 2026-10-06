@@ -59,6 +59,7 @@ APP_DIR="$BUNDLE_ROOT/player-insights-agent"
 DEPLOY_TREE="$APP_DIR/build/deploy"
 APP_DB_GRANT="$BUNDLE_ROOT/bundle/app-db-grant.sh"
 APP_ACL_SELF_GRANT="$BUNDLE_ROOT/bundle/app-acl-self-grant.sh"
+APP_USER_ACCESS="$BUNDLE_ROOT/bundle/app-user-access.sh"
 
 run_app_db_grant() {
   [[ -f "$APP_DB_GRANT" ]] || die "bundle/app-db-grant.sh is missing. Refusing to deploy
@@ -79,6 +80,20 @@ run_app_acl_self_grant() {
     note "bundle/app-acl-self-grant.sh is absent, so the app SP was NOT granted"
     note "CAN_MANAGE on itself. If the Identity members list shows a stale roster,"
     note "grant it by hand: databricks permissions update apps $APP_NAME --json ..."
+  fi
+}
+
+# The customer access groups' App CAN_USE. A PATCH beside the self-grant, not a
+# bundle `permissions:` block, so it never replaces anyone else's App access.
+#
+# A warning, not a stop: the grant is independent of the code being released, so
+# a missing group or a permissions error must not block shipping the code. It is
+# not run on rollback at all, which must re-point the App and nothing else.
+run_app_user_access() {
+  if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$APP_USER_ACCESS" --apply; then
+    note "WARNING: the customer access groups were NOT granted CAN_USE on $APP_NAME."
+    note "Their members cannot open the App until it is fixed. Repair it with:"
+    note "  TARGET=$TARGET PROFILE=$PROFILE bundle/app-user-access.sh --apply"
   fi
 }
 
@@ -299,6 +314,7 @@ fi
 # databricks.yml still stops the release. Telling those two apart is the point
 # of putting it in the bundle at all.
 SHARED_RAIL="$(bundle_var_or_empty shared_conversation_rail)"
+ADMIN_GROUP="$(bundle_var_or_empty app_admin_group)"
 # Postgres schema the app owns inside Lakebase. Default player_insights; the
 # release bakes the resolved var into PLAYER_INSIGHTS_APP_SCHEMA so Connections
 # and DDL agree with the bundle.
@@ -556,6 +572,7 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_EXPERIMENT_PATH="$EXPERIMENT_PATH" \
      PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID="$INDEX_REBUILD_JOB_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
+     PLAYER_INSIGHTS_ADMIN_GROUP="$ADMIN_GROUP" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
      PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT" \
      PLAYER_INSIGHTS_CATALOG="$CATALOG" \
@@ -615,6 +632,7 @@ fi
 
 run_app_db_grant
 run_app_acl_self_grant
+run_app_user_access
 
 step "Replacing validated staging source at $SRC_PATH"
 clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"
