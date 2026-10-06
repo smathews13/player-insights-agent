@@ -15,6 +15,7 @@ import {
   EXPERIMENT_ID_CACHE_TTL_MS,
   appEnvironment,
   classifyWrite,
+  clearStoredSetting,
   computeDrift,
   driftStatus,
   forgetResolvedExperimentIds,
@@ -24,6 +25,7 @@ import {
   resolveJudgeEndpoint,
   resourceStates,
   settingsPayload,
+  writeStoredSetting,
   type StoredSetting,
 } from './app-settings';
 import { servedExperimentOf } from './experiment-probe';
@@ -1211,6 +1213,53 @@ describe('the experiment a Git deploy follows', () => {
       source: 'serving-endpoint',
     });
     expect(asked).toEqual(['pia-prod']);
+  });
+
+  it('stops following the remembered experiment as soon as an admin saves or clears an override', async () => {
+    let served = '777';
+    const resolveEndpoint = () => Promise.resolve({ id: served, name: '/Shared/player-insights-agent-prod' });
+    const resolveOnce = async () =>
+      (
+        await resolveExperimentConfiguration(emptyClient, {
+          stored: new Map(),
+          environment: gitDeployEnvironment,
+          resolveEndpoint,
+        })
+      ).id;
+    const writer = {
+      lakebase: {
+        query: () =>
+          Promise.resolve({
+            rows: [
+              {
+                resource_id: 'experiment-id',
+                value: '1',
+                intent: 'active',
+                note: '',
+                updated_by: 'a',
+                updated_at: new Date().toISOString(),
+              },
+            ],
+          }),
+      },
+    };
+
+    expect(await resolveOnce()).toBe('777');
+    served = '888';
+    expect(await resolveOnce()).toBe('777');
+    await clearStoredSetting(writer, 'experiment-id');
+    expect(await resolveOnce()).toBe('888');
+
+    served = '999';
+    expect(await resolveOnce()).toBe('888');
+    await writeStoredSetting(writer, {
+      resourceId: 'experiment-id',
+      value: '1',
+      intent: 'active',
+      note: '',
+      updatedBy: 'a',
+    });
+    expect(await resolveOnce()).toBe('999');
   });
 
   it('beats an id restored from an older release, but not an admin override', async () => {

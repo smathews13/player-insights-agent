@@ -213,12 +213,14 @@ export async function writeStoredSetting(
   const row = (result?.rows ?? [])[0];
   if (!row) throw new Error('the settings row was not written back');
   forgetStoredSettings();
+  if (setting.resourceId === 'experiment-id') forgetResolvedExperimentIds();
   return storedFromRow(row);
 }
 
 export async function clearStoredSetting(client: LakebaseReader, resourceId: string): Promise<boolean> {
   const result = await client.lakebase.query(DELETE_SETTING_QUERY, [resourceId]);
   forgetStoredSettings();
+  if (resourceId === 'experiment-id') forgetResolvedExperimentIds();
   return (result?.rows ?? []).length > 0;
 }
 
