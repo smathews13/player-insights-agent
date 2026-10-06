@@ -19,7 +19,7 @@ vi.mock('./control-plane-identity', async (importOriginal) => {
 const { announceSeedAdmins, resolveRole } = await import('./admin-roles');
 const { forgetWorkspaceGroupMemberships } = await import('./workspace-group-roles');
 
-const ADMIN_GROUP = '<admin-group>';
+const ADMIN_GROUP = 'S_TK2_Databricks_globalmartech_PIA_Admin';
 const MEMBER = 'member@example.com';
 const unreadable: AdminStore = { query: vi.fn(() => Promise.reject(new Error('lakebase down'))) };
 
@@ -44,7 +44,7 @@ describe('role resolution while the roster is unreadable', () => {
   });
 
   it('admits nobody else above the seed floor', async () => {
-    scimGroups.value = ['<engineer-group>'];
+    scimGroups.value = ['S_TK2_Databricks_globalmartech_PIA_Engineer'];
     await expect(resolveRole(unreadable, MEMBER)).resolves.toMatchObject({ role: 'consumer' });
   });
 

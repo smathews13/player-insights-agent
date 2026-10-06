@@ -421,7 +421,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('shows the deployment admin group as a locked admin row and refuses to remap it', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'S_TK2_Databricks_globalmartech_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
     try {
       const store = fakeLakebase();
@@ -465,7 +465,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('shows the deployment admin group even when it is not on the App ACL', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'S_TK2_Databricks_globalmartech_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
     try {
       const app = await startApp(fakeLakebase());
@@ -479,7 +479,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('keeps a stale stored row for the deployment admin group visible and clearable', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'S_TK2_Databricks_globalmartech_PIA_Admin';
     const store = fakeLakebase();
     const principals = [
       ...[LEAD, DEPUTY].map((name) => ({

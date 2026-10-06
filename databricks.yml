@@ -211,13 +211,13 @@ variables:
   # drops that group everywhere.
   app_engineer_group:
     description: Workspace group granted App CAN_USE and the in-app Consumer role.
-    default: <engineer-group>
+    default: S_TK2_Databricks_globalmartech_PIA_Engineer
   app_exec_group:
     description: Workspace group granted App CAN_USE and the in-app Consumer role.
-    default: <exec-group>
+    default: S_TK2_Databricks_globalmartech_PIA_Exec
   app_admin_group:
     description: Workspace group granted App CAN_USE and the in-app Admin role floor.
-    default: <admin-group>
+    default: S_TK2_Databricks_globalmartech_PIA_Admin
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to

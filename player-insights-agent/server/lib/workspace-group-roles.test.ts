@@ -85,7 +85,7 @@ describe('stored workspace group roles', () => {
 });
 
 describe('the deployment admin group', () => {
-  const ADMIN_GROUP = '<admin-group>';
+  const ADMIN_GROUP = 'S_TK2_Databricks_globalmartech_PIA_Admin';
   const previous = process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
 
   beforeEach(() => {
@@ -160,7 +160,7 @@ describe('the deployment admin group', () => {
   });
 
   it('gives non-members no group role', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim(['<engineer-group>'])));
+    const reader = vi.fn(() => Promise.resolve(scim(['S_TK2_Databricks_globalmartech_PIA_Engineer'])));
     await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
   });
 
