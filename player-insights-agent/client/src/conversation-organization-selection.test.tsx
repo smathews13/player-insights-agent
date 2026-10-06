@@ -34,7 +34,7 @@ describe('conversation organization filter', () => {
     expect(organizations.map((organization) => organization.name)).toEqual([
       'Contoso',
       'Databricks',
-      'Acme Interactive',
+      'Take-Two Interactive',
     ]);
     expect(markup).not.toContain('All personas');
   });

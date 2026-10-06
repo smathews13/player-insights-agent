@@ -25,10 +25,17 @@ SAFETY. The rules below are the reason this can run unattended:
     mid-update with nobody watching.
   * It refuses to act if no entity holds traffic, which means the endpoint is
     in a shape this tool does not understand.
-  * Kept entities are sent back as the API returned them, so workload size,
-    scale_to_zero and the environment block survive the write untouched. In
-    particular this does NOT enable scale_to_zero: a cold start on the first
-    question of a demo is the thing the setting is off to prevent.
+  * Kept entities that carry traffic are sent back as the API returned them, so
+    workload size, scale_to_zero and the environment block survive the write
+    untouched. A cold start on the first question of a demo is the thing the
+    setting is off to prevent, so a serving entity is never switched.
+  * Kept entities that carry NO traffic (the standing rollback) are switched to
+    scale_to_zero_enabled=True. Nobody is asking them anything, so there is no
+    cold start to protect and an always-on idle replica is pure billing. The
+    release deploys the new version always-on, so the version that steps down
+    to rollback arrives here still always-on; this is where it is corrected.
+    If somebody rolls back by hand in the Serving UI, that one entity pays one
+    cold start on the first request, which is the accepted trade.
 
 Rollback selection: the N most recent idle versions BELOW the serving version.
 Below, because a rollback is somewhere to retreat to. An idle version ABOVE the
@@ -106,6 +113,7 @@ def plan_prune(config: dict, keep_rollbacks: int) -> dict:
             ),
             "keep": entities,
             "remove": [],
+            "always_on_idle": [],
         }
 
     top_serving = max(_version_key(e.get("entity_version", "")) for e in serving)
@@ -122,11 +130,18 @@ def plan_prune(config: dict, keep_rollbacks: int) -> dict:
 
     keep = [e for e in entities if e.get("name") in kept_names]
     remove = [e for e in entities if e.get("name") not in kept_names]
+    always_on_idle = [
+        e
+        for e in keep
+        if traffic_by_name.get(e.get("name"), 0) <= 0
+        and not e.get("scale_to_zero_enabled")
+    ]
 
     return {
         "refuse": None,
         "keep": keep,
         "remove": remove,
+        "always_on_idle": always_on_idle,
         "serving_versions": sorted(e.get("entity_version") for e in serving),
         "kept_rollback_versions": [e.get("entity_version") for e in kept_rollbacks],
         "removed_versions": [e.get("entity_version") for e in remove],
@@ -140,11 +155,15 @@ def build_update_payload(plan: dict) -> dict:
     Sends the kept entities back verbatim and restates the traffic map for
     exactly those entities. Restating it is the point: omitting traffic_config
     invites the service to redistribute, and this tool exists to not move
-    traffic.
+    traffic. Idle kept entities (the rollback) are set to scale to zero; an
+    entity carrying traffic is never touched.
     """
+    traffic_by_name = plan["traffic_by_name"]
     served_entities = []
     for e in plan["keep"]:
         kept = {k: v for k, v in e.items() if k not in _READ_ONLY_ENTITY_FIELDS}
+        if traffic_by_name.get(e["name"], 0) <= 0:
+            kept["scale_to_zero_enabled"] = True
         served_entities.append(kept)
 
     routes = [
@@ -227,12 +246,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  serving         v{', v'.join(plan['serving_versions'])} (traffic unchanged)")
     print(f"  keeping         {keep_desc}")
 
-    if not plan["remove"]:
+    always_on = ", ".join(f"v{e['entity_version']}" for e in plan["always_on_idle"])
+    if not plan["remove"] and not plan["always_on_idle"]:
         print("  nothing to prune: no idle entities beyond the configured rollbacks")
         return 0
 
-    removed = ", ".join(f"v{v}" for v in plan["removed_versions"])
-    print(f"  idle to remove  {removed}  ({len(plan['remove'])} entities)")
+    if plan["remove"]:
+        removed = ", ".join(f"v{v}" for v in plan["removed_versions"])
+        print(f"  idle to remove  {removed}  ({len(plan['remove'])} entities)")
+    if always_on:
+        print(f"  idle to scale to zero  {always_on}")
+
+    if not args.apply and not plan["remove"]:
+        print(
+            f"\nWARNING: idle rollback {always_on} is always-on and answering nothing.\n"
+            f"It is NOT changed by this run. Switch it to scale to zero with:\n\n"
+            f"  bundle/prune-served-entities.py --endpoint {args.endpoint} \\\n"
+            f"    --profile '{args.profile}' --keep-rollbacks {args.keep_rollbacks} --apply\n",
+            file=sys.stderr,
+        )
+        return EXIT_PRUNE_PENDING
 
     if not args.apply:
         print(
@@ -248,7 +281,10 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_PRUNE_PENDING
 
     payload = build_update_payload(plan)
-    print(f"\n  applying: {len(plan['keep'])} entities kept, {len(plan['remove'])} removed")
+    print(
+        f"\n  applying: {len(plan['keep'])} entities kept, {len(plan['remove'])} removed, "
+        f"{len(plan['always_on_idle'])} idle set to scale to zero"
+    )
     _databricks_json(
         [
             "serving-endpoints",

@@ -131,13 +131,30 @@ d=json.load(sys.stdin)
 print(next(r['traffic_percentage'] for r in d['traffic_config']['routes'] if r['served_model_name']=='m_35'))")"
 check "the write carries exactly the kept entities" "2" \
   "$(printf '%s' "$PL" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['served_entities']))")"
-# scale_to_zero off is a deliberate setting on this endpoint: a cold start on
-# the first question of a demo is exactly what it prevents. A prune that
-# silently flipped it would look like a cost win and read as a broken demo.
-check "scale_to_zero is carried through untouched, not enabled" "False,False" \
+# scale_to_zero off is a deliberate setting on the SERVING entity: a cold start
+# on the first question of a demo is exactly what it prevents, so a prune that
+# flipped it would look like a cost win and read as a broken demo. The idle
+# rollback answers nobody, so it is switched to scale to zero instead of
+# billing an always-on replica.
+check "serving entity keeps scale_to_zero off; the idle rollback is switched on" "False,True" \
   "$(printf '%s' "$PL" | python3 -c "
 import json,sys
-print(','.join(str(e['scale_to_zero_enabled']) for e in json.load(sys.stdin)['served_entities']))")"
+es={e['name']:e for e in json.load(sys.stdin)['served_entities']}
+print(','.join(str(es[n]['scale_to_zero_enabled']) for n in ('m_36','m_35')))")"
+check "an entity carrying a small share of traffic is not treated as idle" "False,False,True" \
+  "$(payload 1 "$(cfg "36:90 35:10 34:0")" | python3 -c "
+import json,sys
+es={e['name']:e for e in json.load(sys.stdin)['served_entities']}
+print(','.join(str(es[n]['scale_to_zero_enabled']) for n in ('m_36','m_35','m_34')))")"
+check "an always-on rollback is reported even when nothing is removed" "m_35" \
+  "$(python3 - "$TOOL" "$(cfg "36:100 35:0")" <<'PY'
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("prune", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+p = m.plan_prune(json.loads(sys.argv[2]), 1)
+print(",".join(e["name"] for e in p["always_on_idle"]))
+PY
+)"
 check "read-only fields the API rejects on write are stripped" "" \
   "$(printf '%s' "$PL" | python3 -c "
 import json,sys

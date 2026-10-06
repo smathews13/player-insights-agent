@@ -177,9 +177,9 @@ describe('organization user badges', () => {
         <OrganizationUserBadge identity="producer@take2games.com" canOpen />
       </MemoryRouter>
     );
-    expect(markup).toContain('title="producer@take2games.com · Acme Interactive"');
+    expect(markup).toContain('title="producer@take2games.com · Take-Two Interactive"');
     expect(markup).toContain(
-      'aria-label="Open user overview for User producer@take2games.com; organization Acme Interactive"'
+      'aria-label="Open user overview for User producer@take2games.com; organization Take-Two Interactive"'
     );
   });
 });

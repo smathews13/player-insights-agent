@@ -279,6 +279,56 @@ def test_existing_served_version_environment_is_repaired_in_place(monkeypatch) -
     assert routes[0].traffic_percentage == 100
 
 
+def test_repair_names_every_entity_the_endpoint_keeps(monkeypatch) -> None:
+    """The failed Prod run: the endpoint keeps an idle rollback, so the traffic
+    map must name it (at 0%) or Databricks rejects the whole write."""
+
+    deploy_agent = _load_deploy_agent()
+    serving_entity = SimpleNamespace(
+        name="catalog_schema_model_35",
+        entity_name="catalog.schema.model",
+        entity_version="35",
+        environment_vars={},
+        scale_to_zero_enabled=False,
+    )
+    rollback = SimpleNamespace(
+        name="catalog_schema_model_34",
+        entity_name="catalog.schema.model",
+        entity_version="34",
+        environment_vars={"KEEP": "me"},
+        scale_to_zero_enabled=False,
+    )
+    config = SimpleNamespace(
+        served_entities=[rollback, serving_entity],
+        traffic_config=SimpleNamespace(routes=[]),
+        auto_capture_config=None,
+    )
+    updates: list[dict[str, Any]] = []
+    serving = SimpleNamespace(
+        get=lambda _name: SimpleNamespace(config=config),
+        update_config=lambda **kwargs: updates.append(kwargs),
+    )
+    monkeypatch.setattr(
+        deploy_agent,
+        "WorkspaceClient",
+        lambda: SimpleNamespace(serving_endpoints=serving),
+    )
+
+    assert deploy_agent._refresh_existing_version(
+        "pia-prod", "catalog.schema.model", "35", "new", "/Shared/player-insights-agent", False
+    )
+    routes = {
+        route.served_entity_name: route.traffic_percentage
+        for route in updates[0]["traffic_config"].routes
+    }
+    assert routes == {"catalog_schema_model_35": 100, "catalog_schema_model_34": 0}
+    served = {entity.name for entity in updates[0]["served_entities"]}
+    assert served == set(routes)
+    assert serving_entity.scale_to_zero_enabled is False
+    assert rollback.scale_to_zero_enabled is True
+    assert rollback.environment_vars == {"KEEP": "me"}
+
+
 def test_existing_version_repair_matches_model_and_version(monkeypatch) -> None:
     deploy_agent = _load_deploy_agent()
     wrong_model = SimpleNamespace(
