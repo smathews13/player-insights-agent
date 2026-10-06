@@ -16,7 +16,13 @@ import { parseAncestorList } from '../../shared/build-stamps';
 import type { LakebaseReader } from './lakebase-store';
 import { ExpiringLruCache } from './expiring-lru';
 import type { PreflightReport } from '../routes/insights-routes';
-import { workspaceExperimentIdResolver, type ExperimentIdResolver } from './experiment-probe';
+import {
+  workspaceEndpointExperimentResolver,
+  workspaceExperimentIdResolver,
+  type EndpointExperimentResolver,
+  type ExperimentIdResolver,
+  type ServedExperiment,
+} from './experiment-probe';
 
 /**
  * Where a stored value sits between being typed and being in force.
@@ -243,7 +249,21 @@ export const EXPERIMENT_ID_CACHE_MAX_ENTRIES = 128;
 export const EXPERIMENT_ID_CACHE_TTL_MS = 60 * 60_000;
 const experimentIdByPath = new ExpiringLruCache<string>(EXPERIMENT_ID_CACHE_MAX_ENTRIES, EXPERIMENT_ID_CACHE_TTL_MS);
 
-export type ExperimentConfigurationSource = 'app-saved' | 'app-environment' | 'app-path' | 'unconfigured';
+/**
+ * The experiment an endpoint traces into is read back from the endpoint, so a
+ * Git deploy, which replaces app.yaml with neutral defaults, still follows the
+ * experiment the release pinned on the endpoint. Only a success is kept, and only
+ * briefly, because a repair can move the endpoint to another experiment.
+ */
+export const ENDPOINT_EXPERIMENT_CACHE_TTL_MS = 5 * 60_000;
+const experimentByEndpoint = new ExpiringLruCache<ServedExperiment>(16, ENDPOINT_EXPERIMENT_CACHE_TTL_MS);
+
+export type ExperimentConfigurationSource =
+  | 'app-saved'
+  | 'serving-endpoint'
+  | 'app-environment'
+  | 'app-path'
+  | 'unconfigured';
 
 /**
  * The one recovered MLflow destination every app surface consumes.
@@ -264,12 +284,14 @@ export interface ExperimentConfiguration {
 /** Forget resolved ids, so a test starts from a clean cache. Exported for tests. */
 export function forgetResolvedExperimentIds(): void {
   experimentIdByPath.clear();
+  experimentByEndpoint.clear();
 }
 
 /**
  * The MLflow experiment configuration in force.
  *
- * Three sources, most specific first. An admin's active override, then the id the
+ * Four sources, most specific first. An admin's active override, then the
+ * experiment the serving endpoint is pinned to trace into, then the id the
  * release resolved into the environment, then -- when no id was supplied -- the
  * workspace PATH resolved to an id at runtime. A "From Git" deploy never runs the
  * release that fills the id, so it ships only the stable path; this is what gives
@@ -281,6 +303,7 @@ export async function resolveExperimentConfiguration(
     stored?: ReadonlyMap<string, StoredSetting>;
     environment?: Record<string, string | undefined>;
     resolvePath?: ExperimentIdResolver;
+    resolveEndpoint?: EndpointExperimentResolver;
     now?: number;
   } = {}
 ): Promise<ExperimentConfiguration> {
@@ -292,11 +315,21 @@ export async function resolveExperimentConfiguration(
     return { id: saved.value, path, source: 'app-saved' };
   }
 
+  const now = options.now ?? Date.now();
+  const endpointName = environment.DATABRICKS_SERVING_ENDPOINT_NAME?.trim() ?? '';
+  if (endpointName) {
+    let served = experimentByEndpoint.get(endpointName, now);
+    if (!served) {
+      served = (await (options.resolveEndpoint ?? workspaceEndpointExperimentResolver)(endpointName)) ?? undefined;
+      if (served) experimentByEndpoint.set(endpointName, served, now);
+    }
+    if (served) return { id: served.id, path: served.name || path, source: 'serving-endpoint' };
+  }
+
   const fromEnv = environment.PLAYER_INSIGHTS_EXPERIMENT_ID?.trim();
   if (fromEnv) return { id: fromEnv, path, source: 'app-environment' };
 
   if (!path) return { id: '', path: '', source: 'unconfigured' };
-  const now = options.now ?? Date.now();
   const cached = experimentIdByPath.get(path, now);
   if (cached) return { id: cached, path, source: 'app-path' };
   const resolved = (await (options.resolvePath ?? workspaceExperimentIdResolver)(path)).trim();
@@ -311,9 +344,10 @@ export async function resolveExperimentConfiguration(
 export async function resolveExperimentId(
   client: LakebaseReader,
   resolvePath: ExperimentIdResolver = workspaceExperimentIdResolver,
-  now = Date.now()
+  now = Date.now(),
+  resolveEndpoint?: EndpointExperimentResolver
 ): Promise<string> {
-  return (await resolveExperimentConfiguration(client, { resolvePath, now })).id;
+  return (await resolveExperimentConfiguration(client, { resolvePath, resolveEndpoint, now })).id;
 }
 
 /**
@@ -502,8 +536,7 @@ export function resourceStates(input: {
     // has no agentKey. The app can still recover a LAST-RESORT experiment id
     // from the served model version's own MLflow run. Saved/env/path values
     // below retain precedence; this fallback cannot steal ownership from them.
-    const servedExperiment =
-      resource.id === 'experiment-id' ? configuration.get('experiment_id') : undefined;
+    const servedExperiment = resource.id === 'experiment-id' ? configuration.get('experiment_id') : undefined;
     const check = resource.actualFromCheck ? byCheck.get(resource.actualFromCheck) : undefined;
     const saved = stored.get(resource.id);
 
@@ -592,6 +625,8 @@ const ARTIFACT = 'artifact';
 const TRUSTED_PROVENANCE = new Set([
   ARTIFACT,
   'app-environment',
+  // Read back from the serving endpoint the release pinned, not from this file.
+  'serving-endpoint',
   'data-contract',
   // Read from the exact model version currently receiving endpoint traffic.
   // This is stronger evidence than a generic app path and remains available

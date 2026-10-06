@@ -26,6 +26,7 @@ import {
   settingsPayload,
   type StoredSetting,
 } from './app-settings';
+import { servedExperimentOf } from './experiment-probe';
 import { RUNTIME_EDITABLE_IDS } from '../../shared/deployment-config';
 import type { PreflightReport } from '../routes/insights-routes';
 
@@ -1168,5 +1169,154 @@ describe('resolving the experiment id', () => {
 
     expect(value).toBe('');
     expect(calls).toEqual([]);
+  });
+});
+
+describe('the experiment a Git deploy follows', () => {
+  const endpointBody = (entities: Array<Record<string, unknown>>, routes: Array<[string, number]>) => ({
+    config: {
+      served_entities: entities,
+      traffic_config: {
+        routes: routes.map(([name, share]) => ({ served_entity_name: name, traffic_percentage: share })),
+      },
+    },
+  });
+  const entity = (name: string, id: string, experimentName = '/Shared/player-insights-agent-prod') => ({
+    name,
+    environment_vars: { MLFLOW_EXPERIMENT_ID: id, MLFLOW_EXPERIMENT_NAME: experimentName },
+  });
+  const gitDeployEnvironment = {
+    DATABRICKS_SERVING_ENDPOINT_NAME: 'pia-prod',
+    PLAYER_INSIGHTS_EXPERIMENT_ID: '',
+    PLAYER_INSIGHTS_EXPERIMENT_PATH: '/Shared/player-insights-agent',
+  };
+  const emptyClient = { lakebase: { query: () => Promise.resolve({ rows: [] }) } };
+
+  beforeEach(() => forgetResolvedExperimentIds());
+
+  it('reads a traffic-bearing entity off the endpoint, so the baked-in default path is not used', async () => {
+    const asked: string[] = [];
+    const configuration = await resolveExperimentConfiguration(emptyClient, {
+      stored: new Map(),
+      environment: gitDeployEnvironment,
+      resolveEndpoint: (name) => {
+        asked.push(name);
+        return Promise.resolve(servedExperimentOf(endpointBody([entity('m_35', '777')], [['m_35', 100]])));
+      },
+      resolvePath: () => Promise.reject(new Error('the baked-in path must not be resolved')),
+    });
+    expect(configuration).toEqual({
+      id: '777',
+      path: '/Shared/player-insights-agent-prod',
+      source: 'serving-endpoint',
+    });
+    expect(asked).toEqual(['pia-prod']);
+  });
+
+  it('beats an id restored from an older release, but not an admin override', async () => {
+    const resolveEndpoint = () => Promise.resolve({ id: '777', name: '/Shared/player-insights-agent-prod' });
+    const withOldId = { ...gitDeployEnvironment, PLAYER_INSIGHTS_EXPERIMENT_ID: '111' };
+    expect(
+      (
+        await resolveExperimentConfiguration(emptyClient, {
+          stored: new Map(),
+          environment: withOldId,
+          resolveEndpoint,
+        })
+      ).id
+    ).toBe('777');
+    forgetResolvedExperimentIds();
+    const saved = new Map([
+      [
+        'experiment-id',
+        {
+          resourceId: 'experiment-id',
+          value: '999',
+          intent: 'active' as const,
+          note: '',
+          updatedAt: '',
+          updatedBy: '',
+        },
+      ],
+    ]);
+    const overridden = await resolveExperimentConfiguration(emptyClient, {
+      stored: saved,
+      environment: withOldId,
+      resolveEndpoint: () => Promise.reject(new Error('an admin override needs no endpoint read')),
+    });
+    expect(overridden).toMatchObject({ id: '999', source: 'app-saved' });
+  });
+
+  it('falls back to the environment and path when the endpoint cannot say', async () => {
+    const configuration = await resolveExperimentConfiguration(emptyClient, {
+      stored: new Map(),
+      environment: gitDeployEnvironment,
+      resolveEndpoint: () => Promise.resolve(null),
+      resolvePath: () => Promise.resolve('555'),
+    });
+    expect(configuration).toEqual({ id: '555', path: '/Shared/player-insights-agent', source: 'app-path' });
+  });
+
+  it('keeps a successful answer briefly and never keeps a miss', async () => {
+    let calls = 0;
+    const answers = [null, { id: '777', name: '/Shared/p' }];
+    const resolveEndpoint = () => {
+      calls += 1;
+      return Promise.resolve(answers[Math.min(calls - 1, 1)]);
+    };
+    const options = {
+      stored: new Map(),
+      environment: gitDeployEnvironment,
+      resolveEndpoint,
+      resolvePath: () => Promise.resolve(''),
+    };
+    expect((await resolveExperimentConfiguration(emptyClient, { ...options, now: 0 })).source).toBe('unconfigured');
+    expect((await resolveExperimentConfiguration(emptyClient, { ...options, now: 1 })).source).toBe('serving-endpoint');
+    expect((await resolveExperimentConfiguration(emptyClient, { ...options, now: 2 })).source).toBe('serving-endpoint');
+    expect(calls).toBe(2);
+  });
+
+  it('does not ask an endpoint when the deployment names none', async () => {
+    const { DATABRICKS_SERVING_ENDPOINT_NAME: _omitted, ...withoutEndpoint } = gitDeployEnvironment;
+    const configuration = await resolveExperimentConfiguration(emptyClient, {
+      stored: new Map(),
+      environment: withoutEndpoint,
+      resolveEndpoint: () => Promise.reject(new Error('no endpoint is named')),
+      resolvePath: () => Promise.resolve('555'),
+    });
+    expect(configuration.source).toBe('app-path');
+  });
+
+  describe('servedExperimentOf', () => {
+    it('ignores an idle rollback that still names an older experiment', () => {
+      const body = endpointBody(
+        [entity('m_35', '777'), entity('m_34', '111', '/Shared/old')],
+        [
+          ['m_35', 100],
+          ['m_34', 0],
+        ]
+      );
+      expect(servedExperimentOf(body)).toEqual({ id: '777', name: '/Shared/player-insights-agent-prod' });
+    });
+
+    it('answers nothing when serving entities disagree or carry no id', () => {
+      expect(
+        servedExperimentOf(
+          endpointBody(
+            [entity('a', '1'), entity('b', '2')],
+            [
+              ['a', 50],
+              ['b', 50],
+            ]
+          )
+        )
+      ).toBeNull();
+      expect(servedExperimentOf(endpointBody([{ name: 'a', environment_vars: {} }], [['a', 100]]))).toBeNull();
+      expect(servedExperimentOf({})).toBeNull();
+    });
+
+    it('treats every entity as serving when the endpoint has no traffic map', () => {
+      expect(servedExperimentOf({ config: { served_entities: [entity('a', '777')] } })?.id).toBe('777');
+    });
   });
 });
