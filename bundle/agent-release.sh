@@ -984,6 +984,20 @@ step "Deploying version $MODEL_VERSION to $ENDPOINT"
     uv run --frozen --python 3.13 python deploy_agent.py --model-version "$MODEL_VERSION"
 )
 
+# The app invokes this endpoint with the signed-in human's forwarded token.
+# Its resource binding grants only the app service principal, so grant the
+# configured customer access groups explicitly and verify the endpoint ACL.
+#
+# A warning, not a stop: the new version is already serving here, so dying would
+# skip its tag and the traffic confirmation below and leave it unverified. The
+# grant is independent of the version and can be repaired on its own.
+if ! TARGET="$TARGET" PROFILE="$PROFILE" \
+  bash "$BUNDLE_ROOT/bundle/endpoint-user-access.sh" --apply; then
+  note "WARNING: the customer access groups were NOT granted CAN_QUERY on $ENDPOINT."
+  note "Members will get HTTP 403 on Ask until it is fixed. Repair it with:"
+  note "  TARGET=$TARGET PROFILE=$PROFILE bundle/endpoint-user-access.sh --apply"
+fi
+
 step "Applying the Player Insights Agent resource tag"
 (cd "$BUNDLE_ROOT/agent" \
   && DATABRICKS_HOST="$WORKSPACE_HOST" DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \

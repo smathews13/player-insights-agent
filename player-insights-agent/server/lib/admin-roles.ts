@@ -49,7 +49,7 @@ import {
 // about what a row is. Re-exported because most callers here want it, and a second
 // import line at every call site is noise.
 import type { AdminListEntry, AdminListPayload } from '../../shared/admin-contract';
-import { groupRoleLookupForStore, type GroupRoleLookup } from './workspace-group-roles';
+import { deploymentGroupRoleLookup, groupRoleLookupForStore, type GroupRoleLookup } from './workspace-group-roles';
 
 export type { AdminListEntry, AdminListPayload };
 
@@ -331,6 +331,9 @@ export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> 
   }));
 }
 
+// Built once: role resolution falls back to it only when the roster is unreadable.
+const readDeploymentAdminGroupRole = deploymentGroupRoleLookup();
+
 /**
  * The caller's role from Lakebase.
  *
@@ -346,7 +349,8 @@ export async function readAddedAdmins(store: AdminStore): Promise<AddedAdmin[]> 
 async function resolveRoleFrom(
   email: string,
   read: () => Promise<StoredRoster>,
-  readGroupRole: GroupRoleLookup
+  readGroupRole: GroupRoleLookup,
+  readDeploymentGroupRole: GroupRoleLookup = readDeploymentAdminGroupRole
 ): Promise<RoleResolution> {
   const caller = normalizeAdminEmail(email);
   const seed = seedRoles();
@@ -363,10 +367,14 @@ async function resolveRoleFrom(
   } catch (error) {
     console.warn(
       `[admin] The stored roster could not be read (${(error as Error).message}), so this request has ` +
-        'no stored roles to check against and resolves at the seed floor. Seed administrators are ' +
-        'unaffected. An unreadable roster denies rather than admits.'
+        'no stored roles to check against and resolves at the seed floor and the deployment admin ' +
+        'group. Seed administrators are unaffected. An unreadable roster denies rather than admits.'
     );
-    return { role: floor, addedAdminsReadable: false, seedAdminCount: seed.admins.length };
+    // The deployment admin group is config, not stored state, so it still
+    // applies. Stored group mappings do not: they are part of what is unreadable.
+    const groupRole = caller ? await readDeploymentGroupRole(caller).catch(() => null) : null;
+    const role = groupRole ? highestRole(floor, groupRole) : floor;
+    return { role, addedAdminsReadable: false, seedAdminCount: seed.admins.length };
   }
 }
 

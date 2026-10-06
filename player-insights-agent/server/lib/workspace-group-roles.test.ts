@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminStore } from './admin-identity';
-import { groupRoleLookupForStore } from './workspace-group-roles';
+import {
+  deploymentGroupRoleLookup,
+  forgetWorkspaceGroupMemberships,
+  groupRoleLookupForStore,
+} from './workspace-group-roles';
 
 const EMAIL = 'person@example.com';
 
@@ -20,6 +24,8 @@ function scim(groups: string[]) {
 }
 
 describe('stored workspace group roles', () => {
+  beforeEach(() => forgetWorkspaceGroupMemberships());
+
   it('does not assign a group role when no mapping has been added', async () => {
     const reader = vi.fn(() => Promise.resolve(scim(['Existing Team'])));
     await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
@@ -75,5 +81,93 @@ describe('stored workspace group roles', () => {
     await expect(
       groupRoleLookupForStore(store, () => Promise.reject(new Error('forbidden')))(EMAIL)
     ).resolves.toBeNull();
+  });
+});
+
+describe('the deployment admin group', () => {
+  const ADMIN_GROUP = '<admin-group>';
+  const previous = process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+
+  beforeEach(() => {
+    forgetWorkspaceGroupMemberships();
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = ADMIN_GROUP;
+  });
+  afterEach(() => {
+    if (previous === undefined) delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+    else process.env.PLAYER_INSIGHTS_ADMIN_GROUP = previous;
+  });
+
+  it('makes members admins without any stored mapping', async () => {
+    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP.toLowerCase()])));
+    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('cannot be weakened by a stored consumer row for the same group', async () => {
+    const store = storeWithMappings([
+      {
+        group_name: ADMIN_GROUP,
+        role: 'consumer',
+        added_by: 'owner@example.com',
+        added_at: '2026-10-06T00:00:00.000Z',
+      },
+    ]);
+    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
+    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('still applies, and says so, when stored mappings cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const store: AdminStore = { query: vi.fn(() => Promise.reject(new Error('lakebase down'))) };
+    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
+    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('admin');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('lakebase down'));
+    warn.mockRestore();
+  });
+
+  it('reads SCIM membership once per caller within the cache window', async () => {
+    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
+    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
+    await expect(lookup(EMAIL)).resolves.toBe('admin');
+    await expect(lookup(EMAIL)).resolves.toBe('admin');
+    expect(reader).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failed SCIM read', async () => {
+    const reader = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('throttled'))
+      .mockResolvedValueOnce(scim([ADMIN_GROUP]));
+    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
+    await expect(lookup(EMAIL)).resolves.toBeNull();
+    await expect(lookup(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('does not cache a SCIM body that does not include the caller', async () => {
+    const reader = vi
+      .fn()
+      .mockResolvedValueOnce({ Resources: [] })
+      .mockResolvedValueOnce(scim([ADMIN_GROUP]));
+    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
+    await expect(lookup(EMAIL)).resolves.toBeNull();
+    await expect(lookup(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('ignores stored mappings in the deployment-only lookup', async () => {
+    const reader = vi.fn(() => Promise.resolve(scim(['Operators', ADMIN_GROUP])));
+    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBe('admin');
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = '';
+    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBeNull();
+  });
+
+  it('gives non-members no group role', async () => {
+    const reader = vi.fn(() => Promise.resolve(scim(['<engineer-group>'])));
+    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
+  });
+
+  it('is inert when the deployment names no group', async () => {
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = '';
+    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
+    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
+    expect(reader).not.toHaveBeenCalled();
   });
 });

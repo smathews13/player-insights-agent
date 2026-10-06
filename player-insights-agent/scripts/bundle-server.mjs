@@ -379,6 +379,9 @@ async function main() {
   // reaches the container, which is the step that has silently dropped a
   // variable before.
   const sharedRail = (process.env.PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL ?? '').trim();
+  // Per-target admin group. Authored empty, so absent or empty here (example, a
+  // plain Git build) leaves no admin group at all.
+  const adminGroup = (process.env.PLAYER_INSIGHTS_ADMIN_GROUP ?? '').trim();
   if (sharedRail && sharedRail.toLowerCase() === 'true') {
     console.log(
       '\n  note  PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL=true: the deployed app.yaml will let every\n' +
@@ -538,6 +541,7 @@ async function main() {
       // a release that could not resolve the variable must not be the thing
       // that opens one stakeholder's conversations to another.
       ...(sharedRail ? [{ name: 'PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL', value: `'${sharedRail}'` }] : []),
+      ...(adminGroup ? [{ name: 'PLAYER_INSIGHTS_ADMIN_GROUP', value: `'${adminGroup.replaceAll("'", "''")}'` }] : []),
       // Both per-deployment and correctly empty when unresolved. No telemetry
       // destination means telemetry is off. No admin bootstrap means only that a
       // genuinely empty roster gets no first row; an existing Lakebase roster is

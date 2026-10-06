@@ -419,6 +419,109 @@ describe('the super admin reads the roster', () => {
       expect.objectContaining({ groupName: 'App analysts', role: 'consumer', setBy: '' }),
     ]);
   });
+
+  it('shows the deployment admin group as a locked admin row and refuses to remap it', async () => {
+    const adminGroup = '<admin-group>';
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
+    try {
+      const store = fakeLakebase();
+      const principals = [
+        ...[LEAD, DEPUTY].map((name) => ({
+          kind: 'user' as const,
+          name,
+          displayName: name,
+          directPermission: 'CAN_USE' as const,
+          effectivePermission: 'CAN_USE' as const,
+          inherited: false,
+        })),
+        {
+          kind: 'group' as const,
+          name: adminGroup,
+          displayName: adminGroup,
+          directPermission: 'CAN_USE' as const,
+          effectivePermission: 'CAN_USE' as const,
+          inherited: false,
+        },
+      ];
+      const appAccess: AppAccessService = {
+        read: () => Promise.resolve({ available: true, principals, message: '' }),
+      };
+      const app = await startApp(store, appAccess);
+
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.groupRoleMappings).toEqual([
+        expect.objectContaining({ groupName: adminGroup, role: 'admin', deploymentManaged: true, onAppAccess: true }),
+      ]);
+
+      const remapped = await app.mapGroup(LEAD, adminGroup.toLowerCase(), 'consumer');
+      expect(remapped.status).toBe(409);
+      expect((await remapped.json()) as Record<string, unknown>).toMatchObject({
+        error: 'group_role_deployment_managed',
+      });
+      expect(store.rows.groups).toEqual([]);
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+    }
+  });
+
+  it('shows the deployment admin group even when it is not on the App ACL', async () => {
+    const adminGroup = '<admin-group>';
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
+    try {
+      const app = await startApp(fakeLakebase());
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.groupRoleMappings).toEqual([
+        expect.objectContaining({ groupName: adminGroup, role: 'admin', deploymentManaged: true, onAppAccess: false }),
+      ]);
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+    }
+  });
+
+  it('keeps a stale stored row for the deployment admin group visible and clearable', async () => {
+    const adminGroup = '<admin-group>';
+    const store = fakeLakebase();
+    const principals = [
+      ...[LEAD, DEPUTY].map((name) => ({
+        kind: 'user' as const,
+        name,
+        displayName: name,
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      })),
+      {
+        kind: 'group' as const,
+        name: adminGroup,
+        displayName: adminGroup,
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      },
+    ];
+    const appAccess: AppAccessService = {
+      read: () => Promise.resolve({ available: true, principals, message: '' }),
+    };
+    const app = await startApp(store, appAccess);
+    expect((await app.mapGroup(LEAD, adminGroup, 'consumer')).status).toBe(200);
+
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
+    try {
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.groupRoleMappings).toEqual([
+        expect.objectContaining({ groupName: adminGroup, role: 'admin', setBy: LEAD, deploymentManaged: true }),
+      ]);
+      const cleared = await app.resetGroup(LEAD, adminGroup);
+      expect(cleared.status).toBe(200);
+      expect(store.rows.groups).toEqual([]);
+      const clearedPayload = (await cleared.json()) as RosterPayload;
+      expect(clearedPayload.groupRoleMappings).toEqual([
+        expect.objectContaining({ groupName: adminGroup, role: 'admin', setBy: '', deploymentManaged: true }),
+      ]);
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+    }
+  });
 });
 
 describe('appointing an administrator', () => {

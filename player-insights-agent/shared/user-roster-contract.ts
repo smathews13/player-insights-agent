@@ -164,6 +164,10 @@ export interface GroupRoleMappingEntry {
   setAt: string;
   scimConfirmed: boolean;
   identityManagementUrl: string;
+  /** The deployment's admin access group: always Admin, not editable in Identity. */
+  deploymentManaged?: boolean;
+  /** Set with deploymentManaged: whether the group itself is on the App ACL. */
+  onAppAccess?: boolean;
 }
 
 export interface RosterPayload {

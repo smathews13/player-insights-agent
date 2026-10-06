@@ -648,7 +648,7 @@ function GroupRoleRow({
             label="Player Insights Agent role"
             ariaLabel={`Player Insights Agent role for ${entry.groupName}`}
             value={entry.role}
-            disabled={busy}
+            disabled={busy || entry.deploymentManaged}
             onValueChange={(role) => onRoleChange(entry, role)}
             options={(['admin', 'consumer'] as const).map((role) => ({
               value: role,
@@ -657,6 +657,13 @@ function GroupRoleRow({
             }))}
             className="roster-control roster-role-select group-role-select"
           />
+          {entry.deploymentManaged ? (
+            <span className="admin-list-note">
+              {entry.onAppAccess === false
+                ? 'Set by this deployment; the group is not on the App permissions'
+                : 'Set by this deployment'}
+            </span>
+          ) : null}
         </td>
         <td className="roster-persona">
           <AppSelect
@@ -678,10 +685,14 @@ function GroupRoleRow({
               size="sm"
               disabled={busy}
               onClick={() => onReset(entry)}
-              aria-label={`Reset ${entry.groupName} to Consumer`}
+              aria-label={
+                entry.deploymentManaged
+                  ? `Clear the stored role for ${entry.groupName}`
+                  : `Reset ${entry.groupName} to Consumer`
+              }
             >
               <Trash2 className="roster-action-icon" aria-hidden="true" />
-              Reset role
+              {entry.deploymentManaged ? 'Clear stored role' : 'Reset role'}
             </Button>
           ) : null}
         </td>
@@ -960,9 +971,15 @@ export function UserRoleEditor({
                 )
               }
               onGroupReset={(mapping) =>
-                void run(() => resetGroupRoleMapping(mapping.groupName), `${mapping.groupName} is now a Consumer.`, {
-                  apply: setPayload,
-                })
+                void run(
+                  () => resetGroupRoleMapping(mapping.groupName),
+                  mapping.deploymentManaged
+                    ? `Cleared the stored role for ${mapping.groupName}. This deployment keeps it Admin.`
+                    : `${mapping.groupName} is now a Consumer.`,
+                  {
+                    apply: setPayload,
+                  }
+                )
               }
               footer={
                 canManageHumanRoles ? (

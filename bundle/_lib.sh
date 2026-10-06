@@ -297,3 +297,93 @@ if not i:
 print(i)
 " "$1" "$2"
 }
+
+# load_access_groups -> sets ACCESS_GROUPS to the target's non-empty customer
+# access groups (var.app_engineer_group, app_exec_group, app_admin_group).
+#
+# One assignment per variable, not one array literal: a failing command
+# substitution inside an array assignment does not trip `set -e`, so a broken
+# bundle read would quietly look like "no groups configured".
+load_access_groups() {
+  local engineer executive admin
+  engineer="$(bundle_var_or_empty app_engineer_group)"
+  executive="$(bundle_var_or_empty app_exec_group)"
+  admin="$(bundle_var_or_empty app_admin_group)"
+  ACCESS_GROUPS=()
+  local name
+  for name in "$engineer" "$executive" "$admin"; do
+    # Trimmed, because a stray space would otherwise fail the grant outright.
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    [[ -n "$name" ]] && ACCESS_GROUPS+=("$name")
+  done
+  return 0
+}
+
+# grant_group_acl <object-type> <object-id> <level> <group>... -> give each
+# group at least <level> on the object, then verify every group holds it.
+#
+# Groups that already hold <level> or CAN_MANAGE directly are left out of the
+# write, so a release never re-sends a lower level over a higher grant someone
+# made by hand. The rest go in one PATCH, not a PUT: `databricks permissions
+# update` merges these entries and leaves every other user, group, service
+# principal, and inherited entry untouched. Names match case-insensitively, as
+# the server matches SCIM groups.
+grant_group_acl() {
+  local object_type="$1" object_id="$2" level="$3"
+  shift 3
+  local before after acl_json
+  before="$(databricks permissions get "$object_type" "$object_id" --profile "$PROFILE" -o json)" \
+    || die "Could not read the $object_type $object_id ACL. The profile identity needs CAN_MANAGE on it."
+  acl_json="$(PERMISSIONS_JSON="$before" python3 - "$level" "$@" <<'PY'
+import json
+import os
+import sys
+
+level, groups = sys.argv[1], list(dict.fromkeys(sys.argv[2:]))
+held = set()
+for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list") or []:
+    levels = {
+        str(permission.get("permission_level") or "")
+        for permission in entry.get("all_permissions") or []
+        if permission.get("inherited") is not True
+    }
+    if level in levels or "CAN_MANAGE" in levels:
+        held.add(str(entry.get("group_name") or "").strip().lower())
+missing = [name for name in groups if name.lower() not in held]
+print(json.dumps({"access_control_list": [
+    {"group_name": name, "permission_level": level} for name in missing
+]}) if missing else "")
+PY
+)" || die "Could not plan the $level grant on $object_type $object_id."
+  if [[ -z "$acl_json" ]]; then
+    note "every group already holds $level or higher on $object_type $object_id"
+    return 0
+  fi
+  databricks permissions update "$object_type" "$object_id" \
+    --profile "$PROFILE" --json "$acl_json" >/dev/null \
+    || die "Could not grant $level on $object_type $object_id to: $*
+The profile identity needs CAN_MANAGE on it, and every group must exist in the workspace."
+  after="$(databricks permissions get "$object_type" "$object_id" \
+    --profile "$PROFILE" -o json)" \
+    || die "Could not read the $object_type $object_id ACL back to verify the grant."
+  PERMISSIONS_JSON="$after" python3 - "$level" "$@" <<'PY' || die "Verifying $level on $object_type $object_id failed."
+import json
+import os
+import sys
+
+level, required = sys.argv[1], {name.lower(): name for name in sys.argv[2:]}
+granted = set()
+for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list") or []:
+    levels = {
+        str(permission.get("permission_level") or "")
+        for permission in entry.get("all_permissions") or []
+        if permission.get("inherited") is not True
+    }
+    if level in levels or "CAN_MANAGE" in levels:
+        granted.add(str(entry.get("group_name") or "").strip().lower())
+missing = sorted(name for key, name in required.items() if key not in granted)
+if missing:
+    raise SystemExit(f"{level} verification failed for: " + ", ".join(missing))
+PY
+}

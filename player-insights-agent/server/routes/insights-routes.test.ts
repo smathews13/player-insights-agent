@@ -64,6 +64,14 @@ import {
 } from './execution-identity';
 import type { WarehouseCancellationTransport } from '../lib/warehouse-cancellation';
 
+// The production resolver reads the real serving endpoint with whatever workspace
+// credentials the machine has, so a developer logged in to our demo workspace got
+// its experiment id in a test that expects none.
+vi.mock('../lib/experiment-probe', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/experiment-probe')>()),
+  workspaceEndpointExperimentResolver: () => Promise.resolve(null),
+}));
+
 // Captured verbatim from the deployed `player-insights-agent` endpoint so the app
 // contract is tested against what Model Serving actually returns.
 const { liveAnswerResponse, livePlanResponse } = servingResponses;
