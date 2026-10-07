@@ -83,8 +83,9 @@ run_app_acl_self_grant() {
   fi
 }
 
-# The customer access groups' App CAN_USE. A PATCH beside the self-grant, not a
-# bundle `permissions:` block, so it never replaces anyone else's App access.
+# The customer access groups' App CAN_USE. The bundle declares them on the App;
+# this PATCH beside the self-grant covers an App created before that and never
+# replaces anyone else's App access.
 #
 # A warning, not a stop: the grant is independent of the code being released, so
 # a missing group or a permissions error must not block shipping the code. It is

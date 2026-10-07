@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Grant the app's configured customer access groups CAN_USE on the Databricks App.
 #
-# A PATCH rather than a `permissions:` block on the bundle resource, on purpose:
-# a bundle-declared ACL is authoritative, so every `bundle deploy` would replace
-# the whole App ACL and strip the app service principal's CAN_MANAGE
-# self-grant (bundle/app-acl-self-grant.sh) plus every member added through
-# Identity or the workspace UI. This adds the groups and touches nothing else.
+# The App resource in the bundle declares these groups, so a bundle deploy sets
+# them. This script is the add-only repair for an App that was created before
+# that, or whose ACL was edited by hand: a PATCH, so it adds the groups and
+# touches nothing else (the app service principal's CAN_MANAGE self-grant and any
+# member added through Identity stay).
 #
 # The groups are var.app_engineer_group, var.app_exec_group and
 # var.app_admin_group; empty ones are skipped, and a target with none (example) is a
