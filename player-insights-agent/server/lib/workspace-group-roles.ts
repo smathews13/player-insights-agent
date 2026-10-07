@@ -26,16 +26,53 @@ export function isConfiguredAdminGroup(groupName: string): boolean {
 }
 
 /**
- * Stored mappings plus the deployment's admin group as an Admin floor.
+ * The deployment's other access groups (Engineer and Exec), comma separated in
+ * the environment so a Deploy from Git carries them. They sign in as Consumers;
+ * naming them here makes Identity list them and keeps a stale stored row from
+ * changing what the deployment says.
+ */
+export function configuredConsumerGroups(): string[] {
+  const seen = new Set<string>();
+  return (process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => {
+      const key = normalized(name);
+      if (!key || key === normalized(configuredAdminGroup()) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+export function isConfiguredConsumerGroup(groupName: string): boolean {
+  const key = normalized(groupName);
+  return Boolean(key) && configuredConsumerGroups().some((name) => normalized(name) === key);
+}
+
+/** Every group whose role the deployment sets, with that role. Admin first. */
+export function deploymentGroups(): GroupRoleMapping[] {
+  const adminGroup = configuredAdminGroup();
+  return [
+    ...(adminGroup ? [{ groupName: adminGroup, role: 'admin' as const }] : []),
+    ...configuredConsumerGroups().map((groupName) => ({ groupName, role: 'consumer' as const })),
+  ];
+}
+
+export function isDeploymentManagedGroup(groupName: string): boolean {
+  return isConfiguredAdminGroup(groupName) || isConfiguredConsumerGroup(groupName);
+}
+
+/**
+ * Stored mappings plus the deployment's access groups.
  *
- * The configured group is not an editable suggestion: a stale Lakebase row must
- * never turn its members into consumers, so it replaces any stored row for the
- * same group. Super admin stays an explicit roster role.
+ * A configured group is not an editable suggestion: a stale Lakebase row must
+ * never turn the admin group's members into consumers, so the deployment's role
+ * replaces any stored row for the same group. Super admin stays an explicit
+ * roster role, and individual users are never touched by any of this.
  */
 function withConfiguredAdminGroup(stored: readonly GroupRoleMapping[]): GroupRoleMapping[] {
-  const adminGroup = configuredAdminGroup();
-  const kept = stored.filter((mapping) => !isConfiguredAdminGroup(mapping.groupName));
-  return adminGroup ? [{ groupName: adminGroup, role: 'admin' }, ...kept] : kept;
+  const kept = stored.filter((mapping) => !isDeploymentManagedGroup(mapping.groupName));
+  return [...deploymentGroups(), ...kept];
 }
 
 function record(value: unknown): Record<string, unknown> {

@@ -974,7 +974,7 @@ export function UserRoleEditor({
                 void run(
                   () => resetGroupRoleMapping(mapping.groupName),
                   mapping.deploymentManaged
-                    ? `Cleared the stored role for ${mapping.groupName}. This deployment keeps it Admin.`
+                    ? `Cleared the stored role for ${mapping.groupName}. This deployment keeps its role.`
                     : `${mapping.groupName} is now a Consumer.`,
                   {
                     apply: setPayload,
