@@ -316,6 +316,9 @@ fi
 # of putting it in the bundle at all.
 SHARED_RAIL="$(bundle_var_or_empty shared_conversation_rail)"
 ADMIN_GROUP="$(bundle_var_or_empty app_admin_group)"
+ENGINEER_GROUP="$(bundle_var_or_empty app_engineer_group)"
+EXEC_GROUP="$(bundle_var_or_empty app_exec_group)"
+CONSUMER_GROUPS="${ENGINEER_GROUP}${ENGINEER_GROUP:+${EXEC_GROUP:+,}}${EXEC_GROUP}"
 # Postgres schema the app owns inside Lakebase. Default player_insights; the
 # release bakes the resolved var into PLAYER_INSIGHTS_APP_SCHEMA so Connections
 # and DDL agree with the bundle.
@@ -574,6 +577,7 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_INDEX_REBUILD_JOB_ID="$INDEX_REBUILD_JOB_ID" \
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_ADMIN_GROUP="$ADMIN_GROUP" \
+     PLAYER_INSIGHTS_CONSUMER_GROUPS="$CONSUMER_GROUPS" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
      PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT" \
      PLAYER_INSIGHTS_CATALOG="$CATALOG" \

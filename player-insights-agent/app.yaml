@@ -135,6 +135,11 @@ env:
   # one, and the release-environment snapshot keeps that across later Git deploys.
   - name: PLAYER_INSIGHTS_ADMIN_GROUP
     value: 'S_TK2_Databricks_globalmartech_PIA_Admin'
+  # The other access groups, comma separated. Their members sign in as Consumers;
+  # Identity lists them as set by this deployment. Individual users are never
+  # replaced by any group here.
+  - name: PLAYER_INSIGHTS_CONSUMER_GROUPS
+    value: 'S_TK2_Databricks_globalmartech_PIA_Engineer,S_TK2_Databricks_globalmartech_PIA_Exec'
   # Greenfield role bootstrap: a comma-separated list of email addresses.
   # The app writes these roles to Lakebase only when the roster is genuinely
   # empty. Once any role row exists, this value is ignored forever: absence or a

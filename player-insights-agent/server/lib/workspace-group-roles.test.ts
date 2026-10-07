@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminStore } from './admin-identity';
 import {
   deploymentGroupRoleLookup,
+  deploymentGroups,
   forgetWorkspaceGroupMemberships,
   groupRoleLookupForStore,
 } from './workspace-group-roles';
@@ -169,5 +170,40 @@ describe('the deployment admin group', () => {
     const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
     await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
     expect(reader).not.toHaveBeenCalled();
+  });
+});
+
+describe('the deployment consumer groups', () => {
+  const ENGINEER = 'S_TK2_Databricks_globalmartech_PIA_Engineer';
+  const EXEC = 'S_TK2_Databricks_globalmartech_PIA_Exec';
+  const previous = process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+
+  beforeEach(() => {
+    forgetWorkspaceGroupMemberships();
+    process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = ` ${ENGINEER}, ${EXEC} ,,${ENGINEER}`;
+  });
+  afterEach(() => {
+    if (previous === undefined) delete process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+    else process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = previous;
+  });
+
+  it('lists each group once, trimmed, without needing a stored row', () => {
+    expect(deploymentGroups()).toEqual([
+      { groupName: ENGINEER, role: 'consumer' },
+      { groupName: EXEC, role: 'consumer' },
+    ]);
+  });
+
+  it('cannot be raised by a stored admin row for the same group', async () => {
+    const store = storeWithMappings([
+      { group_name: EXEC, role: 'admin', added_by: 'owner@example.com', added_at: '2026-10-06T00:00:00.000Z' },
+    ]);
+    const reader = vi.fn(() => Promise.resolve(scim([EXEC.toLowerCase()])));
+    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('consumer');
+  });
+
+  it('is nothing when the environment names no groups', () => {
+    delete process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+    expect(deploymentGroups()).toEqual([]);
   });
 });

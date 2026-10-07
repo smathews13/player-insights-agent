@@ -464,6 +464,44 @@ describe('the super admin reads the roster', () => {
     }
   });
 
+  it('lists the deployment groups apart from the people, keeps the people, and locks the groups', async () => {
+    const admin = 'S_TK2_Databricks_globalmartech_PIA_Admin';
+    const engineer = 'S_TK2_Databricks_globalmartech_PIA_Engineer';
+    const exec = 'S_TK2_Databricks_globalmartech_PIA_Exec';
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = admin;
+    process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = `${engineer},${exec}`;
+    try {
+      const store = fakeLakebase();
+      const principals = [LEAD, DEPUTY].map((name) => ({
+        kind: 'user' as const,
+        name,
+        displayName: name,
+        directPermission: 'CAN_USE' as const,
+        effectivePermission: 'CAN_USE' as const,
+        inherited: false,
+      }));
+      const appAccess: AppAccessService = {
+        read: () => Promise.resolve({ available: true, principals, message: '' }),
+      };
+      const app = await startApp(store, appAccess);
+
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.groupRoleMappings).toEqual([
+        expect.objectContaining({ groupName: admin, role: 'admin', deploymentManaged: true, onAppAccess: false }),
+        expect.objectContaining({ groupName: engineer, role: 'consumer', deploymentManaged: true, onAppAccess: false }),
+        expect.objectContaining({ groupName: exec, role: 'consumer', deploymentManaged: true, onAppAccess: false }),
+      ]);
+      expect(payload.entries.map((entry) => entry.email)).toEqual(expect.arrayContaining([LEAD, DEPUTY]));
+
+      const remapped = await app.mapGroup(LEAD, engineer.toLowerCase(), 'admin');
+      expect(remapped.status).toBe(409);
+      expect(store.rows.groups).toEqual([]);
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+      delete process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+    }
+  });
+
   it('shows the deployment admin group even when it is not on the App ACL', async () => {
     const adminGroup = 'S_TK2_Databricks_globalmartech_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
