@@ -186,9 +186,14 @@ else
   bad "run_app_user_access is called somewhere other than the main release path"
 fi
 if grep -q 'permissions:' <(sed -n '/^targets:/,$p' "$HERE/../databricks.yml" | grep -A3 'player_insights_app:'); then
-  bad "databricks.yml declares App permissions, which replace the whole App ACL on deploy"
+  bad "a target overrides the App permissions, which would drop the groups declared on the resource"
 else
-  ok "databricks.yml leaves the App ACL to the PATCH grants"
+  ok "no target overrides the App permissions declared on the resource"
+fi
+if awk '/permissions:/{f=1} f&&/app_engineer_group/{a=1} f&&/app_exec_group/{b=1} f&&/app_admin_group/{c=1} END{exit !(a&&b&&c)}' "$HERE/../resources/player_insights_app.app.yml"; then
+  ok "the App resource declares all three groups"
+else
+  bad "the App resource does not declare all three access groups"
 fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

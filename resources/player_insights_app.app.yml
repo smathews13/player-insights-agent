@@ -45,6 +45,19 @@ resources:
       # app stop/start and a fresh sign-in.
       user_api_scopes: ${var.app_user_api_scopes}
 
+      # The customer's identity groups are the app's outer access boundary, set
+      # when the bundle creates or updates the App so nobody has to run a grant
+      # afterwards. In-app roles stay in Lakebase; the admin group is also the
+      # Admin floor (PLAYER_INSIGHTS_ADMIN_GROUP in app.yaml). CAN_USE rather than
+      # CAN_MANAGE, which would let members redeploy or stop the App.
+      permissions:
+        - group_name: ${var.app_engineer_group}
+          level: CAN_USE
+        - group_name: ${var.app_exec_group}
+          level: CAN_USE
+        - group_name: ${var.app_admin_group}
+          level: CAN_USE
+
       # These bindings grant the app service principal access to its state
       # store, serving endpoint, and SQL warehouse. Do not bind governed tables
       # or Genie spaces; governed reads must use the signed-in user's token.
