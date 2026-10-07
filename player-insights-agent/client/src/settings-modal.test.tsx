@@ -271,15 +271,15 @@ describe('Settings modal', () => {
     expect(consumer).not.toContain('/api/admin/access-guide');
   });
 
-  it('enables only Environment and Appearance for consumers', () => {
+  it('shows only Environment and Appearance to consumers, and nothing greyed out', () => {
     const consumer = render('environment', { state: 'consumer', addedAdminsReadable: true });
     const button = (label: string) =>
       (consumer.match(/<button[\s\S]*?<\/button>/g) ?? []).find((entry) => entry.includes(`>${label}</span>`)) ?? '';
 
     expect(button('Environment')).not.toContain('disabled=""');
     expect(button('Appearance')).not.toContain('disabled=""');
-    expect(button('Identity')).toContain('disabled=""');
-    expect(button('Experimental')).toContain('disabled=""');
+    expect(button('Identity')).toBe('');
+    expect(button('Experimental')).toBe('');
     expect(consumer).not.toContain('>Runtime</span>');
     expect(consumer).not.toContain('>Egress controls</span>');
     expect(consumer).not.toContain('>General</span>');

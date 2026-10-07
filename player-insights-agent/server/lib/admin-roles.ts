@@ -159,19 +159,39 @@ export function parseSeedAdmins(raw: string | undefined): {
 let seedAdmins: string[] = [];
 let seedSuperAdmins: string[] = [];
 
-/** What the environment named at boot. Super admins included: they are admins too. */
-export function seedAdminEmails(): readonly string[] {
-  return seedAdmins;
+/**
+ * Super admins this deployment pins, whatever is in the roster.
+ *
+ * Read per call, not at boot, and never cleared after bootstrap: this is the one
+ * seed that must still apply to a roster that already has rows, so a plain
+ * Deploy from Git is enough to give the named person full access. Being in the
+ * seed also makes them undeletable from the roster screens. Garbage entries are
+ * ignored; the value is a list of addresses.
+ */
+export const PINNED_SUPER_ADMINS_ENV = 'PLAYER_INSIGHTS_SUPER_ADMINS';
+
+function pinnedSuperAdmins(): string[] {
+  return parseSeedAdmins(process.env[PINNED_SUPER_ADMINS_ENV]).emails;
 }
 
-/** The super admins the environment named at boot. A subset of {@link seedAdminEmails}. */
+function withPinned(base: readonly string[]): string[] {
+  const pinned = pinnedSuperAdmins();
+  return pinned.length === 0 ? [...base] : [...new Set([...pinned, ...base])];
+}
+
+/** What the environment named: the boot seed plus the pinned super admins. Super admins included: they are admins too. */
+export function seedAdminEmails(): readonly string[] {
+  return withPinned(seedAdmins);
+}
+
+/** The super admins the environment named. A subset of {@link seedAdminEmails}. */
 export function seedSuperAdminEmails(): readonly string[] {
-  return seedSuperAdmins;
+  return withPinned(seedSuperAdmins);
 }
 
 /** Both halves of the seed, as the roster's precedence rule wants them. */
 export function seedRoles(): SeedRoles {
-  return { superAdmins: seedSuperAdmins, admins: seedAdmins };
+  return { superAdmins: seedSuperAdminEmails(), admins: seedAdminEmails() };
 }
 
 /**
