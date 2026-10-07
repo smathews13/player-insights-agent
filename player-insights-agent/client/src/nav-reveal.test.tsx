@@ -23,7 +23,14 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { NavLinks } from './Layout';
-import { navEntries, showsHeaderRoleBadge, showsSettingsGear, ADMIN_PAGE_NAMES, type RoleResolution, type RoleState } from './role';
+import {
+  navEntries,
+  showsHeaderRoleBadge,
+  showsSettingsGear,
+  ADMIN_PAGE_NAMES,
+  type RoleResolution,
+  type RoleState,
+} from './role';
 import { NO_EXPERIMENTS } from './experimental-features';
 import { BENCHMARK_LAB_ENABLED, SHOW_EVERY_TAB_TO_EVERYONE } from './nav-reveal';
 
@@ -49,31 +56,29 @@ function labels(markup: string): string[] {
 
 const EVERY_TAB = ['Ask', 'Run Explorer', 'Monitoring', 'Ops', 'Connections', 'Architecture'];
 
-describe('the review flag is on', () => {
-  it('is on, which every assertion below depends on', () => {
-    expect(SHOW_EVERY_TAB_TO_EVERYONE).toBe(true);
+const CONSUMER_TABS = ['Ask', 'Run Explorer', 'Connections', 'Architecture'];
+
+describe('the review flag is off', () => {
+  it('is off, which every assertion below depends on', () => {
+    expect(SHOW_EVERY_TAB_TO_EVERYONE).toBe(false);
   });
 });
 
-describe('every reader is shown every tab', () => {
-  it('draws the whole set for a consumer, admin pages included', () => {
-    expect(labels(render('consumer'))).toEqual(EVERY_TAB);
+describe('each reader is shown only their own tabs', () => {
+  it('hides Monitoring and Ops from a consumer', () => {
+    expect(labels(render('consumer'))).toEqual(CONSUMER_TABS);
   });
 
-  it('draws the same set for an administrator, so the two roles see one app', () => {
-    expect(labels(render('admin'))).toEqual(labels(render('consumer')));
+  it('shows an administrator every tab', () => {
+    expect(labels(render('admin'))).toEqual(EVERY_TAB);
   });
 
-  it('draws it for a reader whose role could not be read at all', () => {
-    // The failed state is the one a review is most likely to be conducted in --
-    // an identity endpoint that is not answering yet -- and hiding the app from
-    // it would defeat the flag on exactly the account it was asked for.
-    expect(labels(render('failed'))).toEqual(EVERY_TAB);
+  it('hides the admin tabs from a reader whose role could not be read', () => {
+    expect(labels(render('failed'))).toEqual(CONSUMER_TABS);
   });
 
-  it('opens the gear for everyone, so App settings is reviewable with the rest', () => {
+  it('still opens the gear for a consumer, for Appearance only', () => {
     expect(showsSettingsGear('consumer')).toBe(true);
-    expect(EVERY_TAB).not.toContain('Settings');
   });
 });
 
@@ -111,10 +116,8 @@ describe('Benchmarking follows the operator setting', () => {
 
 describe('nothing about permission has moved', () => {
   it('leaves every admin route wrapped in the gate, so a consumer meets a sentence and not a page', () => {
-    // The flag reveals the tab. `AdminOnly` still decides what is behind it, and
-    // that is the whole reason revealing the tab is safe: a genuine consumer who
-    // clicks Monitoring gets "Not available on your account" rather than a page
-    // of requests the server refuses.
+    // A consumer who follows a pasted admin link gets "Not available on your
+    // account" rather than a page of requests the server refuses.
     for (const path of Object.keys(ADMIN_PAGE_NAMES)) {
       const route = APP_SOURCE.match(new RegExp(`path: '${path}',[\\s\\S]*?errorElement:`));
 

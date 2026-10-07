@@ -50,7 +50,7 @@ import { saveExperimentalSettings, type ExperimentalSettingsDocument } from './e
 const noopClose = () => {};
 
 const DEFAULT_ROLE: RoleResolution = { state: 'failed', addedAdminsReadable: false };
-const CONSUMER_SETTINGS_SECTIONS = new Set<SettingsSection>(['identity', 'environment', 'appearance', 'experimental']);
+const CONSUMER_SETTINGS_SECTIONS = new Set<SettingsSection>(['environment', 'appearance']);
 const CONSUMER_DISABLED_SECTIONS = new Set<SettingsSection>(['identity', 'experimental']);
 
 function settingsSectionDisabled(section: SettingsSection, role: RoleResolution['state']): boolean {

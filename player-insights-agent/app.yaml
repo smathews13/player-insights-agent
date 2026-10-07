@@ -140,6 +140,12 @@ env:
   # replaced by any group here.
   - name: PLAYER_INSIGHTS_CONSUMER_GROUPS
     value: 'S_TK2_Databricks_globalmartech_PIA_Engineer,S_TK2_Databricks_globalmartech_PIA_Exec'
+  # Super admins pinned by this deployment. Unlike the bootstrap list below, this
+  # applies on every boot and to an existing roster, so a plain Deploy from Git
+  # gives the named people full access with nothing run afterwards. They cannot
+  # be removed or demoted from the Identity screen. Comma separated addresses.
+  - name: PLAYER_INSIGHTS_SUPER_ADMINS
+    value: 'garrecht.metzger@take2games.com'
   # Greenfield role bootstrap: a comma-separated list of email addresses.
   # The app writes these roles to Lakebase only when the roster is genuinely
   # empty. Once any role row exists, this value is ignored forever: absence or a
