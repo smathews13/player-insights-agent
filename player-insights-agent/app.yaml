@@ -129,13 +129,12 @@ env:
   # Insights Agent Admin role, and Identity shows it as deployment-managed rather
   # than editable. Super admin stays an explicit roster role.
   #
-  # EMPTY HERE ON PURPOSE. This tree is published and Deploy from Git ships it to
-  # any workspace, so a group name here would make that name an Admin floor
-  # everywhere. bundle/app-release.sh sets it from var.app_admin_group for the
-  # dev and prod targets, and the release-environment snapshot keeps it across
-  # later Git deploys of the same App.
+  # Acme's exact workspace group, authored here so a plain Deploy from Git
+  # carries it with nothing run afterwards. Keep its case: SCIM names are exact.
+  # bundle/app-release.sh replaces it from var.app_admin_group when a target sets
+  # one, and the release-environment snapshot keeps that across later Git deploys.
   - name: PLAYER_INSIGHTS_ADMIN_GROUP
-    value: ''
+    value: 'S_TK2_Databricks_globalmartech_PIA_Admin'
   # Greenfield role bootstrap: a comma-separated list of email addresses.
   # The app writes these roles to Lakebase only when the roster is genuinely
   # empty. Once any role row exists, this value is ignored forever: absence or a
