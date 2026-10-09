@@ -58,7 +58,11 @@ function accessDetail(principal: AppAccessPrincipal): string {
  * default role. Groups and service principals stay separate because expanding
  * them into guessed human members would make the apparent 1:1 list false.
  */
-export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAccessSnapshot): RosterPayload {
+export function alignRosterWithAppAccess(
+  payload: RosterPayload,
+  snapshot: AppAccessSnapshot,
+  pinnedSuperAdmins: readonly string[] = []
+): RosterPayload {
   if (!snapshot.available) {
     return {
       ...payload,
@@ -74,7 +78,7 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
   }
 
   const storedByEmail = new Map(payload.entries.map((entry) => [entry.email.toLowerCase(), entry]));
-  const entries = snapshot.principals
+  const aclEntries = snapshot.principals
     .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
     .map((principal) => {
       const entry = storedByEmail.get(principal.name.toLowerCase());
@@ -99,6 +103,17 @@ export function alignRosterWithAppAccess(payload: RosterPayload, snapshot: AppAc
         canRemove: false,
       } satisfies RosterEntry;
     });
+  // A pinned super admin is always listed, on the App ACL or not: they may reach
+  // the app through a group, and the list must not hide someone who holds the
+  // top role. No access badge, because the ACL says nothing about them.
+  const listed = new Set(aclEntries.map((entry) => entry.email.toLowerCase()));
+  const pinnedEntries = pinnedSuperAdmins
+    .map((email) => email.toLowerCase())
+    .filter((email, index, all) => !listed.has(email) && all.indexOf(email) === index)
+    .map((email) => storedByEmail.get(email))
+    .filter((entry): entry is RosterEntry => Boolean(entry))
+    .map((entry) => ({ ...entry, appAccess: undefined, appAccessDetail: undefined }));
+  const entries = [...aclEntries, ...pinnedEntries];
   return {
     ...payload,
     entries,

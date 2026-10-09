@@ -109,6 +109,28 @@ describe('Databricks App access roster', () => {
     );
   });
 
+  it('always lists a pinned super admin, even with no direct App permission, and counts them', () => {
+    const pinned = {
+      ...roster.entries[0],
+      email: 'Pinned.Owner@example.com',
+      isDeploymentOwner: false,
+      isYou: false,
+    };
+    const aligned = alignRosterWithAppAccess(
+      { ...roster, entries: [...roster.entries, pinned] },
+      { available: true, principals: appAccessPrincipals(acl), message: '' },
+      ['pinned.owner@example.com', 'owner@example.com']
+    );
+    const emails = aligned.entries.map((entry) => entry.email);
+    expect(emails.filter((email) => email.toLowerCase() === 'pinned.owner@example.com')).toHaveLength(1);
+    expect(emails.filter((email) => email === 'owner@example.com')).toHaveLength(1);
+    expect(aligned.entries.find((entry) => entry.email === 'Pinned.Owner@example.com')).toMatchObject({
+      role: 'super_admin',
+      appAccess: undefined,
+    });
+    expect(aligned.superAdminCount).toBe(2);
+  });
+
   it('keeps stored roles visible and marks membership unknown when the App ACL cannot be read', () => {
     const aligned = alignRosterWithAppAccess(roster, {
       available: false,

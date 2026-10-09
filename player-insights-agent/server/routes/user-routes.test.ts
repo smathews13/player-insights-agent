@@ -552,6 +552,32 @@ describe('the super admin reads the roster', () => {
     }
   });
 
+  it('lists a pinned super admin who is not on the App ACL', async () => {
+    process.env.PLAYER_INSIGHTS_SUPER_ADMINS = 'owner@customer.example';
+    try {
+      const principals = [
+        {
+          kind: 'user' as const,
+          name: LEAD,
+          displayName: LEAD,
+          directPermission: 'CAN_USE' as const,
+          effectivePermission: 'CAN_USE' as const,
+          inherited: false,
+        },
+      ];
+      const app = await startApp(fakeLakebase(), {
+        read: () => Promise.resolve({ available: true, principals, message: '' }),
+      });
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.entries.find((entry) => entry.email === 'owner@customer.example')).toMatchObject({
+        role: 'super_admin',
+        canRemove: false,
+      });
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_SUPER_ADMINS;
+    }
+  });
+
   it('shows the deployment admin group even when it is not on the App ACL', async () => {
     const adminGroup = 'S_TK2_Databricks_globalmartech_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
