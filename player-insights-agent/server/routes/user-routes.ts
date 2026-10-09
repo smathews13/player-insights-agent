@@ -33,6 +33,7 @@ import {
   normalizeAdminEmail,
   recordAdminAction,
   seedRoles,
+  pinnedSuperAdminEmails,
   seedSuperAdminEmails,
   invalidAdminEmail,
   type AdminStore,
@@ -419,7 +420,7 @@ export function setupUserRoutes(
       });
       payload.organizations = currentOrganizationMappings();
       const appAccess = await appAccessService.read(req);
-      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
+      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess, pinnedSuperAdminEmails())));
     });
 
     /**
@@ -640,7 +641,7 @@ export function setupUserRoutes(
       });
       payload.organizations = currentOrganizationMappings();
       const appAccess = await appAccessService.read(req);
-      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess)));
+      res.json(await attachGroupMappings(alignRosterWithAppAccess(payload, appAccess, pinnedSuperAdminEmails())));
     }
   });
 }

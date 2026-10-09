@@ -170,12 +170,13 @@ let seedSuperAdmins: string[] = [];
  */
 export const PINNED_SUPER_ADMINS_ENV = 'PLAYER_INSIGHTS_SUPER_ADMINS';
 
-function pinnedSuperAdmins(): string[] {
+/** The addresses this deployment pins as super admins, normalized. */
+export function pinnedSuperAdminEmails(): string[] {
   return parseSeedAdmins(process.env[PINNED_SUPER_ADMINS_ENV]).emails;
 }
 
 function withPinned(base: readonly string[]): string[] {
-  const pinned = pinnedSuperAdmins();
+  const pinned = pinnedSuperAdminEmails();
   return pinned.length === 0 ? [...base] : [...new Set([...pinned, ...base])];
 }
 
