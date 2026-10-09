@@ -822,6 +822,16 @@
   max-width: 100%;
 }
 
+.group-role-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
 .group-role-identity > svg {
   width: 15px;
   height: 15px;

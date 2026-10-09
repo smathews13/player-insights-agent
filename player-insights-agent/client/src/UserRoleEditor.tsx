@@ -604,7 +604,7 @@ function GroupRoleRow({
       setLoading(false);
     }
   };
-  const organization = organizationForEmail('group@example.com', organizations ?? []);
+  const organization = organizationForEmail(entry.organizationEmail || 'group@example.com', organizations ?? []);
 
   return (
     <>
@@ -633,7 +633,7 @@ function GroupRoleRow({
                 <ExternalLink aria-hidden="true" />
               </a>
             ) : (
-              <span>{entry.groupName}</span>
+              <span className="group-role-name">{entry.groupName}</span>
             )}
           </div>
         </td>
@@ -644,38 +644,25 @@ function GroupRoleRow({
           </span>
         </td>
         <td className="roster-role">
-          <AppSelect
-            label="Player Insights Agent role"
-            ariaLabel={`Player Insights Agent role for ${entry.groupName}`}
-            value={entry.role}
-            disabled={busy || entry.deploymentManaged}
-            onValueChange={(role) => onRoleChange(entry, role)}
-            options={(['admin', 'consumer'] as const).map((role) => ({
-              value: role,
-              label: roleWord(role),
-              content: <RoleBadgePill state={role} />,
-            }))}
-            className="roster-control roster-role-select group-role-select"
-          />
           {entry.deploymentManaged ? (
-            <span className="admin-list-note">
-              {entry.onAppAccess === false
-                ? 'Set by this deployment; the group is not on the App permissions'
-                : 'Set by this deployment'}
-            </span>
-          ) : null}
+            <RoleBadgePill state={entry.role} />
+          ) : (
+            <AppSelect
+              label="Player Insights Agent role"
+              ariaLabel={`Player Insights Agent role for ${entry.groupName}`}
+              value={entry.role}
+              disabled={busy}
+              onValueChange={(role) => onRoleChange(entry, role)}
+              options={(['admin', 'consumer'] as const).map((role) => ({
+                value: role,
+                label: roleWord(role),
+                content: <RoleBadgePill state={role} />,
+              }))}
+              className="roster-control roster-role-select group-role-select"
+            />
+          )}
         </td>
-        <td className="roster-persona">
-          <AppSelect
-            label="Persona"
-            ariaLabel={`Persona for group ${entry.groupName}`}
-            value={UNASSIGNED_PERSONA}
-            disabled
-            onValueChange={() => undefined}
-            options={[{ value: UNASSIGNED_PERSONA, label: 'No persona' }]}
-            className="roster-control roster-persona-select"
-          />
-        </td>
+        <td className="roster-persona" />
         <td className="roster-action">
           {entry.setBy ? (
             <Button
