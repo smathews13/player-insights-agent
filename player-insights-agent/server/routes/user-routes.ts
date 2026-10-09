@@ -33,6 +33,7 @@ import {
   normalizeAdminEmail,
   recordAdminAction,
   seedRoles,
+  seedSuperAdminEmails,
   invalidAdminEmail,
   type AdminStore,
 } from '../lib/admin-roles';
@@ -200,6 +201,10 @@ async function withdrawOnDemotion(input: {
   });
 }
 
+function isWorkspaceBuiltInAdminsGroup(name: string): boolean {
+  return name.trim().toLocaleLowerCase() === 'admins';
+}
+
 export function setupUserRoutes(
   appkit: InsightsAppKit,
   deps: {
@@ -220,8 +225,10 @@ export function setupUserRoutes(
       return [];
     });
     const storedByName = new Map(mappings.map((mapping) => [mapping.groupName.toLocaleLowerCase(), mapping]));
+    // The workspace's built-in `admins` group is on every App ACL as an inherited
+    // Can Manage. It is the platform's, not this deployment's, so it gets no row.
     const appGroupNames = (payload.appAccessPrincipals ?? [])
-      .filter((principal) => principal.kind === 'group')
+      .filter((principal) => principal.kind === 'group' && !isWorkspaceBuiltInAdminsGroup(principal.name))
       .map((principal) => principal.name);
     // The deployment's access groups give their members a role whether or not
     // they are on the App ACL (members may reach the App through another group),
@@ -234,6 +241,8 @@ export function setupUserRoutes(
     ];
     const confirmations = await Promise.all(groupNames.map((name) => confirmWorkspaceGroup(name)));
     const identityManagementUrl = accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST);
+    // The deployment's groups belong to the customer that pinned the super admin.
+    const organizationEmail = seedSuperAdminEmails()[0] ?? '';
     payload.groupRoleMappings = groupNames.map((groupName, index) => {
       const scimConfirmed = confirmations[index].readable && confirmations[index].exists;
       const mapping = storedByName.get(groupName.toLocaleLowerCase());
@@ -250,7 +259,11 @@ export function setupUserRoutes(
         scimConfirmed,
         identityManagementUrl: scimConfirmed ? identityManagementUrl : '',
         ...(deploymentManaged
-          ? { deploymentManaged: true, onAppAccess: aclNames.has(groupName.toLocaleLowerCase()) }
+          ? {
+              deploymentManaged: true,
+              onAppAccess: aclNames.has(groupName.toLocaleLowerCase()),
+              ...(organizationEmail ? { organizationEmail } : {}),
+            }
           : {}),
       };
     });
@@ -265,10 +278,16 @@ export function setupUserRoutes(
     app.get('/api/users/groups/:groupName/members', async (req, res) => {
       const requested = req.params.groupName.trim();
       const appAccess = await appAccessService.read(req);
-      const allowed = appAccess.principals
-        .filter((principal) => principal.kind === 'group' && principal.effectivePermission !== null)
-        .map((principal) => principal.name)
-        .find((group) => group.toLocaleLowerCase() === requested.toLocaleLowerCase());
+      // The deployment's own access groups can always be expanded, on the App
+      // ACL or not: they are how their members get a role.
+      const allowed =
+        deploymentGroups()
+          .map((group) => group.groupName)
+          .find((group) => group.toLocaleLowerCase() === requested.toLocaleLowerCase()) ??
+        appAccess.principals
+          .filter((principal) => principal.kind === 'group' && principal.effectivePermission !== null)
+          .map((principal) => principal.name)
+          .find((group) => group.toLocaleLowerCase() === requested.toLocaleLowerCase());
       if (!allowed) {
         res.status(404).json({
           groupName: requested,

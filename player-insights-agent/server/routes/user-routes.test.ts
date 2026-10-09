@@ -178,6 +178,13 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
     appAccess: suppliedAppAccess ?? appAccess,
     readWorkspaceGroup: (groupName) =>
       Promise.resolve({ groupName, groupId: `group:${groupName}`, exists: true, readable: true }),
+    readGroupMembers: (groupName) =>
+      Promise.resolve({
+        groupName,
+        members: [{ email: 'member@example.com', displayName: 'Member' }],
+        readable: true,
+        detail: '',
+      }),
   });
 
   server = app.listen(0, '127.0.0.1');
@@ -213,6 +220,8 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
         headers: headers(email),
         body: JSON.stringify({ groupName, role }),
       }),
+    groupMembers: (email: string, groupName: string) =>
+      fetch(`${base}/api/users/groups/${encodeURIComponent(groupName)}/members`, { headers: headers(email) }),
     resetGroup: (email: string, groupName: string) =>
       fetch(`${base}/api/users/groups/${encodeURIComponent(groupName)}`, {
         method: 'DELETE',
@@ -499,6 +508,47 @@ describe('the super admin reads the roster', () => {
     } finally {
       delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
       delete process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+    }
+  });
+
+  it('hides the workspace admins group, files the deployment groups under the customer, and expands them', async () => {
+    const engineer = 'S_TK2_Databricks_globalmartech_PIA_Engineer';
+    process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = engineer;
+    process.env.PLAYER_INSIGHTS_SUPER_ADMINS = 'owner@customer.example';
+    try {
+      const principals = [
+        {
+          kind: 'user' as const,
+          name: LEAD,
+          displayName: LEAD,
+          directPermission: 'CAN_USE' as const,
+          effectivePermission: 'CAN_USE' as const,
+          inherited: false,
+        },
+        {
+          kind: 'group' as const,
+          name: 'admins',
+          displayName: 'admins',
+          directPermission: null,
+          effectivePermission: 'CAN_MANAGE' as const,
+          inherited: true,
+        },
+      ];
+      const app = await startApp(fakeLakebase(), {
+        read: () => Promise.resolve({ available: true, principals, message: '' }),
+      });
+      const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+      expect(payload.groupRoleMappings?.map((group) => group.groupName)).toEqual([engineer]);
+      expect(payload.groupRoleMappings?.[0]).toMatchObject({ organizationEmail: 'owner@customer.example' });
+
+      // Not on the App ACL, and still expandable: that is how people check who is in it.
+      const members = await app.groupMembers(LEAD, engineer);
+      expect(members.status).toBe(200);
+      expect(await members.json()).toMatchObject({ members: [{ email: 'member@example.com' }] });
+      expect((await app.groupMembers(LEAD, 'some-other-group')).status).toBe(404);
+    } finally {
+      delete process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
+      delete process.env.PLAYER_INSIGHTS_SUPER_ADMINS;
     }
   });
 

@@ -168,6 +168,12 @@ export interface GroupRoleMappingEntry {
   deploymentManaged?: boolean;
   /** Set with deploymentManaged: whether the group itself is on the App ACL. */
   onAppAccess?: boolean;
+  /**
+   * Set with deploymentManaged: an address in the organization the group belongs
+   * to (the deployment's pinned super admin), so the row shows that
+   * organization rather than the neutral fallback.
+   */
+  organizationEmail?: string;
 }
 
 export interface RosterPayload {

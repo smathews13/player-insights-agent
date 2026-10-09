@@ -295,7 +295,7 @@ describe('the #24a Roles geometry', () => {
     expect(text(markup)).toContain('Example analysts');
     expect(text(markup)).toContain('analyst');
     expect(markup).toContain('aria-label="Reset Example analysts to Consumer"');
-    expect(markup).toContain('aria-label="Persona for group Example analysts: No persona"');
+    expect(markup).not.toContain('Persona for group');
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');
     expect(editor).not.toContain('Add group');
     expect(editor).toContain('Select a Databricks workspace group');
