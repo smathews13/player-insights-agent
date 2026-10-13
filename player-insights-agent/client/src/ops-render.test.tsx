@@ -27,9 +27,11 @@ import { describe, expect, it } from 'vitest';
 import {
   CostBody,
   CostTileTitle,
+  FreezeQueries,
   GenieDatabricksLink,
   HealthBody,
   LatencyBody,
+  OpsAdminPanel,
   OpsPage,
   ScopeAdminControl,
   StopAllActiveRuns,
@@ -46,7 +48,6 @@ import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import type { OpsCostPayload, OpsHealthPayload, OpsLatencyPayload, OpsTrafficPayload } from '../../shared/ops-contract';
 
 const OPS_STYLES = readFileSync(new URL('./styles/ops.css', import.meta.url), 'utf8');
-const RESPONSIVE_OPS_STYLES = readFileSync(new URL('./styles/responsive-ops.css', import.meta.url), 'utf8');
 const UNIT_CONTROL_SOURCE = readFileSync(new URL('./UnitSegmentedControl.tsx', import.meta.url), 'utf8');
 
 function text(markup: string): string {
@@ -79,57 +80,69 @@ it('keeps Health rows at the Connected-resources size', () => {
   );
 });
 
-describe('the admin cancellation control', () => {
-  it('labels the compact admin-only control and says only what it preserves', () => {
+describe('the Ops admin panel', () => {
+  it('keeps the cancellation action and says what it preserves', () => {
     const visible = render(<StopAllActiveRuns />);
-    expect(visible).toContain('ADMIN');
-    expect(visible).toContain('Stop all active runs');
-    expect(visible).toContain('No data or history is deleted.');
+    expect(visible).toContain('Stop active runs');
+    expect(visible).toContain('Cancel in-flight work without deleting data or history.');
     expect(visible).not.toContain('One-time snapshot only');
     expect(visible).not.toContain('Future Asks continue');
     const markup = markupOf(<StopAllActiveRuns />);
     expect(markup).toContain('ops-stop-all-button');
     expect(markup).toContain('data-variant="destructive"');
-    expect(OPS_STYLES).toMatch(
-      /\.ops-stop-all strong,\s*\.ops-admin-action strong\s*\{[^}]*color:\s*var\(--db-red-700\)/
-    );
-    expect(OPS_STYLES).toMatch(/\.ops-stop-all strong,\s*\.ops-admin-action strong\s*\{[^}]*font-weight:\s*800/);
+    expect(markup).toContain('lucide-circle-stop');
   });
 
-  it('is gated by the resolved admin role on Ops', () => {
-    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
-    expect(source).toContain(
-      'canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null'
+  it('draws one Admin heading over four matched actions', () => {
+    const markup = markupOf(
+      <OpsAdminPanel
+        scopesAction={<CheckScopesButton busy={false} onClick={() => {}} />}
+        refreshBusy={false}
+        onRefreshAll={() => {}}
+      />
     );
-    expect(source).toContain('canCheckHealthResources(role.state) ? scopes.modal : null');
+    const visible = text(markup);
+
+    expect(visible.match(/ADMIN/g)).toHaveLength(1);
+    for (const label of ['Check all scopes', 'Stop active runs', 'Freeze queries', 'Update all Ops views']) {
+      expect(visible).toContain(label);
+    }
+    expect(markup.match(/class="ops-admin-action(?: |")/g)).toHaveLength(4);
+    expect(markup).toContain('lucide-shield-check');
+    expect(markup).toContain('lucide-circle-stop');
+    expect(markup).toContain('lucide-snowflake');
+    expect(markup).toContain('lucide-refresh-cw');
+  });
+
+  it('is gated by the resolved Admin-or-higher role on Ops', () => {
+    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('showsAdminSurfaces(role.state) ? (');
+    expect(source).toContain('<OpsAdminPanel');
+    expect(source).toContain('showsAdminSurfaces(role.state) ? scopes.modal : null');
     expect(source).toContain("fetch('/api/admin/runs/cancel-all'");
   });
 
-  it('puts the only scope action in its neutral admin box', () => {
+  it('keeps each action wired to the existing PIA operation', () => {
     const admin = markupOf(<ScopeAdminControl action={<CheckScopesButton busy={false} onClick={() => {}} />} />);
-    expect(admin).toContain('ADMIN');
+    const freeze = markupOf(<FreezeQueries />);
+
+    expect(admin).toContain('Check all scopes');
     expect(admin).toContain('Compare user and app catalog access.');
-    expect(admin.match(/class="sr-only">Check all scopes/g)).toHaveLength(1);
     expect(admin).toContain('ops-admin-action-scope');
-    // Both admin actions are destructive-red with a red border: the scopes check
-    // declares the destructive variant so the dark-mode default-variant rule cannot
-    // repaint it blue. The admin box is still the neutral container; only the button
-    // inside it is red. Kept in lockstep with ops-scope-modal.test.tsx.
     expect(admin).toContain('data-variant="destructive"');
-    expect(admin).not.toContain('data-variant="default"');
-    expect(OPS_STYLES).toMatch(
-      /\.ops-stop-all \.ops-stop-all-button span,\s*\.ops-admin-action-scope \.ops-scope-check-button span\s*\{[^}]*color:\s*#ffffff/
-    );
+    expect(freeze).toContain('Freeze queries');
+    expect(freeze).toContain('disabled=""');
+
+    const source = readFileSync(new URL('./OpsPage.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('await revokeContinuedUsage(status)');
+    expect(source).toContain('health.refresh();');
+    expect(source).toContain('cost.refresh();');
+    expect(source).toContain('traffic.refresh();');
+    expect(source).toContain('latency.refresh();');
+
     const toolbar = render(<HealthBody block={block(health())} />);
     expect(toolbar).not.toContain('Check all resources');
     expect(toolbar).not.toContain('Check all scopes');
-    expect(OPS_STYLES).toMatch(
-      /\.ops-page-controls\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*fit-content\(18rem\)\)[^}]*grid-auto-rows:\s*1fr[^}]*width:\s*fit-content/
-    );
-    expect(OPS_STYLES).toMatch(/\.ops-stop-all,\s*\.ops-admin-action\s*\{[^}]*width:\s*auto[^}]*min-height:\s*46px/);
-    expect(RESPONSIVE_OPS_STYLES).toMatch(
-      /@media \(max-width:\s*800px\)[\s\S]*\.ops-page-controls\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*margin-left:\s*0/
-    );
   });
 });
 
