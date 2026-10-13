@@ -38,7 +38,18 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useOutletContext, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight, ExternalLink, Search, Users, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleStop,
+  ExternalLink,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Snowflake,
+  Users,
+  X,
+} from 'lucide-react';
 import { Button, Input, Skeleton } from './ui';
 import { astPill } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
@@ -90,11 +101,11 @@ import { ForecastingBody } from './ForecastingPanel';
 import { MethodologySections, type MethodologyGroup } from './MethodologySection';
 import { dateOnlyBadgeValue, DateRangeBadges } from './DateBadge';
 import { showsAdminSurfaces, useRole, type AppOutletContext } from './role';
-import { canCheckHealthResources } from '../../shared/user-roster-contract';
 import { persistCostDisplayUnit, readCostDisplayUnit } from './cost-unit-preference';
 import type { CostBudgetUnit } from '../../shared/cost-budgets';
 import { perUserSpendHref } from './cost-user-monitoring-link';
 import { UnitSegmentedControl } from './UnitSegmentedControl';
+import { revokeContinuedUsage, useAppBudgetStatus } from './app-budget-status';
 import type {
   DependencyResult,
   GrantRemedy,
@@ -1642,36 +1653,155 @@ export function StopAllActiveRuns() {
   };
 
   return (
-    <section className="ops-stop-all" aria-labelledby="ops-stop-all-heading">
-      <strong id="ops-stop-all-heading">ADMIN</strong>
-      <span>No data or history is deleted.</span>
-      <Button
-        className="ops-stop-all-button"
-        variant="destructive"
-        data-variant="destructive"
-        type="button"
-        disabled={busy}
-        aria-busy={busy || undefined}
-        onClick={() => void stop()}
-      >
-        <PiaBusyButtonContent busy={busy} label="Stop all active runs" busyLabel="Stopping" />
-      </Button>
-      {result ? (
-        <p role="status">
-          Targeted {result.targeted}; cancelled {result.cancelled}; failures {result.failures.length}.
-        </p>
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-    </section>
+    <article className="ops-admin-action ops-admin-action-danger">
+      <div className="ops-admin-action-copy">
+        <CircleStop aria-hidden="true" />
+        <div>
+          <strong>Stop active runs</strong>
+          <span>Cancel in-flight work without deleting data or history.</span>
+        </div>
+      </div>
+      <div className="ops-admin-action-main">
+        <Button
+          className="ops-stop-all-button"
+          variant="destructive"
+          data-variant="destructive"
+          type="button"
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onClick={() => void stop()}
+        >
+          <PiaBusyButtonContent busy={busy} label="Stop active runs" busyLabel="Stopping" />
+        </Button>
+        {result ? (
+          <p role="status">
+            Targeted {result.targeted}; cancelled {result.cancelled}; failures {result.failures.length}.
+          </p>
+        ) : null}
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+    </article>
   );
 }
 
 export function ScopeAdminControl({ action }: { action: ReactNode }) {
   return (
-    <section className="ops-admin-action ops-admin-action-scope" aria-labelledby="ops-scope-admin-heading">
-      <strong id="ops-scope-admin-heading">ADMIN</strong>
-      <span>Compare user and app catalog access.</span>
-      {action}
+    <article className="ops-admin-action ops-admin-action-scope">
+      <div className="ops-admin-action-copy">
+        <ShieldCheck aria-hidden="true" />
+        <div>
+          <strong>Check all scopes</strong>
+          <span>Compare user and app catalog access.</span>
+        </div>
+      </div>
+      <div className="ops-admin-action-main">{action}</div>
+    </article>
+  );
+}
+
+export function FreezeQueries() {
+  const status = useAppBudgetStatus();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const canFreeze = status?.level === 'approved-overage';
+  const alreadyFrozen = status?.level === 'approval-required';
+
+  const freeze = async () => {
+    if (!status || !canFreeze) return;
+    const confirmed = window.confirm('Freeze new questions for the current app-budget overage?');
+    if (!confirmed) return;
+    setBusy(true);
+    setError('');
+    try {
+      await revokeContinuedUsage(status);
+    } catch (freezeError) {
+      setError(freezeError instanceof Error ? freezeError.message : 'New questions could not be frozen.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const description = alreadyFrozen
+    ? 'New questions are already paused for this budget overage.'
+    : canFreeze
+      ? 'Pause new questions for the current app-budget overage.'
+      : 'Available when approved use continues past the app budget.';
+
+  return (
+    <article className="ops-admin-action ops-admin-action-danger">
+      <div className="ops-admin-action-copy">
+        <Snowflake aria-hidden="true" />
+        <div>
+          <strong>Freeze queries</strong>
+          <span>{description}</span>
+        </div>
+      </div>
+      <div className="ops-admin-action-main">
+        <Button
+          className="ops-freeze-queries-button"
+          variant="destructive"
+          data-variant="destructive"
+          type="button"
+          disabled={busy || !canFreeze}
+          aria-busy={busy || undefined}
+          onClick={() => void freeze()}
+        >
+          <PiaBusyButtonContent busy={busy} label="Freeze queries" busyLabel="Freezing" />
+        </Button>
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+    </article>
+  );
+}
+
+export function UpdateAllOpsViews({ busy, onUpdate }: { busy: boolean; onUpdate: () => void }) {
+  return (
+    <article className="ops-admin-action">
+      <div className="ops-admin-action-copy">
+        <RefreshCw aria-hidden="true" />
+        <div>
+          <strong>Update all Ops views</strong>
+          <span>Refresh Health, Cost, Traffic, and Latency together.</span>
+        </div>
+      </div>
+      <div className="ops-admin-action-main">
+        <Button
+          className="ops-update-all-button"
+          variant="destructive"
+          data-variant="destructive"
+          type="button"
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onClick={onUpdate}
+        >
+          <PiaBusyButtonContent busy={busy} label="Update all Ops views" busyLabel="Updating" />
+        </Button>
+      </div>
+    </article>
+  );
+}
+
+export function OpsAdminPanel({
+  scopesAction,
+  refreshBusy,
+  onRefreshAll,
+}: {
+  scopesAction: ReactNode;
+  refreshBusy: boolean;
+  onRefreshAll: () => void;
+}) {
+  return (
+    <section className="ops-admin-panel" aria-labelledby="ops-admin-heading">
+      <header className="ops-admin-panel-heading">
+        <strong id="ops-admin-heading">ADMIN</strong>
+        <span>Administrative controls for this deployment.</span>
+      </header>
+      <div className="ops-page-controls">
+        <ScopeAdminControl action={scopesAction} />
+        <StopAllActiveRuns />
+        <FreezeQueries />
+        <UpdateAllOpsViews busy={refreshBusy} onUpdate={onRefreshAll} />
+      </div>
     </section>
   );
 }
@@ -1703,6 +1833,13 @@ export function OpsPage() {
   const traffic = useOpsBlock<OpsTrafficPayload>('/api/ops/traffic', '', monthKey);
   const latency = useOpsBlock<OpsLatencyPayload>('/api/ops/latency', '', monthKey);
   const scopes = useOpsScopeCheck();
+  const refreshAllOpsViews = () => {
+    health.refresh();
+    cost.refresh();
+    traffic.refresh();
+    latency.refresh();
+  };
+  const opsRefreshBusy = health.busy || cost.busy || traffic.busy || latency.busy;
 
   const chooseCostUnit = (unit: CostBudgetUnit) => {
     setCostUnit(unit);
@@ -1715,13 +1852,16 @@ export function OpsPage() {
       <PageHeading
         title="Ops"
         actions={
-          <div className="ops-page-controls">
-            {canCheckHealthResources(role.state) ? <ScopeAdminControl action={scopes.button} /> : null}
-            {showsAdminSurfaces(role.state) ? <StopAllActiveRuns /> : null}
-          </div>
+          showsAdminSurfaces(role.state) ? (
+            <OpsAdminPanel
+              scopesAction={scopes.button}
+              refreshBusy={opsRefreshBusy}
+              onRefreshAll={refreshAllOpsViews}
+            />
+          ) : null
         }
       />
-      {canCheckHealthResources(role.state) ? scopes.modal : null}
+      {showsAdminSurfaces(role.state) ? scopes.modal : null}
 
       {/* Each measured block reads itself. Four read times on one page rather
           than one, because they were read at four different moments. */}

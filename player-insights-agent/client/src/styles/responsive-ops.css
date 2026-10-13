@@ -1,16 +1,14 @@
 @media (max-width: 800px) {
+  .ops-admin-panel {
+    width: min(100%, 18rem);
+  }
   .ops-page-controls {
     grid-template-columns: minmax(0, 18rem);
     align-items: stretch;
-    width: fit-content;
+    justify-content: end;
+    width: 100%;
     max-width: 100%;
     min-width: 0;
-    margin-left: 0;
-  }
-  .ops-admin-action,
-  .ops-stop-all {
-    width: auto;
-    margin-left: 0;
   }
   .ops-forecast-horizons {
     grid-template-columns: 1fr;
@@ -40,10 +38,13 @@
 }
 
 @media (max-width: 480px) {
+  .ops-admin-panel,
   .ops-page-controls,
-  .ops-admin-action,
-  .ops-stop-all {
+  .ops-admin-action {
     width: 100%;
+  }
+  .ops-page-controls {
+    grid-template-columns: minmax(0, 1fr);
   }
   .ops-cost-loading {
     grid-template-columns: minmax(0, 1fr);
