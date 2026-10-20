@@ -60,6 +60,36 @@ describe('SSE terminal response projection', () => {
     });
   });
 
+  it.each(['dashboard', 'report'] as const)('settles a %s with one failed step as Partial, not Failed', (kind) => {
+    const response =
+      kind === 'dashboard'
+        ? ({
+            type: 'dashboard',
+            mode: 'live',
+            id: 'msg-doc-1',
+            dashboard: { schemaVersion: 'pia.dashboard/1', title: 'D', html: '<html></html>' },
+          } as DashboardResponse)
+        : ({
+            type: 'report',
+            mode: 'live',
+            id: 'msg-doc-1',
+            report: { schema_version: 'pia.report/1', title: 'R', sections: [{ body: 'x' }] },
+          } as ReportResponse);
+    const raw = {
+      runStored: true,
+      trace: {
+        totalMs: 269_300,
+        stages: [
+          { id: 'orchestrator', status: 'complete' },
+          { id: 'step-4-1-run_sql', status: 'failed' },
+        ],
+      },
+    };
+    expect(terminalSettlementForResponse(response, raw)).toMatchObject({
+      summary: { status: 'Partial', tone: 'ast-pill--warn' },
+    });
+  });
+
   it('settles a dashboard as a complete persisted response', () => {
     const dashboard: DashboardResponse = {
       type: 'dashboard',
@@ -105,26 +135,29 @@ describe('SSE terminal response projection', () => {
   });
 
   it.each([
-    ['failed', 'Failed', 'ast-pill--neg'],
+    ['failed', 'Partial', 'ast-pill--warn'],
     ['partial', 'Partial', 'ast-pill--warn'],
-  ] as const)('keeps a %s document stage consistent with stored run verdicts', (stageStatus, label, tone) => {
-    const report: ReportResponse = {
-      type: 'report',
-      mode: 'live',
-      id: 'msg-report-stage',
-      report: {
-        schema_version: 'pia.report/1',
-        title: 'Player report',
-        sections: [{ body: 'A report whose run did not finish cleanly.' }],
-      },
-    };
-    expect(
-      terminalSettlementForResponse(report, {
-        trace: {
-          totalMs: 10_000,
-          stages: [{ id: 'report-render', status: stageStatus }],
+  ] as const)(
+    'shows a built document with a %s step as Partial, matching stored run verdicts',
+    (stageStatus, label, tone) => {
+      const report: ReportResponse = {
+        type: 'report',
+        mode: 'live',
+        id: 'msg-report-stage',
+        report: {
+          schema_version: 'pia.report/1',
+          title: 'Player report',
+          sections: [{ body: 'A report whose run did not finish cleanly.' }],
         },
-      }).summary
-    ).toMatchObject({ status: label, tone, durationMs: 10_000 });
-  });
+      };
+      expect(
+        terminalSettlementForResponse(report, {
+          trace: {
+            totalMs: 10_000,
+            stages: [{ id: 'report-render', status: stageStatus }],
+          },
+        }).summary
+      ).toMatchObject({ status: label, tone, durationMs: 10_000 });
+    }
+  );
 });

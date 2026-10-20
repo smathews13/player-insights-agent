@@ -110,6 +110,7 @@ import {
   identityReadinessHttp,
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
+import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
@@ -524,7 +525,7 @@ const DocumentSnippetSchema = z.looseObject({
   supports: z.string().min(1),
 });
 
-const LiveAnswerSchema = z.looseObject({
+export const LiveAnswerSchema = z.looseObject({
   schema_version: z.literal(ANSWER_SCHEMA_VERSION).optional(),
   id: z.string().min(1),
   // Empty is valid when Appearance disables the takeaway. Figures, sources,
@@ -5597,15 +5598,7 @@ export function setupInsightsRoutes(
                   'answering a question the user has not authorised yet.'
               );
             }
-            const planResponse = {
-              type: 'plan' as const,
-              mode: 'live' as const,
-              plan,
-              // Recorded on the response, and so into `response_json`, because a
-              // re-issue is the interesting event when someone asks later why an
-              // approval did not run.
-              ...(reissued ? { supersededApprovalId: approvedPlanId } : {}),
-            };
+            const planResponse = planStoredResponse(plan, reissued ? approvedPlanId : null);
             await safeQuery(
               appkit,
               `INSERT INTO ${APP_SCHEMA}.messages
@@ -5643,11 +5636,7 @@ export function setupInsightsRoutes(
             const honestClarification = withoutUntracedProcess(
               bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
             );
-            const clarificationResponse = {
-              type: 'clarification' as const,
-              mode: 'live' as const,
-              clarification: honestClarification,
-            };
+            const clarificationResponse = clarificationStoredResponse(honestClarification);
             await safeQuery(
               appkit,
               `INSERT INTO ${APP_SCHEMA}.messages
@@ -5686,13 +5675,7 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const dashboardResponse = {
-              type: 'dashboard' as const,
-              mode: 'live' as const,
-              id: messageId,
-              dashboard,
-              trace,
-            };
+            const dashboardResponse = documentStoredResponse('dashboard', messageId, dashboard, trace);
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (dashboard)',
@@ -5735,13 +5718,7 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const reportResponse = {
-              type: 'report' as const,
-              mode: 'live' as const,
-              id: messageId,
-              report,
-              trace,
-            };
+            const reportResponse = documentStoredResponse('report', messageId, report, trace);
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (report)',

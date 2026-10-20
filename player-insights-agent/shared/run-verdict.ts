@@ -85,6 +85,18 @@ export function runVerdict(stages: readonly VerdictStage[]): RunVerdict {
 }
 
 /**
+ * The verdict for a built report or dashboard. Its row exists only because the
+ * document step succeeded (otherwise the backend falls back to an ordinary
+ * answer), so a failed step elsewhere degrades the document; it does not undo it.
+ * The SQL document branch of {@link classifiedRunStatusSql} applies the same rule.
+ */
+export function documentVerdict(stages: readonly VerdictStage[]): RunVerdict {
+  if (stages.length === 0) return 'failed';
+  const verdict = runVerdict(stages);
+  return verdict === 'failed' ? 'partial' : verdict;
+}
+
+/**
  * Caveat phrases that used to flip the whole answer to Partial or Failed.
  *
  * Incomplete sources and a turn deadline are notes about how the answer was
@@ -392,8 +404,7 @@ export function classifiedRunStatusSql(input: { trace: string; payload: string; 
            WHEN ${empty} THEN 'failed'
            WHEN ${document} THEN
              CASE
-               WHEN ${failedStage} THEN 'failed'
-               WHEN ${partialStage} THEN 'partial'
+               WHEN ${failedStage} OR ${partialStage} THEN 'partial'
                ELSE 'complete'
              END
            WHEN ${prose} THEN
