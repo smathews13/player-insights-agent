@@ -434,3 +434,28 @@ describe('the pill under a reduced-motion preference, and to a screen reader', (
     expect(draw(idle('ready'))).toEqual(draw(idle('ready')));
   });
 });
+
+describe('a scaled-to-zero agent being woken', () => {
+  const base = {
+    loading: false,
+    liveSteps: 0,
+    runStopped: false,
+    awaitingApproval: false,
+    asked: false,
+    answered: false,
+    readiness: 'ready' as const,
+  };
+
+  it('is said on the idle screen, so the first question after a quiet spell has an explanation', () => {
+    expect(runStatusFor({ ...base, waking: true })).toMatchObject({
+      label: 'Waking the agent · about 2 min',
+      tone: 'is-waiting',
+      finished: false,
+    });
+  });
+
+  it('never overrides a run that is live or has finished', () => {
+    expect(runStatusFor({ ...base, loading: true, waking: true }).label).toMatch(/^Live/);
+    expect(runStatusFor({ ...base, answered: true, verdict: 'complete', waking: true }).label).toBe('Complete');
+  });
+});
