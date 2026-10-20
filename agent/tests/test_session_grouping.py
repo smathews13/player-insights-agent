@@ -1,4 +1,4 @@
-"""One question, one MLflow session -- so a benchmark reads a row per question.
+"""One conversation, one MLflow session; with no conversation id, one question per session.
 
 A single question is not a single trace. The plan proposal, the approval that
 runs it, and any re-ask of the same words are separate serving invokes, so
@@ -24,7 +24,7 @@ import mlflow
 import pytest
 from mlflow.tracking import MlflowClient
 
-from agent import _plan_id
+from agent import _conversation_session, _plan_id
 from tests.test_agent import Call, FakeTools, ScriptedLlm, app_request, build
 
 #: A nontrivial question (the "analyze" marker makes it plan-first), so the
@@ -126,3 +126,49 @@ def test_the_proposed_plan_trace_is_findable_by_the_apps_run_id(tracing):
 
     trace = _grouped_by(tracing, _plan_id(QUESTION, ""))[0]
     assert trace.info.tags.get("run_id") == run_id
+
+
+CONVERSATION = "conv-6f0c2a52-1b6e-4f5e-9d51-3c2d9e0a7b11"
+
+
+def test_every_turn_of_a_conversation_lands_in_one_session(tracing):
+    """Different questions in one conversation are one group, not one each."""
+
+    for question in (QUESTION, "Analyze spend by region."):
+        proposed = _invoke(
+            build(ScriptedLlm(), FakeTools()),
+            app_request(
+                input=[{"role": "user", "content": question}],
+                custom_inputs={"conversation_id": CONVERSATION},
+            ),
+        )
+        assert proposed.custom_outputs["type"] == "plan"
+
+    assert len(_grouped_by(tracing, CONVERSATION)) == 2
+    assert _grouped_by(tracing, _plan_id(QUESTION, "")) == []
+
+
+def test_a_different_conversation_is_a_different_session(tracing):
+    _invoke(
+        build(ScriptedLlm(), FakeTools()),
+        app_request(
+            input=[{"role": "user", "content": QUESTION}],
+            custom_inputs={"conversation_id": CONVERSATION},
+        ),
+    )
+
+    assert _grouped_by(tracing, "conv-someone-else") == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, "", " conv-1", "has space", "x" * 129, "-leading-dash", 12345, {"id": "conv-1"}],
+)
+def test_an_unusable_conversation_id_falls_back_to_the_question(value):
+    """Arbitrary text never becomes trace metadata; the question still groups."""
+
+    assert _conversation_session({"conversation_id": value}) is None
+
+
+def test_a_plain_conversation_id_is_used_as_sent():
+    assert _conversation_session({"conversation_id": CONVERSATION}) == CONVERSATION

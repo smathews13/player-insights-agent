@@ -1376,6 +1376,27 @@ def _is_nontrivial(question: str) -> bool:
     return any(marker in lowered for marker in analytical_markers)
 
 
+#: What the app sends as `custom_inputs.conversation_id` is its own conversation
+#: key. It becomes the MLflow session, so it is accepted only when it is a short
+#: plain token; anything else falls back to the question fingerprint rather than
+#: putting arbitrary text into trace metadata.
+_CONVERSATION_SESSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+
+
+def _conversation_session(custom_inputs: dict[str, Any]) -> str | None:
+    """The conversation the app says this turn belongs to, or None.
+
+    Mirrored by `conversationTraceSessionId` in the app's `trace-session.ts`; the
+    two must accept exactly the same ids or Monitoring would link a session that
+    MLflow does not hold.
+    """
+
+    value = custom_inputs.get("conversation_id")
+    if isinstance(value, str) and _CONVERSATION_SESSION.fullmatch(value):
+        return value
+    return None
+
+
 def _plan_id(question: str, attachment_context: str, revision_note: str = "") -> str:
     """The identity of the plan a question produces, which is what approval names.
 
@@ -5767,19 +5788,20 @@ Tables available to this analysis, with their columns:
         # The id costs only a hash (see `_plan_id`), so the comparison is made
         # first and the plan is only discovered when the answer will be a plan.
         expected_plan_id = _plan_id(question, attachment_context)
-        # One question, one MLflow session. A question is not one trace: the plan
-        # proposal, the approval that runs it, and a re-ask of the same words are
-        # separate serving invokes, so MLflow lists them as separate traces and a
-        # reviewer benchmarking questions has to reassemble them by hand.
-        # `expected_plan_id` is the question's fingerprint (see `_plan_id`) -- the
-        # same across the propose/approve round trip and independent of the run id
-        # -- so recording it as the trace SESSION collapses those traces into one
-        # group in the "Group by session" view. Set HERE, before the plan
-        # early-return below, so a proposed-plan trace joins the same session as
-        # the run that answers it. Session lives in trace metadata (immutable once
-        # the trace exists), which is why it is set once, early, rather than
-        # beside the tags on the orchestrator span.
-        mlflow.update_current_trace(session_id=expected_plan_id)
+        # One conversation, one MLflow session. A turn is not one trace (the plan
+        # proposal, the approval that runs it, a clarification and a re-ask are
+        # separate serving invokes), and a conversation is many turns, so a
+        # reviewer used to reassemble them by hand. The app sends its conversation
+        # key with every turn; recording it as the trace SESSION collapses the
+        # whole conversation into one group in the "Group by session" view.
+        # Without a usable conversation id the session falls back to the question's
+        # fingerprint (`expected_plan_id`, the same across the propose/approve
+        # round trip), which is how every conversation was grouped before.
+        # Set HERE, before the plan early-return below, so a proposed-plan trace
+        # joins the same session as the run that answers it. Session lives in trace
+        # metadata (immutable once the trace exists), which is why it is set once,
+        # early, rather than beside the tags on the orchestrator span.
+        mlflow.update_current_trace(session_id=_conversation_session(custom_inputs) or expected_plan_id)
         # The proposed-plan path returns before the orchestrator span, where the
         # correlation and run ids are turned into the tags `search_traces` filters
         # on -- so until now a plan trace could not be found by the id the app

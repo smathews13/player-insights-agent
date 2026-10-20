@@ -19,9 +19,6 @@ export type StoredResponseType = (typeof STORED_RESPONSE_TYPES)[number];
  */
 export const RUNLESS_STORED_RESPONSE_TYPES: Partial<Record<StoredResponseType, string>> = {
   plan: 'A plan executed nothing: it waits for approval, and the approved execution is its own run.',
-  // Open decision (MIT-14797 Task 2): whether a clarification counts as a run.
-  // Until that is decided it keeps today's behaviour, which is absent from run lists.
-  clarification: 'Stores its trace under clarification.trace, so run lists skip it. Pending the Task 2 decision.',
 };
 
 export function planStoredResponse(plan: unknown, supersededApprovalId?: string | null) {
@@ -35,8 +32,12 @@ export function planStoredResponse(plan: unknown, supersededApprovalId?: string 
   };
 }
 
-export function clarificationStoredResponse<T>(clarification: T) {
-  return { type: 'clarification' as const, mode: 'live' as const, clarification };
+/**
+ * A clarification is a turn of the conversation and so a run: its trace is stored
+ * at the top level, where the run lists read it, as well as inside `clarification`.
+ */
+export function clarificationStoredResponse<T, Tr>(clarification: T, trace: Tr) {
+  return { type: 'clarification' as const, mode: 'live' as const, clarification, trace };
 }
 
 /** A built dashboard or report, with the run trace the run lists read. */

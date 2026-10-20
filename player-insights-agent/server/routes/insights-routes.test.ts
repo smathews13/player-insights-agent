@@ -3,7 +3,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import express, { type Request } from 'express';
 import { serving as sdkServing } from '@databricks/sdk-experimental';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { questionTraceSessionId, TRACE_SESSION_BASIS } from '../lib/trace-session';
+import { TRACE_SESSION_BASIS } from '../lib/trace-session';
 import {
   buildAskServingBody,
   buildServingHistory,
@@ -1322,12 +1322,12 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
     expect(String(assistant?.response_json)).toContain('"type":"plan"');
     expect(String(assistant?.response_json)).toContain('plan-stale-and-wrong');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
-    expect(persisted.trace_session_id).toBe(questionTraceSessionId(NONTRIVIAL_QUESTION, ''));
+    expect(persisted.trace_session_id).toBe('conv-reissue-stored');
     expect(persisted.trace_session_id).not.toBe('plan-freshly-issued');
     expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
   });
 
-  it('stores a revised plan under the clean question session rather than its revision-specific plan id', async () => {
+  it('stores a revised plan under its conversation session rather than its revision-specific plan id', async () => {
     process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
     const revisedPlanId = 'plan-revision-specific';
     const lakebase = memoryLakebase();
@@ -1351,7 +1351,7 @@ describe('plan approval round trip through POST /api/insights/ask', () => {
 
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
-    expect(persisted.trace_session_id).toBe(questionTraceSessionId(NONTRIVIAL_QUESTION, ''));
+    expect(persisted.trace_session_id).toBe('conv-revised-plan-session');
     expect(persisted.trace_session_id).not.toBe(revisedPlanId);
     expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
   });
@@ -2024,7 +2024,7 @@ describe('what the route actually puts on the wire', () => {
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
     expect(persisted.runtime_settings).toEqual(stored);
-    expect(persisted.trace_session_id).toBe(questionTraceSessionId('How many active players are there?', ''));
+    expect(persisted.trace_session_id).toBe('conv-runtime-settings');
     expect(persisted.trace_session_basis).toBe(TRACE_SESSION_BASIS);
   });
 
@@ -2058,12 +2058,7 @@ describe('what the route actually puts on the wire', () => {
     );
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;
-    expect(persisted.trace_session_id).toBe(
-      questionTraceSessionId(
-        NONTRIVIAL_QUESTION,
-        '## halcyon-memo.txt\nProject HALCYON-7742 retires Iron Frontier Online on 2026-11-15.'
-      )
-    );
+    expect(persisted.trace_session_id).toBe('conv-attach');
     expect(persisted.trace_session_id).not.toBe('plan-attach');
   });
 
@@ -2360,6 +2355,11 @@ describe('the answer contract survives the round trip into the HTTP response', (
     expect(stored[0].content).toContain('catalog.schema.table');
     const payload = JSON.parse(String(stored[0].response_json)) as Record<string, unknown>;
     expect(payload.type).toBe('clarification');
+    // A clarification is a turn of the conversation, so a run: the run lists read
+    // the trace at the top level of the stored row, and the session is the conversation.
+    expect(payload.trace).toEqual((payload.clarification as Record<string, unknown>).trace);
+    expect(payload.trace_session_id).toBe('conv-clarify');
+    expect(payload.trace_session_basis).toBe(TRACE_SESSION_BASIS);
 
     // And the stored turn carries the question forward as the assistant's words,
     // so the user's reply reads as an answer to it rather than as a new question.

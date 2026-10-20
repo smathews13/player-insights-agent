@@ -16,7 +16,7 @@ const TRACE = { id: 'tr-a87e1e2613d6b9bcdbb3e687766ba8b0', totalMs: 1, toolCalls
 const BUILT: Record<StoredResponseType, () => Record<string, unknown>> = {
   answer: () => ({ trace: undefined }),
   plan: () => planStoredResponse({ id: 'plan-1' }),
-  clarification: () => clarificationStoredResponse({ id: 'c-1', trace: TRACE }),
+  clarification: () => clarificationStoredResponse({ id: 'c-1', trace: TRACE }, TRACE),
   dashboard: () => documentStoredResponse('dashboard', 'msg-1', {}, TRACE),
   report: () => documentStoredResponse('report', 'msg-1', {}, TRACE),
 };

@@ -2,8 +2,39 @@ import { createHash } from 'node:crypto';
 
 /** Must remain byte-for-byte aligned with agent.py's MAX_ATTACHMENT_CHARS. */
 export const TRACE_SESSION_ATTACHMENT_CHARS = 8_000;
-/** Marks sessions produced after the app mirrored all agent normalization. */
-export const TRACE_SESSION_BASIS = 'agent-question-v1';
+/**
+ * Marks a stored turn whose MLflow session is its whole conversation: the agent
+ * records the conversation id the app sends as `mlflow.trace.session`.
+ */
+export const TRACE_SESSION_BASIS = 'agent-conversation-v1';
+/**
+ * Marks turns stored while MLflow grouped one question (a plan and its approved
+ * run) per session. Still read so old traces keep opening the group that exists.
+ * Also what a turn falls back to when its conversation id is not a plain token.
+ */
+export const QUESTION_TRACE_SESSION_BASIS = 'agent-question-v1';
+/** Every basis whose stored `trace_session_id` names a real MLflow session. */
+export const TRACE_SESSION_BASES = [TRACE_SESSION_BASIS, QUESTION_TRACE_SESSION_BASIS] as const;
+
+/** Must accept exactly what agent.py's `_CONVERSATION_SESSION` accepts. */
+const CONVERSATION_SESSION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+/** The MLflow session for a turn: its conversation, or null when the agent would not use it. */
+export function conversationTraceSessionId(conversationId: string): string | null {
+  return CONVERSATION_SESSION.test(conversationId) ? conversationId : null;
+}
+
+/** The session and the basis to store with it for one turn. */
+export function turnTraceSession(
+  conversationId: string,
+  question: string,
+  attachmentContext: string
+): { id: string; basis: string } {
+  const conversation = conversationTraceSessionId(conversationId);
+  return conversation
+    ? { id: conversation, basis: TRACE_SESSION_BASIS }
+    : { id: questionTraceSessionId(question, attachmentContext), basis: QUESTION_TRACE_SESSION_BASIS };
+}
 
 const REVISION_REQUEST =
   /^\s*Revise the proposed analysis plan for this question:\s*([\s\S]+?)(?:\n\nWhat to change:\s*([\s\S]+?))?\n\nPropose an updated plan for approval\. Do not run the analysis yet\.\s*$/;

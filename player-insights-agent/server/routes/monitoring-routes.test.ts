@@ -290,7 +290,9 @@ describe('the query reads questions rather than answers', () => {
       expect(query).toContain("a.response_json->>'trace_session_id'");
       expect(query).toContain("m.response_json->>'trace_session_id' AS trace_session_id");
       expect(query).toContain("m.response_json->>'type' = 'plan'");
-      expect(query).toContain("response_json->>'trace_session_basis' = 'agent-question-v1'");
+      expect(query).toContain(
+        "response_json->>'trace_session_basis' IN ('agent-conversation-v1', 'agent-question-v1')"
+      );
       expect(query).not.toContain("m.response_json->'plan'->>'id' AS trace_session_id");
     }
   });

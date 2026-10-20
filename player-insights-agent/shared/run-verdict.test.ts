@@ -299,3 +299,12 @@ describe('documentVerdict', () => {
     expect(runVerdict([stage('failed')])).toBe('failed');
   });
 });
+
+describe('clarification turns in the stored verdict', () => {
+  it('are Partial, ahead of the empty-stages rule, matching the live pill', () => {
+    const sql = classifiedRunStatusSql({ trace: 'a.trace', payload: 'a.payload', caveats: 'a.caveats' });
+    const clarification = sql.indexOf("COALESCE(a.payload->>'type', '') = 'clarification' THEN 'partial'");
+    expect(clarification).toBeGreaterThan(-1);
+    expect(clarification).toBeLessThan(sql.indexOf("THEN 'failed'"));
+  });
+});
