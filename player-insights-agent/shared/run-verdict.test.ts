@@ -5,6 +5,7 @@ import {
   answerRunVerdict,
   classifiedRunStatusSql,
   displayedStageStatus,
+  documentVerdict,
   DSF_CLIP_NOTE,
   PROSE_ONLY_DEGRADED_SQL,
   runVerdict,
@@ -269,8 +270,32 @@ describe('the store query lands a catalog listing the same way the card does', (
     expect(document).toBeGreaterThan(-1);
     expect(document).toBeLessThan(prose);
     expect(sql.slice(document, prose)).toContain('WHEN jsonb_path_exists(a.trace');
-    expect(sql.slice(document, prose)).toContain("THEN 'failed'");
+    // A built document is never Failed because one step was: that is Partial.
+    expect(sql.slice(document, prose)).not.toContain("THEN 'failed'");
+    expect(sql.slice(document, prose)).toContain(') OR jsonb_path_exists(a.trace');
     expect(sql.slice(document, prose)).toContain("THEN 'partial'");
     expect(sql.slice(document, prose)).toContain("ELSE 'complete'");
+  });
+});
+
+describe('documentVerdict', () => {
+  const stage = (status: string, id = 'step') => ({ id, status });
+  it('is partial when a counted step failed', () => {
+    expect(documentVerdict([stage('complete'), stage('failed', 'step-4-1-run_sql')])).toBe('partial');
+  });
+  it('is partial when a step was partial', () => {
+    expect(documentVerdict([stage('partial')])).toBe('partial');
+  });
+  it('is complete when every step completed', () => {
+    expect(documentVerdict([stage('complete'), stage('complete')])).toBe('complete');
+  });
+  it('is failed only when there are no stages at all', () => {
+    expect(documentVerdict([])).toBe('failed');
+  });
+  it('ignores a failed plot step', () => {
+    expect(documentVerdict([stage('complete'), stage('failed', 'plot')])).toBe('complete');
+  });
+  it('leaves answers alone: a failed step still fails runVerdict', () => {
+    expect(runVerdict([stage('failed')])).toBe('failed');
   });
 });

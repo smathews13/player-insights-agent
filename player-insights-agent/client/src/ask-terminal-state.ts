@@ -1,4 +1,4 @@
-import { answerRunVerdict, runVerdict, type RunVerdict, type VerdictStage } from '../../shared/run-verdict';
+import { answerRunVerdict, documentVerdict, type RunVerdict, type VerdictStage } from '../../shared/run-verdict';
 import { settleActiveConversationRunById, updateActiveConversationRuns } from './active-conversation-runs';
 import type { AgentResponse } from './app-types';
 import { endLiveAsk } from './live-ask';
@@ -29,19 +29,23 @@ function rawTraceDuration(raw: unknown): number | null {
   return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
 }
 
-function rawTraceVerdict(raw: unknown): RunVerdict | null {
+function rawStages(raw: unknown): VerdictStage[] | null {
   if (!raw || typeof raw !== 'object') return null;
   const trace = (raw as { trace?: unknown }).trace;
   if (!trace || typeof trace !== 'object') return null;
   const stages = (trace as { stages?: unknown }).stages;
   if (!Array.isArray(stages)) return null;
-  const projected = stages.flatMap((stage): VerdictStage[] => {
+  return stages.flatMap((stage): VerdictStage[] => {
     if (!stage || typeof stage !== 'object') return [];
     const record = stage as { id?: unknown; status?: unknown };
     if (typeof record.status !== 'string') return [];
     return [{ id: typeof record.id === 'string' ? record.id : '', status: record.status }];
   });
-  return runVerdict(projected);
+}
+
+function rawDocumentVerdict(raw: unknown): RunVerdict | null {
+  const stages = rawStages(raw);
+  return stages ? documentVerdict(stages) : null;
 }
 
 const PRESENTATION = {
@@ -76,7 +80,7 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
     };
   }
   if (response.type === 'dashboard') {
-    const [status, tone] = PRESENTATION[rawTraceVerdict(raw) ?? 'complete'];
+    const [status, tone] = PRESENTATION[rawDocumentVerdict(raw) ?? 'complete'];
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
@@ -84,7 +88,7 @@ export function terminalSettlementForResponse(response: AgentResponse, raw: unkn
     };
   }
   if (response.type === 'report') {
-    const [status, tone] = PRESENTATION[rawTraceVerdict(raw) ?? 'complete'];
+    const [status, tone] = PRESENTATION[rawDocumentVerdict(raw) ?? 'complete'];
     return {
       state: 'SUCCEEDED',
       terminalMessageId: response.id,
