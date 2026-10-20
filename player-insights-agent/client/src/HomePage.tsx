@@ -124,6 +124,7 @@ import {
   useLiveAsk,
 } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
+import { useAgentWarmup } from './agent-warmup';
 import { runStatusFor } from './run-status';
 import { paneStartsCollapsed, rememberPaneCollapsed } from './ask-pane-preferences';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
@@ -840,6 +841,8 @@ export function HomePage() {
   // Warehouse and Genie warmup is App's separate fire-and-forget arrival call;
   // painting this pill never invokes the serving endpoint.
   const readiness = useAgentReadiness();
+  // Asks the server to wake a scaled-to-zero endpoint as the app opens, and says so.
+  const agentWarmup = useAgentWarmup();
   useLayoutEffect(() => {
     const focus = () => composerRef.current?.querySelector('textarea')?.focus();
     registerFocusTarget(focus);
@@ -881,6 +884,7 @@ export function HomePage() {
         })
       : undefined,
     readiness,
+    waking: agentWarmup === 'waking',
   });
 
   /*

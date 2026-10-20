@@ -95,6 +95,7 @@ export function runStatusFor({
   answered,
   verdict,
   readiness,
+  waking = false,
 }: {
   loading: boolean;
   liveSteps: number;
@@ -119,6 +120,12 @@ export function runStatusFor({
    */
   verdict?: RunVerdict;
   readiness: AgentReadiness;
+  /**
+   * The endpoint had scaled to zero and is being woken. Only the idle screen says
+   * so: a run that is live, asked or finished is a fact about that run, and a wait
+   * the reader cannot otherwise explain is exactly what this is for.
+   */
+  waking?: boolean;
 }): RunStatus {
   // A description of the rail below rather than of the request: it fills in as
   // the run goes, so "Live" is what it is doing. The number is two digits, out of
@@ -177,6 +184,9 @@ export function runStatusFor({
     if (verdict === 'failed') return { label: 'Failed', tone: 'is-failed', alive: false, finished: true };
     if (verdict === 'partial') return { label: 'Partial', tone: 'is-waiting', alive: false, finished: true };
     return { label: 'Complete', tone: 'is-ready', alive: false, finished: true };
+  }
+  if (waking) {
+    return { label: 'Waking the agent · about 2 min', tone: 'is-waiting', alive: true, finished: false };
   }
   return IDLE[readiness];
 }

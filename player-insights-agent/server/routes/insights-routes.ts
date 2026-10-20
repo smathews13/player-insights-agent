@@ -112,6 +112,7 @@ import {
 import { documentRunTrace } from '../lib/document-run-trace';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
+import { AGENT_WAKE_PAYLOAD, createAgentWarmup } from '../lib/agent-warmup';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
@@ -3981,6 +3982,28 @@ export function setupInsightsRoutes(
       // invocation is needed to discover them.
       warmGenieWarehousesForArrival(req);
       res.status(202).json({ accepted: true });
+    });
+
+    /**
+     * Wake the agent's serving endpoint on arrival when it has scaled to zero.
+     *
+     * Same idea as the warehouse warm-up above, and kept separate from preflight,
+     * which only reads metadata and says so. A cold endpoint takes minutes, and
+     * the first question after a quiet spell used to hang for that long with no
+     * explanation. The answer is quick either way; waking happens behind it, and
+     * the browser polls this route while it reads `waking`.
+     */
+    const agentWarmup = createAgentWarmup({
+      readMetadata: () => {
+        const endpointName = (process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
+        if (!endpointName) return Promise.reject(new Error('no serving endpoint is configured'));
+        return readServingEndpointMetadata(appkit, endpointName);
+      },
+      wake: (userToken) => invokeServingAsUser(appkit, { ...AGENT_WAKE_PAYLOAD }, userToken),
+    });
+    app.post('/api/agent-warmup', async (req, res) => {
+      const state = await agentWarmup.arrive(forwardedUserToken(req) ?? undefined);
+      res.status(state === 'waking' ? 202 : 200).json({ state });
     });
 
     app.post('/api/warehouse-ready', async (_req, res) => {
