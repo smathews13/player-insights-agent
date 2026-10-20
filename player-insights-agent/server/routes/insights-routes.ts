@@ -24,7 +24,7 @@ import {
   type IdleTimeoutConfig,
 } from '../lib/app-session';
 import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
-import { questionTraceSessionId, TRACE_SESSION_BASIS } from '../lib/trace-session';
+import { TRACE_SESSION_BASES, turnTraceSession } from '../lib/trace-session';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 import {
@@ -111,7 +111,7 @@ import {
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
-import { repairHistoricalDocumentRuns } from '../lib/document-run-repair';
+import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
@@ -576,7 +576,7 @@ export const LiveAnswerSchema = z.looseObject({
   // Also route-owned: the question fingerprint MLflow uses to group the plan
   // and execution traces. Monitoring reads it from the stored answer.
   trace_session_id: z.string().optional(),
-  trace_session_basis: z.literal(TRACE_SESSION_BASIS).optional(),
+  trace_session_basis: z.enum(TRACE_SESSION_BASES).optional(),
 });
 type LiveAnswer = z.infer<typeof LiveAnswerSchema>;
 
@@ -1389,13 +1389,13 @@ function runWithoutTrace(
 function withAskRuntime<T extends Record<string, unknown>>(
   body: T,
   runtimeSettings: RuntimeSettings | undefined,
-  traceSessionId: string
+  traceSession: { id: string; basis: string }
 ): T {
   return {
     ...body,
     ...(runtimeSettings ? { runtime_settings: runtimeSettings } : {}),
-    trace_session_id: traceSessionId,
-    trace_session_basis: TRACE_SESSION_BASIS,
+    trace_session_id: traceSession.id,
+    trace_session_basis: traceSession.basis,
   };
 }
 
@@ -3799,6 +3799,17 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
         'New document turns are unaffected.'
     );
   }
+  try {
+    const lifted = await liftHistoricalClarificationTraces(appkit.lakebase);
+    if (lifted > 0) {
+      console.log(`[contract-readback] Historical clarification traces lifted into run lists: ${lifted}.`);
+    }
+  } catch (error) {
+    console.warn(
+      `[contract-readback] Historical clarification trace lift did not run: ${(error as Error).message}. ` +
+        'New clarification turns are unaffected.'
+    );
+  }
 }
 
 /**
@@ -5186,13 +5197,11 @@ export function setupInsightsRoutes(
         .map((row) => `## ${String(row.filename)}\n${String(row.extracted_text)}`)
         .join('\n\n')
         .slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
-      // Exactly the fingerprint the Python agent writes to
-      // `mlflow.trace.session`. It is deliberately derived rather than copied
-      // from the approved/displayed plan id: revised plans include the revision
-      // note in their own identity, while MLflow groups both proposals under the
-      // original clean question. The helper also applies the agent's attachment
-      // trim/cap and unwraps the one-turn revision envelope.
-      const traceSessionId = questionTraceSessionId(prompt, attachmentText);
+      // Exactly the session the Python agent writes to `mlflow.trace.session`:
+      // the whole conversation. A conversation id the agent would not accept
+      // falls back to the question fingerprint, with the older basis stored so
+      // Monitoring still knows which kind of group it is linking.
+      const traceSessionId = turnTraceSession(conversationId, prompt, attachmentText);
 
       /**
        * The run ledger. Shadow by default, which records the run and changes
@@ -5636,7 +5645,7 @@ export function setupInsightsRoutes(
             const honestClarification = withoutUntracedProcess(
               bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
             );
-            const clarificationResponse = clarificationStoredResponse(honestClarification);
+            const clarificationResponse = clarificationStoredResponse(honestClarification, honestClarification.trace);
             await safeQuery(
               appkit,
               `INSERT INTO ${APP_SCHEMA}.messages

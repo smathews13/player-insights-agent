@@ -4,6 +4,8 @@ import {
   DOCUMENT_RUN_REPAIR_CANDIDATES,
   DOCUMENT_RUN_REPAIR_REMAINING,
   DOCUMENT_TRACE_MISSING_SQL,
+  CLARIFICATION_TRACE_LIFT,
+  liftHistoricalClarificationTraces,
   repairHistoricalDocumentRuns,
 } from './document-run-repair';
 
@@ -83,5 +85,25 @@ describe('historical document run repair', () => {
       unrepairable: 1,
       remaining: 1,
     });
+  });
+});
+
+describe('historical clarification trace lift', () => {
+  it('writes nothing when no stored clarification lacks a top-level trace', async () => {
+    const query = vi.fn((_sql: string) => Promise.resolve({ rows: [] as Record<string, unknown>[] }));
+    expect(await liftHistoricalClarificationTraces({ query })).toBe(0);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[0]).not.toContain('UPDATE');
+  });
+
+  it('lifts clarification.trace to the top level and reports how many rows it touched', async () => {
+    const query = vi.fn((sql: string) =>
+      Promise.resolve({
+        rows: sql === CLARIFICATION_TRACE_LIFT ? [{ id: 'msg-a' }, { id: 'msg-b' }] : [{ pending: 1 }],
+      })
+    );
+    expect(await liftHistoricalClarificationTraces({ query })).toBe(2);
+    expect(CLARIFICATION_TRACE_LIFT).toContain("m.response_json->'clarification'->'trace'");
+    expect(CLARIFICATION_TRACE_LIFT).toContain(DOCUMENT_TRACE_MISSING_SQL);
   });
 });

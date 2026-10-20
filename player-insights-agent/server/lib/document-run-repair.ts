@@ -118,3 +118,38 @@ export async function repairHistoricalDocumentRuns(store: DocumentRepairStore): 
     remaining: Number(remaining.rows[0]?.count ?? 0),
   };
 }
+
+/**
+ * A clarification used to keep its trace only under `clarification.trace`, which
+ * the run lists do not read. New turns store it at the top level too; this lifts
+ * the trace of older ones. The trace is already complete, so unlike documents it
+ * needs no reconstruction, and the statement is idempotent.
+ */
+export const CLARIFICATION_TRACE_LIFT = `
+  UPDATE ${APP_SCHEMA}.messages m
+  SET response_json = jsonb_set(m.response_json, '{trace}', m.response_json->'clarification'->'trace', true)
+  WHERE m.role = 'assistant'
+    AND m.response_json->>'type' = 'clarification'
+    AND jsonb_typeof(m.response_json->'clarification'->'trace') = 'object'
+    AND ${DOCUMENT_TRACE_MISSING_SQL}
+  RETURNING m.id`;
+
+const CLARIFICATION_TRACE_PENDING = `
+  SELECT 1 AS pending
+  FROM ${APP_SCHEMA}.messages m
+  WHERE m.role = 'assistant'
+    AND m.response_json->>'type' = 'clarification'
+    AND jsonb_typeof(m.response_json->'clarification'->'trace') = 'object'
+    AND ${DOCUMENT_TRACE_MISSING_SQL}
+  LIMIT 1`;
+
+/**
+ * Returns how many stored clarification turns now carry a top-level trace.
+ * Reads first, so a database with nothing to lift is not written to at startup.
+ */
+export async function liftHistoricalClarificationTraces(store: DocumentRepairStore): Promise<number> {
+  const pending = await store.query(CLARIFICATION_TRACE_PENDING);
+  if (pending.rows.length === 0) return 0;
+  const lifted = await store.query(CLARIFICATION_TRACE_LIFT);
+  return lifted.rows.length;
+}

@@ -73,7 +73,10 @@ import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
 import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import type { TokenAttribution } from '../../shared/llm-token-usage';
 import { listDeclarableTablesInSchema, unionTableNames } from '../lib/declared-tables';
-import { TRACE_SESSION_BASIS } from '../lib/trace-session';
+import { TRACE_SESSION_BASES } from '../lib/trace-session';
+
+/** Every basis whose stored session id names a real MLflow session, as a SQL list. */
+const TRACE_SESSION_BASES_SQL = TRACE_SESSION_BASES.map((basis) => `'${basis}'`).join(', ');
 
 /**
  * Default and hard maximum for one API page. The query asks for one look-ahead
@@ -311,7 +314,7 @@ export const MONITORING_QUESTIONS_QUERY = `
          q.question_id, q.conversation_id, q.question, q.asked_at, q.user_email,
          a.id AS answer_id, a.trace_id,
          COALESCE(
-           CASE WHEN a.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+           CASE WHEN a.response_json->>'trace_session_basis' IN (${TRACE_SESSION_BASES_SQL})
                 THEN a.response_json->>'trace_session_id' END,
            p.trace_session_id
          ) AS trace_session_id,
@@ -378,7 +381,7 @@ export const MONITORING_QUESTIONS_QUERY = `
     WHERE m.conversation_id = q.conversation_id
       AND m.role = 'assistant'
       AND m.response_json->>'type' = 'plan'
-      AND m.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+      AND m.response_json->>'trace_session_basis' IN (${TRACE_SESSION_BASES_SQL})
       AND m.created_at >= q.asked_at
       AND m.created_at < COALESCE(
             (SELECT MIN(u.created_at) FROM ${APP_SCHEMA}.messages u
@@ -425,7 +428,7 @@ export const MONITORING_DETAIL_QUERY = `
          q.created_at AS asked_at, c.user_email,
          a.id AS answer_id, a.trace_id, a.response_json,
          COALESCE(
-           CASE WHEN a.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+           CASE WHEN a.response_json->>'trace_session_basis' IN (${TRACE_SESSION_BASES_SQL})
                 THEN a.response_json->>'trace_session_id' END,
            p.trace_session_id
          ) AS trace_session_id,
@@ -471,7 +474,7 @@ export const MONITORING_DETAIL_QUERY = `
     WHERE m.conversation_id = q.conversation_id
       AND m.role = 'assistant'
       AND m.response_json->>'type' = 'plan'
-      AND m.response_json->>'trace_session_basis' = '${TRACE_SESSION_BASIS}'
+      AND m.response_json->>'trace_session_basis' IN (${TRACE_SESSION_BASES_SQL})
       AND m.created_at >= q.created_at
       AND (SELECT u.id FROM ${APP_SCHEMA}.messages u
             WHERE u.conversation_id = m.conversation_id AND u.role = 'user'

@@ -1,6 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
-import { questionTraceSessionId, TRACE_SESSION_ATTACHMENT_CHARS } from './trace-session';
+import {
+  conversationTraceSessionId,
+  questionTraceSessionId,
+  QUESTION_TRACE_SESSION_BASIS,
+  TRACE_SESSION_ATTACHMENT_CHARS,
+  TRACE_SESSION_BASIS,
+  turnTraceSession,
+} from './trace-session';
+
+describe('conversation trace session', () => {
+  it('uses the conversation id as the session, as the agent does', () => {
+    expect(conversationTraceSessionId('conv-6f0c2a52-1b6e-4f5e-9d51-3c2d9e0a7b11')).toBe(
+      'conv-6f0c2a52-1b6e-4f5e-9d51-3c2d9e0a7b11'
+    );
+  });
+
+  it.each(['', ' conv-1', 'has space', 'x'.repeat(129), '-leading-dash'])(
+    'refuses %j, which the agent would not use either',
+    (id) => {
+      expect(conversationTraceSessionId(id)).toBeNull();
+    }
+  );
+
+  it('gives every turn of one conversation the same session regardless of the question', () => {
+    const first = turnTraceSession('conv-1', 'Analyze activity by label.', '');
+    const second = turnTraceSession('conv-1', 'Analyze spend by region.', '');
+    expect(first).toEqual({ id: 'conv-1', basis: TRACE_SESSION_BASIS });
+    expect(second).toEqual(first);
+  });
+
+  it('falls back to the question fingerprint, with the older basis, for an unusable id', () => {
+    expect(turnTraceSession('has space', 'Analyze activity by label.', '')).toEqual({
+      id: 'plan-a0edd9f880c22577',
+      basis: QUESTION_TRACE_SESSION_BASIS,
+    });
+  });
+});
 
 describe('questionTraceSessionId', () => {
   it.each([
