@@ -55,3 +55,43 @@ export function useAgentWarmup(): AgentWarmup {
   }, []);
   return state;
 }
+
+export const AGENT_READY_POLL_MS = 5_000;
+
+/**
+ * Hold a question until the agent's endpoint is awake, the way a question waits
+ * for a cold SQL warehouse.
+ *
+ * The arrival check only covers the moment the app opened. An endpoint can fall
+ * asleep later, or restart after a release, and a question sent into that sits
+ * with nothing on screen for minutes -- long enough for the short-lived Genie
+ * pass the app signs with the question to expire before the model reads it.
+ * Waiting here, before the question is built and its timer starts, fixes both.
+ *
+ * Never a gate: after `giveUpMs` the question is sent anyway, and any failure to
+ * read the state counts as awake, so this cannot turn a working agent into a
+ * refused question.
+ */
+export async function waitForAgentReady({
+  fetcher = fetch,
+  sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  now = Date.now,
+  pollMs = AGENT_READY_POLL_MS,
+  giveUpMs = AGENT_WARMUP_GIVE_UP_MS,
+  onWaking,
+}: {
+  fetcher?: Fetcher;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+  pollMs?: number;
+  giveUpMs?: number;
+  onWaking?: () => void;
+} = {}): Promise<'ready' | 'timed-out'> {
+  const startedAt = now();
+  for (;;) {
+    if ((await readAgentWarmup(fetcher)) !== 'waking') return 'ready';
+    if (now() - startedAt >= giveUpMs) return 'timed-out';
+    onWaking?.();
+    await sleep(pollMs);
+  }
+}

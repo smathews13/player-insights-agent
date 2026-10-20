@@ -124,7 +124,7 @@ import {
   useLiveAsk,
 } from './live-ask';
 import { useAgentReadiness } from './agent-readiness';
-import { useAgentWarmup } from './agent-warmup';
+import { useAgentWarmup, waitForAgentReady } from './agent-warmup';
 import { runStatusFor } from './run-status';
 import { paneStartsCollapsed, rememberPaneCollapsed } from './ask-pane-preferences';
 import { answerRunVerdict, withDisplayedStageStatus } from '../../shared/run-verdict';
@@ -436,6 +436,7 @@ export function HomePage() {
   const [clearingDocs, setClearingDocs] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [warehousePreparing, setWarehousePreparing] = useState(false);
+  const [agentPreparing, setAgentPreparing] = useState(false);
   /**
    * A run discovered from Lakebase after this view was reopened.
    *
@@ -712,7 +713,13 @@ export function HomePage() {
   // flight, or an empty prompt.
   const budgetBlocked = budgetStatus?.level === 'approval-required';
   const canAsk =
-    draft.trim().length > 0 && !loading && !warehousePreparing && !conversationLoading && !parsing && !budgetBlocked;
+    draft.trim().length > 0 &&
+    !loading &&
+    !warehousePreparing &&
+    !agentPreparing &&
+    !conversationLoading &&
+    !parsing &&
+    !budgetBlocked;
   // The rail draws the run that happened, or the one happening, or nothing. No
   // reference stages stand in, and a run in flight draws its OWN steps or none:
   // the fallback to the last answer's trace used to apply whenever the live list
@@ -1460,6 +1467,7 @@ export function HomePage() {
     if (
       !question.trim() ||
       warehousePreparing ||
+      agentPreparing ||
       readLiveAsk(conversationId)?.inFlight ||
       readActiveAsk(conversationId)
     )
@@ -1471,6 +1479,15 @@ export function HomePage() {
       await waitForWarehouseReady();
     } finally {
       setWarehousePreparing(false);
+    }
+    if (activeConversationRef.current !== runConversationId) return;
+    // Same idea for the agent's endpoint: wait while it wakes rather than send
+    // the question into a sleeping endpoint and sit on "Planning the analysis".
+    setAgentPreparing(true);
+    try {
+      await waitForAgentReady();
+    } finally {
+      setAgentPreparing(false);
     }
     if (activeConversationRef.current !== runConversationId) return;
     // Everything below writes into the conversation this run started in. Once
@@ -3130,11 +3147,13 @@ export function HomePage() {
                 cancellation and only then aborts this browser's stream. */}
             <Button
               type="submit"
-              disabled={warehousePreparing || (loading ? stopping : !canAsk)}
-              aria-busy={warehousePreparing || stopping || parsing || undefined}
+              disabled={warehousePreparing || agentPreparing || (loading ? stopping : !canAsk)}
+              aria-busy={warehousePreparing || agentPreparing || stopping || parsing || undefined}
             >
               {warehousePreparing ? (
                 <PiaBusyButtonContent busy label="Ask Player Insights Agent" busyLabel="Starting warehouse" />
+              ) : agentPreparing ? (
+                <PiaBusyButtonContent busy label="Ask Player Insights Agent" busyLabel="Waking the agent" />
               ) : loading ? (
                 stopping ? (
                   <PiaBusyButtonContent busy label="Stop" busyLabel="Stopping" />

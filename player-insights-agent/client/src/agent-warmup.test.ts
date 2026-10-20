@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentWarmupFrom, readAgentWarmup } from './agent-warmup';
+import { agentWarmupFrom, readAgentWarmup, waitForAgentReady } from './agent-warmup';
 
 describe('agent warm-up', () => {
   it.each([
@@ -25,5 +25,54 @@ describe('agent warm-up', () => {
     });
     expect(calls).toEqual(['/api/agent-warmup']);
     expect(state).toBe('waking');
+  });
+});
+
+describe('waiting for the agent before a question', () => {
+  const answer = (state: string) => () => Promise.resolve({ json: () => Promise.resolve({ state }) });
+
+  it('does not wait when the agent is awake', async () => {
+    let slept = 0;
+    const result = await waitForAgentReady({
+      fetcher: answer('warm'),
+      sleep: () => {
+        slept += 1;
+        return Promise.resolve();
+      },
+    });
+    expect(result).toBe('ready');
+    expect(slept).toBe(0);
+  });
+
+  it('keeps asking while it wakes, then lets the question through', async () => {
+    const states = ['waking', 'waking', 'warm'];
+    let woke = 0;
+    const result = await waitForAgentReady({
+      fetcher: () => answer(states.shift() ?? 'warm')(),
+      sleep: () => Promise.resolve(),
+      onWaking: () => {
+        woke += 1;
+      },
+    });
+    expect(result).toBe('ready');
+    expect(woke).toBe(2);
+  });
+
+  it('sends the question anyway when the wait runs out', async () => {
+    let clock = 0;
+    const result = await waitForAgentReady({
+      fetcher: answer('waking'),
+      now: () => clock,
+      sleep: (ms) => {
+        clock += ms;
+        return Promise.resolve();
+      },
+      giveUpMs: 20_000,
+    });
+    expect(result).toBe('timed-out');
+  });
+
+  it('treats an unreadable state as awake', async () => {
+    expect(await waitForAgentReady({ fetcher: () => Promise.reject(new Error('offline')) })).toBe('ready');
   });
 });

@@ -358,7 +358,7 @@ describe('the mark that replaced it', () => {
     const home = SOURCES.get('HomePage.tsx')!;
     expect(home).not.toContain('<Sparkles />');
     expect(home).not.toMatch(/<ConceptFlicker seat="button" \/>/);
-    expect(home).toContain('disabled={warehousePreparing || (loading ? stopping : !canAsk)}');
+    expect(home).toContain('disabled={warehousePreparing || agentPreparing || (loading ? stopping : !canAsk)}');
     expect(home).toContain('busyLabel="Starting warehouse"');
     expect(home).toMatch(/\) : loading \? \([\s\S]{0,220}'Stop'/);
 
