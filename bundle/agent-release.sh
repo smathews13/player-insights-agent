@@ -879,7 +879,7 @@ run_user_auth_check() {
     --logged "$AUTH_SUMMARY"
     --registered
     --user-authorization "$USER_AUTHORIZATION"
-    "${PINNED_AUTH_ARGS[@]}"
+    ${PINNED_AUTH_ARGS[@]+"${PINNED_AUTH_ARGS[@]}"}
   )
   [[ "$probe" == true ]] && args+=(--serving-endpoint "$ENDPOINT")
   (

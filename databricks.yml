@@ -260,9 +260,20 @@ variables:
       - model-serving
       - sql
       - dashboards.genie
-      # `genie` is model-side only for managed Genie MCP. Requesting it from
-      # App users is accepted by the Apps API but is not minted for every
-      # workspace/user, which can trap valid users at the sign-in gate.
+      # `genie` and `ai-gateway` are both current Apps scopes, and they have to be
+      # on the user's token as well as on the logged model. Model Serving
+      # downscopes the forwarded token to the scopes the model declares and cannot
+      # mint a scope the incoming token does not already hold; it used to inject
+      # the missing ones, and the platform removed that exemption workspace by
+      # workspace in October 2026 (`serving.preventUpscopingForOBO`). Without them
+      # every question fails HTTP 403 "Scopes 'ai-gateway genie' are not assigned
+      # to the client db-modelserving", which is the message for a token that is
+      # short of scopes, not for an endpoint that is. This list used to leave
+      # `genie` out because it was thought not to be minted for every
+      # workspace/user; if a workspace cannot issue one, the symptom is the
+      # sign-in gate, and the remedy is that workspace's Apps scope allowlist.
+      - genie
+      - ai-gateway
       # Resource-browser scopes accepted by the Apps API.
       - catalog.catalogs:read
       - catalog.schemas:read
