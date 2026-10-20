@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
+import { AnswerProse } from './DataEntityLinks';
 import { EntityText, PlanText } from './InlineEntityText';
 
 /**
@@ -72,5 +73,29 @@ describe('plan prose does not badge the version digit in a title', () => {
     // The trade the field makes: a genuine "180 days" in a plan summary also
     // goes unbadged, which is fine -- a plan is not the figure surface.
     expect(planMarkup('aggregated over the trailing 180 days')).not.toContain('answer-inline-number');
+  });
+});
+
+function answerMarkup(text: string) {
+  return renderToStaticMarkup(
+    <MemoryRouter>
+      <AnswerProse text={text} sources={[]} />
+    </MemoryRouter>
+  );
+}
+
+describe('answer text leaves identifiers whole', () => {
+  it('does not badge a digit inside a name', () => {
+    const html = answerMarkup('players in the game2k30 and title7 tables, alpha1/alpha2/beta_3 flags');
+    for (const token of ['game2k30', 'title7', 'alpha1', 'alpha2', 'beta_3']) {
+      expect(html).toContain(token);
+    }
+    expect(html).not.toContain('answer-inline-number');
+  });
+
+  it('still badges real figures', () => {
+    expect(answerMarkup('over the trailing 180 days')).toMatch(/answer-inline-number[^>]*>180</);
+    expect(answerMarkup('coverage reached 12%')).toMatch(/answer-inline-number[^>]*>12%</);
+    expect(answerMarkup('a 2026-10-01 window')).toMatch(/answer-inline-number[^>]*>2026-10-01</);
   });
 });

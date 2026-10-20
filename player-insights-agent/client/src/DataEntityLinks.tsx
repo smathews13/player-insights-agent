@@ -21,6 +21,7 @@ import { databricksLink, type DatabricksObject } from '../../shared/databricks-l
 import { useRequestedEntity, useTrackedTables, useWorkspaceHost } from './data-entity-state';
 import { TableExportMenu } from './ExportMenu';
 import { Entity, EntityParts } from './Entity';
+import { INLINE_NUMBER } from './inline-number';
 export { EntityParts } from './Entity';
 
 /**
@@ -266,8 +267,6 @@ function ProseRuns({
     </>
   );
 }
-
-const INLINE_NUMBER = /\d{4}-\d{1,2}-\d{1,2}|[-+\u2212]?(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?%?/g;
 
 /**
  * Tool/function identifiers the shipped agent can put in reader-facing prose.
