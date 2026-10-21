@@ -467,13 +467,30 @@ const SourceSchema = z.looseObject({ name: z.string(), freshness: z.string(), ro
  * shapes, validated as objects and carried through untouched to the browser that
  * renders them.
  */
-const ChartSchema = z.looseObject({
+export const ChartSchema = z.looseObject({
   id: z.string(),
   title: z.string(),
   /** Derived by the agent from the traces, so it cannot disagree with `data`. */
   kind: z.string(),
   data: z.array(z.record(z.string(), z.unknown())),
   layout: z.record(z.string(), z.unknown()),
+  /**
+   * What the `views` vary: the measure, the segment or the time grain. Set only
+   * when `views` is. Both keys are OPTIONAL: a required key would fail every chart
+   * from a model version that predates them, and a failed answer parse is silent.
+   */
+  view_dimension: z.enum(['metric', 'segment', 'time grain']).optional(),
+  /** Two to six whole figures of the same chart. `data`/`layout` above copy the first. */
+  views: z
+    .array(
+      z.looseObject({
+        id: z.string(),
+        label: z.string(),
+        data: z.array(z.record(z.string(), z.unknown())),
+        layout: z.record(z.string(), z.unknown()),
+      })
+    )
+    .optional(),
 });
 /**
  * What one statement of a run measured, over what window, from which table.

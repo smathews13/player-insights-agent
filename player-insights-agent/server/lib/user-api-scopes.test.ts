@@ -184,6 +184,8 @@ describe('the scopes the bundle declares against the scopes the probes call with
       'model-serving',
       'sql',
       'dashboards.genie',
+      'genie',
+      'ai-gateway',
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',
@@ -325,12 +327,21 @@ describe('the shared default every customer / T2 deployment inherits', () => {
     }
   });
 
-  it('carries the four load-bearing app scopes without the model-only Genie MCP scope', () => {
+  it('carries the load-bearing app scopes, including the two Model Serving downscopes from the token', () => {
     const declared = defaultScopes();
-    for (const scope of ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie']) {
+    // `genie` and `ai-gateway` are here because Model Serving downscopes the forwarded
+    // token to the model's declared scopes and, since October 2026, cannot add one the
+    // token lacks. Without them every ask is refused 403.
+    for (const scope of [
+      'serving.serving-endpoints',
+      'model-serving',
+      'sql',
+      'dashboards.genie',
+      'genie',
+      'ai-gateway',
+    ]) {
       expect(declared).toContain(scope);
     }
-    expect(declared).not.toContain('genie');
   });
 
   it('does not request retired Vector Search browse scopes', () => {
@@ -356,6 +367,8 @@ describe('the shared default every customer / T2 deployment inherits', () => {
       'model-serving',
       'sql',
       'dashboards.genie',
+      'genie',
+      'ai-gateway',
       'catalog.catalogs:read',
       'catalog.schemas:read',
       'catalog.tables:read',

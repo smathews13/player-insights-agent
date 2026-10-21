@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AnswerCharts, type Chart } from './AnswerCharts';
+import { AnswerCharts, chartFigure, type Chart } from './AnswerCharts';
 import { partial } from './styles/stylesheet';
 
 /**
@@ -178,5 +178,48 @@ describe('the list is as long as the answer’s own chart list', () => {
     // The skeleton and the plot share one constant, so the transcript does not
     // jump when 1.4 MB lands.
     expect(render([chart()])).toContain('height:260px');
+  });
+});
+
+describe('a chart with switchable views', () => {
+  const views = [
+    { id: 'view-1', label: 'Measure A', data: [{ type: 'bar', x: ['a'], y: [3] }], layout: { yaxis: { title: 'a' } } },
+    { id: 'view-2', label: 'Measure B', data: [{ type: 'bar', x: ['a'], y: [10] }], layout: { yaxis: { title: 'b' } } },
+  ];
+  const withViews = () =>
+    chart({ kind: 'bar', data: views[0].data, layout: views[0].layout, view_dimension: 'metric', views });
+
+  it('draws no menu when the chart has no views', () => {
+    expect(render([chart()])).not.toContain('answer-chart-view-select');
+  });
+
+  it('draws a menu named for what varies, showing the first view', () => {
+    const markup = render([withViews()]);
+    expect(markup).toContain('answer-chart-view-select');
+    expect(markup).toContain('Switch metric: Measure A');
+    expect(markup).toContain('Measure A');
+  });
+
+  it('draws no menu for a single view', () => {
+    const one = chart({ views: [views[0]], view_dimension: 'metric' });
+    expect(render([one])).not.toContain('answer-chart-view-select');
+  });
+
+  it('hands the plot the selected view whole, and the first by default', () => {
+    const c = withViews();
+    expect(chartFigure(c).figure.data).toBe(views[0].data);
+    const second = chartFigure(c, 'view-2');
+    expect(second.figure.data).toBe(views[1].data);
+    expect(second.figure.layout).toBe(views[1].layout);
+    expect(second.view?.label).toBe('Measure B');
+    // The kind and title never change on a switch.
+    expect(second.figure.kind).toBe('bar');
+    expect(second.figure.title).toBe(c.title);
+  });
+
+  it('falls back to the first view for a stale selection, and ignores views of fewer than two', () => {
+    expect(chartFigure(withViews(), 'gone').view?.id).toBe('view-1');
+    const plain = chart();
+    expect(chartFigure(plain, 'view-2')).toEqual({ figure: plain, view: null });
   });
 });

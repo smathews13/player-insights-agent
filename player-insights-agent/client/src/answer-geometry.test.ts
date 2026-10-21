@@ -474,7 +474,7 @@ describe('the chart panel is a panel on this card, not a second page', () => {
   });
 
   it('loses one chart rather than the answer around it', () => {
-    expect(CHARTS).toContain('static getDerivedStateFromError()');
+    expect(CHARTS).toContain('static getDerivedStateFromError(error: unknown)');
     expect(CHARTS).toContain('<ChartBoundary onFailure={onFailure}>');
     // Inside the map, so the boundary is per panel: one boundary around the
     // list would take every chart down with the first one that threw.

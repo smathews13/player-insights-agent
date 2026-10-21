@@ -271,7 +271,7 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
     expect(at(at(chosen.data[0]).marker).color).toBe('#7a5e32');
   });
 
-  it('maps the fourth category to the explicit Other slot', () => {
+  it('maps the fourth series to the neutral slot and keeps its own name', () => {
     /*
      * The bug: `agent/charts.py` assigns four series colours and this file mapped
      * three, so a fourth line kept #445461 on the night sky. That measures 2.0:1
@@ -289,12 +289,14 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
         x: ['2026-01-01', '2026-01-02'],
         y: [index, index + 1],
         line: { color },
+        name: ['Casual', 'Engaged', 'Regular', 'Dedicated'][index],
       })),
       layout: cartesianLayout(),
     };
     const { data } = themedFigure(four, DARK);
     expect(data.map((trace) => at(at(trace).line).color)).toEqual([DARK.accent, DARK.second, DARK.third, DARK.other]);
-    expect(at(data[3]).name).toBe('Other');
+    // The fourth series is a real, named series: it is repainted, never relabelled.
+    expect(data.map((trace) => at(trace).name)).toEqual(['Casual', 'Engaged', 'Regular', 'Dedicated']);
   });
 
   it('gives every dark series enough contrast on the night sky to be seen', () => {

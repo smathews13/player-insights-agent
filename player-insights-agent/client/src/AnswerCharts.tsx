@@ -1,5 +1,7 @@
-import { Component, lazy, Suspense, type ErrorInfo, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useState, type ErrorInfo, type ReactNode } from 'react';
 import { Skeleton } from './ui';
+import { AppSelect } from './AppSelect';
+import { isStaleBuildError, STALE_BUILD_MESSAGE } from './stale-build';
 import { AnswerOriginLinks } from './DataEntityLinks';
 import { ChartExportMenu } from './ExportMenu';
 import { figureSources } from './answer-table-origins';
@@ -29,6 +31,32 @@ export interface Chart {
   kind: string;
   data: Record<string, unknown>[];
   layout: Record<string, unknown>;
+  /** What `views` vary. Set only when `views` is. */
+  view_dimension?: 'metric' | 'segment' | 'time grain';
+  /** Two to six whole figures of this chart, default first. `data`/`layout` copy the first. */
+  views?: ChartView[];
+}
+
+/** One whole figure of a chart: swapped in as a unit, never merged over the chart. */
+export interface ChartView {
+  id: string;
+  label: string;
+  data: Record<string, unknown>[];
+  layout: Record<string, unknown>;
+}
+
+/**
+ * What to draw for the chart's selected view.
+ *
+ * Fewer than two views is no menu and the chart exactly as it arrived. An id that
+ * matches nothing (a stale selection) falls back to the first view rather than to
+ * an empty plot.
+ */
+export function chartFigure(chart: Chart, selectedId?: string): { figure: Chart; view: ChartView | null } {
+  const views = chart.views ?? [];
+  if (views.length < 2) return { figure: chart, view: null };
+  const view = views.find((candidate) => candidate.id === selectedId) ?? views[0];
+  return { figure: { ...chart, data: view.data, layout: view.layout }, view };
 }
 
 // The import boundary. Plotly is 1.4 MB, so it must not be reachable from App.tsx's
@@ -78,11 +106,15 @@ function kindLabel(kind: string) {
  * would blank every answer on screen, so it is caught per panel and the rest of the
  * answer stands.
  */
-class ChartBoundary extends Component<{ children: ReactNode; onFailure?: () => void }, { failed: boolean }> {
-  state = { failed: false };
+class ChartBoundary extends Component<
+  { children: ReactNode; onFailure?: () => void },
+  { failed: boolean; stale: boolean }
+> {
+  state = { failed: false, stale: false };
 
-  static getDerivedStateFromError() {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown) {
+    // A code file that is gone after a redeploy is not a bad chart: the page is old.
+    return { failed: true, stale: isStaleBuildError(error) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -98,7 +130,16 @@ class ChartBoundary extends Component<{ children: ReactNode; onFailure?: () => v
     if (this.state.failed) {
       return (
         <p className="text-sm text-muted-foreground">
-          This chart could not be displayed. Its figures are in the rows below.
+          {this.state.stale ? (
+            <>
+              {STALE_BUILD_MESSAGE}{' '}
+              <button type="button" className="underline" onClick={() => window.location.reload()}>
+                Reload to update
+              </button>
+            </>
+          ) : (
+            'This chart could not be displayed. Its figures are in the rows below.'
+          )}
         </p>
       );
     }
@@ -107,22 +148,45 @@ class ChartBoundary extends Component<{ children: ReactNode; onFailure?: () => v
 }
 
 function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void }) {
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const name = chart.title.trim() || kindLabel(chart.kind);
+  const { figure, view } = chartFigure(chart, selectedId);
+  const views = chart.views ?? [];
+  const dimension = chart.view_dimension ?? 'view';
   return (
     <figure className="answer-chart-panel">
       {/* An eyebrow, not a heading: the answer's takeaway is the heading on this card
           and a chart panel sits several blocks under it. Opposite it sits this chart's
           own export menu -- a reader can take one panel as a PNG for a slide or as its
-          Plotly JSON to redraw, without exporting the whole answer. */}
+          Plotly JSON to redraw, without exporting the whole answer. A chart that carries
+          views also gets a menu to switch between them; the selection is React state, so
+          a resize or theme repaint of the plot cannot reset it. */}
       <div className="answer-chart-head">
         <figcaption className="answer-chart-eyebrow">{name}</figcaption>
-        <ChartExportMenu chart={chart} name={name} />
+        {view ? (
+          <AppSelect
+            label={`Switch ${dimension}`}
+            ariaLabel={`Switch ${dimension}`}
+            value={view.id}
+            options={views.map((candidate) => ({ value: candidate.id, label: candidate.label }))}
+            onValueChange={setSelectedId}
+            className="answer-chart-view-select"
+          />
+        ) : null}
+        {/* What is on screen is what is exported, and its label is in the file name. */}
+        <ChartExportMenu chart={figure} name={view ? `${name} - ${view.label}` : name} />
       </div>
       <ChartBoundary onFailure={onFailure}>
         {/* The fallback is the plot's own height so the transcript does not jump when
             the chunk lands. */}
         <Suspense fallback={<Skeleton style={{ height: CHART_HEIGHT }} className="w-full" />}>
-          <PlotlyFigure kind={chart.kind} data={chart.data} layout={chart.layout} title={name} height={CHART_HEIGHT} />
+          <PlotlyFigure
+            kind={chart.kind}
+            data={figure.data}
+            layout={figure.layout}
+            title={name}
+            height={CHART_HEIGHT}
+          />
         </Suspense>
       </ChartBoundary>
     </figure>

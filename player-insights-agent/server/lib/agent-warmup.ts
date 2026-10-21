@@ -51,19 +51,23 @@ export interface AgentWarmupDeps {
   /** Sends the empty conversation. Its outcome, including its refusal, is ignored. */
   wake: (userToken: string) => Promise<unknown>;
   now?: () => number;
-  /** Do not send another wake-up within this long of the last one. */
-  cooldownMs?: number;
+  /** After a wake-up ends and the endpoint still reads asleep, wait this long before trying again. */
+  retryMs?: number;
 }
 
-export const AGENT_WAKE_COOLDOWN_MS = 5 * 60_000;
+export const AGENT_WAKE_RETRY_MS = 30_000;
+
+/** A wake-up held open longer than this is treated as lost, so a hung request cannot pin 'waking' forever. */
+export const AGENT_WAKE_MAX_MS = 5 * 60_000;
 
 /** The payload that wakes the endpoint without asking it anything. */
 export const AGENT_WAKE_PAYLOAD = { input: [] } as const;
 
 export function createAgentWarmup(deps: AgentWarmupDeps) {
   const now = deps.now ?? Date.now;
-  const cooldownMs = deps.cooldownMs ?? AGENT_WAKE_COOLDOWN_MS;
-  let lastWakeAt = Number.NEGATIVE_INFINITY;
+  const retryMs = deps.retryMs ?? AGENT_WAKE_RETRY_MS;
+  let inFlightSince: number | null = null;
+  let lastEndedAt = Number.NEGATIVE_INFINITY;
 
   return {
     /** Called as somebody arrives. Resolves quickly; never throws. */
@@ -75,11 +79,26 @@ export function createAgentWarmup(deps: AgentWarmupDeps) {
         return 'unknown';
       }
       if (state === 'warm' || state === 'unknown') return state;
-      if (state === 'asleep' && userToken && now() - lastWakeAt >= cooldownMs) {
-        lastWakeAt = now();
-        // Fire and forget: this request is held open until the endpoint is up.
-        void deps.wake(userToken).catch(() => undefined);
-      }
+      if (state !== 'asleep') return 'waking';
+      // 'waking' is only said when something is actually bringing the endpoint up: a
+      // wake-up still held open, or one just sent. An asleep endpoint nobody can wake
+      // (no user credential) or that a wake-up just failed to wake reads 'unknown', so
+      // the browser sends the question -- which wakes it itself -- instead of holding
+      // it for minutes behind a wake-up that is not happening.
+      if (inFlightSince !== null && now() - inFlightSince < AGENT_WAKE_MAX_MS) return 'waking';
+      if (!userToken || now() - lastEndedAt < retryMs) return 'unknown';
+      const sentAt = now();
+      inFlightSince = sentAt;
+      // Fire and forget: this request is held open until the endpoint is up.
+      void deps
+        .wake(userToken)
+        .catch(() => undefined)
+        .finally(() => {
+          // Only the wake-up that is still the current one may clear the flag: a lost
+          // one that settles late must not end its replacement.
+          if (inFlightSince === sentAt) inFlightSince = null;
+          lastEndedAt = now();
+        });
       return 'waking';
     },
   };
