@@ -45,12 +45,16 @@ export function documentStoredResponse<K extends 'dashboard' | 'report', D, Tr>(
   kind: K,
   id: string,
   document: D,
-  trace: Tr
+  trace: Tr,
+  evidenceBlocks: unknown[] = []
 ) {
-  return { type: kind, mode: 'live' as const, id, [kind]: document, trace } as {
+  // The rows the document was built from, at the top level and NEVER inside the
+  // document: the document is exported, and these hold query text and rows.
+  return { type: kind, mode: 'live' as const, id, [kind]: document, trace, evidence_blocks: evidenceBlocks } as {
     type: K;
     mode: 'live';
     id: string;
     trace: Tr;
+    evidence_blocks: unknown[];
   } & Record<K, D>;
 }

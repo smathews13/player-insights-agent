@@ -133,6 +133,7 @@ export interface WireAnswer {
   sql?: unknown;
   trace?: unknown;
   runStored?: unknown;
+  attachments_cut?: unknown;
   execution_identity?: unknown;
   /**
    * The same claim under the name this file gives it after normalizing.
@@ -496,6 +497,8 @@ export interface NormalizedAnswer {
    * answer explicitly says there is nothing to link to.
    */
   runStored?: false;
+  /** Attached files the agent did not see in full this turn (shortened or left out). Live replies only. */
+  attachmentsCut?: string[];
   /**
    * Which identity the run this answer came from executed as, when it was recorded.
    *
@@ -544,6 +547,10 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
   // unknown word treated as if it were 'live' by a check written as `!== 'mixed'`.
   if (isAnswerProvenance(raw.provenance)) normalized.provenance = raw.provenance;
   if (raw.runStored === false) normalized.runStored = false;
+  if (Array.isArray(raw.attachments_cut)) {
+    const names = raw.attachments_cut.filter((name): name is string => typeof name === 'string' && name !== '');
+    if (names.length > 0) normalized.attachmentsCut = names;
+  }
   // Either spelling, so that normalizing an answer twice says what normalizing
   // it once said. The wire name is what a reply and a stored row use and is
   // therefore preferred; the normalized name is what an answer that has already

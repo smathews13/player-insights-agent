@@ -286,3 +286,13 @@ describe('normalizeClarification', () => {
     expect(normalizeClarification({}).question).toBeTruthy();
   });
 });
+
+describe('attachments_cut', () => {
+  it('keeps the names of files the agent did not read in full', () => {
+    expect(normalizeAnswer({ attachments_cut: ['a.pdf', 3, ''] }).attachmentsCut).toEqual(['a.pdf']);
+  });
+  it('says nothing when none were cut', () => {
+    expect(normalizeAnswer({ attachments_cut: [] }).attachmentsCut).toBeUndefined();
+    expect(normalizeAnswer({}).attachmentsCut).toBeUndefined();
+  });
+});

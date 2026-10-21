@@ -49,3 +49,16 @@ describe('stored response types', () => {
     }
   });
 });
+
+describe('evidence blocks on stored documents', () => {
+  it('keeps the rows a report was built from at the top level, never inside the document', () => {
+    const blocks = [{ tool: 'run_sql', result: 'rows' }];
+    const stored = documentStoredResponse('report', 'rep-1', { title: 'R' }, TRACE, blocks);
+    expect(stored.evidence_blocks).toEqual(blocks);
+    expect(JSON.stringify(stored.report)).not.toContain('run_sql');
+  });
+
+  it('stores an empty array when the backend sent none', () => {
+    expect(documentStoredResponse('dashboard', 'd-1', {}, TRACE).evidence_blocks).toEqual([]);
+  });
+});
