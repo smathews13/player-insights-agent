@@ -17,6 +17,7 @@ import type { ExportTable } from './export-serializers';
 import type { Chart } from './AnswerCharts';
 import type { ConversationMessage } from './app-types';
 import { PiaBusyButtonContent } from './PiaLoader';
+import { isStaleBuildError, STALE_BUILD_MESSAGE } from './stale-build';
 import type { Report } from '../../shared/report-contract';
 import type { Dashboard } from '../../shared/dashboard-contract';
 
@@ -39,7 +40,7 @@ function ActionsMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
-  const [outcome, setOutcome] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [outcome, setOutcome] = useState<{ tone: 'success' | 'error'; text: string; stale?: boolean } | null>(null);
   const activate = async (action: ExportAction) => {
     setBusy(action.label);
     setOutcome(null);
@@ -48,10 +49,16 @@ function ActionsMenu({
       setOutcome({ tone: 'success', text: `${action.label} succeeded.` });
       setOpen(false);
     } catch (error) {
-      setOutcome({
-        tone: 'error',
-        text: error instanceof Error && error.message ? error.message : `${action.label} failed. Try again.`,
-      });
+      // The export code is loaded on demand; after a redeploy an old tab asks for a file
+      // that is gone. Say so and offer the reload instead of the browser's module error.
+      if (isStaleBuildError(error)) {
+        setOutcome({ tone: 'error', text: STALE_BUILD_MESSAGE, stale: true });
+      } else {
+        setOutcome({
+          tone: 'error',
+          text: error instanceof Error && error.message ? error.message : `${action.label} failed. Try again.`,
+        });
+      }
     } finally {
       setBusy('');
     }
@@ -95,6 +102,14 @@ function ActionsMenu({
           aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
         >
           {outcome.text}
+          {outcome.stale ? (
+            <>
+              {' '}
+              <button type="button" className="underline" onClick={() => window.location.reload()}>
+                Reload to update
+              </button>
+            </>
+          ) : null}
         </span>
       ) : null}
     </div>
