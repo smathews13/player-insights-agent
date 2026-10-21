@@ -110,6 +110,8 @@ import {
   identityReadinessHttp,
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
+import { buildPriorTurns, extractEvidenceBlocks, fitPriorTurns } from '../lib/prior-turns';
+import { fitAttachmentText } from '../lib/attachment-text';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { AGENT_WAKE_PAYLOAD, createAgentWarmup } from '../lib/agent-warmup';
@@ -570,6 +572,11 @@ export const LiveAnswerSchema = z.looseObject({
   // is not dropped to a representative answer. See buildAskServingBody and
   // priorEvidenceFromHistory; contract owned by the serving backend (MIT-14658).
   chart_evidence: z.array(z.string()).default([]),
+  // What each tool call read this turn (query text, rows), stored so a later turn can
+  // carry the conversation's evidence as `custom_inputs.prior_turns`. Defaulted, never
+  // required: an older served version sends no key, and a failed answer parse is a
+  // prose-only card.
+  evidence_blocks: z.array(z.looseObject({})).default([]),
   sources: z.array(SourceSchema),
   document_snippets: z.array(DocumentSnippetSchema).default([]),
   caveats: z.array(z.string()),
@@ -5198,12 +5205,18 @@ export function setupInsightsRoutes(
         readStored(
           appkit,
           'POST /api/insights/ask (history)',
-          `SELECT role, content, response_json FROM (SELECT m.role, m.content, m.response_json, m.created_at
+          // The WHOLE conversation, oldest first: the agent budgets its own prompt and
+          // `prior_turns` carries every turn. `input` is still cut to the last twelve in
+          // buildServingHistory. The run trace is dropped in the query -- it is large and
+          // nothing built from this read uses it.
+          `SELECT m.id, m.role, m.content,
+                  CASE WHEN jsonb_typeof(m.response_json) = 'object'
+                       THEN (m.response_json - 'trace') #- '{clarification,trace}'
+                       ELSE m.response_json END AS response_json
              FROM ${APP_SCHEMA}.messages m
              JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
              WHERE m.conversation_id = $1 AND c.user_email = $2
-             ORDER BY m.created_at DESC LIMIT 12
-           ) recent ORDER BY created_at`,
+             ORDER BY m.created_at`,
           [conversationId, email]
         ),
         readStored(
@@ -5233,10 +5246,14 @@ export function setupInsightsRoutes(
       const historyRows = historyRead.available ? historyRead.rows : [];
       const attachmentRows = attachmentRead.available ? attachmentRead.rows : [];
       const historyResult = { rows: historyRows };
-      const attachmentText = attachmentRows
-        .map((row) => `## ${String(row.filename)}\n${String(row.extracted_text)}`)
-        .join('\n\n')
-        .slice(0, MAX_CONVERSATION_ATTACHMENT_TEXT);
+      // The newest files win the space, in upload order (see fitAttachmentText).
+      const attachmentFit = fitAttachmentText(attachmentRows, MAX_CONVERSATION_ATTACHMENT_TEXT);
+      const attachmentText = attachmentFit.text;
+      if (attachmentFit.cut.length > 0) {
+        console.warn(
+          `[serving] Attached files did not all fit; shortened or left out: ${attachmentFit.cut.join(', ')}`
+        );
+      }
       // Exactly the session the Python agent writes to `mlflow.trace.session`:
       // the whole conversation. A conversation id the agent would not accept
       // falls back to the question fingerprint, with the older basis stored so
@@ -5267,7 +5284,8 @@ export function setupInsightsRoutes(
           userEmail: email,
           conversationId,
           prompt,
-          history: historyRows.map((row) => ({
+          // Twelve, as before: the ledger records what `input` carried, not the whole read.
+          history: historyRows.slice(-12).map((row) => ({
             role: String(row.role),
             content: String(row.content),
           })),
@@ -5486,6 +5504,13 @@ export function setupInsightsRoutes(
             }),
             evalGuidance,
           });
+          // The whole conversation, structured, oldest first, fitted under the request
+          // byte caps with the turns that lost their rows flagged. `input` above is
+          // unchanged (twelve messages) so an older backend behaves as it always did.
+          (payload.custom_inputs as Record<string, unknown>).prior_turns = fitPriorTurns(
+            buildPriorTurns(historyResult.rows),
+            Buffer.byteLength(JSON.stringify(payload), 'utf8')
+          );
           // Counted on the way past, so a failure can say where the run died
           // rather than only that it did. "It stopped in 'Query
           // gold_title_daily_summary' after four steps" and "it never started" are
@@ -5724,7 +5749,13 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const dashboardResponse = documentStoredResponse('dashboard', messageId, dashboard, trace);
+            const dashboardResponse = documentStoredResponse(
+              'dashboard',
+              messageId,
+              dashboard,
+              trace,
+              extractEvidenceBlocks(endpointResult)
+            );
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (dashboard)',
@@ -5767,7 +5798,13 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const reportResponse = documentStoredResponse('report', messageId, report, trace);
+            const reportResponse = documentStoredResponse(
+              'report',
+              messageId,
+              report,
+              trace,
+              extractEvidenceBlocks(endpointResult)
+            );
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (report)',
@@ -6212,6 +6249,7 @@ export function setupInsightsRoutes(
           type: 'answer',
           ...disclosed,
           runStored,
+          ...(attachmentFit.cut.length > 0 ? { attachments_cut: attachmentFit.cut } : {}),
           execution_identity: executionIdentityClaim(identity),
         });
       } finally {

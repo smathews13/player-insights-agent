@@ -260,7 +260,7 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
     const lakebase = {
       async query(sql: string) {
         const normalised = sql.replace(/\s+/g, ' ').trim();
-        if (normalised.startsWith('SELECT role, content, response_json FROM (')) {
+        if (normalised.startsWith('SELECT m.id, m.role, m.content,')) {
           contextReads.push('history');
           await contextGate;
         }

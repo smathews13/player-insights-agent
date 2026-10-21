@@ -948,16 +948,16 @@ function memoryLakebase(
 
       // Matched on the outer projection rather than the join, which the run-trace
       // and stored-messages reads share.
-      if (sql.startsWith('SELECT role, content, response_json FROM (')) {
-        // Mirrors the route's `ORDER BY created_at DESC LIMIT 12` then re-ascend,
-        // and its join: history belongs to the owner of the conversation.
+      if (sql.startsWith('SELECT m.id, m.role, m.content,')) {
+        // Mirrors the route's whole-conversation read in time order (the route cuts
+        // `input` to twelve itself) and its join: history belongs to the owner of the
+        // conversation.
         if (conversations.get(String(params[0])) !== String(params[1])) {
           return Promise.resolve({ rows: [] as Record<string, unknown>[] });
         }
         const rows = messages
           .filter((message) => message.conversation_id === params[0])
-          .slice(-12)
-          .map(({ role, content, response_json }) => ({ role, content, response_json }));
+          .map(({ id, role, content, response_json }) => ({ id, role, content, response_json }));
         return Promise.resolve({ rows });
       }
 
@@ -2140,6 +2140,16 @@ describe('what the route actually puts on the wire', () => {
       role: 'user',
       content: 'And what about the same metric by title?',
     });
+    // `input` stays at twelve, but the whole conversation travels in `prior_turns`:
+    // one entry per earlier assistant turn, oldest first, including the first.
+    const priorTurns = captured[captured.length - 1]?.payload.custom_inputs.prior_turns as {
+      question?: string;
+    }[];
+    expect(priorTurns).toHaveLength(7);
+    expect(priorTurns[0]?.question).toBe('seed question 0');
+    expect(priorTurns[6]?.question).toBe('seed question 6');
+    // And the stored trace never rides along.
+    expect(JSON.stringify(priorTurns)).not.toContain('"trace"');
   });
 
   it('replays a stored plan turn with its id so the agent can match the approval', async () => {

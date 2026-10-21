@@ -3007,6 +3007,12 @@ export function HomePage() {
               the one moment it is worth reading is the one moment it is missing. */}
           <div className="trace-summary">
             <RunStatusPill status={runStatus} />
+            {answer?.attachmentsCut && (
+              <span className="trace-summary-note" role="status">
+                Too much attached text for one question, so the agent did not read all of{' '}
+                {answer.attachmentsCut.join(', ')}. Remove older files or attach less to include it.
+              </span>
+            )}
             {answer &&
               (answer.runStored === false ? (
                 <span className="trace-summary-note" role="status">

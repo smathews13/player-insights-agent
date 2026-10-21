@@ -45,3 +45,18 @@ describe('chart views on the wire', () => {
     expect(undeclaredAnswerKeys(answerWith([chart])).filter((key) => key.startsWith('charts['))).toEqual([]);
   });
 });
+
+describe('evidence_blocks on an answer', () => {
+  it('is declared, so a current answer reports no contract drift for it', () => {
+    expect(Object.keys(LiveAnswerSchema.shape)).toContain('evidence_blocks');
+    const answer = {
+      evidence_blocks: [{ tool: 'run_sql' }],
+      trace: { stages: [] },
+      figures: [],
+      charts: [],
+      sources: [],
+      derivation: [],
+    };
+    expect(undeclaredAnswerKeys(answer as unknown as LiveAnswer)).not.toContain('evidence_blocks');
+  });
+});
