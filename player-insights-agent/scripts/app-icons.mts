@@ -75,13 +75,13 @@ export const TAB_ICON_SVG = 'pia-dpad-tab.svg';
 
 export type IconCut = (typeof ICON_FILES)[keyof typeof ICON_FILES]['cut'];
 
-/** `--ast-navy`. The plate, and the surface the mark's `dark` seating is drawn for. */
-export const PLATE = '#11171c';
+/** The ice plate the white d-pad sits on (the loading-screen look). */
+export const PLATE = '#e8f0fa';
 
 /** The dark-surface PIA inks. Engravings cut back into the navy plate. */
 export const INK = '#ffffff';
-export const ACCENT = '#6faedd';
-export const ENGRAVING = PLATE;
+export const ACCENT = '#8fc1e8';
+export const ENGRAVING = '#9aa3ad';
 
 /**
  * The plate's corner, as a fraction of the tile.

@@ -1074,18 +1074,6 @@ html:not([data-theme='dark']) .trace-inspector .pia-flick-row-say {
   color: var(--ast-text);
 }
 
-/* The collapsed strip's hover, in light mode. The dark column's hover is white text on
-   a 6% white wash, which on a light page is white on white: the strip vanished under
-   the pointer while the left rail's, which uses the foreground and a muted wash,
-   stayed visible. Same colours as the left rail's now. */
-html:not([data-theme='dark']) .trace-inspector .inspector-collapse-strip:is(:hover, :focus-visible) {
-  color: var(--foreground);
-  background: var(--muted);
-}
-html:not([data-theme='dark']) .trace-inspector .inspector-collapse-strip:is(:hover, :focus-visible) > span {
-  color: inherit;
-}
-
 /* The hairlines inside the column, which were white at 12% and 18% -- invisible on
    white. `--ast-hairline` is the app's one thin border and it is what every other
    card on a light page is bounded by. */
@@ -1275,8 +1263,11 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
 }
 .trace-inspector .inspector-collapse-strip:hover,
 .trace-inspector .inspector-collapse-strip:focus-visible {
-  color: var(--ast-white);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+  background: var(--muted);
+}
+.trace-inspector .inspector-collapse-strip:is(:hover, :focus-visible) > span {
+  color: inherit;
 }
 
 /*
@@ -1333,8 +1324,8 @@ html:not([data-theme='dark']) .trace-inspector .run-status--dark.is-live {
 }
 .trace-inspector .inspector-collapse-toggle:hover,
 .trace-inspector .inspector-collapse-toggle:focus-visible {
-  color: var(--ast-white);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--foreground);
+  background: var(--muted);
 }
 
 .rail-collapse-strip:focus-visible,

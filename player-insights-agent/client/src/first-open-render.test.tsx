@@ -154,7 +154,7 @@ describe('all required scopes granted', () => {
     expect(markup).toContain('data-pia-cut="engraved"');
     expect(markup).toContain('Player Insights <span class="pia-accent">Agent</span>');
     expect(markup).not.toContain('pia-mark--cluster');
-    expect(PIA_BRAND).toMatch(/\.pia-mark--light,[\s\S]*?\{[^}]*--pia-mark-ink:\s*var\(--ast-navy\)/s);
+    expect(PIA_BRAND).toMatch(/\n\.pia-mark--light\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s);
     expect(PIA_BRAND).toMatch(/\.pia-type--light,[\s\S]*?\{[^}]*color:\s*var\(--ast-navy\)/);
     expect(PIA_BRAND).toMatch(
       /html\[data-theme='dark'\] \.pia-mark--light\s*\{[^}]*--pia-mark-ink:\s*var\(--ast-white\)/s

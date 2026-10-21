@@ -364,10 +364,10 @@ describe('the ask home is the geometry the mockup gives it', () => {
     );
   });
 
-  it('gives the answer and in-conversation composer the same outer measure', () => {
+  it('keeps the in-conversation composer narrower than the answer, at the ADAPT 700px measure', () => {
     const measure = Number.parseInt(partial('tokens.css').match(/--conversation-measure:\s*(\d+)px/)?.[1] ?? '0', 10);
     expect(measure).toBeGreaterThanOrEqual(1100);
-    expect(body('.composer')).toMatch(/max-width:\s*var\(--conversation-measure\)/);
+    expect(body('.composer')).toMatch(/max-width:\s*min\(700px,\s*var\(--conversation-measure\)\)/);
     expect(body('.composer')).toMatch(/- 16px\)/);
     expect(groupedBody('.conversation-main .answer-card', partial('ask.css'))).toMatch(/width:\s*calc\(100% - 16px\)/);
     expect(atWidth(800)).toMatch(/\.composer\s*\{[^}]*width:\s*calc\(100% - 48px\)/);
@@ -377,7 +377,7 @@ describe('the ask home is the geometry the mockup gives it', () => {
     // The empty state still needs one centre line with the hero, so its narrower
     // 720px cap overrides the shared in-conversation measure.
     expect(body('.ask-hero')).toMatch(/max-width:\s*720px/);
-    expect(body('.composer')).toMatch(/max-width:\s*var\(--conversation-measure\)/);
+    expect(body('.composer')).toMatch(/max-width:\s*min\(700px,\s*var\(--conversation-measure\)\)/);
     expect(body(".ask-layout[data-transcript='empty'] .composer")).toMatch(/max-width:\s*720px/);
     expect(body('.composer')).toMatch(/margin-inline:\s*auto/);
   });

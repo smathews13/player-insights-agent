@@ -180,6 +180,15 @@ describe('binary export signatures', () => {
     expect(tableText).toContain('(Row');
   });
 
+  it('draws Figures bullets as labelled cards', async () => {
+    const text = new TextDecoder().decode(
+      await markdownPdf('# Report\n\n## Figures\n- **Players:** 42 \u2014 up 5%\n- **Revenue:** $9\n').arrayBuffer()
+    );
+    expect(text).toContain('(PLAYERS)');
+    expect(text).toContain('(42)');
+    expect(text).toContain('(up 5%)');
+  });
+
   it('preserves long table cells and source attribution in PDF output', async () => {
     const longCell =
       'This complete explanation contains every important regional cohort detail without dropping the final words';
@@ -193,7 +202,8 @@ describe('binary export signatures', () => {
     );
     const pdf = new TextDecoder().decode(await tablePdf(table).arrayBuffer());
     for (const word of longCell.split(' ')) expect(pdf).toContain(word);
-    for (let at = 0; at < longSource.length; at += 88) expect(pdf).toContain(longSource.slice(at, at + 88));
+    const shown = [...pdf.matchAll(/\(((?:[^()\\]|\\.)*)\) Tj/g)].map((m) => m[1]).join('');
+    expect(shown).toContain(longSource);
   });
 
   it('sends every wrapped cell and source word to the PNG canvas', async () => {
