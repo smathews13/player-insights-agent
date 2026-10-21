@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import {
   Braces,
+  Check,
   Code2,
   Copy,
   Download,
@@ -101,6 +102,7 @@ function ActionsMenu({
           role={outcome.tone === 'error' ? 'alert' : 'status'}
           aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
         >
+          {outcome.tone === 'success' ? <Check aria-hidden="true" /> : null}
           {outcome.text}
           {outcome.stale ? (
             <>
@@ -200,6 +202,7 @@ export function DashboardExportButton({ dashboard }: { dashboard: Dashboard }) {
           role={outcome.tone === 'error' ? 'alert' : 'status'}
           aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
         >
+          {outcome.tone === 'success' ? <Check aria-hidden="true" /> : null}
           {outcome.text}
         </span>
       ) : null}
@@ -285,6 +288,7 @@ export function TableExportMenu({ table, name = 'answer-table' }: { table: Expor
           role={outcome.tone === 'error' ? 'alert' : 'status'}
           aria-live={outcome.tone === 'error' ? 'assertive' : 'polite'}
         >
+          {outcome.tone === 'success' ? <Check aria-hidden="true" /> : null}
           {outcome.text}
         </span>
       ) : null}

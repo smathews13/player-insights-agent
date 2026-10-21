@@ -706,7 +706,8 @@ describe('a step announced before it finishes', () => {
   it('paints a failed step with the shared failed pill, not a grey outline', () => {
     // AppKit's outline Badge is the grey chip that made step 09 look like
     // "running". The run-header mapping already sends failed to ast-pill--neg.
-    expect(PANEL).toMatch(/className=\{astPill\(step\.status\)\}/);
+    // A partial step takes the failed family too (stepPill), matching its red row.
+    expect(PANEL).toMatch(/className=\{stepPill\(step\.status\)\}/);
     expect(PANEL).toMatch(/from '\.\/run-header'/);
   });
 });

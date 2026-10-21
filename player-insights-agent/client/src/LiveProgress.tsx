@@ -20,7 +20,7 @@ import { productForTool } from './brand-icons';
 import { BrandIcon } from './BrandIcon';
 import { buildLiveRun, type LiveStep } from './live-progress';
 import { railTiming, stepNumber } from './agent-map';
-import { astPill } from './run-header';
+import { stepPill } from './run-header';
 import { formatMs, toolNameFromId } from './trace-timeline';
 import { EntityText, TableEntityList } from './InlineEntityText';
 import { InlineSqlCode } from './SqlPresentation';
@@ -100,7 +100,7 @@ function StepRow({
             )}
           </span>
           {step.status !== 'complete' && (
-            <Badge variant="outline" className={astPill(step.status)}>
+            <Badge variant="outline" className={stepPill(step.status)}>
               {step.status === 'running' ? (
                 <PiaLoader
                   variant="button"

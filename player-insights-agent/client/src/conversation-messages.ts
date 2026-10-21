@@ -82,7 +82,23 @@ export function mergeNewestConversationMessages(
   if (newest.length === 0) return [...current];
   const boundary = messageOrder(newest[0]);
   const older = current.filter((message) => typeof message.created_at === 'string' && messageOrder(message) < boundary);
-  return prependConversationMessages(newest, older);
+  const merged = prependConversationMessages(newest, older);
+  // A question the store did not return is still the question that was asked. Its row is
+  // written separately from the answer and can be lost on its own, and discarding the local
+  // copy here is how a report's request vanished from above the report. Kept only when no
+  // stored question says the same words, and seated just before the answer it led to.
+  const stored = new Set(newest.filter((message) => message.role === 'user').map((message) => message.content));
+  const orphans = current.filter(
+    (message) =>
+      typeof message.created_at !== 'string' &&
+      message.role === 'user' &&
+      message.content.trim() !== '' &&
+      !stored.has(message.content)
+  );
+  if (orphans.length === 0) return merged;
+  const lastAnswer = merged.map((message) => message.role).lastIndexOf('assistant');
+  const at = lastAnswer === -1 ? merged.length : lastAnswer;
+  return [...merged.slice(0, at), ...orphans, ...merged.slice(at)];
 }
 
 export interface PrependAnchor {

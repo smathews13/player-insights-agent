@@ -1054,15 +1054,25 @@ ol.answer-list {
   justify-content: center;
 }
 .export-outcome {
+  /* Beside the button, to its left, so the result is read where the click was. */
   position: absolute;
-  right: 0;
-  top: 100%;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 10px;
   z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   width: max-content;
   max-width: 260px;
-  padding-top: 4px;
   color: var(--ast-text-secondary);
   font-size: var(--ast-fs-11);
+}
+.export-outcome svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
 }
 .export-outcome--error {
   color: var(--ast-neg-text);

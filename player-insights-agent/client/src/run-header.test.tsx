@@ -289,3 +289,12 @@ describe('the run header is four objects, not one sentence', () => {
     expect(astPill('truncated')).toBe('ast-pill ast-pill--warn');
   });
 });
+
+describe('stepPill', () => {
+  it('puts a partial step in the failed family beside its red row, and leaves the run pill amber', async () => {
+    const { stepPill, astPill } = await import('./run-header');
+    expect(stepPill('partial')).toBe(astPill('failed'));
+    expect(stepPill('complete')).toBe(astPill('complete'));
+    expect(astPill('partial')).toContain('warn');
+  });
+});
