@@ -9,11 +9,19 @@
   transition: none;
 }
 
-.pia-mark--light,
 .pia-mark--print {
   --pia-mark-ink: var(--ast-navy);
   --pia-mark-accent: var(--ast-blue);
   --pia-mark-engraving: var(--ast-white);
+}
+
+/* The light-surface mark is the white d-pad used on the loading screen, in both
+   themes; the black d-pad is print-only. A hairline keeps white legible on white. */
+.pia-mark--light {
+  --pia-mark-ink: var(--ast-white);
+  --pia-mark-accent: var(--ast-ice-accent);
+  --pia-mark-engraving: var(--ast-navy);
+  filter: drop-shadow(0 0 1px var(--border));
 }
 
 .pia-mark--dark {
@@ -149,12 +157,6 @@ html[data-theme='dark'] .pia-type--light .pia-accent {
 }
 
 @media print {
-  .pia-mark {
-    --pia-mark-ink: #11171c;
-    --pia-mark-accent: #2272b4;
-    --pia-mark-engraving: #ffffff;
-  }
-
   .pia-wordmark,
   .pia-acronym,
   .pia-caption {

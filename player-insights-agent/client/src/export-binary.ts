@@ -12,19 +12,6 @@ import {
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
-const MARGIN = 42;
-const LINE_HEIGHT = 14;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const CONTENT_HEIGHT = PAGE_HEIGHT - MARGIN * 2;
-const PDF_LINES_PER_PAGE = Math.floor(CONTENT_HEIGHT / LINE_HEIGHT);
-
-interface PdfLine {
-  text: string;
-  size?: number;
-  bold?: boolean;
-  indent?: number;
-  gapAfter?: number;
-}
 
 /**
  * Windows-1252 (WinAnsi) code points that live outside Latin-1's own 0xA0–0xFF range.
@@ -118,117 +105,8 @@ function wrapText(value: string, width: number): string[] {
   return lines.length ? lines : [''];
 }
 
-function readableMarkdownLine(line: string): PdfLine | null {
-  const trimmed = line.trim();
-  if (/^```/.test(trimmed) || /^---+$/.test(trimmed)) return null;
-  if (/^\|\s*:?-+:?(\s*\|\s*:?-+:?)+\s*\|?$/.test(trimmed)) return null;
-  const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
-  const list = /^[-*+]\s+(.+)$/.exec(trimmed);
-  const text = (heading?.[2] ?? list?.[1] ?? trimmed)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^\|\s*|\s*\|$/g, '')
-    .replace(/\s*\|\s*/g, '   |   ');
-  if (!text) return { text: '', gapAfter: 4 };
-  return {
-    text: list ? `- ${text}` : text,
-    ...(heading ? { size: heading[1].length === 1 ? 18 : 13, bold: true, gapAfter: 4 } : {}),
-    ...(list ? { indent: 10 } : {}),
-  };
-}
-
-/** One flowable unit of a document: a wrapped line of text, or a chart image to embed. */
-type FlowItem = { kind: 'text'; line: PdfLine } | { kind: 'image'; dataUrl: string };
-
-/** A whole markdown image line whose target is a data URL, e.g. `![Chart](data:image/jpeg;base64,…)`. */
-const IMAGE_LINE = /^!\[[^\]]*\]\((data:image\/[^;]+;base64,[^)]+)\)$/;
-
-/**
- * Markdown as an ordered flow of text lines and embeddable images.
- *
- * Images are pulled out BEFORE `readableMarkdownLine` sees the line, because that
- * helper turns `![alt](url)` into `alt (url)` -- which for a chart would dump a
- * quarter-megabyte of base64 into the page as text. Only a baseline JPEG data URL
- * becomes an image (DCTDecode is the only image filter this writer emits); any
- * other image markdown -- a PNG data URL, an http image -- is dropped rather than
- * printed, so a picture the PDF cannot embed leaves no garbage behind.
- */
-function markdownFlow(text: string): FlowItem[] {
-  const items: FlowItem[] = [];
-  for (const raw of text.split('\n')) {
-    const trimmed = raw.trim();
-    if (/^!\[[^\]]*\]\(/.test(trimmed)) {
-      const image = IMAGE_LINE.exec(trimmed);
-      if (image && image[1].startsWith('data:image/jpeg')) items.push({ kind: 'image', dataUrl: image[1] });
-      continue;
-    }
-    const readable = readableMarkdownLine(raw);
-    if (!readable) continue;
-    const width = readable.indent ? 84 : 88;
-    const wrapped = wrapText(readable.text, width);
-    wrapped.forEach((line, index) =>
-      items.push({
-        kind: 'text',
-        line: { ...readable, text: line, ...(index < wrapped.length - 1 ? { gapAfter: 0 } : {}) },
-      })
-    );
-  }
-  return items;
-}
-
 function tableCells(row: TableRow): string[] {
   return row.cells.map((cell) => inlinePlainText(cell.children).replace(/\s+/g, ' ').trim());
-}
-
-function wrappedTableRow(row: string[], width: number, columns: number, bold = false): PdfLine[] {
-  const cells = Array.from({ length: columns }, (_, index) => wrapText(row[index] ?? '', width));
-  const height = Math.max(1, ...cells.map((cell) => cell.length));
-  return Array.from({ length: height }, (_, line) => ({
-    text: cells
-      .map((cell) => (cell[line] ?? '').padEnd(width))
-      .join(' | ')
-      .trimEnd(),
-    bold,
-  }));
-}
-
-function tablePages(table: ExportTable): PdfLine[][] {
-  const rows = table.block.rows.map(tableCells);
-  const header = table.block.header ? tableCells(table.block.header) : [];
-  const columns = Math.max(header.length, ...rows.map((row) => row.length));
-  const width = Math.max(8, Math.floor(82 / Math.max(1, columns)));
-  const sourceLine = table.sources.length ? `Sources: ${table.sources.map((source) => source.name).join(', ')}` : '';
-  const repeated = header.length ? wrappedTableRow(header, width, columns, true) : [];
-  const pages: PdfLine[][] = [];
-  let page = [...repeated];
-  for (const row of rows) {
-    const wrapped = wrappedTableRow(row, width, columns);
-    if (page.length > repeated.length && page.length + wrapped.length > PDF_LINES_PER_PAGE) {
-      pages.push(page);
-      page = [...repeated];
-    }
-    // A single very tall row continues on following pages without losing text.
-    for (const line of wrapped) {
-      if (page.length >= PDF_LINES_PER_PAGE) {
-        pages.push(page);
-        page = [...repeated];
-      }
-      page.push(line);
-    }
-  }
-  if (sourceLine) {
-    const source = wrapText(sourceLine, 88).map((text) => ({ text, size: 9 }) satisfies PdfLine);
-    for (const line of [{ text: '' }, ...source]) {
-      if (page.length >= PDF_LINES_PER_PAGE) {
-        pages.push(page);
-        page = [];
-      }
-      page.push(line);
-    }
-  }
-  if (page.length || pages.length === 0) pages.push(page);
-  return pages;
 }
 
 /* ── Byte-level PDF assembler ─────────────────────────────────────────────────── */
@@ -317,85 +195,6 @@ function jpegSize(bytes: Uint8Array): { width: number; height: number } | null {
     at += 2 + length;
   }
   return null;
-}
-
-/** A text line's vertical footprint, including its trailing gap. */
-function textLineHeight(line: PdfLine): number {
-  return Math.max(LINE_HEIGHT, (line.size ?? 10) + 2) + (line.gapAfter ?? 0);
-}
-
-/** A chart drawn to the content width, shrunk to fit a page when its aspect ratio is tall. */
-function imageDrawSize(image: PdfImage): { w: number; h: number } {
-  const ratio = image.height / image.width;
-  if (CONTENT_WIDTH * ratio > CONTENT_HEIGHT) return { w: CONTENT_HEIGHT / ratio, h: CONTENT_HEIGHT };
-  return { w: CONTENT_WIDTH, h: CONTENT_WIDTH * ratio };
-}
-
-/**
- * Lay out a flow of text and images into pages, decoding each image once.
- *
- * A top-origin cursor walks down the page; an item that would cross the bottom
- * margin starts a fresh page. Coordinates are converted to PDF's bottom-left
- * origin here so the assembler stays a dumb writer. Images are decoded and sized
- * at layout time and referenced by index, so the same picture is embedded once.
- */
-function paginateFlow(items: readonly FlowItem[]): { pages: DrawOp[][]; images: PdfImage[] } {
-  const images: PdfImage[] = [];
-  const pages: DrawOp[][] = [];
-  let page: DrawOp[] = [];
-  let top = MARGIN;
-  const flush = () => {
-    pages.push(page);
-    page = [];
-    top = MARGIN;
-  };
-  for (const item of items) {
-    if (item.kind === 'text') {
-      const size = item.line.size ?? 10;
-      if (PAGE_HEIGHT - top - size < MARGIN && page.length) flush();
-      page.push({
-        kind: 'text',
-        x: MARGIN + (item.line.indent ?? 0),
-        y: PAGE_HEIGHT - top - size,
-        size,
-        bold: Boolean(item.line.bold),
-        text: item.line.text,
-      });
-      top += textLineHeight(item.line);
-      continue;
-    }
-    const bytes = dataUrlBytes(item.dataUrl);
-    const size = jpegSize(bytes);
-    if (!size || size.width === 0 || size.height === 0) continue;
-    const index = images.push({ bytes, width: size.width, height: size.height }) - 1;
-    const draw = imageDrawSize(images[index]);
-    if (PAGE_HEIGHT - top - draw.h < MARGIN && page.length) flush();
-    page.push({ kind: 'image', x: MARGIN, y: PAGE_HEIGHT - top - draw.h, w: draw.w, h: draw.h, image: index });
-    top += draw.h + 8;
-  }
-  if (page.length || pages.length === 0) pages.push(page);
-  return { pages, images };
-}
-
-/** Pre-paginated text lines (the table path) as text draw ops, positioned from the top of each page. */
-function linesToDrawPages(pages: readonly PdfLine[][]): DrawOp[][] {
-  return pages.map((lines) => {
-    const ops: DrawOp[] = [];
-    let top = MARGIN;
-    for (const line of lines) {
-      const size = line.size ?? 10;
-      ops.push({
-        kind: 'text',
-        x: MARGIN + (line.indent ?? 0),
-        y: PAGE_HEIGHT - top - size,
-        size,
-        bold: Boolean(line.bold),
-        text: line.text,
-      });
-      top += textLineHeight(line);
-    }
-    return ops;
-  });
 }
 
 function pdfColor(color: PdfColor): string {
@@ -498,13 +297,440 @@ function assemblePdf(pages: readonly DrawOp[][], images: readonly PdfImage[]): B
   return new Blob([concatBytes(chunks)], { type: 'application/pdf' });
 }
 
-/** Small dependency-free PDF writer for pre-paginated text (the table path). */
-function buildPdf(pages: readonly PdfLine[][]): Blob {
-  return assemblePdf(linesToDrawPages(pages), []);
+/* ── Styled document PDF (answers, reports, conversations) ───────────────────── */
+
+const DOC_INK: PdfColor = [0.07, 0.09, 0.11];
+const DOC_BODY: PdfColor = [0.16, 0.2, 0.24];
+const DOC_MUTED: PdfColor = [0.4, 0.45, 0.5];
+const DOC_RULE: PdfColor = [0.86, 0.89, 0.92];
+const DOC_BLUE: PdfColor = [0.13, 0.45, 0.71];
+const DOC_ICE: PdfColor = [0.94, 0.96, 0.98];
+const DOC_ZEBRA: PdfColor = [0.975, 0.98, 0.987];
+const DOC_TOP = 78;
+const DOC_BOTTOM = 56;
+const DOC_MARGIN = 54;
+const DOC_WIDTH = PAGE_WIDTH - DOC_MARGIN * 2;
+
+/** Helvetica advance widths in em, coarse by class: close enough to wrap and right-align by. */
+function textWidth(text: string, size: number, bold = false): number {
+  let em = 0;
+  for (const character of text) {
+    if (/[ iljtf.,;:'|!()[\]]/.test(character)) em += 0.28;
+    else if (/[mwMW@%]/.test(character)) em += 0.86;
+    else if (/[A-Z]/.test(character)) em += 0.68;
+    else if (/[0-9]/.test(character)) em += 0.556;
+    else em += 0.5;
+  }
+  return em * size * (bold ? 1.06 : 1);
+}
+
+function wrapToWidth(text: string, width: number, size: number, bold = false): string[] {
+  const lines: string[] = [];
+  let line = '';
+  const place = (word: string) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (!line || textWidth(candidate, size, bold) <= width) {
+      line = candidate;
+      return;
+    }
+    lines.push(line);
+    line = word;
+  };
+  for (const word of text.trim().split(/\s+/)) {
+    if (!word) continue;
+    if (textWidth(word, size, bold) <= width) {
+      place(word);
+      continue;
+    }
+    // One unbroken string wider than the line (a long table name): split it by width.
+    let piece = '';
+    for (const character of word) {
+      if (piece && textWidth(piece + character, size, bold) > width) {
+        place(piece);
+        lines.push(line);
+        line = '';
+        piece = '';
+      }
+      piece += character;
+    }
+    if (piece) place(piece);
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+
+function plainInline(value: string): string {
+  return value
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+}
+
+type DocBlock =
+  | { kind: 'heading'; level: number; text: string }
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'bullet'; text: string; raw: string }
+  | { kind: 'cards'; items: { label: string; value: string; note: string }[] }
+  | { kind: 'table'; header: string[]; rows: string[][] }
+  | { kind: 'image'; dataUrl: string };
+
+const TABLE_RULE = /^\|?\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)*\s*\|?$/;
+
+function splitRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .map((cell) => plainInline(cell));
+}
+
+function docBlocks(markdown: string): DocBlock[] {
+  const blocks: DocBlock[] = [];
+  const lines = markdown.split('\n');
+  let paragraph: string[] = [];
+  const flush = () => {
+    if (paragraph.length) blocks.push({ kind: 'paragraph', text: plainInline(paragraph.join(' ')) });
+    paragraph = [];
+  };
+  for (let index = 0; index < lines.length; index += 1) {
+    const trimmed = lines[index].trim();
+    if (!trimmed || /^```/.test(trimmed) || /^---+$/.test(trimmed)) {
+      flush();
+      continue;
+    }
+    if (/^!\[[^\]]*\]\(/.test(trimmed)) {
+      flush();
+      const image = /^!\[[^\]]*\]\((data:image\/[^;]+;base64,[^)]+)\)$/.exec(trimmed);
+      if (image && image[1].startsWith('data:image/jpeg')) blocks.push({ kind: 'image', dataUrl: image[1] });
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+    if (heading) {
+      flush();
+      blocks.push({ kind: 'heading', level: heading[1].length, text: plainInline(heading[2]) });
+      continue;
+    }
+    if (trimmed.includes('|') && TABLE_RULE.test((lines[index + 1] ?? '').trim())) {
+      flush();
+      const header = splitRow(trimmed);
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        rows.push(splitRow(lines[index]));
+        index += 1;
+      }
+      index -= 1;
+      blocks.push({ kind: 'table', header, rows });
+      continue;
+    }
+    const bullet = /^[-*+]\s+(.+)$/.exec(trimmed);
+    if (bullet) {
+      flush();
+      blocks.push({ kind: 'bullet', text: plainInline(bullet[1]), raw: bullet[1] });
+      continue;
+    }
+    paragraph.push(trimmed);
+  }
+  flush();
+  return withFigureCards(blocks);
+}
+
+/** Bullets under a Figures heading, written `**Label:** value — note`, become KPI cards. */
+function withFigureCards(blocks: DocBlock[]): DocBlock[] {
+  const out: DocBlock[] = [];
+  let inFigures = false;
+  for (const block of blocks) {
+    if (block.kind === 'heading' && block.level === 2) inFigures = block.text.toLowerCase() === 'figures';
+    const match =
+      inFigures && block.kind === 'bullet' ? /^\*\*(.+?):\*\*\s*(.+?)(?:\s+\u2014\s+(.+))?$/.exec(block.raw) : null;
+    if (match) {
+      const item = { label: plainInline(match[1]), value: plainInline(match[2]), note: plainInline(match[3] ?? '') };
+      const last = out[out.length - 1];
+      if (last?.kind === 'cards') last.items.push(item);
+      else out.push({ kind: 'cards', items: [item] });
+      continue;
+    }
+    out.push(block);
+  }
+  return out;
+}
+
+const NUMERIC_CELL = /^[-+−$€£]?\s?[\d,]+(\.\d+)?\s?[%×xkKmMbB]?$/;
+
+/** The document as pages: brand header and footer, eyebrow sections, a callout answer, real bullets and grid tables. */
+function documentPages(markdown: string): { pages: DrawOp[][]; images: PdfImage[] } {
+  const pages: DrawOp[][] = [];
+  const images: PdfImage[] = [];
+  let page: DrawOp[] = [];
+  let top = DOC_TOP;
+  let section = '';
+  let answerLead = false;
+  const room = (height: number) => PAGE_HEIGHT - top - height >= DOC_BOTTOM;
+  const newPage = () => {
+    pages.push(page);
+    page = [];
+    top = DOC_TOP;
+  };
+  const ensure = (height: number) => {
+    if (!room(height) && page.length) newPage();
+  };
+  const text = (value: string, x: number, size: number, bold: boolean, color: PdfColor) => {
+    page.push({ kind: 'text', x, y: PAGE_HEIGHT - top - size, size, bold, text: value, color });
+  };
+
+  for (const block of docBlocks(markdown)) {
+    if (block.kind === 'heading') {
+      if (block.level === 1) {
+        ensure(48);
+        top += 4;
+        text(block.text, DOC_MARGIN, 20, true, DOC_INK);
+        top += 30;
+      } else if (block.level === 2) {
+        section = block.text.toLowerCase();
+        answerLead = section === 'answer';
+        ensure(46);
+        top += 14;
+        text(block.text.toUpperCase(), DOC_MARGIN, 8.5, true, DOC_BLUE);
+        top += 13;
+        page.push({
+          kind: 'line',
+          x1: DOC_MARGIN,
+          y1: PAGE_HEIGHT - top,
+          x2: DOC_MARGIN + DOC_WIDTH,
+          y2: PAGE_HEIGHT - top,
+          color: DOC_RULE,
+          lineWidth: 0.75,
+        });
+        top += 9;
+      } else {
+        ensure(34);
+        top += 8;
+        text(block.text, DOC_MARGIN, 12, true, DOC_INK);
+        top += 19;
+      }
+      continue;
+    }
+    if (block.kind === 'paragraph' || block.kind === 'bullet') {
+      const isBullet = block.kind === 'bullet';
+      const lead = block.kind === 'paragraph' && answerLead;
+      const quoted = block.kind === 'paragraph' && section === 'question';
+      const size = lead ? 12 : quoted ? 11 : 10.5;
+      const bold = lead;
+      const inset = isBullet ? 16 : lead || quoted ? 14 : 0;
+      const wrapped = wrapToWidth(block.text, DOC_WIDTH - inset - (lead ? 10 : 0), size, bold);
+      const leading = size + (lead ? 6 : 5);
+      const pad = lead ? 10 : 0;
+      ensure(Math.min(wrapped.length, 3) * leading + pad * 2);
+      if (lead) {
+        const height = wrapped.length * leading + pad * 2 - 2;
+        // A callout taller than what is left on the page continues unboxed on the next one.
+        if (room(height)) {
+          page.push({
+            kind: 'rect',
+            x: DOC_MARGIN,
+            y: PAGE_HEIGHT - top - height,
+            w: DOC_WIDTH,
+            h: height,
+            fill: DOC_ICE,
+          });
+          page.push({ kind: 'rect', x: DOC_MARGIN, y: PAGE_HEIGHT - top - height, w: 3, h: height, fill: DOC_BLUE });
+          top += pad;
+        }
+        answerLead = false;
+      } else if (quoted) {
+        const height = wrapped.length * leading;
+        page.push({ kind: 'rect', x: DOC_MARGIN, y: PAGE_HEIGHT - top - height, w: 2, h: height, fill: DOC_RULE });
+      }
+      if (isBullet) text('\u2022', DOC_MARGIN + 4, size, true, DOC_BLUE);
+      for (const line of wrapped) {
+        if (!room(leading) && page.length) newPage();
+        text(
+          line,
+          DOC_MARGIN + inset + (lead ? 0 : 0),
+          size,
+          bold,
+          lead ? DOC_INK : quoted || section === 'sources' || section === 'caveats' ? DOC_MUTED : DOC_BODY
+        );
+        top += leading;
+      }
+      top += lead ? pad + 6 : isBullet ? 2 : 5;
+      continue;
+    }
+    if (block.kind === 'cards') {
+      const gap = 10;
+      const cardWidth = (DOC_WIDTH - gap * 2) / 3;
+      for (let start = 0; start < block.items.length; start += 3) {
+        const row = block.items.slice(start, start + 3);
+        const notes = row.map((item) => wrapToWidth(item.note, cardWidth - 20, 8));
+        const height = 44 + Math.min(2, Math.max(...notes.map((note) => (note[0] ? note.length : 0)))) * 11;
+        ensure(height + 8);
+        row.forEach((item, column) => {
+          const x = DOC_MARGIN + column * (cardWidth + gap);
+          page.push({
+            kind: 'rect',
+            x,
+            y: PAGE_HEIGHT - top - height,
+            w: cardWidth,
+            h: height,
+            fill: DOC_ICE,
+            stroke: DOC_RULE,
+            lineWidth: 0.5,
+          });
+          page.push({
+            kind: 'text',
+            x: x + 10,
+            y: PAGE_HEIGHT - top - 16,
+            size: 8,
+            bold: true,
+            text: item.label.toUpperCase().slice(0, 34),
+            color: DOC_MUTED,
+          });
+          let valueSize = 17;
+          while (valueSize > 10 && textWidth(item.value, valueSize, true) > cardWidth - 20) valueSize -= 1;
+          page.push({
+            kind: 'text',
+            x: x + 10,
+            y: PAGE_HEIGHT - top - 36,
+            size: valueSize,
+            bold: true,
+            text: item.value,
+            color: DOC_INK,
+          });
+          notes[column].slice(0, 2).forEach((line, lineIndex) => {
+            if (!line) return;
+            page.push({
+              kind: 'text',
+              x: x + 10,
+              y: PAGE_HEIGHT - top - 48 - lineIndex * 11,
+              size: 8,
+              bold: false,
+              text: line,
+              color: DOC_MUTED,
+            });
+          });
+        });
+        top += height + gap;
+      }
+      continue;
+    }
+    if (block.kind === 'image') {
+      const bytes = dataUrlBytes(block.dataUrl);
+      const size = jpegSize(bytes);
+      if (!size || size.width === 0 || size.height === 0) continue;
+      const index = images.push({ bytes, width: size.width, height: size.height }) - 1;
+      const ratio = size.height / size.width;
+      const maxHeight = PAGE_HEIGHT - DOC_TOP - DOC_BOTTOM;
+      const w = DOC_WIDTH * ratio > maxHeight ? maxHeight / ratio : DOC_WIDTH;
+      const h = w * ratio;
+      ensure(h + 8);
+      page.push({ kind: 'rect', x: DOC_MARGIN, y: PAGE_HEIGHT - top - h, w, h, stroke: DOC_RULE, lineWidth: 0.75 });
+      page.push({ kind: 'image', x: DOC_MARGIN, y: PAGE_HEIGHT - top - h, w, h, image: index });
+      top += h + 12;
+      continue;
+    }
+    // A table: proportional columns, a shaded header repeated across pages, zebra rows and hairlines.
+    const columns = Math.max(block.header.length, ...block.rows.map((row) => row.length), 1);
+    const weights = Array.from({ length: columns }, (_, column) => {
+      const cells = [block.header[column] ?? '', ...block.rows.map((row) => row[column] ?? '')];
+      const longestWord = Math.max(...cells.flatMap((cell) => cell.split(/\s+/).map((word) => word.length)), 1);
+      return Math.max(longestWord + 3, Math.min(36, ...[Math.max(...cells.map((cell) => cell.length))]));
+    });
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const widths = weights.map((weight) => (weight / total) * DOC_WIDTH);
+    const size = columns > 6 ? 8 : 9;
+    const rowHeight = (cells: readonly string[], bold: boolean) =>
+      Math.max(...widths.map((width, column) => wrapToWidth(cells[column] ?? '', width - 10, size, bold).length), 1) *
+        (size + 4) +
+      8;
+    const drawRow = (cells: readonly string[], bold: boolean, fill: PdfColor | undefined) => {
+      const height = rowHeight(cells, bold);
+      if (fill)
+        page.push({ kind: 'rect', x: DOC_MARGIN, y: PAGE_HEIGHT - top - height, w: DOC_WIDTH, h: height, fill });
+      let x = DOC_MARGIN;
+      widths.forEach((width, column) => {
+        const cell = cells[column] ?? '';
+        const numeric = !bold && NUMERIC_CELL.test(cell);
+        wrapToWidth(cell, width - 10, size, bold).forEach((line, lineIndex) => {
+          const lineX = numeric ? x + width - 5 - textWidth(line, size) : x + 5;
+          page.push({
+            kind: 'text',
+            x: lineX,
+            y: PAGE_HEIGHT - top - 4 - size - lineIndex * (size + 4) - 1,
+            size,
+            bold,
+            text: line,
+            color: bold ? DOC_INK : DOC_BODY,
+          });
+        });
+        x += width;
+      });
+      page.push({
+        kind: 'line',
+        x1: DOC_MARGIN,
+        y1: PAGE_HEIGHT - top - height,
+        x2: DOC_MARGIN + DOC_WIDTH,
+        y2: PAGE_HEIGHT - top - height,
+        color: DOC_RULE,
+        lineWidth: 0.5,
+      });
+      top += height;
+    };
+    const head = block.header.length ? block.header : undefined;
+    ensure((head ? rowHeight(head, true) : 0) + (block.rows[0] ? rowHeight(block.rows[0], false) : 0));
+    top += 4;
+    if (head) drawRow(head, true, DOC_ICE);
+    block.rows.forEach((row, rowIndex) => {
+      if (!room(rowHeight(row, false))) {
+        newPage();
+        if (head) drawRow(head, true, DOC_ICE);
+      }
+      drawRow(row, false, rowIndex % 2 ? DOC_ZEBRA : undefined);
+    });
+    top += 10;
+  }
+  if (page.length || pages.length === 0) pages.push(page);
+
+  // Chrome last, when the page count is known.
+  const count = pages.length;
+  pages.forEach((ops, index) => {
+    ops.push({ kind: 'rect', x: DOC_MARGIN, y: PAGE_HEIGHT - 50, w: 7, h: 7, fill: DOC_BLUE });
+    ops.push({
+      kind: 'text',
+      x: DOC_MARGIN + 13,
+      y: PAGE_HEIGHT - 49.5,
+      size: 8,
+      bold: true,
+      text: 'PLAYER INSIGHTS AGENT',
+      color: DOC_MUTED,
+    });
+    ops.push({
+      kind: 'line',
+      x1: DOC_MARGIN,
+      y1: PAGE_HEIGHT - 62,
+      x2: DOC_MARGIN + DOC_WIDTH,
+      y2: PAGE_HEIGHT - 62,
+      color: DOC_RULE,
+      lineWidth: 0.75,
+    });
+    const label = `Page ${index + 1} of ${count}`;
+    ops.push({
+      kind: 'text',
+      x: DOC_MARGIN + DOC_WIDTH - textWidth(label, 8),
+      y: 30,
+      size: 8,
+      bold: false,
+      text: label,
+      color: DOC_MUTED,
+    });
+  });
+  return { pages, images };
 }
 
 export function markdownPdf(markdown: string): Blob {
-  const { pages, images } = paginateFlow(markdownFlow(markdown));
+  const { pages, images } = documentPages(markdown);
   return assemblePdf(pages, images);
 }
 
@@ -901,7 +1127,18 @@ export function costBriefPdf(brief: CostBriefPayload, mode: CostBriefPdfMode = '
 }
 
 export function tablePdf(table: ExportTable): Blob {
-  return buildPdf(tablePages(table));
+  const cells = (row: TableRow) => tableCells(row).map((cell) => cell.replace(/\|/g, '\\|'));
+  const header = table.block.header ? cells(table.block.header) : [];
+  const rows = table.block.rows.map(cells);
+  const columns = Math.max(header.length, ...rows.map((row) => row.length), 1);
+  const line = (row: string[]) => `| ${Array.from({ length: columns }, (_, index) => row[index] ?? '').join(' | ')} |`;
+  const markdown = [
+    line(header.length ? header : Array.from({ length: columns }, () => '')),
+    line(Array.from({ length: columns }, () => '---')),
+    ...rows.map(line),
+    ...(table.sources.length ? ['', '## Sources', ...table.sources.map((source) => `- ${source.name}`)] : []),
+  ].join('\n');
+  return markdownPdf(markdown);
 }
 
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -993,7 +1230,7 @@ export async function tablePng(table: ExportTable): Promise<Blob> {
     const rowHeight = layout.rowHeights[rowIndex];
     row.forEach((lines, column) => {
       const x = column * layout.cellWidth;
-      context.fillStyle = rowIndex === 0 && table.block.header ? '#f1f5f9' : '#ffffff';
+      context.fillStyle = rowIndex === 0 && table.block.header ? '#e8f0f8' : rowIndex % 2 === 0 ? '#f8fafc' : '#ffffff';
       context.fillRect(x, rowY, layout.cellWidth, rowHeight);
       context.strokeStyle = '#cbd5e1';
       context.strokeRect(x, rowY, layout.cellWidth, rowHeight);

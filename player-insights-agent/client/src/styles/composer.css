@@ -2,11 +2,8 @@
   position: static;
   width: calc(100% - 2 * var(--conversation-inset) - 16px);
   margin-inline: auto;
-  /* Match the completed answer's outer measure exactly. The transcript card is
-     16px narrower than its already-inset content track, so the sibling composer
-     applies both parts here. The empty-state rule narrows this to the hero's
-     720px measure. */
-  max-width: var(--conversation-measure);
+  /* ADAPT's composer measure: the Ask box is a narrower control than the transcript above it. */
+  max-width: min(700px, var(--conversation-measure));
   /*
    * The sky's pane, asked for explicitly, and THE ONE PLACE IN THE APP WHERE THIS
    * TOKEN IS NOT FREE. The composer now follows the pane in normal flow, so its
