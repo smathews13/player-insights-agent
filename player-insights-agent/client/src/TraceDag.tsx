@@ -93,7 +93,7 @@ import {
   withoutDeclaredTableCaption,
   type ResultShape,
 } from './step-results';
-import { astPill } from './run-header';
+import { astPill, stepPill } from './run-header';
 import { EntityText, TableEntityList } from './DataEntityLinks';
 import { isTableListingStage, stageTableEntities, stageToolNames } from './live-progress';
 import { SqlCodeBlocks } from './SqlPresentation';
@@ -612,7 +612,7 @@ function RunSummaryDetail({
           {summary.finalStage ? (
             <>
               <span>{summary.finalStage.name}</span>
-              <Badge variant="outline" className={astPill(summary.finalStage.status)}>
+              <Badge variant="outline" className={stepPill(summary.finalStage.status)}>
                 {summary.finalStage.status}
               </Badge>
             </>
@@ -1073,7 +1073,7 @@ export function TraceDag({
                     same reason: the ring and the moving counter are already
                     saying it, in the two places the design put it. */}
                 {item.status !== 'complete' && item.status !== 'running' && (
-                  <Badge variant="outline" className={astPill(item.status)}>
+                  <Badge variant="outline" className={stepPill(item.status)}>
                     {item.status}
                   </Badge>
                 )}
@@ -1118,7 +1118,7 @@ export function TraceDag({
                       </Badge>
                     ) : null}
                     {itemStatus !== 'complete' && (
-                      <Badge variant="outline" className={`dag-status-badge ${astPill(itemStatus)}`}>
+                      <Badge variant="outline" className={`dag-status-badge ${stepPill(itemStatus)}`}>
                         {itemStatus}
                       </Badge>
                     )}

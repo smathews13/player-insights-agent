@@ -116,3 +116,18 @@ describe('prepend scroll and focus contract', () => {
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 });
+
+describe('a question the store did not return', () => {
+  it('stays above its answer instead of vanishing when the page settles', () => {
+    const asked: ConversationMessage = { id: 'local-1', role: 'user', content: 'build me a report' };
+    const report = message(3);
+    const merged = mergeNewestConversationMessages([message(0), message(1), asked], [message(2), report]);
+    expect(merged.map((m) => m.id)).toEqual([message(0).id, message(1).id, message(2).id, 'local-1', report.id]);
+  });
+
+  it('drops the local copy once the stored page has the same question', () => {
+    const asked: ConversationMessage = { id: 'local-1', role: 'user', content: 'message 2' };
+    const merged = mergeNewestConversationMessages([asked], [message(2), message(3)]);
+    expect(merged.map((m) => m.id)).toEqual([message(2).id, message(3).id]);
+  });
+});

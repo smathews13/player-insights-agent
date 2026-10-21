@@ -24,14 +24,15 @@ export const WORKING_LABEL = PLANNING_STAGE_LABEL;
 export const INLINE_WORKING_LABEL = PLANNING_STAGE_LABEL;
 
 /**
- * One assistant answer on screen is enough to seat the strip in the card.
+ * Every question gets the full splash, the first and every follow-up.
  *
- * Read off the transcript rather than off a "first run of the session" flag: a
- * cleared conversation is an empty answer column again, and the panel seating
- * should come back without anything having to remember that it should.
+ * It used to shrink to a strip once an answer was on screen, so a follow-up
+ * looked like a different, lesser wait than the first question's. The argument
+ * is kept so callers do not change, and the strip seating stays in the type for
+ * narrow surfaces that ask for it directly.
  */
-export function seatForTranscript(messages: { role: string }[]): WorkingSeat {
-  return messages.some((message) => message.role === 'assistant') ? 'card' : 'splash';
+export function seatForTranscript(_messages: { role: string }[]): WorkingSeat {
+  return 'splash';
 }
 
 /**

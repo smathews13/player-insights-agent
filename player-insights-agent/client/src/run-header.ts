@@ -98,6 +98,17 @@ export function astPill(status: string | null | undefined): string {
   return `ast-pill ast-pill--${statusFamily(status)}`;
 }
 
+/**
+ * The pill for one STEP of a run. A step that ended partial is in the same red family
+ * as a failed one, which is what its row, its map node and its bar already draw
+ * (tokens.css: "Partial shares this family with failed"). The run-level pill keeps
+ * amber for partial, because there it qualifies an answer rather than a step. Using
+ * the run recipe on a step is what put an amber badge on a red row.
+ */
+export function stepPill(status: string | null | undefined): string {
+  return astPill((status ?? '').trim().toLowerCase() === 'partial' ? 'failed' : status);
+}
+
 export interface RunHeadline {
   durationMs?: number | null;
   /** The agent's own external-call counter for this run. */

@@ -73,20 +73,14 @@ const NAMED: [string, Constellation][] = [
 ];
 
 describe('which seating the loader takes', () => {
-  it('fills the panel while the answer column has nothing in it', () => {
+  it('gives the first question the full splash', () => {
     expect(seatForTranscript([])).toBe('splash');
     expect(seatForTranscript([{ role: 'user' }])).toBe('splash');
   });
 
-  it('shrinks to a strip once there is an answer above it to read', () => {
-    expect(seatForTranscript([{ role: 'user' }, { role: 'assistant' }])).toBe('card');
-  });
-
-  it('reads the transcript rather than a count of runs', () => {
-    // A cleared conversation is an empty answer column again, so the splash
-    // comes back without anything having to remember that it should.
-    expect(seatForTranscript([{ role: 'assistant' }, { role: 'user' }])).toBe('card');
-    expect(seatForTranscript([])).toBe('splash');
+  it('gives every follow-up the same full splash, not a strip', () => {
+    expect(seatForTranscript([{ role: 'user' }, { role: 'assistant' }])).toBe('splash');
+    expect(seatForTranscript([{ role: 'assistant' }, { role: 'user' }])).toBe('splash');
   });
 
   it('seats every one of the flicker seatings somewhere in the app', () => {

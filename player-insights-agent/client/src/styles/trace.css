@@ -1753,3 +1753,9 @@
   font-size: 12px;
   margin-top: 3px;
 }
+/* `.metric-row span` above makes every span a block, which turned the tool-calls
+   label (an inline-flex wrench beside its words) into a stack with the wrench on a
+   line of its own. Naming the label here beats it on specificity. */
+.metric-row .tool-calls-label {
+  display: inline-flex;
+}
