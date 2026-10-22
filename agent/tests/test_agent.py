@@ -5781,6 +5781,20 @@ def test_a_repeated_statement_is_answered_from_the_earlier_turn_without_a_query(
     assert answer["evidence_blocks"][0]["turn_id"] == "turn-1"
 
 
+def test_turns_the_app_could_not_send_are_caveated_on_the_answer():
+    llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")
+
+    response = ask(
+        build(llm),
+        "And by region?",
+        prior_turns=[_carried_turn("SELECT 1")],
+        prior_turns_dropped=3,
+    )
+
+    caveats = " ".join(response.custom_outputs["answer"]["caveats"])
+    assert "The start of this conversation (3 earlier turns) was too long to send" in caveats
+
+
 class _CutOff(ScriptedLlm):
     """A model whose replies stop on the output limit, for the stages named."""
 

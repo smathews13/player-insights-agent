@@ -65,6 +65,28 @@ def test_parse_bounds():
     assert many.dropped == 5 and len(many.turns) == co.MAX_TURNS
 
 
+def test_the_apps_dropped_count_is_bounded_and_caveated():
+    assert [co.parse_app_dropped(v) for v in (3, 0, -1, True, "4", 2.0, None)] == [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ]
+    assert co.parse_app_dropped(10**9) == co.MAX_APP_DROPPED
+    parsed = co.parse_prior_turns([_turn(1)], 3)
+    fitted = co.fit_turns(parsed.turns)
+    assert co.history_caveats(fitted, parsed) == [
+        "The start of this conversation (3 earlier turns) was too long to send, so it was not read."
+    ]
+    one = co.parse_prior_turns([], 1)
+    assert "(1 earlier turn)" in co.history_caveats(co.fit_turns(one.turns), one)[0]
+    assert co.parse_prior_turns([_turn(1)]).app_dropped == 0
+    assert co.history_caveats(fitted, co.parse_prior_turns([_turn(1)])) == []
+
+
 def test_fit_compresses_then_omits():
     parsed = co.parse_prior_turns([_turn(i, rows="x" * 40_000) for i in range(6)])
     fitted = co.fit_turns(parsed.turns, 12_000)

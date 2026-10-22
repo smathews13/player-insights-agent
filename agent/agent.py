@@ -6676,7 +6676,9 @@ Tables available to this analysis, with their columns:
         _asked_text.set(f"{raw_question}\n{attachment_context or ''}")
         # The whole conversation, within a budget, replaces the last-12-messages cut
         # whenever the app sends it. Without it nothing changes.
-        carried = parse_prior_turns(custom_inputs.get("prior_turns"))
+        carried = parse_prior_turns(
+            custom_inputs.get("prior_turns"), custom_inputs.get("prior_turns_dropped")
+        )
         fitted = None
         carry_notes: list[str] = []
         if carried is not None:
@@ -6692,6 +6694,7 @@ Tables available to this analysis, with their columns:
                     "pia.history.kept_turns": str(len(fitted.turns)),
                     "pia.history.compressed_turns": str(len(fitted.compressed)),
                     "pia.history.omitted_turns": str(len(fitted.omitted)),
+                    "pia.history.app_dropped_turns": str(carried.app_dropped),
                     "pia.history.tokens": str(fitted.tokens),
                 }
             )
