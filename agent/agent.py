@@ -11,6 +11,7 @@ table incompletely or is otherwise unanswerable as asked.
 
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import hashlib
 import json
@@ -20,7 +21,8 @@ import time
 import uuid
 from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from contextvars import ContextVar
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import mlflow
@@ -34,13 +36,44 @@ from mlflow.types.responses import (
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 import correlation
+import drift
 import execution_identity
+import failures as failures_module
 import genie_routing
 import knowledge
 import llm_routing
 import provenance
 import runtime_settings
 import sdk_attribution
+import sql_policy
+from answer_numbers import (
+    evidence_values,
+    figure_repeats,
+    figure_unmatched,
+    has_table,
+    quantities,
+    trimmed_takeaway,
+    unmatched,
+    without_repeated_numbers,
+)
+from carry_over import (
+    CARRIED_CAVEAT,
+    DECISION_FORMAT,
+    DECISION_SYSTEM,
+    HISTORY_TOKEN_BUDGET,
+    PROMPT_TRIPWIRE_TOKENS,
+    UNREADABLE_CAVEAT,
+    block_key,
+    decision_prompt,
+    eligible_blocks,
+    estimate_tokens,
+    fit_turns,
+    history_caveats,
+    history_messages,
+    latest_data_rows,
+    parse_decision,
+    parse_prior_turns,
+)
 from charts import (
     MAX_CHARTS,
     NEW_PLOT_TOOL,
@@ -48,21 +81,30 @@ from charts import (
     TWO_PANEL_RULE,
     ChartError,
     EmptyChartError,
+    chart_outcome,
     chart_requested,
     new_plot,
+    several_charts_requested,
 )
-from config import Settings, baked_config, format_genie_space, open_ai_client
+from config import Settings, baked_config, format_genie_space, offer_data_genie, open_ai_client
 from contracts import (
     AnalysisPlan,
     AnswerContract,
     Chart,
     Clarification,
+    Dashboard,
+    DashboardDraft,
     Derivation,
     DocumentSnippet,
+    EvidenceBlock,
     Figure,
     GenieSpace,
     PlanCandidate,
     PlanStep,
+    Report,
+    ReportDraft,
+    ReportSection,
+    ReportSource,
     ResourceCall,
     Source,
     TraceStage,
@@ -75,6 +117,13 @@ from data_source_finder import (
     DiscoveryRequest,
     compact_finder_package,
 )
+from documents import (
+    DASHBOARD_MIN_SECONDS,
+    dashboard_html_limit,
+    dashboard_max_output_tokens,
+    trim_html,
+    wants_document,
+)
 from evidence import Verdict, refusal_guidance
 from llm_usage import record_llm_usage
 from route_disclosure import RouteLedger, failure_guidance
@@ -86,6 +135,7 @@ from semantic_retrieval import (
 from semantic_retrieval import (
     configuration_entry as semantic_configuration_entry,
 )
+from sql_policy import fully_qualified_tables
 from stage_lexicon import (
     TOOL_STAGE_NAMES,
     TOOL_STAGE_RUNNING,
@@ -125,7 +175,17 @@ from user_authorization import (
 )
 
 MAX_CONTEXT_MESSAGES = 12
-MAX_ATTACHMENT_CHARS = 8_000
+MAX_ATTACHMENT_CHARS = 80_000
+
+#: `custom_inputs.prior_evidence` is cut to this many characters. Separate from the
+#: attachment cap.
+MAX_PRIOR_EVIDENCE_CHARS = 8_000
+
+#: The plan stage (propose a plan, wait for approval) is OFF. Deliberately a module
+#: constant, not a runtime setting: no control in the app should be able to switch
+#: it. Only the gate that PROPOSES a plan reads it; approving an old plan card
+#: still runs.
+PLAN_STAGE_ENABLED = False
 
 # Resolved once, at import, and announced there, so which identity the endpoint
 # runs questions as is answerable from its own logs. Module scope rather than per
@@ -351,6 +411,18 @@ How to write content and figures:
 - State each baseline, peak, and delta once in the combined takeaway, narrative, content,
   and figures unless it is intentionally repeated as a compact figure that lets the
   reader scan the evidence. Do not restate the same number in two prose sentences.
+
+SCALE THE ANSWER TO THE QUESTION. The reader skims a chat card, and each section owns
+one kind of thing; each number appears once.
+- takeaway: the bold figure and what was counted, in one clause.
+- narrative: at most two sentences, and no numbers when a table is shown.
+- content: the supporting numbers; three or more become a table.
+- figures: only where the bar is the point, never beside a table.
+- caveats: one short fact each, under 20 words. "All-time: no date filter." is a caveat;
+  a check that passed is not.
+- The body never says where a figure came from. Sources does that.
+Never write a caveat that figures were carried over or reused from an earlier turn,
+and never cite a turn number: the app says that itself.
 
 Caveats stay in caveats, one limitation per entry, however long that list gets. Do not
 fold them into the narrative and do not leave one out to make the answer shorter.
@@ -617,6 +689,10 @@ def _strict_schema(schema: dict[str, Any], defs: Mapping[str, Any]) -> dict[str,
     return node
 
 
+def _utc_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
 def _synthesis_response_format() -> dict[str, Any]:
     """The answer's shape, stated to the endpoint rather than asked for in prose.
 
@@ -820,6 +896,52 @@ def _cacheable(text: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
 
+def _marked(message: dict[str, Any]) -> dict[str, Any]:
+    """A copy of `message` with the moving cache breakpoint on its last text block.
+
+    String content becomes one cacheable text block; list content is copied and the
+    LAST block is marked. No text means no mark: the original comes back unchanged.
+    """
+
+    content = message.get("content")
+    if isinstance(content, str):
+        if not content:
+            return message
+        return {
+            **message,
+            "content": [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}],
+        }
+    if isinstance(content, list) and content:
+        blocks = [dict(block) if isinstance(block, dict) else block for block in content]
+        last = blocks[-1]
+        if not isinstance(last, dict) or not last.get("text"):
+            return message
+        blocks[-1] = {**last, "cache_control": {"type": "ephemeral"}}
+        return {**message, "content": blocks}
+    return message
+
+
+@contextlib.contextmanager
+def _step_breakpoint(messages: list[dict[str, Any]]) -> Iterator[None]:
+    """Mark the newest message for the length of one finder step, then restore it.
+
+    The endpoint refuses more than four cache breakpoints (measured, not documented).
+    A finder step already sends two (tools, system); this is the third, and it moves:
+    step N reads steps 1 to N-1 from the cache. Only one moving marker ever exists,
+    and the conversation is plain again afterwards, whatever the call did.
+    """
+
+    if not messages:
+        yield
+        return
+    original = messages[-1]
+    messages[-1] = _marked(original)
+    try:
+        yield
+    finally:
+        messages[-1] = original
+
+
 def _cacheable_tools(tools: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """Copy the tool list and put one breakpoint on the last definition.
 
@@ -840,19 +962,26 @@ def _cacheable_tools(tools: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 #: list_data_assets is browsing only — it recites every declared table.
 #: search_tagged_assets is not above list_data_assets: at a small declared set
 #: the listing is an in-memory read, while tag search runs SQL.
-DATA_SOURCE_FINDER_TOOLS = [
-    RESOLVE_TABLE_TOOL,
-    DESCRIBE_TABLE_TOOL,
-    QUERY_NAMED_TABLE_TOOL,
-    RUN_SQL_TOOL,
-    *knowledge.KNOWLEDGE_TOOLS,
-    SEARCH_TAGGED_ASSETS_TOOL,
-    *([SEARCH_SEMANTICS_TOOL] if SEMANTIC_INDEX else []),
-    data_genie_tool(_SETTINGS.data_genie_space_title),
-    dictionary_genie_tool(_SETTINGS.dictionary_genie_space_title),
-    LIST_DATA_ASSETS_TOOL,
-    REQUEST_CLARIFICATION_TOOL,
-]
+def _finder_tool_list(offer_data_genie_space: bool) -> list[dict[str, Any]]:
+    """The ladder, with the data Genie rung only when the deployment opted in."""
+
+    ladder = [
+        RESOLVE_TABLE_TOOL,
+        DESCRIBE_TABLE_TOOL,
+        QUERY_NAMED_TABLE_TOOL,
+        RUN_SQL_TOOL,
+        *knowledge.KNOWLEDGE_TOOLS,
+        SEARCH_TAGGED_ASSETS_TOOL,
+        *([SEARCH_SEMANTICS_TOOL] if SEMANTIC_INDEX else []),
+        *([data_genie_tool(_SETTINGS.data_genie_space_title)] if offer_data_genie_space else []),
+        dictionary_genie_tool(_SETTINGS.dictionary_genie_space_title),
+        LIST_DATA_ASSETS_TOOL,
+        REQUEST_CLARIFICATION_TOOL,
+    ]
+    return ladder
+
+
+DATA_SOURCE_FINDER_TOOLS = _finder_tool_list(offer_data_genie())
 CACHED_FINDER_TOOLS = _cacheable_tools(DATA_SOURCE_FINDER_TOOLS)
 MCP_DATA_SOURCE_FINDER_TOOLS = [
     genie_mcp_tool(_SETTINGS.data_genie_space_title)
@@ -893,8 +1022,7 @@ memory, and never rounded or estimated.
 1. DIRECT. resolve_table (if the name is not fully qualified), describe_table, then
    query_named_table or run_sql. A bare "describe <table>" is answered with describe_table
    alone and no query. This is the default path for any table you can name or resolve.
-2. FALLBACK. data_genie only when the metadata path cannot produce the figure.
-   dictionary_genie only for a meaning the metadata genuinely lacks. Do not guess.
+2. FALLBACK. __FALLBACK__
 3. CLARIFY. Call request_clarification when a term the answer depends on is undefined,
    when resolve_table reports the name is AMBIGUOUS, or when you cannot tell what was
    asked. Do not crawl for a half-named table and do not assume a region.
@@ -1000,6 +1128,32 @@ interprets it, decides whether figures help, and presents the user-facing answer
 """
 )
 
+if offer_data_genie():
+    ORCHESTRATOR_INSTRUCTIONS = ORCHESTRATOR_INSTRUCTIONS.replace(
+        "__FALLBACK__",
+        "data_genie only when the metadata path cannot produce the figure.\n"
+        "   dictionary_genie only for a meaning the metadata genuinely lacks. Do not guess.",
+    )
+else:
+    ORCHESTRATOR_INSTRUCTIONS = (
+        ORCHESTRATOR_INSTRUCTIONS.replace(
+            "__FALLBACK__",
+            "dictionary_genie only for a meaning the metadata genuinely lacks. Do not guess.",
+        )
+        .replace(
+            "Do not speculatively batch the Genie/natural-language layer, direct SQL",
+            "Do not speculatively batch direct SQL",
+        )
+        .replace(
+            "run_sql. Step 2 is Genie, and only when that path cannot produce the figure. If it is",
+            "run_sql. If it is",
+        )
+        .replace(
+            "list_data_assets / search_tagged_assets, not at Genie.",
+            "list_data_assets / search_tagged_assets.",
+        )
+    )
+
 
 def _message_text(item: Any) -> str:
     data = item.model_dump() if hasattr(item, "model_dump") else item
@@ -1052,6 +1206,91 @@ def _preceding_turns(history: list[dict[str, str]], question: str) -> list[dict[
             del preceding[index]
             break
     return preceding
+
+
+_CLARIFYING_TYPES = "clarification"
+
+
+def _reads_as_clarification(message: dict[str, str]) -> bool:
+    """Whether an assistant turn asked the user something and is awaiting the reply.
+
+    A carried `type` is trusted over the text test. Otherwise a short question: it ends
+    in "?" (or its FIRST sentence does), is at most 1,000 characters, and carries no
+    table. A report or answer ends in a question rarely, and carries bold or a table.
+    """
+
+    kind = message.get("type")
+    if kind:
+        return kind == _CLARIFYING_TYPES
+    text = (message.get("content") or "").strip()
+    if not text or len(text) > 1_000 or "\n|" in text:
+        return False
+    if text.endswith("?") and "**" not in text:
+        return True
+    first = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
+    return first.endswith("?")
+
+
+def _pending_request(history: list[dict[str, str]], question: str) -> str:
+    """The request this turn is really answering.
+
+    A click on a clarification option ("Daily active users") is a reply, not a request,
+    so the original ask has to be recovered. Walk back up to three user/assistant pairs
+    while each assistant turn was a clarification, and join those user turns with this
+    one, oldest first. With no clarification before it, this is just the question.
+    """
+
+    preceding = _preceding_turns(history, question)
+    users: list[str] = []
+    index = len(preceding) - 1
+    while (
+        len(users) < 3
+        and index >= 1
+        and preceding[index]["role"] == "assistant"
+        and preceding[index - 1]["role"] == "user"
+        and _reads_as_clarification(preceding[index])
+    ):
+        users.append(preceding[index - 1]["content"])
+        index -= 2
+    return "\n\n".join([*reversed(users), question])
+
+
+#: Sentences in which the MODEL claims something about chart status. Code states the
+#: status instead, because the model cannot see whether a chart was actually drawn.
+_CHART_NOUNS = r"(?:chart|graph|plot|visuali[sz]ation)s?"
+_CHART_CLAIM = re.compile(
+    rf"\b{_CHART_NOUNS}\b[^.!?\n]{{0,40}}\b(?:is|are|was|were)\s+"
+    r"(?:attached|shown|included|drawn|rendered|provided|below|above|displayed)\b"
+    rf"|\b(?:attached|shown|drawn|rendered|plotted|displayed|see)\b[^.!?\n]{{0,30}}\b"
+    rf"{_CHART_NOUNS}\b[^.!?\n]{{0,20}}\bbelow\b"
+    rf"|\b{_CHART_NOUNS}\s+below\b"
+    rf"|\b(?:below|attached)\b[^.!?\n]{{0,30}}\bas\s+an?\s+(?:\w+\s+)?{_CHART_NOUNS}\b"
+    r"|\b(?:could\s*not|couldn't|cannot|can't|unable\s+to|was\s+unable\s+to|did\s+not|didn't)"
+    rf"\s+(?:\w+\s+){{0,2}}(?:draw|build|create|generate|render|produce|plot)\b[^.!?\n]{{0,30}}"
+    rf"\b{_CHART_NOUNS}\b"
+    rf"|\bno\s+{_CHART_NOUNS}\s+(?:could\s+be|was|were)\s+\w+",
+    re.IGNORECASE,
+)
+NO_CHART_CAVEAT = "No chart could be built for this answer; the figures are in the text."
+
+
+def _without_chart_claims(text: str) -> str:
+    """Drop whole sentences that claim chart status, keeping separators and paragraphs."""
+
+    if not text:
+        return text
+    pieces = re.split(r"((?<=[.!?])[ \t]+|\n+)", text)
+    kept: list[str] = []
+    for index in range(0, len(pieces), 2):
+        sentence = pieces[index]
+        separator = pieces[index + 1] if index + 1 < len(pieces) else ""
+        if sentence.strip() and _CHART_CLAIM.search(sentence):
+            if "\n" in separator:
+                kept.append(separator)
+            continue
+        kept.extend([sentence, separator])
+    cleaned = "".join(kept)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
 
 #: How many prior-answer tables to carry into a follow-up plot. A cap on the
@@ -1126,32 +1365,75 @@ def _custom_inputs(request: ResponsesAgentRequest) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _attachment_context(custom_inputs: dict[str, Any]) -> str:
-    """Return bounded text from explicitly attachment-shaped custom inputs."""
+_FILE_HEADING = re.compile(
+    r"(?:\A|(?<=\n\n))## ([^\n]+?\.(?:txt|md|csv|json|pdf))[ \t]*(?=\n|\Z)", re.IGNORECASE
+)
 
-    values: list[str] = []
+
+def _split_files(text: str) -> tuple[str, list[str]]:
+    """A flattened attachment string as (preamble, one chunk per named file).
+
+    A `##` heading inside a file is not a boundary unless it names a file with one of
+    the known extensions.
+    """
+
+    starts = [match.start() for match in _FILE_HEADING.finditer(text)]
+    if not starts:
+        return text, []
+    ends = [*starts[1:], len(text)]
+    chunks = [text[at:end].strip() for at, end in zip(starts, ends, strict=True)]
+    return text[: starts[0]].strip(), chunks
+
+
+#: The caveat for this turn's attachment cut, "" when nothing was cut. A ContextVar
+#: because the agent is built once and serves concurrent requests.
+_chart_asked: ContextVar[bool] = ContextVar("chart_asked", default=False)
+_attachment_note: ContextVar[str] = ContextVar("attachment_note", default="")
+#: What the reader typed (and attached), for the one check that accepts a number the
+#: reader stated themselves. Empty outside a turn.
+_asked_text: ContextVar[str] = ContextVar("asked_text", default="")
+
+
+def _attachment_read(custom_inputs: dict[str, Any]) -> tuple[str, str]:
+    """(text, cut caveat) for this turn's attachments.
+
+    Up to `MAX_ATTACHMENT_CHARS`, read NEWEST FILE FIRST, so a cut drops the oldest
+    file. The cap is applied after the reorder. The caveat names the file the cap fell
+    inside and the files never reached, and is empty when the text fit exactly.
+    """
+
+    preamble: list[tuple[str | None, str]] = []
+    files: list[tuple[str | None, str]] = []
 
     def collect(value: Any) -> None:
-        if len("\n".join(values)) >= MAX_ATTACHMENT_CHARS:
-            return
         if isinstance(value, str):
-            if value.strip():
-                values.append(value.strip())
+            if not value.strip():
+                return
+            head, chunks = _split_files(value.strip())
+            if head:
+                preamble.append((None, head))
+            for chunk in chunks:
+                files.append((chunk.split("\n", 1)[0].removeprefix("## ").strip(), chunk))
         elif isinstance(value, list):
             for item in value:
                 collect(item)
         elif isinstance(value, dict):
+            texts: list[str] = []
+            name: str | None = None
             for key, item in value.items():
-                if key.lower() in {
-                    "text",
-                    "content",
-                    "contents",
-                    "excerpt",
-                    "body",
-                    "name",
-                    "filename",
-                }:
+                lowered = key.lower()
+                if lowered in {"text", "content", "contents", "excerpt", "body"} and isinstance(
+                    item, str
+                ):
+                    if item.strip():
+                        texts.append(item.strip())
+                elif lowered in {"name", "filename"} and isinstance(item, str) and item.strip():
+                    name = item.strip()
+                    texts.insert(0, name)
+                elif isinstance(item, (list, dict)):
                     collect(item)
+            if texts:
+                (files if name else preamble).append((name, "\n".join(texts)))
 
     for key, value in custom_inputs.items():
         normalized = key.lower().replace("-", "_")
@@ -1161,7 +1443,51 @@ def _attachment_context(custom_inputs: dict[str, Any]) -> str:
             "uploaded_file",
         }:
             collect(value)
-    return "\n\n".join(values)[:MAX_ATTACHMENT_CHARS]
+    ordered = preamble + (files[::-1] if len(files) >= 2 else files)
+    joined = "\n\n".join(text for _, text in ordered)
+    total = len(joined)
+    if total <= MAX_ATTACHMENT_CHARS:
+        return joined, ""
+    partial: list[str] = []
+    unread: list[str] = []
+    position = 0
+    for name, text in ordered:
+        end = position + len(text)
+        if name:
+            if position >= MAX_ATTACHMENT_CHARS:
+                unread.append(name)
+            elif end > MAX_ATTACHMENT_CHARS:
+                partial.append(name)
+        position = end + 2
+    detail = ""
+    parts = []
+    if partial:
+        parts.append(f"{_and_list([repr(n) for n in partial])} was cut partway through")
+    if unread:
+        parts.append(f"{_and_list([repr(n) for n in unread])} were not read at all")
+    if parts:
+        detail = ": " + "; ".join(parts)
+    note = (
+        f"Only the first {MAX_ATTACHMENT_CHARS:,} characters of the attached files were read, "
+        f"out of {total:,}{detail}. Anything in the rest is not reflected in this answer."
+    )
+    return joined[:MAX_ATTACHMENT_CHARS], note
+
+
+def _attachment_context(custom_inputs: dict[str, Any]) -> str:
+    """Return bounded text from explicitly attachment-shaped custom inputs."""
+
+    return _attachment_read(custom_inputs)[0]
+
+
+def _prior_evidence(custom_inputs: dict[str, Any]) -> list[str]:
+    """Rows the previous answer carried (`chart_evidence`), as plot-package blocks."""
+
+    value = custom_inputs.get("prior_evidence")
+    parts = [value] if isinstance(value, str) else value if isinstance(value, list) else []
+    text = "\n\n".join(part for part in parts if isinstance(part, str) and part.strip())
+    text = text[:MAX_PRIOR_EVIDENCE_CHARS]
+    return [text] if text.strip() else []
 
 
 def _is_preflight(custom_inputs: dict[str, Any]) -> bool:
@@ -2681,6 +3007,8 @@ TOOL_STAGE_KINDS = frozenset(_TOOL_KINDS.values())
 def stage_kind(name: str) -> str:
     """The timeline category for one tool name. Unknown names stay neutral."""
 
+    if name in knowledge.ON_DEMAND:
+        return "knowledge"
     return _TOOL_KINDS.get(name, "tool")
 
 
@@ -2714,6 +3042,146 @@ def _surfaces(entries: Sequence[tuple[str, str]]) -> str:
     """
 
     return _and_list(sorted({_TOOL_SURFACES.get(tool, tool) for tool, _ in entries}))
+
+
+_SQL_READ_TOOLS = ("run_sql", "query_named_table")
+
+
+def _has_table(content: str) -> bool:
+    return has_table(content)
+
+
+#: A model caveat that says the figures were carried over, or points at a turn
+#: by number. Code writes the carried-over caveat itself, so these are repeats.
+_RESTATES_CARRY_OVER = re.compile(
+    r"(?i)carried[- ]over|carried (?:forward|from)|"
+    r"reused? (?:from|of) (?:an? )?(?:earlier|previous|prior)|"
+    r"(?:from|in|of) (?:an? )?(?:earlier|previous|prior) (?:turn|answer|message)|"
+    r"\bturns? #?\d+\b|\b(?:first|second|third|fourth|fifth) turn\b|"
+    r"earlier in this conversation rather than queried"
+)
+
+
+def restates_carry_over(caveat: str) -> bool:
+    return bool(_RESTATES_CARRY_OVER.search(caveat))
+
+
+def _shaped_and_checked(
+    takeaway: str,
+    narrative: str,
+    content: str,
+    figures: list[Figure],
+    log: RunLog,
+) -> tuple[str, str, str, list[Figure], list[str]]:
+    """Answer shape (one number, once) and figure verification (the data had it).
+
+    Never raises: a reader gets the unshaped answer before a dead turn.
+    """
+
+    try:
+        table = has_table(content)
+        if table:
+            figures = []
+            takeaway = trimmed_takeaway(takeaway)
+        held = quantities(takeaway) + quantities(content)
+        if len(figures) == 1 and figure_repeats(
+            figures[0].display, figures[0].value, quantities(takeaway)
+        ):
+            figures = []
+        if narrative:
+            narrative = without_repeated_numbers(
+                narrative, takeaway=takeaway, content=content, table=table
+            )
+        if figures and all(figure_repeats(f.display, f.value, held) for f in figures):
+            figures = []
+
+        notes: list[str] = []
+        asked = _asked_text.get()
+        if not log.evidence or any(stage.id == "attachment" for stage in log.stages):
+            return takeaway, narrative, content, figures, notes
+        values = evidence_values([*log.evidence, asked])
+        kept: list[Figure] = []
+        for figure in figures:
+            if figure_unmatched(figure.display, figure.value, values):
+                notes.append(
+                    f'The "{figure.label}" figure card was withheld: its value, '
+                    f"{figure.display}, does not match any number the queries returned."
+                )
+            else:
+                kept.append(figure)
+        for surface, text in (("takeaway", takeaway), ("content", content)):
+            missing = unmatched(text, values)
+            if missing:
+                notes.append(
+                    f"Unverified in the {surface}: {_and_list(missing)} "
+                    f"{'does' if len(missing) == 1 else 'do'} not match any number the "
+                    "queries returned."
+                )
+        return takeaway, narrative, content, kept, notes
+    except Exception:  # noqa: BLE001 - shaping must never cost the answer
+        return takeaway, narrative, content, figures, []
+
+
+def _failure_phrases(entries: Sequence[tuple[str, str]]) -> list[str]:
+    """One phrase per surface, naming the CAUSE: rejected, cancelled, timed out, failed.
+
+    "Did not respond" used to stand for all four, which sent a reader to retry a
+    statement the warehouse had rejected. Rejections are grouped, and both SQL tools
+    count as one surface, "the warehouse".
+    """
+
+    rejected: dict[str, list[str]] = {}
+    rejected_codes: dict[str, set[str]] = {}
+    phrases: set[str] = set()
+    for tool, reason in entries:
+        cause, code = failures_module.failure_cause(reason)
+        surface = _TOOL_SURFACES.get(tool, tool)
+        if cause == failures_module.CAUSE_REJECTED:
+            key = "the warehouse" if tool in _SQL_READ_TOOLS else surface
+            rejected.setdefault(key, []).append(tool)
+            rejected_codes.setdefault(key, set())
+            if code:
+                rejected_codes[key].add(code)
+        elif cause == failures_module.CAUSE_CANCELLED:
+            phrases.add(f"{surface} was cancelled at the wait limit")
+        elif cause == failures_module.CAUSE_TIMED_OUT:
+            phrases.add(f"{surface} timed out")
+        else:
+            phrases.add(f"{surface} failed")
+    for key, calls in rejected.items():
+        count = len(calls)
+        noun = "SQL statement" if key == "the warehouse" else "request"
+        codes = sorted(rejected_codes[key])
+        tail = f" ({', '.join(codes)})" if codes else ""
+        phrases.add(f"{key} rejected {count} {noun}{'s' if count != 1 else ''}{tail}")
+    return sorted(phrases)
+
+
+def _degraded_failure_caveat(entries: Sequence[tuple[str, str]]) -> str:
+    phrases = _failure_phrases(entries)
+    all_rejected = all(
+        failures_module.failure_cause(reason)[0] == failures_module.CAUSE_REJECTED
+        for _, reason in entries
+    )
+    tail = (
+        "A later step may have corrected the rejected statement and recovered its figures; "
+        "that was not checked."
+        if all_rejected
+        else "It is based only on what did return, so anything the failed calls would have "
+        "found is missing from this answer, not absent from the data."
+    )
+    return f"{DEGRADED_ANSWER_MARKER} during this run, {_and_list(phrases)}. {tail}"
+
+
+def _slow_reads_caveat(cancelled: int, reads: int) -> str:
+    total = max(reads, cancelled)
+    noun = "read" if total == 1 else "reads"
+    verb, pronoun = ("was", "it") if cancelled == 1 else ("were", "they")
+    return (
+        f"{DEGRADED_ANSWER_MARKER} {cancelled} of {total} SQL {noun} {verb} cancelled for "
+        f"running past the wait limit. Later reads in this run may have recovered what "
+        f"{pronoun} would have produced; that was not checked."
+    )
 
 
 def _source_role(source: str, log: RunLog) -> str:
@@ -2757,7 +3225,7 @@ def _unanswered(
 
     reported = []
     if failures:
-        reported.append(f"{_surfaces(failures)} did not respond")
+        reported.append(_and_list(_failure_phrases(failures)))
     if denials:
         reported.append(f"{_surfaces(denials)} refused this run's access")
     # Points at the caveats rather than saying "above", because the plain-text
@@ -2858,6 +3326,12 @@ def _memo_remember(memo: dict[str, Any] | None, slot: str, owner: Any, value: An
 MAX_PARALLEL_TOOL_CALLS = 5
 
 
+FINDER_CUT_OFF = "the analyst's own write-up was cut off by the output length limit"
+
+#: Tools whose earlier-turn results may stand in for a repeated call.
+CARRIED_TOOLS = ("run_sql", "query_named_table", "data_genie")
+
+
 @dataclass
 class _BatchCall:
     """One tool call in a step, and what the loop decided to do with it.
@@ -2915,6 +3389,9 @@ class _BatchCall:
     #: An answer this RUN already has, reused without a call. Carries the text so
     #: the second pass reports it exactly as the first one was reported.
     reused: str = ""
+    #: How `reused` was obtained, when it was an earlier turn's result and not this run's
+    #: own definition memo. Empty for the memo.
+    reuse_origin: str = ""
     #: Whether this call's result belongs in `log.evidence`. False for a follower
     #: and for a reused answer: the text is already in the package once, and a
     #: second copy is charged again to every later prompt in the run.
@@ -2950,6 +3427,9 @@ class FinderBudget:
     tool_calls: int = 0
 
 
+_TRUNCATION_NOTE = re.compile(r"This result has (\d+) row\(s\) and (\d+) of them are shown")
+
+
 class RunLog:
     """What one run did: its stages, the tables it read, the statements it ran.
 
@@ -2969,6 +3449,8 @@ class RunLog:
         # Runtime activation happens at request entry, before identity checks and
         # orchestration. Queueing before Python receives the request is unknowable;
         # everything after entry counts against this one monotonic clock.
+        self.turn_id = ""
+        self.version = ""
         self.started = runtime_settings.turn_started()
         self.stages: list[TraceStage] = []
         self.sources: list[str] = []
@@ -2999,6 +3481,10 @@ class RunLog:
         #: all `_synthesize` reads, so without this a run with both Genie spaces
         #: down answers from `run_sql` with no marker on it.
         self.failures: list[tuple[str, str]] = []
+        #: SQL reads that ended complete or failed (a refused statement is not one),
+        #: and the failed ones that were cut for time, for "k of n were cancelled".
+        self.sql_reads = 0
+        self.slow_reads: list[str] = []
         #: Governance refusals, as the reasons the guard gave. Separate from
         #: failures because they are not the same event and must not be
         #: summarized as one: a refusal is the product working.
@@ -3087,6 +3573,18 @@ class RunLog:
         #: was two thirds definitions, which it duly declined to plot. See
         #: `plot_evidence`.
         self.evidence_sources: list[str] = []
+        #: Every completed tool call as a structured block, for the next turn to reuse.
+        self.blocks: list[dict[str, Any]] = []
+        #: Earlier-turn results this run stood on instead of querying again, and the
+        #: notes the answer owes the reader about the conversation it was given.
+        self.carried = False
+        #: Eligible earlier-turn blocks by key, and the keys already adopted as evidence.
+        self.carried_index: dict[tuple[str, str], dict[str, Any]] = {}
+        self.carried_keys: set[tuple[str, str]] = set()
+        self.statements_reused = 0
+        self.carry_notes: list[str] = []
+        #: "" | "parsed" | "unparsed": the synthesis call stopped on its output limit.
+        self.synthesis_cut = ""
         #: Calls the model asked for that no space was asked for. Reported on the
         #: run span so the saving is a recorded number rather than something a
         #: reader has to reconstruct by counting stages: see `_coalesce_definitions`.
@@ -3125,6 +3623,60 @@ class RunLog:
             for tool, block in zip(self.evidence_sources, self.evidence, strict=False)
             if tool in DATA_RETURNING_TOOLS
         ]
+
+    def record_completed(
+        self, tool: str, arguments: Any, result: ToolResult, *, turn_id: str = ""
+    ) -> None:
+        """Append one EvidenceBlock for a completed call. Failed calls emit nothing."""
+
+        match = _TRUNCATION_NOTE.search(result.text or "")
+        self.blocks.append(
+            EvidenceBlock(
+                turn_id=turn_id or self.turn_id,
+                tool=tool,
+                arguments=arguments if isinstance(arguments, dict) else {},
+                result=result.text or "",
+                sources=list(result.sources),
+                truncated=bool(match) or "truncated this result set" in (result.text or ""),
+                total_rows=int(match.group(1)) if match else None,
+                version=self.version,
+            ).model_dump()
+        )
+
+    def adopt_carried(self, block: dict[str, Any]) -> None:
+        """Take an earlier turn's completed result as this run's evidence, unchanged."""
+
+        name = block["tool"]
+        arguments = block.get("arguments") or {}
+        key = block_key(block)
+        if key is not None:
+            if key in self.carried_keys:
+                return
+            self.carried_keys.add(key)
+        self.evidence.append(
+            f"{name}({json.dumps(arguments, default=str)}) returned:\n{block['result']}"
+        )
+        self.evidence_sources.append(name)
+        for source in block.get("sources") or []:
+            if source not in self.sources:
+                self.sources.append(source)
+            self.judged.add(source)
+            self.readings.add(source)
+        self.blocks.append(
+            EvidenceBlock(
+                turn_id=block.get("turn_id") or self.turn_id,
+                tool=name,
+                arguments=arguments,
+                result=block["result"],
+                sources=list(block.get("sources") or []),
+                truncated=False,
+                total_rows=block.get("total_rows"),
+                version=block.get("version") or self.version,
+            ).model_dump()
+        )
+        self.carried = True
+        if CARRIED_CAVEAT not in self.carry_notes:
+            self.carry_notes.append(CARRIED_CAVEAT)
 
     @property
     def elapsed(self) -> float:
@@ -3561,8 +4113,17 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
         selection = llm_routing.current(self.settings)
         if selection.route == llm_routing.AI_GATEWAY:
-            return open_ai_client(self._authorized_client(), selection.gateway_mode)
-        return open_ai_client(self._system_workspace(), "")
+            return self._without_retries(
+                open_ai_client(self._authorized_client(), selection.gateway_mode)
+            )
+        return self._without_retries(open_ai_client(self._system_workspace(), ""))
+
+    @staticmethod
+    def _without_retries(client: Any) -> Any:
+        """No silent SDK retry: one would double a slow call inside a fixed turn budget."""
+
+        with_options = getattr(client, "with_options", None)
+        return with_options(max_retries=0) if callable(with_options) else client
 
     def _llm_endpoint(self) -> str:
         """Model identifier paired with the request's selected transport."""
@@ -3781,6 +4342,38 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
 
         return format_genie_space(*self._genie_space_of(tools, name))
 
+    @staticmethod
+    def _reuse_carried(batch: list[_BatchCall], log: RunLog) -> None:
+        """Answer a repeated query from an earlier turn's whole result: no call, no budget.
+
+        Same ordering rule as `_coalesce_definitions`: on the dispatching thread, in the
+        model's own order, before anything runs or is admitted.
+        """
+
+        if not log.carried_index:
+            return
+        for entry in batch:
+            if entry.refused_before_running or entry.reused or entry.answered_by is not None:
+                continue
+            if entry.name not in CARRIED_TOOLS:
+                continue
+            key = block_key({"tool": entry.name, "arguments": entry.arguments or {}})
+            block = log.carried_index.get(key) if key else None
+            if block is None:
+                continue
+            log.adopt_carried(block)
+            rows = block.get("total_rows")
+            counted = f"{rows} row(s). " if isinstance(rows, int) else ""
+            medium = "Genie" if entry.name == "data_genie" else "SQL"
+            entry.reused = block["result"]
+            entry.reuse_origin = (
+                f"{counted}Read from {medium} by build {block.get('version') or 'unknown'} "
+                "earlier in this conversation. The result follows unchanged; no query was run."
+            )
+            entry.contributes_evidence = False
+            log.calls_saved += 1
+            log.statements_reused += 1
+
     def _coalesce_definitions(self, batch: list[_BatchCall], log: RunLog) -> None:
         """Ask one question where the model asked several, and re-use what it has.
 
@@ -3864,7 +4457,11 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         recording them again per follower would report one outage as several.
         """
 
-        if entry.reused:
+        if entry.reused and entry.reuse_origin:
+            output = f"{entry.reuse_origin}\n\n{entry.reused}"
+            status = "complete"
+            label = "Reused a result from an earlier turn"
+        elif entry.reused:
             output = f"{_REUSED_DEFINITION_NOTE}\n\n{entry.reused}"
             status = "complete"
             label = "Reused a definition looked up earlier in this run"
@@ -4080,6 +4677,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             return tools.query_named_table(str(arguments.get("sql") or ""))
         if name == "run_sql":
             return tools.run_sql(str(arguments.get("sql") or ""))
+        if name in knowledge.ON_DEMAND:
+            return ToolResult(text=knowledge.ON_DEMAND[name][1])
         raise ValueError(f"unknown tool '{name}'")
 
     def _orchestrate(
@@ -4115,7 +4714,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
         if self.user_authorization:
             log.executed_as = self._measured_identity(tools.workspace)
         system = knowledge.add_packaged_knowledge(ORCHESTRATOR_INSTRUCTIONS, FINDER_KNOWLEDGE)
-        runtime_prompt = runtime_settings.prompt_fragment()
+        runtime_prompt = runtime_settings.finder_fragment()
         if runtime_prompt:
             system = f"{system}\n\n{runtime_prompt}"
 
@@ -4147,6 +4746,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             log.record(result)
             log.evidence.append("list_data_assets returned:\n" + result.text)
             log.evidence_sources.append("list_data_assets")
+            log.record_completed("list_data_assets", {}, result)
             yield log.stage(
                 "inventory",
                 "Listed available tables",
@@ -4190,15 +4790,16 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             ) as llm_span:
                 llm_span.set_inputs({"step": step, "model": self._llm_endpoint()})
                 try:
-                    response = client.chat.completions.create(
-                        model=self._llm_endpoint(),
-                        messages=messages,
-                        temperature=0.1,
-                        max_tokens=self.settings.max_output_tokens,
-                        tools=_finder_tools(),
-                        tool_choice="auto",
-                        timeout=max(1.0, log.remaining),
-                    )
+                    with _step_breakpoint(messages):
+                        response = client.chat.completions.create(
+                            model=self._llm_endpoint(),
+                            messages=messages,
+                            temperature=0.1,
+                            max_tokens=self.settings.max_output_tokens,
+                            tools=_finder_tools(),
+                            tool_choice="auto",
+                            timeout=max(1.0, log.remaining),
+                        )
                 except Exception as error:
                     # The endpoint that chooses the steps also writes the answer, so
                     # there is nothing to fall back to. Reported as a stage rather
@@ -4240,6 +4841,9 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                 message = response.choices[0].message
                 content = getattr(message, "content", None) or ""
                 calls = list(getattr(message, "tool_calls", None) or [])
+                write_up_cut = (
+                    not calls and getattr(response.choices[0], "finish_reason", "") == "length"
+                )
                 llm_span.set_outputs({"text": content[:6000], "tool_calls": len(calls)})
                 log.add_usage(record_llm_usage(llm_span, response))
 
@@ -4254,6 +4858,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     depth=depth,
                     parent_id=parent_id,
                 )
+                if write_up_cut:
+                    return LoopOutcome(answer_text=content, capped=FINDER_CUT_OFF)
                 return LoopOutcome(answer_text=content)
 
             assistant_turn: dict[str, Any] = {"role": "assistant", "content": content}
@@ -4353,6 +4959,7 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
             # Repeated definition questions become one, before the budget is
             # spent on them. See `_coalesce_definitions`.
             self._coalesce_definitions(batch, log)
+            self._reuse_carried(batch, log)
 
             # ----------------------------------------------------------------
             # Which of the admitted calls may run together.
@@ -4495,6 +5102,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         status = "partial"
                     else:
                         log.record(result)
+                        if name in _SQL_READ_TOOLS:
+                            log.sql_reads += 1
                 except SqlRefused as refusal:
                     # A REFUSAL IS NOT A FAILURE, and telling the model it was
                     # one is how a control gets routed around: the generic handler
@@ -4514,7 +5123,8 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         log.remediable_refusals += 1
                     output = f"REFUSED: {refusal}\n\n{guidance}"
                     result = ToolResult(text=output)
-                    log.refusals.append(str(refusal))
+                    if getattr(refusal, "disclosed", True):
+                        log.refusals.append(getattr(refusal, "disclosure", "") or str(refusal))
                     refused_verdicts = getattr(refusal, "verdicts", ())
                     if refused_verdicts:
                         # Recorded even though `log.record` is deliberately skipped
@@ -4618,6 +5228,10 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                         # or not the answer mentions it.
                         output = failure_guidance(name, reason)
                         result = ToolResult(text=output)
+                        if name in _SQL_READ_TOOLS:
+                            log.sql_reads += 1
+                        if name in _SQL_READ_TOOLS and failures_module.is_slow_sql_read(reason):
+                            log.slow_reads.append(reason)
                         log.failures.append((name, reason))
                         log.routes.record_failure(name, reason)
                         # Only an OUTAGE is counted here. An access denial above
@@ -4646,6 +5260,11 @@ class PlayerInsightsResponsesAgent(ResponsesAgent):
                     # recorded without its tool would be plotted as though it were
                     # rows.
                     log.evidence_sources.append(name)
+                    try:
+                        parsed_arguments = json.loads(entry.arguments_json or "{}")
+                    except (TypeError, ValueError):
+                        parsed_arguments = {}
+                    log.record_completed(name, parsed_arguments, result)
                     # What this run now knows, for the rest of it. Recorded from
                     # the call that ran, under every question it was asked, so a
                     # later step that asks one of them again costs nothing.
@@ -5026,6 +5645,7 @@ Tables actually read this run:
             text = response.choices[0].message.content or ""
             span.set_outputs({"text": text[:6000], "structured_output": structured})
             log.add_usage(record_llm_usage(span, response))
+            cut_off = getattr(response.choices[0], "finish_reason", "") == "length"
         try:
             payload = _json_payload(text)
             figures = payload.get("figures")
@@ -5037,9 +5657,278 @@ Tables actually read this run:
                         and "numeric_value" in figure
                     ):
                         figure["value"] = figure.pop("numeric_value")
-            return Synthesis.model_validate(payload)
+            parsed_synthesis = Synthesis.model_validate(payload)
+            if cut_off:
+                log.synthesis_cut = "parsed"
+            return parsed_synthesis
         except (ValueError, json.JSONDecodeError, ValidationError):
+            if cut_off:
+                log.synthesis_cut = "unparsed"
             return _salvaged_synthesis(text, findings)
+
+    def _reuse_decision(
+        self, request: str, blocks: list[dict[str, Any]], log: RunLog
+    ) -> tuple[str, list[int], str]:
+        """One small call: may earlier results stand in for new queries?
+
+        Any failure is `fetch`: asking the warehouse again is always safe, reusing a
+        result that does not fit is not.
+        """
+
+        _, client = self._runtime()
+        log.calls += 1
+        with mlflow.start_span(name="orchestrator.reuse_decision", span_type="LLM") as span:
+            span.set_inputs({"candidates": len(blocks)})
+            try:
+                response = client.chat.completions.create(
+                    model=self._llm_endpoint(),
+                    messages=[
+                        {"role": "system", "content": DECISION_SYSTEM},
+                        {"role": "user", "content": decision_prompt(request, blocks)},
+                    ],
+                    temperature=0.0,
+                    max_tokens=400,
+                    response_format=DECISION_FORMAT,
+                    timeout=max(1.0, min(20.0, log.remaining)),
+                )
+                usage = record_llm_usage(span, response)
+                log.add_usage(usage)
+                result = parse_decision(response.choices[0].message.content or "", len(blocks))
+            except Exception as error:  # noqa: BLE001 - never block a turn on this call
+                span.set_outputs({"error": _failure_reason(error)})
+                return "fetch", [], ""
+            span.set_outputs({"decision": result[0], "use": result[1], **(usage or {})})
+            return result
+
+    def _drift(
+        self,
+        request: str,
+        fitted: Any,
+        log: RunLog,
+        replying: bool,
+    ) -> drift.Outcome:
+        """Is a figure this turn counted differently from the same figure earlier?
+
+        Every failure is "no drift check", never a dead turn.
+        """
+
+        none = drift.Outcome()
+        try:
+            with mlflow.start_span(name="orchestrator.drift", span_type="LLM") as span:
+                started = time.perf_counter()
+
+                def finish(
+                    outcome: drift.Outcome, skipped: str, verdicts: Any = ""
+                ) -> drift.Outcome:
+                    span.set_attributes(
+                        {
+                            "drift.verdicts": json.dumps(verdicts, default=str),
+                            "drift.action": outcome.action,
+                            "drift.latency_ms": int((time.perf_counter() - started) * 1000),
+                            "drift.skipped": skipped,
+                        }
+                    )
+                    return outcome
+
+                if fitted is None or not fitted.turns:
+                    return finish(none, "no earlier turns")
+                current = drift.current_definitions(
+                    [b for b in log.blocks if block_key(b) not in log.carried_keys]
+                )
+                earlier = drift.earlier_definitions(fitted.turns)
+                pairs = drift.candidates(current, earlier)
+                if not pairs:
+                    return finish(none, "nothing comparable")
+                if log.remaining - runtime_settings.answer_reserve_seconds() < (
+                    drift.JUDGEMENT_MIN_REMAINING
+                ):
+                    return finish(none, "not enough time")
+                _, client = self._runtime()
+                log.calls += 1
+                schema = drift.DriftMatches.model_json_schema()
+                response = client.chat.completions.create(
+                    model=self._llm_endpoint(),
+                    messages=[
+                        {"role": "system", "content": drift.JUDGEMENT_SYSTEM},
+                        {"role": "user", "content": drift.judgement_prompt(pairs, request)},
+                    ],
+                    temperature=0.0,
+                    max_tokens=drift.JUDGEMENT_MAX_TOKENS,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "drift_matches",
+                            "schema": _strict_schema(schema, schema.get("$defs", {})),
+                            "strict": True,
+                        },
+                    },
+                    timeout=drift.JUDGEMENT_TIMEOUT,
+                )
+                log.add_usage(record_llm_usage(span, response))
+                matches = drift.parse_matches(
+                    response.choices[0].message.content or "", current, earlier
+                )
+                outcome = drift.decide(matches, current, earlier, replying=replying)
+                return finish(outcome, "", [m.__dict__ for m in matches])
+        except Exception:  # noqa: BLE001 - never block a turn on this check
+            return none
+
+    def _document_call(
+        self,
+        system: str,
+        user: str,
+        model_cls: type[BaseModel],
+        schema_name: str,
+        max_tokens: int,
+        log: RunLog,
+    ) -> tuple[BaseModel | None, str, bool]:
+        """One strict-schema call that writes a document.
+
+        Returns (draft, reason, cut_off). `reason` is empty on success.
+        """
+
+        _, client = self._runtime()
+        log.calls += 1
+        schema = model_cls.model_json_schema()
+        fmt = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema_name,
+                "schema": _strict_schema(schema, schema.get("$defs", {})),
+                "strict": True,
+            },
+        }
+        with mlflow.start_span(name=f"orchestrator.{schema_name}", span_type="LLM") as span:
+            span.set_inputs({"prompt_chars": len(system) + len(user), "max_tokens": max_tokens})
+            try:
+                response = client.chat.completions.create(
+                    model=self._llm_endpoint(),
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    temperature=0.2,
+                    max_tokens=max_tokens,
+                    response_format=fmt,
+                    timeout=max(1.0, log.remaining),
+                )
+            except Exception as error:  # noqa: BLE001
+                reason = _failure_reason(error)
+                span.set_outputs({"error": reason})
+                return None, f"the model call failed ({reason})", False
+            usage = record_llm_usage(span, response)
+            log.add_usage(usage)
+            choice = response.choices[0]
+            text = choice.message.content or ""
+            cut_off = getattr(choice, "finish_reason", "") == "length"
+            span.set_outputs({"chars": len(text), "cut_off": cut_off, **(usage or {})})
+        try:
+            return model_cls.model_validate(_json_payload(text)), "", cut_off
+        except (ValueError, json.JSONDecodeError, ValidationError):
+            return None, "the model's document could not be read", cut_off
+
+    def _build_dashboard(
+        self, question: str, package: list[str], log: RunLog
+    ) -> tuple[Dashboard | None, str]:
+        """A dashboard page, or (None, why not). Never raises."""
+
+        if not package:
+            return None, "there was no data to build it from"
+        if log.remaining < DASHBOARD_MIN_SECONDS:
+            return None, "there was not enough time left in the run to build it"
+        cap = dashboard_max_output_tokens()
+        system = (
+            "You write ONE self-contained HTML dashboard page. Reply with the title and the "
+            "complete HTML document only. Inline all CSS and JavaScript. Use NO external "
+            "resources: no CDN, no remote fonts, images, scripts or network calls. Draw "
+            "charts yourself with inline SVG, canvas or CSS. Use only the numbers in the data "
+            "below, exactly as given; never invent or estimate a value. Lay it out as a "
+            "clean, readable dashboard: a header, a row of headline figures, then charts and "
+            "tables, with consistent spacing and a restrained palette. Honour any colours or "
+            "chart types the request names. If the data is partial, say so on the page. "
+            "Never say figures were carried over, and never cite a turn number."
+        )
+        user = f"Request:\n{question}\n\nData:\n" + "\n".join(package)
+        draft, reason, cut_off = self._document_call(
+            system, user, DashboardDraft, "dashboard", cap, log
+        )
+        caveats: list[str] = []
+        truncated = False
+        if draft is None:
+            return None, reason + (" and it ran past its length limit" if cut_off else "")
+        html = draft.html
+        limit = dashboard_html_limit(cap)
+        html, trimmed = trim_html(html, limit)
+        if trimmed and not html:
+            return None, "the page was longer than the limit and could not be shortened safely"
+        if trimmed or cut_off:
+            truncated = True
+            caveats.append("The dashboard was cut to fit its length limit and may be incomplete.")
+        if not html.strip() or "<" not in html:
+            return None, "the page was empty"
+        return (
+            Dashboard(
+                title=draft.title.strip() or "Dashboard",
+                html=html,
+                generated_at=_utc_now(),
+                truncated=truncated,
+                caveats=caveats,
+            ),
+            "",
+        )
+
+    def _build_report(
+        self, question: str, package: list[str], log: RunLog
+    ) -> tuple[Report | None, str]:
+        """A multi-section report, or (None, why not). Never raises."""
+
+        if not package:
+            return None, "there was no data to build it from"
+        if log.remaining < DASHBOARD_MIN_SECONDS:
+            return None, "there was not enough time left in the run to build it"
+        system = (
+            "You write a report as structured sections. Each section may have a heading, a "
+            "short Markdown body, a row of KPI figures (value already formatted for a "
+            "reader), and at most one table of plain-text cells. Use only numbers present in "
+            "the data below, exactly as given; never invent a value. Reader-facing text only: "
+            "no SQL, tool names, or internal ids. For a request for a deck or slides, use a "
+            "short title, brief bodies and set theme to presentation. Do not draw charts; "
+            "they are added separately. "
+            "Never say figures were carried over, and never cite a turn number."
+        )
+        user = f"Request:\n{question}\n\nData:\n" + "\n".join(package)
+        draft, reason, cut_off = self._document_call(
+            system, user, ReportDraft, "report", self.settings.max_output_tokens, log
+        )
+        if draft is None or not draft.sections:
+            return None, reason or "the report had no sections"
+        sections = [
+            ReportSection(
+                id=section.id or f"section-{index + 1}",
+                heading=section.heading,
+                body=section.body,
+                figures=section.figures,
+                table=section.tables[0] if section.tables else None,
+                note=section.note,
+            )
+            for index, section in enumerate(draft.sections)
+        ]
+        caveats = []
+        if cut_off:
+            caveats.append("The report ran past its length limit and may be incomplete.")
+        return (
+            Report(
+                title=draft.title.strip() or "Report",
+                subtitle=draft.subtitle,
+                theme=draft.theme,
+                summary=draft.summary,
+                sections=sections,
+                sources=[ReportSource(name=name) for name in log.sources],
+                caveats=caveats,
+                generated_at=_utc_now(),
+            ),
+            "",
+        )
 
     def _plot(
         self,
@@ -5099,6 +5988,9 @@ Statements run, for column names and grain:
         rejected: list[str] = []
         limited = False
         max_charts = runtime_settings.current().answer.max_charts
+        if max_charts > 1 and several_charts_requested(question):
+            # On the USER turn, never the cached system brief.
+            user += f"\nOne chart per distinct analysis, up to {max_charts}.\n"
         chart_types = runtime_settings.current().answer.charts_types
         plot_instructions = PLOT_INSTRUCTIONS.replace(
             f"at most {MAX_CHARTS}", f"at most {max_charts}"
@@ -5162,12 +6054,13 @@ Statements run, for column names and grain:
                 except json.JSONDecodeError as error:
                     rejected.append(f"the spec was not valid JSON ({error})")
                     continue
-                outcome = arguments.get("outcome")
+                try:
+                    outcome = chart_outcome(arguments)
+                except ChartError as error:
+                    rejected.append(str(error))
+                    continue
                 if outcome == "not_applicable":
                     empty.append("no figures were applicable")
-                    continue
-                if outcome not in {None, "chart"}:
-                    rejected.append("the chart response used an unknown outcome")
                     continue
 
                 has_spec = "spec" in arguments and arguments["spec"] is not None
@@ -5774,12 +6667,48 @@ Tables available to this analysis, with their columns:
         except genie_routing.InvalidGenieTransport as error:
             return self._genie_transport_unavailable(error)
         mlflow.update_current_trace(tags=genie_routing.trace_metadata())
+        sql_policy.begin_described_columns()
         question, history = _request_context(request)
+        raw_question = question
         question, revision_note = _revision_request(question)
-        attachment_context = _attachment_context(custom_inputs)
+        attachment_context, attachment_note = _attachment_read(custom_inputs)
+        _attachment_note.set(attachment_note)
+        _asked_text.set(f"{raw_question}\n{attachment_context or ''}")
+        # The whole conversation, within a budget, replaces the last-12-messages cut
+        # whenever the app sends it. Without it nothing changes.
+        carried = parse_prior_turns(custom_inputs.get("prior_turns"))
+        fitted = None
+        carry_notes: list[str] = []
+        if carried is not None:
+            fitted = fit_turns(carried.turns, HISTORY_TOKEN_BUDGET)
+            history = [
+                *history_messages(fitted.turns),
+                {"role": "user", "content": raw_question},
+            ]
+            carry_notes.extend(history_caveats(fitted, carried))
+            mlflow.update_current_trace(
+                tags={
+                    "pia.history.carried_turns": str(carried.carried),
+                    "pia.history.kept_turns": str(len(fitted.turns)),
+                    "pia.history.compressed_turns": str(len(fitted.compressed)),
+                    "pia.history.omitted_turns": str(len(fitted.omitted)),
+                    "pia.history.tokens": str(fitted.tokens),
+                }
+            )
+        elif "prior_turns" in custom_inputs:
+            carry_notes.append(UNREADABLE_CAVEAT)
+        history_tokens = estimate_tokens(history) + estimate_tokens(attachment_context)
+        if history_tokens > PROMPT_TRIPWIRE_TOKENS:
+            mlflow.update_current_trace(tags={"pia.prompt.tripwire": str(history_tokens)})
+        replying_to_drift = drift.replying_to_drift(history, raw_question)
         discovery_request = DiscoveryRequest(
-            intent=question,
-            established_context=tuple(_preceding_turns(history, question)),
+            intent=_pending_request(history, raw_question) if replying_to_drift else question,
+            established_context=tuple(
+                {"role": m["role"], "content": m["content"]}
+                for m in (
+                    history[:-1] if carried is not None else _preceding_turns(history, question)
+                )
+            ),
             attachment_context=(
                 _attachment_message(attachment_context) if attachment_context else ""
             ),
@@ -5801,7 +6730,9 @@ Tables available to this analysis, with their columns:
         # joins the same session as the run that answers it. Session lives in trace
         # metadata (immutable once the trace exists), which is why it is set once,
         # early, rather than beside the tags on the orchestrator span.
-        mlflow.update_current_trace(session_id=_conversation_session(custom_inputs) or expected_plan_id)
+        mlflow.update_current_trace(
+            session_id=_conversation_session(custom_inputs) or expected_plan_id
+        )
         # The proposed-plan path returns before the orchestrator span, where the
         # correlation and run ids are turned into the tags `search_traces` filters
         # on -- so until now a plan trace could not be found by the id the app
@@ -5819,7 +6750,7 @@ Tables available to this analysis, with their columns:
             if approved_sources is not None
             else _is_approved(custom_inputs, expected_plan_id)
         )
-        if _is_nontrivial(question) and not approved:
+        if PLAN_STAGE_ENABLED and _is_nontrivial(question) and not approved:
             plan = self.data_source_finder.plan(discovery_request)
             text_item = self.create_text_output_item(
                 text=f"{plan.summary}\n\nReview and approve this plan to run the analysis.",
@@ -5843,6 +6774,8 @@ Tables available to this analysis, with their columns:
 
         run_id = uuid.uuid4().hex
         log = RunLog()
+        log.turn_id = run_id
+        log.version = self.settings.build_sha
         log.approved_primary = approved_primary
         log.approved_field = approved_field
 
@@ -5904,12 +6837,43 @@ Tables available to this analysis, with their columns:
             if turn_facts:
                 mlflow.update_current_trace(tags=turn_facts)
                 span.set_attributes(turn_facts)
-            outcome = yield from self.data_source_finder.invoke(
-                discovery_request,
-                log,
-                parent_id=orchestrator.id,
-                depth=1,
-            )
+            log.carry_notes.extend(carry_notes)
+            decision = "fetch"
+            if fitted is not None and log.remaining >= 10.0:
+                candidates = eligible_blocks(
+                    fitted.turns,
+                    self.settings.readable_tables,
+                    log.version,
+                    fully_qualified_tables,
+                )
+                log.carried_index = {
+                    key: block for block in candidates if (key := block_key(block)) is not None
+                }
+                if candidates:
+                    decision, use, gap = self._reuse_decision(
+                        _pending_request(history, question), candidates, log
+                    )
+                    if decision != "fetch":
+                        for index in use:
+                            log.adopt_carried(candidates[index])
+                        if decision == "reuse_and_fetch":
+                            discovery_request = replace(discovery_request, intent=gap)
+                    reused = len(use) if decision != "fetch" else 0
+                    span.set_attributes({"reuse.decision": decision, "reuse.blocks": reused})
+            if decision == "reuse":
+                outcome = LoopOutcome(
+                    answer_text=(
+                        "Answered from results already read earlier in this conversation; "
+                        "no new query was run."
+                    )
+                )
+            else:
+                outcome = yield from self.data_source_finder.invoke(
+                    discovery_request,
+                    log,
+                    parent_id=orchestrator.id,
+                    depth=1,
+                )
             # Read off THIS SPAN OBJECT, not `get_current_active_span()`.
             # Serving drives this generator with `next()`; after `yield from`
             # the tool batch, MLflow's contextvars can be empty even though
@@ -5924,6 +6888,7 @@ Tables available to this analysis, with their columns:
                     "sources": log.sources,
                     "calls": log.calls,
                     "calls_saved": log.calls_saved,
+                    "statements_reused": log.statements_reused,
                     "capped": outcome.capped,
                     "clarified": outcome.clarification is not None,
                     "prompt_tokens": log.prompt_tokens,
@@ -5959,6 +6924,104 @@ Tables available to this analysis, with their columns:
                     "type": "clarification",
                     "clarification": clarification.model_dump(),
                 },
+            )
+
+        if log.carried:
+            reuse_started = time.perf_counter()
+            yield log.stage(
+                "reuse",
+                "Used results from earlier in the conversation",
+                "agent",
+                reuse_started,
+                f"{len(log.carried_keys)} earlier result(s) adopted",
+                f"{log.statements_reused} repeated statement(s) not re-run",
+                "complete",
+                depth=1,
+                parent_id=orchestrator.id,
+            )
+
+        drift_outcome = self._drift(
+            _pending_request(history, raw_question), fitted, log, replying_to_drift
+        )
+        if drift_outcome.action == "clarify":
+            yield log.close_stage(
+                orchestrator, orchestrator_started, drift_outcome.question, "partial"
+            )
+            drift_clarification = Clarification(
+                id=f"drift-{run_id}",
+                question=drift_outcome.question,
+                options=drift_outcome.options,
+                trace=log.trace_summary(trace_id),
+            )
+            return ResponsesAgentResponse(
+                output=[
+                    self.create_text_output_item(
+                        text=drift_clarification.question,
+                        id=f"response-{drift_clarification.id}",
+                    )
+                ],
+                custom_outputs={
+                    "type": "clarification",
+                    "clarification": drift_clarification.model_dump(),
+                },
+            )
+        log.carry_notes.extend(n for n in drift_outcome.caveats if n not in log.carry_notes)
+
+        document = wants_document(_pending_request(history, question))
+        if document:
+            package = log.plot_evidence()
+            if not package and fitted is not None:
+                package, _ = latest_data_rows(fitted.turns)
+            package = package or _prior_evidence(custom_inputs)
+            doc_started = time.perf_counter()
+            doc_stage = "dashboard" if document == "dashboard" else "report"
+            yield log.starting(
+                doc_stage,
+                f"Building the {doc_stage}",
+                "agent",
+                doc_started,
+                depth=1,
+                parent_id=orchestrator.id,
+            )
+            if document == "dashboard":
+                built, why = self._build_dashboard(
+                    _pending_request(history, question), package, log
+                )
+            else:
+                built, why = self._build_report(_pending_request(history, question), package, log)
+            yield log.stage(
+                doc_stage,
+                f"Built the {doc_stage}" if built else f"Could not build the {doc_stage}",
+                "agent",
+                doc_started,
+                f"{len(package)} table(s) to build from",
+                built.title if built else why,
+                "complete" if built else "partial",
+                depth=1,
+                parent_id=orchestrator.id,
+            )
+            if built is not None:
+                yield log.close_stage(orchestrator, orchestrator_started, built.title)
+                payload = built.model_dump()
+                if log.carry_notes and not payload.get("caveats"):
+                    payload["caveats"] = []
+                payload["caveats"] = [*log.carry_notes, *payload.get("caveats", [])]
+                return ResponsesAgentResponse(
+                    output=[
+                        self.create_text_output_item(
+                            text=built.title, id=f"response-{log.turn_id or uuid.uuid4().hex}"
+                        )
+                    ],
+                    custom_outputs={
+                        "type": document,
+                        document: payload,
+                        "trace": log.trace_summary(trace_id).model_dump(),
+                        "evidence_blocks": list(log.blocks),
+                    },
+                )
+            log.carry_notes.append(
+                f"A {doc_stage} was asked for but could not be built because {why}. "
+                "This is an ordinary answer instead."
             )
 
         synthesis_started = time.perf_counter()
@@ -6003,12 +7066,17 @@ Tables available to this analysis, with their columns:
         plotted_from_prior = False
         settings_now = runtime_settings.current().answer
         charting_on = settings_now.charts and settings_now.max_charts > 0
-        if not plot_package and charting_on and log.remaining >= 5.0 and chart_requested(question):
-            recovered = _recover_plottable_context(history, question)
+        pending = _pending_request(history, question)
+        chart_asked = chart_requested(pending)
+        _chart_asked.set(chart_asked)
+        if not plot_package and charting_on and log.remaining >= 5.0 and chart_asked:
+            recovered = _prior_evidence(custom_inputs) or _recover_plottable_context(
+                history, question
+            )
             if recovered:
                 plot_package = recovered
                 plotted_from_prior = True
-        if plot_package and charting_on and log.remaining >= 5.0 and chart_requested(question):
+        if plot_package and charting_on and log.remaining >= 5.0 and chart_asked:
             plot_started = time.perf_counter()
             yield log.starting(
                 "plot",
@@ -6019,7 +7087,7 @@ Tables available to this analysis, with their columns:
                 parent_id=orchestrator.id,
             )
             charts, plot_note, plot_status = self._plot(
-                question, synthesis.takeaway, log, package=plot_package
+                pending, synthesis.takeaway, log, package=plot_package
             )
             yield log.stage(
                 "plot",
@@ -6110,6 +7178,12 @@ Tables available to this analysis, with their columns:
         # it. A catalog listing that already named the tables is complete.
         # Filtered before the cap so the lecture cannot consume a caveat slot.
         caveats = [caveat for caveat in caveats if not _is_grant_timing_note(caveat)]
+        if log.carried_keys or log.statements_reused:
+            # The carried-over caveat is written by code, once, in the handoff's
+            # words. A model that writes its own, or cites a turn number the
+            # reader never saw, says it twice.
+            caveats = [caveat for caveat in caveats if not restates_carry_over(caveat)]
+        offered_caveats = len(caveats)
         # This setting governs analyst-authored caveats. Governance, access, and
         # outage warnings are added below and remain mandatory, as the UI says.
         if presentation.max_caveats:
@@ -6160,17 +7234,19 @@ Tables available to this analysis, with their columns:
             # believe the figures came from the curated layer, which is exactly the
             # belief this corrects.
             caveats.insert(0, f"{DEGRADED_ANSWER_MARKER} {log.routes.caveat()}")
-        if log.failures:
+        if log.slow_reads:
+            caveats.insert(0, _slow_reads_caveat(len(log.slow_reads), log.sql_reads))
+        covered = [
+            (tool, reason)
+            for tool, reason in log.failures
+            if not (tool in _SQL_READ_TOOLS and failures_module.is_slow_sql_read(reason))
+        ]
+        if covered:
             # Disclosed from what the run DID, not from what the model recalled:
             # a failure is otherwise an `ERROR:` string mid-loop and a trace stage
             # nobody opens, and an outage of both Genie spaces reads as a
             # confident answer over the one surface that was up.
-            caveats.insert(
-                0,
-                f"{DEGRADED_ANSWER_MARKER} {_surfaces(log.failures)} did not respond "
-                "during this run. It is based only on the surfaces that did, so evidence those "
-                "would have contributed is missing rather than absent from the data.",
-            )
+            caveats.insert(0, _degraded_failure_caveat(covered))
         if log.access_denials:
             # Its own caveat, carrying the remedy: "did not respond" describes
             # something that may work next time, and a deployer who reads that
@@ -6231,6 +7307,7 @@ Tables available to this analysis, with their columns:
         # from volunteering the claim in a caveat of its own.
         takeaway = _without_non_action_filler(synthesis.takeaway)
         narrative = _without_non_action_filler(synthesis.narrative)
+        narrative_full = narrative
         # `narrative` controls the explanatory prose only. `content` carries
         # concrete findings such as result tables and must survive when prose
         # is hidden; coupling the two silently discarded queried data.
@@ -6264,7 +7341,75 @@ Tables available to this analysis, with their columns:
             if not presentation.narrative:
                 narrative = ""
             elif presentation.narrative_max_characters:
+                narrative_full = narrative
                 narrative = narrative[: presentation.narrative_max_characters]
+        # The model cannot see whether a chart was drawn, so its own sentences about chart
+        # status are removed and code states the status instead.
+        original_takeaway = takeaway
+        takeaway = _without_chart_claims(takeaway)
+        narrative = _without_chart_claims(narrative)
+        caveats = [caveat for caveat in caveats if not _CHART_CLAIM.search(caveat)]
+        no_chart = _chart_asked.get() and not charts and not log.no_evidence_survived
+        if not takeaway and original_takeaway.strip():
+            if charts:
+                takeaway = (
+                    f"**{len(charts)}** chart{'s' if len(charts) != 1 else ''} attached below."
+                )
+            elif no_chart:
+                takeaway = NO_CHART_CAVEAT
+            else:
+                takeaway = original_takeaway
+        if no_chart:
+            caveats.append(NO_CHART_CAVEAT)
+        capped_figures = len(figures)
+        verification: list[str] = []
+        if not log.no_evidence_survived:
+            takeaway, narrative, content, figures, verification = _shaped_and_checked(
+                takeaway, narrative, content, figures, log
+            )
+        caveats = [*runtime_settings.current().notices, *caveats]
+        # Cuts that used to be silent. Appended AFTER the governance caveats, so that
+        # neither the caveats switch nor the caveat limit can hide them.
+        if presentation.caveats and presentation.max_caveats:
+            hidden = offered_caveats - presentation.max_caveats
+            if hidden > 0:
+                caveats.append(
+                    f"{hidden} of the analysis's {offered_caveats} caveats "
+                    f"{'is' if hidden == 1 else 'are'} not shown, because Settings shows at "
+                    f"most {presentation.max_caveats}."
+                )
+        if presentation.figures and not log.no_evidence_survived and not _has_table(content):
+            left_out = len(synthesis.figures) - capped_figures
+            if left_out > 0:
+                caveats.append(
+                    f"{left_out} more figure {'card was' if left_out == 1 else 'cards were'} "
+                    f"left out, because Settings shows at most {presentation.max_figures}."
+                )
+        if (
+            not log.no_evidence_survived
+            and presentation.narrative
+            and presentation.narrative_max_characters
+            and len(narrative_full) > presentation.narrative_max_characters
+        ):
+            caveats.append(
+                f"The explanation was cut at {presentation.narrative_max_characters:,} of its "
+                f"{len(narrative_full):,} characters, the length limit set in Settings."
+            )
+        if _attachment_note.get():
+            caveats.append(_attachment_note.get())
+        caveats.extend(note for note in log.carry_notes if note not in caveats)
+        caveats.extend(verification)
+        if log.synthesis_cut == "parsed":
+            caveats.append(
+                "The answer was cut off before the model finished writing it; "
+                "some detail may be missing."
+            )
+        elif log.synthesis_cut == "unparsed":
+            caveats.append(
+                "The answer was cut off before it could finish, so this is the assessed "
+                "evidence rather than a complete write-up. Asking again, more narrowly, "
+                "will usually fit."
+            )
         source_limit = 3 if presentation.sources == "compact" else None
         answer_sources = log.sources[:source_limit]
         return AnswerContract(
@@ -6274,6 +7419,8 @@ Tables available to this analysis, with their columns:
             content=content,
             figures=figures,
             charts=charts,
+            chart_evidence=[] if log.no_evidence_survived else log.plot_evidence(),
+            evidence_blocks=list(log.blocks),
             sources=[
                 # The only freshness fact the run has. Anything more specific is
                 # a claim about the data that nothing in the run checked.

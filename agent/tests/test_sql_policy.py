@@ -174,3 +174,68 @@ def test_no_code_the_guard_raises_permits_a_later_route_attempt():
         "SELECT count(*) FROM cat.sch.orders o JOIN cat.sch.orders o2 ON o2.pid = o2.pid",
     ):
         assert not failures.may_request_another_route(_code(sql))
+
+
+class TestDistinctBesidePercentile:
+    BAD = [
+        "SELECT COUNT(DISTINCT player_id), approx_percentile(x, 0.5) FROM cat.sch.players",
+        "SELECT COUNT(DISTINCT player_id), percentile(x, 0.5) FROM cat.sch.players",
+        "SELECT COUNT(DISTINCT player_id), median(x) FROM cat.sch.players",
+        "SELECT SUM(DISTINCT x), median(x) FROM cat.sch.players",
+        "SELECT g, COUNT(DISTINCT player_id), median(x) FROM cat.sch.players GROUP BY g",
+    ]
+    OK = [
+        "SELECT COUNT(DISTINCT player_id) FROM cat.sch.players",
+        "SELECT median(x) FROM cat.sch.players",
+        "SELECT COUNT(DISTINCT a), COUNT(DISTINCT b) FROM cat.sch.players",
+        "SELECT approx_count_distinct(player_id), median(x) FROM cat.sch.players",
+        "WITH c AS (SELECT COUNT(DISTINCT player_id) n FROM cat.sch.players), "
+        "m AS (SELECT median(x) v FROM cat.sch.players) SELECT * FROM c, m",
+        "SELECT COUNT(DISTINCT a), MAX(median(x) OVER (PARTITION BY a)) FROM cat.sch.players",
+    ]
+
+    @pytest.mark.parametrize("sql", BAD)
+    def test_refused_with_remedy_and_not_disclosed(self, sql):
+        with pytest.raises(sql_policy.SqlRefused) as refused:
+            sql_policy.validate_sql(sql, READABLE)
+        assert refused.value.code == failures.SQL_AGGREGATE_SHAPE
+        assert refused.value.remedy
+        assert refused.value.disclosed is False
+
+    @pytest.mark.parametrize("sql", OK)
+    def test_allowed_shapes(self, sql):
+        sql_policy.validate_sql(sql, READABLE)
+
+
+T = "test_catalog.test_schema.silver_gameplay_activity"
+KNOWN = {T.lower(): ("label", "platform_id", "event_day", "profile")}
+
+
+def _unknown(sql, known=KNOWN):
+    from sql_policy import parse_sql, refuse_unknown_columns
+
+    refuse_unknown_columns(parse_sql(sql), known)
+
+
+def test_an_unknown_column_is_refused_with_the_closest_real_ones():
+    import pytest
+
+    from failures import SQL_UNKNOWN_COLUMN
+    from sql_policy import SqlRefused
+
+    with pytest.raises(SqlRefused) as caught:
+        _unknown(f"SELECT labl FROM {T}")
+    assert caught.value.code == SQL_UNKNOWN_COLUMN
+    assert "label" in caught.value.disclosure
+    assert "did you mean" not in caught.value.disclosure.lower()
+    assert "describe_table" in str(caught.value)
+
+
+def test_unknown_column_check_allows_aliases_and_fails_open():
+    _unknown(f"SELECT label, count(*) AS n FROM {T} GROUP BY label ORDER BY n")
+    _unknown(f"SELECT t.* FROM {T} t")
+    _unknown(f"SELECT profile.address.city FROM {T}")
+    _unknown(f"WITH c AS (SELECT label FROM {T}) SELECT nope FROM c")
+    _unknown(f"SELECT exploded FROM {T} LATERAL VIEW explode(arr) x AS exploded")
+    _unknown(f"SELECT nope FROM {T}", known={})  # a table never described is not checked
+    _unknown(f"SELECT nope FROM {T} a JOIN {T} b ON a.label = b.label")

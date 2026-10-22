@@ -170,7 +170,7 @@ def test_the_caveat_names_both_routes_and_does_not_overclaim_the_damage():
 
     caveat = ledger.caveat()
 
-    assert "did not respond" in caveat
+    assert "timed out" in caveat
     assert "direct SQL over the warehouse" in caveat
     assert "governed read either way" in caveat, (
         "the figures ARE governed, and saying otherwise would be a false caveat that trains "

@@ -18,10 +18,11 @@ readable and keeps the client's rendering surface small enough to test.
 
 from __future__ import annotations
 
+import copy
 import re
 from typing import Any
 
-from contracts import Chart
+from contracts import Chart, ChartView
 
 # --------------------------------------------------------------------------------------
 # Palette
@@ -252,7 +253,52 @@ def chart_requested(question: str) -> bool:
     """
 
     text = question or ""
-    return bool(_CHART_REQUESTED.search(text) or _CHART_SHAPE_REQUESTED.search(text))
+    return bool(
+        _CHART_REQUESTED.search(text)
+        or _CHART_SHAPE_REQUESTED.search(text)
+        or _FIGURE_NOUN.search(_FIGURE_VERB.sub(" ", text))
+    )
+
+
+# "figure(s)" is a chart request ("show me a figure of ..."); the verb is not ("figure out",
+# "figure it out").
+_FIGURE_VERB = re.compile(r"\bfigure\s+(?:out|(?:it|this|that)\s+out)\b", re.IGNORECASE)
+_FIGURE_NOUN = re.compile(r"\bfigures?\b", re.IGNORECASE)
+
+_CHART_NOUN = r"(?:chart|graph|plot|diagram|visuali[sz]ation|histogram)"
+_SEVERAL_CHARTS = re.compile(
+    r"\b(?:charts|graphs|diagrams|visuali[sz]ations|histograms)\b"
+    r"|\b(?:the|these|those|some|your|my)\s+plots\b"
+    rf"|\b(?:a\s+few|few|several|multiple|two|three|four|five|six|[2-9]|\d{{2,}})\s+(?:\w+\s+)?{_CHART_NOUN}s?\b",
+    re.IGNORECASE,
+)
+
+
+def several_charts_requested(question: str) -> bool:
+    """True when the person asked for more than one chart ("a few graphs", "three plots")."""
+
+    return bool(_SEVERAL_CHARTS.search(question or ""))
+
+
+def chart_outcome(arguments: dict[str, Any]) -> str | None:
+    """The outcome of a `new_plot` call, recovering an off-schema value from its payload.
+
+    None, "chart" and "not_applicable" pass through; folded variants ("charts",
+    "not-applicable") are accepted. Anything else is read as a chart when the call carries
+    a spec or data, and rejected, naming the value, when it does not.
+    """
+
+    outcome = arguments.get("outcome")
+    if outcome in (None, "chart", "not_applicable"):
+        return outcome
+    folded = re.sub(r"[\s_-]+", "", str(outcome).lower())
+    if folded in {"chart", "charts"}:
+        return "chart"
+    if folded == "notapplicable":
+        return "not_applicable"
+    if arguments.get("spec") is not None or arguments.get("data") is not None:
+        return "chart"
+    raise ChartError(f"the chart response used an unknown outcome ({str(outcome)[:40]!r})")
 
 
 # `line` is not a Plotly trace type, but it is the single most common thing a model emits
@@ -1206,6 +1252,109 @@ def _kind(traces: list[dict[str, Any]]) -> str:
     return "line"
 
 
+#: A switchable chart carries 2-6 alternatives over ONE dimension.
+MAX_VIEWS = 6
+#: Points across ALL views of one chart, on top of the per-trace caps.
+MAX_CHART_POINTS = 6_000
+VIEW_DIMENSIONS = ("metric", "segment", "time grain")
+
+
+def _figure(
+    data: Any, supplied_layout: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any], str]:
+    """One whole figure: validated, painted, wrapped, laid out. Shared by every view."""
+
+    traces = _validate(data, supplied_layout)
+    _paint(traces)
+    # Before the wrap and before the layout is built, because both of them ask which axis
+    # carries the names: wrapping is for the bottom axis only, and the axis defaults put the
+    # gridlines and the value format on whichever axis is left holding the measure.
+    _read_the_names_down_the_left(traces, supplied_layout)
+    _wrap_category_ticks(traces)
+
+    # The card header renders the title, so it is lifted out of the layout rather than
+    # drawn twice.
+    heading = _title_text(supplied_layout.get("title"))
+    supplied_layout.pop("title", None)
+
+    merged = _merge(_base_layout(traces), supplied_layout)
+    _hold_the_label_space(merged, traces)
+    # After the merge, so an order the model stated is visible to it and left alone.
+    _order_bars_by_value(merged, traces)
+    return traces, merged, heading
+
+
+def _switchable(spec: dict[str, Any], heading: str, chart_id: str) -> Chart | None:
+    """A chart with views, or None when the spec carries no menu (use `series`)."""
+
+    views = spec.get("views")
+    if views is None or views == []:
+        return None
+    if not isinstance(views, list):
+        raise ChartError("`views` must be a list of alternatives.")
+    if len(views) > MAX_VIEWS:
+        raise ChartError(f"A chart carries at most {MAX_VIEWS} views; send fewer alternatives.")
+    dimension = str(spec.get("view_dimension") or "").strip().lower()
+    if len(views) >= 2 and dimension not in VIEW_DIMENSIONS:
+        raise ChartError(
+            "Several views need a `view_dimension`, one of: " + ", ".join(VIEW_DIMENSIONS) + "."
+        )
+    labels: set[str] = set()
+    built: list[ChartView] = []
+    kinds: set[str] = set()
+    points = 0
+    for index, item in enumerate(views, start=1):
+        if not isinstance(item, dict):
+            raise ChartError("Each view must be an object with a label and series.")
+        label = str(item.get("label") or "").strip()
+        if not label:
+            raise ChartError("Every view needs a non-empty label.")
+        if label.casefold() in labels:
+            raise ChartError(f"View labels must be distinct; {label!r} is repeated.")
+        labels.add(label.casefold())
+        one = {
+            "kind": spec.get("kind"),
+            "stacking": spec.get("stacking"),
+            "series": item.get("series"),
+            "x_title": item.get("x_title") or spec.get("x_title"),
+            "y_title": item.get("y_title") or spec.get("y_title"),
+        }
+        if isinstance(one["series"], list) and not one["series"]:
+            raise ChartError(f"View {label!r} is empty; every view needs data.")
+        traces, layout = _semantic_spec(one)
+        traces, merged, _ = _figure(traces, layout)
+        if not any(_point_count(trace) for trace in traces):
+            raise ChartError(f"View {label!r} is empty; every view needs data.")
+        points += sum(_point_count(trace) for trace in traces)
+        kinds.add(_kind(traces))
+        built.append(ChartView(id=f"view-{index}", label=label, data=traces, layout=merged))
+    if points > MAX_CHART_POINTS:
+        raise ChartError(
+            f"The views hold {points:,} points between them; at most {MAX_CHART_POINTS:,} "
+            "are allowed. Send fewer or coarser alternatives."
+        )
+    if len(kinds) > 1:
+        raise ChartError("Every view must share one chart kind.")
+    first = built[0]
+    if len(built) == 1:
+        return Chart(
+            id=chart_id,
+            title=heading,
+            kind=_kind(first.data),
+            data=first.data,
+            layout=first.layout,
+        )
+    return Chart(
+        id=chart_id,
+        title=heading,
+        kind=_kind(first.data),
+        data=copy.deepcopy(first.data),
+        layout=copy.deepcopy(first.layout),
+        views=built,
+        view_dimension=dimension,
+    )
+
+
 def new_plot(
     data: Any = None,
     layout: dict[str, Any] | None = None,
@@ -1220,32 +1369,22 @@ def new_plot(
     """
 
     supplied_layout = dict(layout) if isinstance(layout, dict) else {}
+    if isinstance(spec, dict):
+        kind = str(spec.get("kind") or "").strip().lower()
+        if kind not in {"bar", "line", "scatter", "histogram", "pie", "box"}:
+            raise ChartError("The chart specification names an unsupported chart kind.")
+        switchable = _switchable(spec, title.strip(), chart_id)
+        if switchable is not None:
+            return switchable
     if spec is not None:
         data, semantic_layout = _semantic_spec(spec)
         supplied_layout = _merge(semantic_layout, supplied_layout)
     elif data is None:
         raise EmptyChartError("the plotting step found no applicable chart")
-    traces = _validate(data, supplied_layout)
-    _paint(traces)
-    # Before the wrap and before the layout is built, because both of them ask which axis
-    # carries the names: wrapping is for the bottom axis only, and the axis defaults put the
-    # gridlines and the value format on whichever axis is left holding the measure.
-    _read_the_names_down_the_left(traces, supplied_layout)
-    _wrap_category_ticks(traces)
-
-    # The card header renders the title, so it is lifted out of the layout rather than
-    # drawn twice. `title` from the tool call wins, since it is the model's own label.
-    heading = title.strip() or _title_text(supplied_layout.get("title"))
-    supplied_layout.pop("title", None)
-
-    merged = _merge(_base_layout(traces), supplied_layout)
-    _hold_the_label_space(merged, traces)
-    # After the merge, so an order the model stated is visible to it and left alone.
-    _order_bars_by_value(merged, traces)
-
+    traces, merged, layout_title = _figure(data, supplied_layout)
     return Chart(
         id=chart_id,
-        title=heading,
+        title=title.strip() or layout_title,
         kind=_kind(traces),
         data=traces,
         layout=merged,
@@ -1298,8 +1437,31 @@ NEW_PLOT_TOOL = {
                             "type": "string",
                             "enum": ["group", "stack", "relative"],
                         },
+                        "view_dimension": {
+                            "type": "string",
+                            "enum": list(VIEW_DIMENSIONS),
+                            "description": "What the views vary: required with 2+ views.",
+                        },
+                        "views": {
+                            "type": "array",
+                            "maxItems": MAX_VIEWS,
+                            "description": (
+                                "Optional 2-6 switchable alternatives over ONE dimension; "
+                                "put the default view first. Omit for a static chart."
+                            ),
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {"type": "string"},
+                                    "series": {"type": "array"},
+                                    "x_title": {"type": "string"},
+                                    "y_title": {"type": "string"},
+                                },
+                                "required": ["label", "series"],
+                            },
+                        },
                     },
-                    "required": ["kind", "series"],
+                    "required": ["kind"],
                     "description": (
                         "Renderer-neutral chart meaning. For bar, line, and scatter, each "
                         "series has x and y. For pie, use labels and values. For histogram "
@@ -1366,6 +1528,11 @@ eighteen empty rows to look past. Plot the ones with a value, and say in the ans
 many you left out and that they were zero. Never leave out a category that has a value, \
 however small, and never leave one out to sharpen a point.
 - A breakdown where every value is zero is not a chart. Say so in the answer instead.
+- Use `views` for alternatives that do not share an axis -- another metric, another \
+segment, another time grain -- as 2-6 switchable views of ONE chart, default view first, \
+labels taken from the data, and set `view_dimension`. Never build a coarser time grain by \
+summing a finer one, and never send a view the package does not hold. Never use a raw \
+Plotly dropdown (`updatemenus`).
 - One panel per call. Call new_plot once per chart, at most {MAX_CHARTS} times in \
 total, and not at all if the package holds no plottable rows or only a single scalar. If \
 the tool interface requires a response, send outcome "not_applicable" without a spec.

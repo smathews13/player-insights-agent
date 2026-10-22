@@ -36,6 +36,8 @@ own documentation false. See the block below the terminal list.
 
 from __future__ import annotations
 
+import re
+
 # ---------------------------------------------------------------------------
 # The shared codes. Spelling pinned against shared/failure-taxonomy.ts.
 # ---------------------------------------------------------------------------
@@ -175,11 +177,23 @@ ASSET_UNRESOLVED = "ASSET_UNRESOLVED"
 #: switch to another surface.
 SQL_CARTESIAN_JOIN = "SQL_CARTESIAN_JOIN"
 
+#: A SELECT that puts a DISTINCT aggregate (COUNT(DISTINCT id)) beside a percentile
+#: or median. The warehouse builds one percentile sketch per id and runs until it is
+#: cancelled; split into two queries it takes seconds. Refused BEFORE running.
+SQL_AGGREGATE_SHAPE = "SQL_AGGREGATE_SHAPE"
+
+#: A statement names a column the table does not have, after a whole `describe_table`
+#: read of that table this run. Refused BEFORE running. The model is told to check the
+#: read it already has; asking another surface would only repeat the guess.
+SQL_UNKNOWN_COLUMN = "SQL_UNKNOWN_COLUMN"
+
 EVIDENCE_REFUSAL_CODES = (
     SQL_UNPARSEABLE,
     SQL_NOT_READ_ONLY,
     ASSET_UNRESOLVED,
     SQL_CARTESIAN_JOIN,
+    SQL_AGGREGATE_SHAPE,
+    SQL_UNKNOWN_COLUMN,
 )
 
 #: Every code the agent may put on one piece of evidence or one run.
@@ -195,6 +209,8 @@ _TERMINAL_FOR = {
     SQL_NOT_READ_ONLY: NO_VALID_EVIDENCE,
     ASSET_UNRESOLVED: NO_VALID_EVIDENCE,
     SQL_CARTESIAN_JOIN: NO_VALID_EVIDENCE,
+    SQL_AGGREGATE_SHAPE: NO_VALID_EVIDENCE,
+    SQL_UNKNOWN_COLUMN: NO_VALID_EVIDENCE,
 }
 
 # ---------------------------------------------------------------------------
@@ -270,6 +286,10 @@ NO_LATER_ROUTE_ATTEMPT = frozenset(
         # is what its `remedy` already asks for. Asking elsewhere would only run
         # the same degenerate shape somewhere it is not checked.
         SQL_CARTESIAN_JOIN,
+        # Same reasoning: the shape is the problem, and Genie would run it too.
+        SQL_AGGREGATE_SHAPE,
+        # The column is not on the table; another surface cannot make it so.
+        SQL_UNKNOWN_COLUMN,
     }
 )
 
@@ -307,3 +327,56 @@ def may_request_another_route(code: str) -> bool:
     """
 
     return code not in NO_LATER_ROUTE_ATTEMPT and code in AGENT_CODES
+
+
+# ---------------------------------------------------------------------------
+# Naming the CAUSE of a failed call
+# ---------------------------------------------------------------------------
+
+CAUSE_REJECTED = "rejected"
+CAUSE_CANCELLED = "cancelled"
+CAUSE_TIMED_OUT = "timed out"
+CAUSE_FAILED = "failed"
+
+_LEADING_WORD = re.compile(r"^\w+: ")
+_ERROR_CLASS = re.compile(r"\[([A-Z][A-Z0-9_]+)(?:\.[A-Z0-9_]+)*\]")
+_REFUSED_CODE = re.compile(r"refused this request \(([A-Z][A-Z0-9_ ]*?)[:)]")
+_TIMEOUT_HEAD = re.compile(r"^(TimeoutError|WarehouseStarting)\b")
+_TIMEOUT_ANYWHERE = re.compile(r"\btim(?:ed out|eout)\b|\(TimeoutError\b", re.IGNORECASE)
+
+
+def _without_prefix(reason: str) -> str:
+    """The reason with one leading `Word: ` (an exception class name) removed."""
+
+    text = (reason or "").strip()
+    return _LEADING_WORD.sub("", text, count=1)
+
+
+def failure_cause(reason: str) -> tuple[str, str]:
+    """(cause, code) for a failed call: rejected, cancelled, timed out, or failed.
+
+    A rejected statement and a statement cancelled for time are different events
+    with different remedies, and "did not respond" told a reader neither. `code` is
+    the warehouse's error class (or the refusal code) for a rejection, else "".
+    Checked in order; the first match wins.
+    """
+
+    text = _without_prefix(reason)
+    if text.startswith("SQL CANCELED:"):
+        return CAUSE_CANCELLED, ""
+    if text.startswith("SQL FAILED:"):
+        match = _ERROR_CLASS.search(text)
+        return CAUSE_REJECTED, match.group(1) if match else ""
+    refused = _REFUSED_CODE.search(reason or "")
+    if refused:
+        return CAUSE_REJECTED, refused.group(1).strip()
+    if _TIMEOUT_HEAD.match((reason or "").strip()) or _TIMEOUT_ANYWHERE.search(reason or ""):
+        return CAUSE_TIMED_OUT, ""
+    return CAUSE_FAILED, ""
+
+
+def is_slow_sql_read(reason: str) -> bool:
+    """Whether a failed read was cut for time: cancelled, or never got going."""
+
+    text = _without_prefix(reason)
+    return text.startswith(("SQL CANCELED:", "SQL PENDING:", "SQL RUNNING:"))

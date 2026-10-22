@@ -7,6 +7,7 @@ older app builds remain compatible.
 
 from __future__ import annotations
 
+import math
 import time
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -47,7 +48,7 @@ class AnswerSettings:
     charts: bool = True
     figures: bool = True
     caveats: bool = True
-    max_charts: int = 1
+    max_charts: int = 6
     max_figures: int = 6
     max_caveats: int = 0
     narrative_max_characters: int = 0
@@ -73,6 +74,9 @@ class RuntimeSettings:
     # Promoted Prompt Registry guidance. Not a Settings control — Ask sends it
     # after Benchmarking moves the production alias (or caches the template).
     eval_guidance: str = ""
+    #: Disclosures for settings the request sent out of range or malformed. Shown
+    #: FIRST among the answer's caveats.
+    notices: tuple[str, ...] = ()
 
 
 _current: ContextVar[RuntimeSettings | None] = ContextVar("runtime_settings", default=None)
@@ -80,13 +84,48 @@ _turn_started: ContextVar[float] = ContextVar("turn_started", default=0.0)
 _turn_deadline: ContextVar[float] = ContextVar("turn_deadline", default=0.0)
 
 
-def _integer(value: Any, default: int, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+def _integer(
+    value: Any,
+    default: int,
+    low: int,
+    high: int,
+    label: str = "",
+    notices: list[str] | None = None,
+) -> int:
+    """A whole-number setting, clamped to its bounds, with every adjustment disclosed.
+
+    Out of range -> the NEAREST bound (not the default), and a notice. Not a whole
+    number (a bool, text, NaN, infinity, 2.5) -> the default, and a notice. Absent ->
+    the default, silently. A whole float such as 3.0 is accepted.
+    """
+
+    def tell(text: str) -> None:
+        if notices is not None and label:
+            notices.append(text)
+
+    if value is None:
+        return default
+    whole = (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and not (isinstance(value, float) and (math.isnan(value) or math.isinf(value)))
+        and int(value) == value
+    )
+    if not whole:
+        shown = repr(value)[:40]
+        tell(
+            f"The requested {label} ({shown}) is not a whole number; the default of "
+            f"{default} was used instead."
+        )
         return default
     number = int(value)
-    if number != value:
-        return default
-    return min(high, max(low, number))
+    bounded = min(high, max(low, number))
+    if bounded != number:
+        tell(
+            f"The requested {label} of {number} is outside this app's allowed range "
+            f"({low}\u2013{high}); {bounded} was used instead."
+        )
+    return bounded
 
 
 def _boolean(value: Any, default: bool) -> bool:
@@ -126,20 +165,27 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             ZoneInfo(timezone)
         except ZoneInfoNotFoundError:
             timezone = ""
+    notices: list[str] = []
     value = RuntimeSettings(
         loop=LoopSettings(
-            max_steps=_integer(loop.get("maxSteps"), DEFAULT_MAX_STEPS, 1, MAX_STEPS_CEILING),
+            max_steps=_integer(
+                loop.get("maxSteps"), DEFAULT_MAX_STEPS, 1, MAX_STEPS_CEILING, "step limit", notices
+            ),
             max_tool_calls=_integer(
                 loop.get("maxToolCalls"),
                 DEFAULT_MAX_TOOL_CALLS,
                 1,
                 MAX_TOOL_CALLS_CEILING,
+                "tool-call limit",
+                notices,
             ),
             max_run_seconds=_integer(
                 loop.get("maxRunSeconds"),
                 DEFAULT_MAX_RUN_SECONDS,
                 MIN_RUN_SECONDS,
                 MAX_RUN_SECONDS_CEILING,
+                "run-time limit",
+                notices,
             ),
         ),
         answer=AnswerSettings(
@@ -148,10 +194,17 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             charts=_boolean(answer.get("charts"), True),
             figures=_boolean(answer.get("figures"), True),
             caveats=_boolean(answer.get("caveats"), True),
-            max_charts=_integer(answer.get("maxCharts"), 1, 0, 6),
-            max_figures=_integer(answer.get("maxFigures"), 6, 0, 12),
-            max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20),
-            narrative_max_characters=_integer(answer.get("narrativeMaxCharacters"), 0, 0, 12_000),
+            max_charts=_integer(answer.get("maxCharts"), 6, 0, 6, "chart limit", notices),
+            max_figures=_integer(answer.get("maxFigures"), 6, 0, 12, "figure limit", notices),
+            max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20, "caveat limit", notices),
+            narrative_max_characters=_integer(
+                answer.get("narrativeMaxCharacters"),
+                0,
+                0,
+                12_000,
+                "narrative length limit",
+                notices,
+            ),
             sources=sources if sources in {"compact", "standard", "detailed"} else "standard",
             takeaway_guidance=_string(answer.get("takeawayGuidance"), "", 2_000),
             narrative_guidance=_string(answer.get("narrativeGuidance"), "", 2_000),
@@ -176,6 +229,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             inject_current_date=_boolean(behavior.get("injectCurrentDate"), False),
         ),
         eval_guidance=_string(custom_inputs.get("eval_guidance"), "", 8_000),
+        notices=tuple(notices),
     )
     _current.set(value)
     _turn_started.set(started)
@@ -245,6 +299,40 @@ def today_line(timezone: str = "", *, now: datetime | None = None) -> str:
     )
 
 
+CLARIFICATION_SENTENCES = {
+    "strict": "ask whenever a governed term is ambiguous.",
+    "balanced": (
+        "ask only where the ambiguity would change the number; otherwise take the "
+        "documented default."
+    ),
+    "proceed-with-caveat": (
+        "never ask. Take the documented default and disclose the assumption you made."
+    ),
+}
+
+
+def clarification_sentence(policy: str) -> str:
+    """The policy as a defined sentence, never a bare token the model must guess at."""
+
+    return CLARIFICATION_SENTENCES.get(policy, CLARIFICATION_SENTENCES["balanced"])
+
+
+def finder_fragment(*, now: datetime | None = None) -> str:
+    """What the finder is told at run time: the date and the clarification policy.
+
+    Not the answer contract: the finder has no takeaway, figures or caveats to shape,
+    and every line of it is a line it could mistake for an instruction.
+    """
+
+    settings = current()
+    today = today_line(settings.behavior.timezone, now=now)
+    policy = clarification_sentence(settings.behavior.clarification)
+    fragment = f"{today}\n\nClarification policy: {policy}"
+    if settings.eval_guidance:
+        fragment += f"\n\n# Promoted operating guidance\n{settings.eval_guidance}"
+    return fragment
+
+
 def prompt_fragment(*, now: datetime | None = None) -> str:
     settings = current()
     # Notebook parity: always inject the calendar day, even when no other runtime
@@ -266,7 +354,7 @@ def prompt_fragment(*, now: datetime | None = None) -> str:
         f"- charts={'on' if settings.answer.charts else 'off'}; cap={settings.answer.max_charts}",
         f"- analyst caveats={'on' if settings.answer.caveats else 'off'}",
         f"- source detail={settings.answer.sources}",
-        f"- clarification policy={settings.behavior.clarification}",
+        f"- clarification policy: {clarification_sentence(settings.behavior.clarification)}",
         "Safety and governance refusals remain mandatory regardless of presentation settings.",
     ]
     if settings.answer.takeaway_guidance:

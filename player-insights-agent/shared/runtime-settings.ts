@@ -124,12 +124,12 @@ export const RuntimeSettingsObjectSchema = z.strictObject({
   entityStyles: RuntimeEntityStylesObjectSchema.default(DEFAULT_ENTITY_STYLES),
   fontBodyColor: HexColorSchema.optional(),
   fontMutedColor: HexColorSchema.optional(),
-  fontFamily: z.enum(FONT_FAMILY_IDS).default('dm-sans'),
-  fontSize: z.enum(FONT_SIZE_IDS).default('m'),
-  mobileFontSize: z.enum(MOBILE_FONT_SIZE_IDS).default('auto'),
+  fontFamily: z.enum(FONT_FAMILY_IDS).default('system'),
+  fontSize: z.enum(FONT_SIZE_IDS).default('l'),
+  mobileFontSize: z.enum(MOBILE_FONT_SIZE_IDS).default('s'),
   backgroundGraphics: z.boolean().default(true),
   animations: z.boolean().default(true),
-  density: z.enum(DENSITY_IDS).default('comfortable'),
+  density: z.enum(DENSITY_IDS).default('compact'),
 });
 
 export const RuntimeSettingsSchema = RuntimeSettingsObjectSchema.transform((settings) => ({

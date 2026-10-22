@@ -9,12 +9,14 @@ export const ANSWER_CONTRACT_FIELDS = [
   "content",
   "figures",
   "charts",
+  "chart_evidence",
   "sources",
   "document_snippets",
   "caveats",
   "derivation",
   "sql",
   "trace",
+  "evidence_blocks",
 ] as const;
 
 export type AnswerContractField = (typeof ANSWER_CONTRACT_FIELDS)[number];

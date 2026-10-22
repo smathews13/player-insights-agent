@@ -231,7 +231,7 @@ describe('runtime and appearance modal sections', () => {
     expect(text).toContain('aria-label="Body text color"');
     expect(text).toContain('aria-label="Secondary text color picker"');
     expect(text).toContain('aria-label="Secondary text color"');
-    expect(text).toContain('aria-label="Font: DM Sans"');
+    expect(text).toContain('aria-label="Font: System"');
     expect(text).toContain('role="radiogroup"');
     expect(text).toContain('aria-label="Font size L"');
     expect(text).toContain('appearance-display-preview');

@@ -26,7 +26,7 @@ describe('runtime settings contract', () => {
       maxRunSeconds: 550,
     });
     expect(DEFAULT_RUNTIME_SETTINGS.answer.maxFigures).toBe(6);
-    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(1);
+    expect(DEFAULT_RUNTIME_SETTINGS.answer.maxCharts).toBe(6);
   });
 
   it('self-heals a stored pre-margin run budget instead of rejecting all settings', () => {
@@ -45,21 +45,21 @@ describe('runtime settings contract', () => {
   it('ships the approved daylight entity palette as the default styles', () => {
     expect(DEFAULT_RUNTIME_SETTINGS.entityStyles).toEqual(DEFAULT_ENTITY_STYLES);
     expect(DEFAULT_ENTITY_STYLES).toEqual({
-      catalog: { foreground: '#1a5b8f', background: '#e8f1fa' },
-      schema: { foreground: '#4c5c68', background: '#eef2f5' },
-      table: { foreground: '#0e1720', background: '#e2e8ed' },
-      column: { foreground: '#4c5c68', background: '#f2f5f8' },
-      quote: { foreground: '#4c5c68', background: '#f2f5f8' },
+      catalog: { foreground: '#1a5b8f', background: '#e7f4fd' },
+      schema: { foreground: '#4c5c68', background: '#fff5d6' },
+      table: { foreground: '#0e1720', background: '#f0fff3' },
+      column: { foreground: '#4c5c68', background: '#eaebeb' },
+      quote: { foreground: '#4c5c68', background: '#ffffff' },
       tag: { foreground: '#0e1720', background: '#e8f1fa' },
     });
 
     expect(runtimeEntityCssVariables(DEFAULT_RUNTIME_SETTINGS)).toMatchObject({
       '--entity-catalog-fg': '#1a5b8f',
-      '--entity-catalog-bg': '#e8f1fa',
-      '--entity-schema-bg': '#eef2f5',
-      '--entity-table-bg': '#e2e8ed',
-      '--entity-column-bg': '#f2f5f8',
-      '--entity-quote-bg': '#f2f5f8',
+      '--entity-catalog-bg': '#e7f4fd',
+      '--entity-schema-bg': '#fff5d6',
+      '--entity-table-bg': '#f0fff3',
+      '--entity-column-bg': '#eaebeb',
+      '--entity-quote-bg': '#ffffff',
       '--entity-tag-bg': '#e8f1fa',
     });
   });
@@ -147,9 +147,9 @@ describe('runtime settings contract', () => {
     expect(RuntimeSettingsSchema.parse(legacy)).toMatchObject({
       fontBodyColor: THEME_FONT_COLORS.light.body,
       fontMutedColor: THEME_FONT_COLORS.light.muted,
-      fontFamily: 'dm-sans',
-      fontSize: 'm',
-      mobileFontSize: 'auto',
+      fontFamily: 'system',
+      fontSize: 'l',
+      mobileFontSize: 's',
     });
     expect(
       RuntimeSettingsSchema.parse({
@@ -179,7 +179,7 @@ describe('runtime settings contract', () => {
       fontFamily: 'system',
       backgroundGraphics: true,
       animations: true,
-      density: 'comfortable',
+      density: 'compact',
     });
   });
 

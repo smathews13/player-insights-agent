@@ -82,7 +82,7 @@ def test_values_that_are_not_environment_specific_still_default():
 
     assert settings.llm_endpoint == "databricks-claude-sonnet-4-6"
     assert settings.llm_gateway_endpoint == ""
-    assert settings.max_output_tokens == 4000
+    assert settings.max_output_tokens == 14000
     # The SQL fallback's allowlist follows the catalog it was given, so it can
     # never be left pointing at the previous deployment's catalog.
     assert settings.catalog_allowlist == ("acme_catalog",)

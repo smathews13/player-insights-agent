@@ -15,6 +15,7 @@ from typing import Any
 
 import mlflow
 
+from config import offer_data_genie
 from stage_lexicon import DATA_SOURCE_FINDER_TASK
 
 FINDER_ATTACHMENT_BEGIN = "----- BEGIN UNTRUSTED FINDER ATTACHMENT -----"
@@ -75,7 +76,7 @@ geo-targeting rule, or location-based restriction:
 """
 
 
-FINDER_SYSTEM_PROMPT = f"""# Role
+_FINDER_SYSTEM_PROMPT_BASE = f"""# Role
 You are the Data Source Finder for a video game publisher. Given one self-contained
 query from the orchestrator, find and validate the exact governed data needed, then
 return a CLEAN, ASSESSED DATA PACKAGE. You never present the final answer to the user.
@@ -181,6 +182,30 @@ Work down this ladder. Genie is not the default, and it is not faster.
 ## CLARIFICATION NEEDED
 - One short, specific question when the request cannot be safely bound.
 """
+
+
+_DATA_GENIE_BULLET = (
+    "- data_genie is a fallback for figures the metadata path cannot produce. It is not\n"
+    "  the default way to find data.\n"
+)
+_DATA_GENIE_STEP = (
+    "4. Only then, if the metadata path cannot produce the figure, fall back to data_genie.\n"
+    "   Use dictionary_genie only for a meaning the metadata lacks.\n"
+)
+
+
+def finder_system_prompt(offer: bool) -> str:
+    """The finder's brief; without the data Genie rung unless the deployment opted in."""
+
+    if offer:
+        return _FINDER_SYSTEM_PROMPT_BASE
+    text = _FINDER_SYSTEM_PROMPT_BASE.replace(_DATA_GENIE_BULLET, "")
+    return text.replace(
+        _DATA_GENIE_STEP, "4. Use dictionary_genie only for a meaning the metadata lacks.\n"
+    )
+
+
+FINDER_SYSTEM_PROMPT = finder_system_prompt(offer_data_genie())
 
 
 @dataclass(frozen=True)

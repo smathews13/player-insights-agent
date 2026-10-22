@@ -196,6 +196,70 @@ def _source(tree: exp.Expression) -> str:
     return tables[0] if tables else ""
 
 
+#: Counting units: the identifier columns a distinct count runs over, each with
+#: what one value of it IS. Written for this catalog's own keys and extended by
+#: fragment below for a catalog it was not written against. A unit is only ever
+#: reported from a parse of `COUNT(DISTINCT <column>)`, never from what the
+#: model said it counted.
+UNIT_DEFINITIONS: dict[str, str] = {
+    "platformid_accountid": "one row per account",
+    "player_id": "one row per player",
+    "account_id": "one row per account",
+    "user_id": "one row per user",
+    "profile_id": "one row per profile",
+    "platform_id": "one row per platform account",
+    "device_id": "one row per device",
+    "session_id": "one row per session",
+}
+
+#: The units that are a PERSON, so that a count by one and a count by another are
+#: the same quantity as far as drift detection is concerned.
+PERSON_UNITS = frozenset(
+    {"platformid_accountid", "player_id", "account_id", "user_id", "profile_id", "platform_id"}
+)
+
+_UNIT_FRAGMENTS = (
+    ("player", "one row per player"),
+    ("account", "one row per account"),
+    ("user", "one row per user"),
+    ("profile", "one row per profile"),
+    ("session", "one row per session"),
+    ("device", "one row per device"),
+)
+
+
+def unit_definition(column: str) -> str:
+    """What one value of an identifier column is, or "" when it is not a known unit."""
+
+    name = column.lower()
+    if name in UNIT_DEFINITIONS:
+        return UNIT_DEFINITIONS[name]
+    if not name.endswith("id") and not name.endswith("key"):
+        return ""
+    for fragment, definition in _UNIT_FRAGMENTS:
+        if fragment in name:
+            return definition
+    return ""
+
+
+def counted_unit(projection: exp.Expression) -> str:
+    """The column of a `COUNT(DISTINCT <column>)` in this projection, or "".
+
+    Only a distinct count over ONE plain column counts as counting units:
+    `COUNT(*)` counts rows, `SUM(x)` adds a measure, and neither says what the
+    rows are.
+    """
+
+    for count in projection.find_all(exp.Count):
+        inner = count.this
+        if not isinstance(inner, exp.Distinct) or len(inner.expressions) != 1:
+            continue
+        column = inner.expressions[0]
+        if isinstance(column, exp.Column) and unit_definition(column.name):
+            return column.name.lower()
+    return ""
+
+
 def _metric(select: exp.Select) -> str:
     """What the statement measured, named as the query named it.
 
@@ -212,6 +276,9 @@ def _metric(select: exp.Select) -> str:
             continue
         alias = projection.alias if isinstance(projection, exp.Alias) else ""
         measure = alias or _compact(projection)
+        unit = counted_unit(projection)
+        if measure and unit:
+            measure = f"{measure} \u00b7 counted by {unit} ({unit_definition(unit)})"
         if measure and measure not in measures:
             measures.append(measure)
     return _joined(measures, MAX_METRICS)
@@ -246,9 +313,7 @@ def _conditions(select: exp.Select) -> tuple[str, str]:
         # rows" is unreadable without the column that narrowed them.
         if isinstance(condition, exp.Between):
             windows.append(
-                _clip(
-                    f"{_compact(condition.args['low'])} → {_compact(condition.args['high'])}"
-                )
+                _clip(f"{_compact(condition.args['low'])} → {_compact(condition.args['high'])}")
             )
             continue
         # A pair of one-sided comparisons on one column is one window, and

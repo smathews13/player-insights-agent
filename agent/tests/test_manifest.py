@@ -1930,4 +1930,4 @@ def test_franchise_tag_bake_reads_every_chunk_not_just_the_first():
 
 def test_the_bundle_default_for_max_output_tokens_is_four_thousand():
     bundle = yaml.safe_load((Path(__file__).resolve().parents[2] / "databricks.yml").read_text())
-    assert bundle["variables"]["max_output_tokens"]["default"] == "4000"
+    assert bundle["variables"]["max_output_tokens"]["default"] == "14000"

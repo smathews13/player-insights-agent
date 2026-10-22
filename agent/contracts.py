@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
 
 ANSWER_SCHEMA_VERSION = "pia.answer/1"
 PLAN_SCHEMA_VERSION = "pia.plan/1"
@@ -14,6 +14,15 @@ class Figure(BaseModel):
     value: float
     display: str
     comparison: str = ""
+
+
+class ChartView(BaseModel):
+    """One alternative of a switchable chart: a whole Plotly figure with its own label."""
+
+    id: str
+    label: str
+    data: list[dict[str, Any]]
+    layout: dict[str, Any] = Field(default_factory=dict)
 
 
 class Chart(BaseModel):
@@ -29,6 +38,33 @@ class Chart(BaseModel):
     kind: str
     data: list[dict[str, Any]]
     layout: dict[str, Any] = Field(default_factory=dict)
+    #: 2-6 alternatives over ONE dimension (metric, segment, time grain). `data` and
+    #: `layout` above are always a copy of view one, so an app that ignores views still
+    #: draws a correct chart.
+    views: list[ChartView] = Field(default_factory=list)
+    view_dimension: str = ""
+
+    @model_serializer(mode="wrap")
+    def _static_chart_keeps_five_keys(self, handler: Any) -> dict[str, Any]:
+        payload = handler(self)
+        if not payload.get("views"):
+            payload.pop("views", None)
+            payload.pop("view_dimension", None)
+        return payload
+
+
+class EvidenceBlock(BaseModel):
+    """One completed tool call, structured. Exactly nine keys."""
+
+    turn_id: str = ""
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    result: str = ""
+    sources: list[Any] = Field(default_factory=list)
+    truncated: bool = False
+    total_rows: int | None = None
+    compressed: bool = False
+    version: str = ""
 
 
 class Source(BaseModel):
@@ -274,6 +310,10 @@ class AnswerContract(BaseModel):
     content: str = ""
     figures: list[Figure] = Field(default_factory=list)
     charts: list[Chart] = Field(default_factory=list)
+    #: The result text of each completed row-returning call, in run order, so "plot
+    #: that" next turn draws from the rows the query returned, not from a markdown
+    #: table in the answer text.
+    chart_evidence: list[str] = Field(default_factory=list)
     sources: list[Source] = Field(default_factory=list)
     document_snippets: list[DocumentSnippet] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
@@ -289,6 +329,8 @@ class AnswerContract(BaseModel):
     derivation: list[Derivation] = Field(default_factory=list)
     sql: str = ""
     trace: TraceSummary
+    #: Every completed tool call as a structured block, so a later turn can reuse it.
+    evidence_blocks: list[EvidenceBlock] = Field(default_factory=list)
 
     @field_validator("takeaway", "narrative", "content", "sql", mode="before")
     @classmethod
@@ -304,6 +346,8 @@ class AnswerContract(BaseModel):
         "document_snippets",
         "caveats",
         "derivation",
+        "chart_evidence",
+        "evidence_blocks",
         mode="before",
     )
     @classmethod
@@ -311,3 +355,96 @@ class AnswerContract(BaseModel):
         """A null section is none of that section, not a failed answer object."""
 
         return [] if value is None else value
+
+
+class Dashboard(BaseModel):
+    """One self-contained HTML page, rendered by the app in a sandboxed iframe."""
+
+    schema_version: Literal["pia.dashboard/1"] = "pia.dashboard/1"
+    title: str
+    html: str
+    generated_at: str = ""
+    truncated: bool = False
+    caveats: list[str] = Field(default_factory=list)
+
+
+class DashboardDraft(BaseModel):
+    """What the model returns: the title and the whole document, nothing else."""
+
+    title: str
+    html: str
+
+
+class ReportFigure(BaseModel):
+    label: str
+    #: Already formatted for the reader ("62%", "1.4M").
+    value: str
+    caption: str = ""
+
+
+class ReportTable(BaseModel):
+    id: str = ""
+    title: str = ""
+    columns: list[str] = Field(default_factory=list)
+    align: list[Literal["left", "right", "center"]] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
+class ReportChartPanel(BaseModel):
+    id: str
+    title: str
+    kind: str
+    plotly: dict[str, Any]
+
+
+class ReportSection(BaseModel):
+    id: str = ""
+    heading: str = ""
+    body: str = ""
+    figures: list[ReportFigure] = Field(default_factory=list)
+    table: ReportTable | None = None
+    charts: list[ReportChartPanel] = Field(default_factory=list)
+    note: str = ""
+
+
+class ReportSource(BaseModel):
+    name: str
+    freshness: str = ""
+
+
+class Report(BaseModel):
+    """A multi-section document. Reader-facing only: no trace, SQL or internal ids."""
+
+    schema_version: Literal["pia.report/1"] = "pia.report/1"
+    title: str
+    subtitle: str = ""
+    theme: Literal["page", "presentation"] = "page"
+    summary: str = ""
+    sections: list[ReportSection] = Field(default_factory=list)
+    sources: list[ReportSource] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    generated_at: str = ""
+    provenance: Any = None
+
+
+class ReportDraftSection(BaseModel):
+    """A section as the model writes it: at most one table, held in a list so the strict
+    schema needs no optional (anyOf) member."""
+
+    id: str = ""
+    heading: str = ""
+    body: str = ""
+    figures: list[ReportFigure] = Field(default_factory=list)
+    tables: list[ReportTable] = Field(default_factory=list)
+    note: str = ""
+
+
+class ReportDraft(BaseModel):
+    """What the model fills in. No charts key: charts are drawn by the plot step."""
+
+    title: str
+    subtitle: str = ""
+    theme: Literal["page", "presentation"] = "page"
+    summary: str = ""
+    sections: list[ReportDraftSection] = Field(default_factory=list)

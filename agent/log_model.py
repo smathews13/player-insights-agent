@@ -340,7 +340,11 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
         model_config={**settings.as_model_config(), **release_decisions},
         python_model=str(ROOT / "agent.py"),
         code_paths=[
+            str(ROOT / "carry_over.py"),
+            str(ROOT / "answer_numbers.py"),
+            str(ROOT / "drift.py"),
             str(ROOT / "charts.py"),
+            str(ROOT / "documents.py"),
             str(ROOT / "config.py"),
             str(ROOT / "contracts.py"),
             # The correlation id's shape rule and the facts it tags a trace with.

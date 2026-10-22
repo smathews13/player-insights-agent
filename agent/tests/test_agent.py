@@ -931,7 +931,7 @@ def test_nothing_reachable_leaves_the_answer_uncited_and_says_so():
     # The degradation leads, deliberately. "Nothing was read" on its own reads as
     # a fact about the data: that there was nothing to find. The reader's
     # actionable fact is that a surface was down, and it explains the other.
-    assert "did not respond" in answer["caveats"][0]
+    assert "the governed data Genie space failed" in answer["caveats"][0]
 
 
 #: The synthesis a model writes when it has been handed nothing: a leader, a
@@ -1305,7 +1305,7 @@ def test_a_run_that_was_half_refused_and_half_down_says_which_was_which():
 
     narrative = answer["narrative"]
     assert "the governed data Genie space refused this run's access" in narrative
-    assert "the data dictionary Genie space did not respond" in narrative
+    assert "the data dictionary Genie space timed out" in narrative
     assert answer["figures"] == []
 
 
@@ -2362,6 +2362,35 @@ def test_streaming_a_clarification_ends_with_the_clarification():
 # ---------------------------------------------------------------------------
 
 
+def test_the_plan_stage_ships_off():
+    import inspect
+
+    assert "PLAN_STAGE_ENABLED = False" in inspect.getsource(agent)
+
+
+@pytest.mark.plan_stage_off
+def test_a_question_that_would_have_been_planned_is_answered():
+    runtime = build(ScriptedLlm(), FakeTools())
+    question = "Compare active-player trends across labels and titles."
+    response = runtime.predict(app_request(input=[{"role": "user", "content": question}]))
+    assert response.custom_outputs["type"] != "plan"
+
+
+def test_attachments_read_newest_file_first_within_80k():
+    custom = {"attachments": "intro\n\n## old.txt\nOLD BODY\n\n## new.txt\nNEW BODY"}
+    text = agent._attachment_context(custom)
+    assert agent.MAX_ATTACHMENT_CHARS == 80_000
+    assert text.index("NEW BODY") < text.index("OLD BODY")
+    assert text.startswith("intro")
+    structured = {"attachments": [{"name": "a.md", "text": "AAA"}, {"name": "b.md", "text": "BBB"}]}
+    out = agent._attachment_context(structured)
+    assert out.index("BBB") < out.index("AAA")
+    inner = {"attachments": "## a.md\n# Heading\nbody\n\n## b.md\nx"}
+    assert "# Heading\nbody" in agent._attachment_context(inner)
+    big = {"attachments": "x" * 80_000}
+    assert len(agent._attachment_context(big)) == 80_000
+
+
 def test_nontrivial_question_returns_plan_without_querying_data():
     tools = FakeTools()
     runtime = build(ScriptedLlm(), tools)
@@ -3130,7 +3159,9 @@ def test_more_charts_than_the_ceiling_are_dropped_and_the_trace_says_so():
 
     llm = Overplotter([Call("data_genie", {"question": "figures"})], "Done.")
 
-    response = ask(build(llm), CHART_QUESTION)
+    response = ask(
+        build(llm), CHART_QUESTION, runtime_settings={"answer": {"maxCharts": MAX_CHARTS}}
+    )
 
     assert len(response.custom_outputs["answer"]["charts"]) == MAX_CHARTS
     plot_stage = next(stage for stage in stages(response) if stage["id"] == "plot")
@@ -4539,12 +4570,14 @@ APP_ANSWER_FIELDS = {
     "content",
     "figures",
     "charts",
+    "chart_evidence",
     "sources",
     "document_snippets",
     "caveats",
     "derivation",
     "sql",
     "trace",
+    "evidence_blocks",
 }
 APP_FIGURE_FIELDS = {"label", "value", "display", "comparison"}
 APP_SOURCE_FIELDS = {"name", "freshness", "role"}
@@ -5586,3 +5619,276 @@ def test_a_falsy_flag_is_still_an_ordinary_question(value):
     )
 
     assert response.custom_outputs.get("type") != "preflight_retired"
+
+
+def test_slow_reads_caveat_counts_and_agrees():
+    one = agent._slow_reads_caveat(1, 2)
+    assert one.startswith("This answer is degraded: 1 of 2 SQL reads was cancelled")
+    assert "it would have produced" in one
+    two = agent._slow_reads_caveat(2, 3)
+    assert "2 of 3 SQL reads were cancelled" in two and "they would have" in two
+    assert "missing" not in two
+
+
+def test_failure_phrases_name_the_cause_and_sum_both_sql_tools():
+    phrases = agent._failure_phrases(
+        [
+            ("run_sql", "SqlDenied: SQL FAILED: [UNRESOLVED_COLUMN.X] a"),
+            ("query_named_table", "SqlDenied: SQL FAILED: [PARSE_SYNTAX_ERROR] b"),
+            ("data_genie", "TimeoutError: slow"),
+        ]
+    )
+    assert (
+        "the warehouse rejected 2 SQL statements (PARSE_SYNTAX_ERROR, UNRESOLVED_COLUMN)" in phrases
+    )
+    assert "the governed data Genie space timed out" in phrases
+    assert all("did not respond" not in phrase for phrase in phrases)
+
+
+def test_attachment_cut_names_partial_and_unread_files():
+    cap = agent.MAX_ATTACHMENT_CHARS
+    exact = {"attachments": "x" * cap}
+    assert agent._attachment_read(exact)[1] == ""
+    assert agent._attachment_read({"attachments": "x" * (cap + 1)})[1].startswith(
+        f"Only the first {cap:,} characters"
+    )
+    files = {
+        "attachments": (
+            f"## old.txt\n{'o' * 10}\n\n## mid.txt\n{'m' * cap}\n\n## new.txt\n{'n' * 10}"
+        )
+    }
+    text, note = agent._attachment_read(files)
+    assert len(text) == cap
+    assert "'mid.txt' was cut partway through" in note
+    assert "'old.txt' were not read at all" in note
+
+
+def _turns(*pairs):
+    return [{"role": role, "content": text} for role, text in pairs]
+
+
+def test_pending_request_inherits_a_clarified_request():
+    history = _turns(
+        ("user", "plot retention by title"),
+        ("assistant", "Which retention window do you mean?"),
+        ("user", "Day 7"),
+    )
+    pending = agent._pending_request(history, "Day 7")
+    assert pending == "plot retention by title\n\nDay 7"
+    assert agent.chart_requested(pending)
+
+
+def test_pending_request_ignores_answers_and_walks_back_through_two_clarifications():
+    answered = _turns(
+        ("user", "plot retention"),
+        ("assistant", "**Retention** is 32%.\n\n| a | b |\n|---|---|\n| 1 | 2 |"),
+        ("user", "thanks"),
+    )
+    assert agent._pending_request(answered, "thanks") == "thanks"
+    ends_in_question = _turns(
+        ("user", "x"), ("assistant", "**Bold** answer here. Is that fine?"), ("user", "y")
+    )
+    assert agent._pending_request(ends_in_question, "y") == "y"
+    twice = _turns(
+        ("user", "make a chart"),
+        ("assistant", "Which metric?"),
+        ("user", "players"),
+        ("assistant", "Which title?"),
+        ("user", "VLH"),
+    )
+    assert agent._pending_request(twice, "VLH") == "make a chart\n\nplayers\n\nGTA"
+    typed = [
+        {"role": "user", "content": "build a dashboard"},
+        {"role": "assistant", "content": "Done.", "type": "clarification"},
+        {"role": "user", "content": "Option A"},
+    ]
+    assert agent._pending_request(typed, "Option A") == "build a dashboard\n\nOption A"
+
+
+def test_the_models_chart_status_sentences_are_removed_and_data_sentences_kept():
+    text = "Players grew 12%.\nThe chart is attached below. Revenue was flat."
+    cleaned = agent._without_chart_claims(text)
+    assert "attached" not in cleaned
+    assert "Players grew 12%." in cleaned and "Revenue was flat." in cleaned
+    assert "\n" in agent._without_chart_claims("One.\n\nTwo chart below.\n\nThree.")
+    assert agent._without_chart_claims("I could not draw a chart for this.") == ""
+
+
+def test_an_answer_carries_chart_evidence_and_evidence_blocks():
+    llm = ScriptedLlm([Call("data_genie", {"question": "figures"})], "Done.")
+    answer = ask(build(llm), CHART_QUESTION).custom_outputs["answer"]
+    assert answer["chart_evidence"]
+    block = answer["evidence_blocks"][0]
+    assert set(block) == {
+        "turn_id",
+        "tool",
+        "arguments",
+        "result",
+        "sources",
+        "truncated",
+        "total_rows",
+        "compressed",
+        "version",
+    }
+    assert block["tool"] == "data_genie" and block["turn_id"]
+
+
+def test_prior_evidence_is_capped():
+    out = agent._prior_evidence({"prior_evidence": "r" * 20_000})
+    assert len(out[0]) == agent.MAX_PRIOR_EVIDENCE_CHARS == 8_000
+
+
+def _carried_turn(sql, **block_extra):
+    block = {
+        "tool": "run_sql",
+        "arguments": {"sql": sql},
+        "result": "label | active_players_30d\nNorthwind | 8413",
+        "sources": [ACTIVITY],
+        "truncated": False,
+        "version": "",
+    }
+    block.update(block_extra)
+    return {
+        "turn_id": "turn-1",
+        "question": "Compare active players by label.",
+        "type": "answer",
+        "takeaway": "**8,413** active players for Northwind.",
+        "evidence_blocks": [block],
+    }
+
+
+def test_a_repeated_statement_is_answered_from_the_earlier_turn_without_a_query():
+    sql = f"SELECT label, count(*) FROM {ACTIVITY} GROUP BY label"
+    tools = FakeTools(run_sql=ToolResult(text="should never be read", sources=[ACTIVITY]))
+    llm = ScriptedLlm(
+        [Call("run_sql", {"sql": sql.lower().replace(", ", " , ")})],
+        "8,413 active players for Northwind.",
+    )
+
+    response = ask(
+        build(llm, tools),
+        "Compare active players by label again.",
+        prior_turns=[_carried_turn(sql)],
+    )
+
+    assert not [name for name, _ in tools.invocations if name == "run_sql"]
+    answer = response.custom_outputs["answer"]
+    assert "carried over from earlier in this conversation" in " ".join(answer["caveats"])
+    reused = next(
+        s for s in stages(response) if s["name"] == "Reused a result from an earlier turn"
+    )
+    assert "no query was run" in reused["output"]
+    assert answer["evidence_blocks"][0]["turn_id"] == "turn-1"
+
+
+class _CutOff(ScriptedLlm):
+    """A model whose replies stop on the output limit, for the stages named."""
+
+    def __init__(self, *turns, cut=("loop", "synthesis"), **kwargs):
+        super().__init__(*turns, **kwargs)
+        self.cut = cut
+
+    def _create(self, **kwargs):
+        reply = super()._create(**kwargs)
+        offered = [tool["function"]["name"] for tool in kwargs.get("tools") or []]
+        stage = "loop" if offered and offered != ["new_plot"] else "synthesis"
+        if not offered and kwargs["messages"][0].get("content") and stage in self.cut:
+            reply.choices[0].finish_reason = "length"
+        elif stage == "loop" and "loop" in self.cut:
+            reply.choices[0].finish_reason = "length"
+        return reply
+
+
+def test_a_synthesis_that_stops_on_the_output_limit_says_so():
+    llm = _CutOff([Call("data_genie", {"question": "figures"})], "Done.", cut=("synthesis",))
+
+    answer = ask(build(llm)).custom_outputs["answer"]
+
+    assert any("cut off before" in caveat for caveat in answer["caveats"])
+
+
+def test_a_finder_write_up_that_stops_on_the_output_limit_marks_the_run_capped():
+    llm = _CutOff([Call("data_genie", {"question": "figures"})], "partial text", cut=("loop",))
+
+    answer = ask(build(llm)).custom_outputs["answer"]
+
+    assert any("write-up was cut off by the output length limit" in c for c in answer["caveats"])
+
+
+def test_one_sql_wait_is_at_most_half_the_turn_that_remains(monkeypatch):
+    import tools as tools_module
+
+    monkeypatch.setattr(tools_module.runtime_settings, "remaining_seconds", lambda: 40.0)
+    monkeypatch.setattr(tools_module.runtime_settings, "answer_reserve_seconds", lambda: 0.0)
+    holder = object.__new__(tools_module.PlayerInsightTools)
+
+    assert holder._sql_allowance(300) <= 20.0
+
+
+def test_the_finder_is_not_offered_the_data_genie_space_unless_opted_in():
+    import data_source_finder as finder
+
+    names_off = [t["function"]["name"] for t in agent._finder_tool_list(False)]
+    names_on = [t["function"]["name"] for t in agent._finder_tool_list(True)]
+    assert "data_genie" not in names_off and "dictionary_genie" in names_off
+    assert names_on.index("run_sql") < names_on.index("data_genie")
+    assert [n for n in names_on if n != "data_genie"] == names_off
+    assert "data_genie" not in finder.finder_system_prompt(False)
+    assert "data_genie" in finder.finder_system_prompt(True)
+    assert "__FALLBACK__" not in agent.ORCHESTRATOR_INSTRUCTIONS
+
+
+def test_offering_data_genie_is_off_by_default(monkeypatch):
+    import config
+
+    monkeypatch.delenv(config.OFFER_DATA_GENIE_ENV, raising=False)
+    assert config.offer_data_genie() is False
+    monkeypatch.setenv(config.OFFER_DATA_GENIE_ENV, "true")
+    assert config.offer_data_genie() is True
+
+
+def _breakpoints(kwargs) -> int:
+    count = 0
+    for message in kwargs["messages"]:
+        content = message.get("content")
+        if isinstance(content, list):
+            count += sum(
+                1 for block in content if isinstance(block, dict) and "cache_control" in block
+            )
+    count += sum(1 for tool in kwargs.get("tools") or [] if "cache_control" in tool)
+    return count
+
+
+def test_every_finder_step_marks_only_its_newest_message_and_leaves_the_conversation_plain():
+    seen = []
+
+    class Watching(ScriptedLlm):
+        def _create(self, **kwargs):
+            offered = [tool["function"]["name"] for tool in kwargs.get("tools") or []]
+            if offered and offered != ["new_plot"]:
+                last = kwargs["messages"][-1]
+                seen.append(
+                    (_breakpoints(kwargs), last.get("role"), isinstance(last["content"], list))
+                )
+            return super()._create(**kwargs)
+
+    llm = Watching([Call("data_genie", {"question": "figures"})], "Done.")
+    ask(build(llm))
+
+    assert seen and all(count == 3 for count, _, _ in seen)
+    assert seen[-1][1] == "tool" and seen[-1][2] is True
+    assert all(isinstance(m["content"], str) or m["role"] == "system" for m in llm.transcript)
+
+
+def test_the_moving_marker_skips_empty_messages_and_restores_after_a_failure():
+    assert agent._marked({"role": "user", "content": ""}) == {"role": "user", "content": ""}
+    marked = agent._marked({"role": "tool", "content": "rows"})
+    assert marked["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    messages = [{"role": "user", "content": "q"}]
+    try:
+        with agent._step_breakpoint(messages):
+            assert isinstance(messages[-1]["content"], list)
+            raise RuntimeError("endpoint failed")
+    except RuntimeError:
+        pass
+    assert messages[-1] == {"role": "user", "content": "q"}

@@ -551,7 +551,7 @@ class Settings:
             schema=str(resolved["schema"]),
             catalog_allowlist=_tuple(allowlist),
             catalog_denylist=_tuple(resolved["catalog_denylist"] or ()),
-            max_output_tokens=int(resolved["max_output_tokens"] or 4000),
+            max_output_tokens=int(resolved["max_output_tokens"] or 14_000),
             tables=_tuple(resolved["tables"] or DECLARED_TABLES),
             declared_manifest=_tuple(resolved["declared_manifest"] or ()),
             manifest_source=manifest_source,
@@ -559,3 +559,17 @@ class Settings:
             build_sha=str(resolved["build_sha"] or ""),
             sources=tuple(sorted(origins.items())),
         )
+
+
+OFFER_DATA_GENIE_ENV = "PLAYER_INSIGHTS_OFFER_DATA_GENIE"
+
+
+def offer_data_genie() -> bool:
+    """Whether the finder is offered the data Genie space. Off unless asked for.
+
+    The finder answers from metadata and SQL: resolve the table, describe it, query it.
+    A data space nobody curates answers confidently and wrongly, so offering it is opt-in
+    for a deployment whose space is curated. The tool stays wired and tested either way.
+    """
+
+    return os.environ.get(OFFER_DATA_GENIE_ENV, "").strip().lower() in {"1", "true", "yes", "on"}

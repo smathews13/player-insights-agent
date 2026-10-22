@@ -64,7 +64,7 @@ export function runtimeAppearanceFromCache(value: string | null): RuntimeSetting
     const parsed = parsePersistedRuntimeSettings(stored);
     if (parsed) return parsed;
     if (stored && typeof stored === 'object' && !Array.isArray(stored) && 'density' in stored) {
-      return parsePersistedRuntimeSettings({ ...stored, density: 'comfortable' });
+      return parsePersistedRuntimeSettings({ ...stored, density: 'compact' });
     }
     return null;
   } catch {

@@ -158,7 +158,7 @@ variables:
     default: /Shared/${var.product_slug}
   max_output_tokens:
     description: Agent max output tokens (PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS).
-    default: "4000"
+    default: "14000"
   judge_endpoint:
     description: >-
       Foundation-model endpoint for benchmark scoring only. Defaults to the

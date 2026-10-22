@@ -1734,3 +1734,98 @@ class TestGeneralPurpose:
         rendered = repr(chart.data) + repr(chart.layout)
         assert "zz_unlikely" in rendered and "qq_unlikely" in rendered
         assert chart.title == ""
+
+
+class TestChartRequests:
+    def test_figure_is_a_chart_request_but_the_verb_is_not(self):
+        from charts import chart_requested
+
+        assert chart_requested("show me a figure of weekly players")
+        assert chart_requested("two figures please")
+        assert not chart_requested("figure out why revenue dropped")
+        assert not chart_requested("can you figure it out")
+        assert not chart_requested("figure this out for me")
+
+    def test_several_charts(self):
+        from charts import several_charts_requested
+
+        assert several_charts_requested("a few graphs of retention")
+        assert several_charts_requested("make 3 charts")
+        assert several_charts_requested("show me the plots")
+        assert several_charts_requested("two quick bar charts")
+        assert not several_charts_requested("make a chart of retention")
+        assert not several_charts_requested("plots of the data")
+
+    def test_outcome_recovery(self):
+        import pytest
+
+        from charts import ChartError, chart_outcome
+
+        assert chart_outcome({}) is None
+        assert chart_outcome({"outcome": "charts"}) == "chart"
+        assert chart_outcome({"outcome": "not-applicable"}) == "not_applicable"
+        assert chart_outcome({"outcome": "weird", "spec": {"kind": "bar"}}) == "chart"
+        with pytest.raises(ChartError, match="unknown outcome"):
+            chart_outcome({"outcome": "weird"})
+
+
+class TestChartViews:
+    def _spec(self, **extra):
+        series = [{"name": "A", "x": ["a", "b"], "y": [1, 2]}]
+        return {
+            "kind": "bar",
+            "view_dimension": "metric",
+            "views": [
+                {"label": "Players", "series": series},
+                {"label": "Revenue", "series": [{"name": "R", "x": ["a", "b"], "y": [3, 4]}]},
+            ],
+            **extra,
+        }
+
+    def test_views_are_whole_figures_and_the_first_is_the_default_copy(self):
+        from charts import new_plot
+
+        chart = new_plot(spec=self._spec())
+        assert [v.label for v in chart.views] == ["Players", "Revenue"]
+        assert chart.view_dimension == "metric"
+        assert chart.data == chart.views[0].data and chart.data is not chart.views[0].data
+        payload = chart.model_dump()
+        assert payload["views"][0]["id"] == "view-1"
+
+    def test_static_chart_keeps_five_keys(self):
+        from charts import new_plot
+
+        chart = new_plot(spec={"kind": "bar", "series": [{"x": ["a"], "y": [1]}], "views": []})
+        assert set(chart.model_dump()) == {"id", "title", "kind", "data", "layout"}
+
+    def test_one_view_is_a_plain_chart(self):
+        from charts import new_plot
+
+        spec = self._spec()
+        spec["views"] = spec["views"][:1]
+        spec.pop("view_dimension")
+        assert new_plot(spec=spec).model_dump().get("views") is None
+
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda s: s.update(view_dimension="colour"),
+            lambda s: s["views"][1].update(label="players"),
+            lambda s: s["views"][1].update(label=""),
+            lambda s: s["views"][1].update(series=[]),
+            lambda s: s.update(views=s["views"] * 4),
+            lambda s: s["views"][1]["series"][0].update(x=list(range(7000)), y=list(range(7000))),
+        ],
+    )
+    def test_refused(self, mutate):
+        from charts import ChartError, new_plot
+
+        spec = self._spec()
+        mutate(spec)
+        with pytest.raises(ChartError):
+            new_plot(spec=spec)
+
+    def test_brief_forbids_rebuilding_a_time_grain(self):
+        from charts import PLOT_INSTRUCTIONS
+
+        assert "coarser time grain by" in PLOT_INSTRUCTIONS
