@@ -625,9 +625,7 @@ class EvidenceGateway:
         )
         leaked = restricted_output_columns(columns)
         if leaked:
-            template = _SCHEMA_REFUSALS.get(
-                candidate.route, _SCHEMA_REFUSALS[ROUTE_SQL]
-            )
+            template = _SCHEMA_REFUSALS.get(candidate.route, _SCHEMA_REFUSALS[ROUTE_SQL])
             # `RESULT_COLUMN_POLICY_VIOLATION`, not `COLUMN_POLICY_VIOLATION`,
             # which this reported until the shared taxonomy had a code for the
             # later moment. The statement named nothing protected and was
@@ -696,9 +694,7 @@ class EvidenceGateway:
             return self._unattributable(candidate, unattributable)
         return self._attributed(candidate, assets)
 
-    def admit_definition_query(
-        self, tool: str, sql: str, *, has_definition_text: bool
-    ) -> Verdict:
+    def admit_definition_query(self, tool: str, sql: str, *, has_definition_text: bool) -> Verdict:
         """Judge a query the DICTIONARY space ran, by what a definition is.
 
         THE FIGURES RULE WAS BEING APPLIED TO A DEFINITIONS CALL, and it refused
@@ -839,9 +835,7 @@ class EvidenceGateway:
             off_manifest=off_manifest,
         )
 
-    def admit_genie_visualization(
-        self, tool: str, *, metric_ids: Sequence[str] = ()
-    ) -> Verdict:
+    def admit_genie_visualization(self, tool: str, *, metric_ids: Sequence[str] = ()) -> Verdict:
         """Judge a chart Genie returned with no statement behind it.
 
         REFUSED unless a certified metric identifier attributes it. This is the
@@ -911,9 +905,7 @@ class EvidenceGateway:
         exists because that case was reaching the figures rule and being refused.
         """
 
-        candidate = self.candidate(
-            tool, ROUTE_GENIE, PAYLOAD_DEFINITION, depends_on_values=False
-        )
+        candidate = self.candidate(tool, ROUTE_GENIE, PAYLOAD_DEFINITION, depends_on_values=False)
         if not has_text:
             return Verdict(
                 outcome=FAILED,

@@ -438,8 +438,7 @@ class SemanticEntry:
             )
         if self.certification not in CERTIFICATIONS:
             raise SemanticLayerError(
-                f"certification={self.certification!r} is not one of "
-                f"{', '.join(CERTIFICATIONS)}."
+                f"certification={self.certification!r} is not one of {', '.join(CERTIFICATIONS)}."
             )
         if self.source not in SOURCES:
             raise SemanticLayerError(f"source={self.source!r} is not one of {', '.join(SOURCES)}.")
