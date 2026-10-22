@@ -76,6 +76,81 @@ function sourcesOf(value: unknown): unknown[] | undefined {
   return Array.isArray(value) ? value.filter((item) => typeof item === 'string' || record(item)) : undefined;
 }
 
+/** A figure card as one `- label: value` line, from whichever keys it carries. */
+function figureLine(value: unknown): string | undefined {
+  const figure = record(value);
+  if (!figure) return undefined;
+  const label = text(figure.label);
+  const shown =
+    text(figure.display) ?? text(figure.value) ?? (typeof figure.value === 'number' ? String(figure.value) : undefined);
+  if (!label || !shown) return undefined;
+  return `- ${label}: ${shown}`;
+}
+
+function chartLines(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const title = text(record(item)?.title);
+    return title ? [`Chart: ${title}`] : [];
+  });
+}
+
+function tableLines(value: unknown): string[] {
+  const table = record(value);
+  const columns = strings(table?.columns);
+  if (!table || !columns || columns.length === 0) return [];
+  const rows = Array.isArray(table.rows) ? table.rows : [];
+  const cell = (item: unknown) =>
+    (typeof item === 'string' ? item : item === null || item === undefined ? '' : JSON.stringify(item))
+      .replace(/\|/g, '\\|')
+      .replace(/\n/g, ' ');
+  return [
+    `| ${columns.map(cell).join(' | ')} |`,
+    `|${columns.map(() => '---').join('|')}|`,
+    ...rows.filter(Array.isArray).map((row) => `| ${(row as unknown[]).map(cell).join(' | ')} |`),
+  ];
+}
+
+/**
+ * A report's sections as Markdown, so the agent can refer back to what the reader
+ * saw. Plotly `data` and `layout` are left out: the rows they were drawn from are in
+ * `evidence_blocks`. Never cut here; the backend shortens and names an over-long field.
+ */
+export function reportContent(report: Record<string, unknown> | null): string | undefined {
+  if (!report || !Array.isArray(report.sections)) return undefined;
+  const blocks: string[] = [];
+  for (const raw of report.sections) {
+    const section = record(raw);
+    if (!section) continue;
+    const parts: string[] = [];
+    const heading = text(section.heading);
+    if (heading) parts.push(`## ${heading}`);
+    const body = text(section.body);
+    if (body) parts.push(body);
+    const figures = (Array.isArray(section.figures) ? section.figures : []).map(figureLine).filter(Boolean);
+    if (figures.length > 0) parts.push(figures.join('\n'));
+    const table = tableLines(section.table).join('\n');
+    if (table) parts.push(table);
+    const charts = chartLines(section.charts).join('\n');
+    if (charts) parts.push(charts);
+    const note = text(section.note);
+    if (note) parts.push(note);
+    if (parts.length > 0) blocks.push(parts.join('\n\n'));
+  }
+  return blocks.length > 0 ? blocks.join('\n\n') : undefined;
+}
+
+/** An answer's `content`, with its figure cards and chart titles listed after it. */
+export function answerContent(response: Record<string, unknown>): string | undefined {
+  const lines = [
+    ...(Array.isArray(response.figures) ? response.figures : []).map(figureLine).filter(Boolean),
+    ...chartLines(response.charts),
+  ] as string[];
+  const content = text(response.content);
+  const parts = [content, lines.length > 0 ? lines.join('\n') : undefined].filter(Boolean);
+  return parts.length > 0 ? parts.join('\n\n') : undefined;
+}
+
 /** One assistant row, and the user message that produced it, as a prior turn. */
 function turnFrom(row: StoredRow, question: string | undefined): PriorTurn | null {
   const response = parsed(row.response_json);
@@ -110,6 +185,8 @@ function turnFrom(row: StoredRow, question: string | undefined): PriorTurn | nul
     // The report's summary; a dashboard has none.
     const summary = text(document?.summary);
     if (summary) turn.narrative = summary;
+    const sections = type === 'report' ? reportContent(document) : undefined;
+    if (sections) turn.content = sections;
     const caveats = strings(document?.caveats);
     if (caveats) turn.caveats = caveats;
     const sources = sourcesOf(document?.sources);
@@ -126,7 +203,7 @@ function turnFrom(row: StoredRow, question: string | undefined): PriorTurn | nul
     turn.takeaway = text(response.takeaway) ?? stored;
     const narrative = text(response.narrative);
     if (narrative) turn.narrative = narrative;
-    const content = text(response.content);
+    const content = answerContent(response);
     if (content) turn.content = content;
   }
 
@@ -175,11 +252,24 @@ export function buildPriorTurns(rows: readonly StoredRow[]): PriorTurn[] {
 export function fitPriorTurns(
   turns: readonly PriorTurn[],
   baseBytes: number,
+  budgets: { blockBudget?: number; bodyBudget?: number } = {}
+): PriorTurn[] {
+  return fitPriorTurnsCounted(turns, baseBytes, budgets).turns;
+}
+
+/**
+ * `fitPriorTurns`, and how many of the OLDEST turns did not fit. The backend numbers
+ * turns by position among those it receives, so without the count a dropped first
+ * turn is invisible and the chat appears to start later than it did.
+ */
+export function fitPriorTurnsCounted(
+  turns: readonly PriorTurn[],
+  baseBytes: number,
   {
     blockBudget = PRIOR_TURNS_BLOCK_BUDGET_BYTES,
     bodyBudget = REQUEST_BODY_BUDGET_BYTES,
   }: { blockBudget?: number; bodyBudget?: number } = {}
-): PriorTurn[] {
+): { turns: PriorTurn[]; dropped: number } {
   const hadBlocks = turns.map((turn) => Array.isArray(turn.evidence_blocks) && turn.evidence_blocks.length > 0);
   const slim = turns.map(({ evidence_blocks: _blocks, ...rest }) => rest as PriorTurn);
 
@@ -208,7 +298,7 @@ export function fitPriorTurns(
       out[index - first] = { ...slim[index], evidence_withheld: true };
     }
   }
-  return out;
+  return { turns: out, dropped: first };
 }
 
 /**

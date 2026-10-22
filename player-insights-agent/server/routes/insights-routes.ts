@@ -110,7 +110,7 @@ import {
   identityReadinessHttp,
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
-import { buildPriorTurns, extractEvidenceBlocks, fitPriorTurns } from '../lib/prior-turns';
+import { buildPriorTurns, extractEvidenceBlocks, fitPriorTurnsCounted } from '../lib/prior-turns';
 import { fitAttachmentText, type AttachmentRow } from '../lib/attachment-text';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
@@ -2875,11 +2875,30 @@ function attachmentExtension(filename: string) {
   return filename.toLowerCase().split('.').pop() ?? '';
 }
 
+export interface ExtractedAttachment {
+  text: string;
+  /** True when the file held more than `MAX_ATTACHMENT_TEXT` characters. */
+  truncated: boolean;
+  /** The characters the file held, or null when the extractor stopped counting (a PDF). */
+  originalChars: number | null;
+}
+
 export async function extractAttachmentText(filename: string, bytes: Buffer, signal?: AbortSignal) {
+  return (await extractAttachment(filename, bytes, signal)).text;
+}
+
+export async function extractAttachment(
+  filename: string,
+  bytes: Buffer,
+  signal?: AbortSignal
+): Promise<ExtractedAttachment> {
   // PDFs are binary by definition, so they must bypass the UTF-8 path and its NUL guard.
   // `PdfTextError` messages are written for the user, so they propagate to the 422 body.
   if (isPdfFilename(filename)) {
-    return extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT, signal });
+    const text = await extractPdfText(bytes, { maxChars: MAX_ATTACHMENT_TEXT, signal });
+    // The worker stops at the limit and does not report what it left, so a result
+    // that reaches the limit is treated as cut.
+    return { text, truncated: text.length >= MAX_ATTACHMENT_TEXT, originalChars: null };
   }
   const extension = attachmentExtension(filename);
   if (!ALLOWED_ATTACHMENT_TYPES.has(extension)) {
@@ -2890,7 +2909,12 @@ export async function extractAttachmentText(filename: string, bytes: Buffer, sig
   if (bytes.subarray(0, 8000).includes(0)) {
     throw new Error('This file looks binary. Use a plain-text TXT, Markdown, CSV, or JSON file.');
   }
-  return bytes.toString('utf8').slice(0, MAX_ATTACHMENT_TEXT);
+  const full = bytes.toString('utf8');
+  return {
+    text: full.slice(0, MAX_ATTACHMENT_TEXT),
+    truncated: full.length > MAX_ATTACHMENT_TEXT,
+    originalChars: full.length,
+  };
 }
 
 export function identityPayload(req: Request) {
@@ -4675,7 +4699,8 @@ export function setupInsightsRoutes(
       const read = await readStored(
         appkit,
         'GET /api/conversations/:id/attachments',
-        `SELECT a.id, a.filename, a.mime_type, a.size_bytes, a.created_at
+        `SELECT a.id, a.filename, a.mime_type, a.size_bytes, a.created_at,
+                char_length(a.extracted_text) >= ${MAX_ATTACHMENT_TEXT} AS truncated
          FROM ${APP_SCHEMA}.attachments a
          JOIN ${APP_SCHEMA}.conversations c ON c.id = a.conversation_id
          WHERE a.conversation_id = $1 AND ($3 OR c.user_email = $2)
@@ -4748,6 +4773,7 @@ export function setupInsightsRoutes(
       }
 
       let extractedText: string;
+      let extracted: ExtractedAttachment;
       const extraction = new AbortController();
       const abortExtraction = () => extraction.abort();
       const abortIfDisconnected = () => {
@@ -4757,7 +4783,8 @@ export function setupInsightsRoutes(
       res.once('close', abortIfDisconnected);
       if (req.aborted || res.destroyed) extraction.abort();
       try {
-        extractedText = await extractAttachmentText(filename, bytes, extraction.signal);
+        extracted = await extractAttachment(filename, bytes, extraction.signal);
+        extractedText = extracted.text;
       } catch (error) {
         if (extraction.signal.aborted || res.destroyed) return;
         if (error instanceof PdfTextError && error.code === 'overloaded') {
@@ -4813,6 +4840,10 @@ export function setupInsightsRoutes(
         mime_type: req.header('x-file-type') ?? 'application/octet-stream',
         size_bytes: bytes.length,
         status: 'ready',
+        // Only the start of this file is stored and read. Said here so the chip can
+        // say it; after a reload the list read derives the same fact from the stored
+        // text reaching the limit, so no schema change carries it.
+        ...(extracted.truncated ? { truncated: true, original_chars: extracted.originalChars } : {}),
       });
     });
 
@@ -5252,6 +5283,9 @@ export function setupInsightsRoutes(
         MAX_CONVERSATION_ATTACHMENT_TEXT
       );
       const attachmentText = attachmentFit.text;
+      // On EVERY result type and in what is stored, so a report or dashboard built
+      // from a shortened file says so and the note survives a reload.
+      const attachmentsCutField = attachmentFit.cut.length > 0 ? { attachments_cut: attachmentFit.cut } : {};
       if (attachmentFit.cut.length > 0) {
         console.warn(
           `[serving] Attached files did not all fit; shortened or left out: ${attachmentFit.cut.join(', ')}`
@@ -5510,10 +5544,18 @@ export function setupInsightsRoutes(
           // The whole conversation, structured, oldest first, fitted under the request
           // byte caps with the turns that lost their rows flagged. `input` above is
           // unchanged (twelve messages) so an older backend behaves as it always did.
-          (payload.custom_inputs as Record<string, unknown>).prior_turns = fitPriorTurns(
+          const fittedTurns = fitPriorTurnsCounted(
             buildPriorTurns(historyResult.rows),
             Buffer.byteLength(JSON.stringify(payload), 'utf8')
           );
+          const customInputs = payload.custom_inputs as Record<string, unknown>;
+          customInputs.prior_turns = fittedTurns.turns;
+          if (fittedTurns.dropped > 0) {
+            // The backend numbers turns by position among those it receives, so the
+            // count is what lets it say the start of the chat was not carried.
+            customInputs.prior_turns_dropped = fittedTurns.dropped;
+            console.warn(`[serving] ${fittedTurns.dropped} oldest turns did not fit the request body budget.`);
+          }
           // Counted on the way past, so a failure can say where the run died
           // rather than only that it did. "It stopped in 'Query
           // gold_title_daily_summary' after four steps" and "it never started" are
@@ -5713,7 +5755,10 @@ export function setupInsightsRoutes(
             const honestClarification = withoutUntracedProcess(
               bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
             );
-            const clarificationResponse = clarificationStoredResponse(honestClarification, honestClarification.trace);
+            const clarificationResponse = {
+              ...clarificationStoredResponse(honestClarification, honestClarification.trace),
+              ...attachmentsCutField,
+            };
             await safeQuery(
               appkit,
               `INSERT INTO ${APP_SCHEMA}.messages
@@ -5752,13 +5797,16 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const dashboardResponse = documentStoredResponse(
-              'dashboard',
-              messageId,
-              dashboard,
-              trace,
-              extractEvidenceBlocks(endpointResult)
-            );
+            const dashboardResponse = {
+              ...documentStoredResponse(
+                'dashboard',
+                messageId,
+                dashboard,
+                trace,
+                extractEvidenceBlocks(endpointResult)
+              ),
+              ...attachmentsCutField,
+            };
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (dashboard)',
@@ -5801,13 +5849,10 @@ export function setupInsightsRoutes(
             const messageId = `msg-${crypto.randomUUID()}`;
             const trace = documentRunTrace(endpointResult, collectedStages, platformTraceId);
             const documentTraceId = isMlflowTraceId(trace.id) ? String(trace.id) : platformTraceId;
-            const reportResponse = documentStoredResponse(
-              'report',
-              messageId,
-              report,
-              trace,
-              extractEvidenceBlocks(endpointResult)
-            );
+            const reportResponse = {
+              ...documentStoredResponse('report', messageId, report, trace, extractEvidenceBlocks(endpointResult)),
+              ...attachmentsCutField,
+            };
             const persisted = await readStored(
               appkit,
               'POST /api/insights/ask (report)',
@@ -6168,7 +6213,7 @@ export function setupInsightsRoutes(
             conversationId,
             'assistant',
             disclosed.narrative,
-            JSON.stringify(withAskRuntime(disclosed, askRuntime, traceSessionId)),
+            JSON.stringify(withAskRuntime({ ...disclosed, ...attachmentsCutField }, askRuntime, traceSessionId)),
             disclosed.trace.id,
             // Recorded on the answer rather than on the question, because these
             // name the authority something RAN under and a question runs nothing.
@@ -6253,7 +6298,7 @@ export function setupInsightsRoutes(
           type: 'answer',
           ...disclosed,
           runStored,
-          ...(attachmentFit.cut.length > 0 ? { attachments_cut: attachmentFit.cut } : {}),
+          ...attachmentsCutField,
           execution_identity: executionIdentityClaim(identity),
         });
       } finally {

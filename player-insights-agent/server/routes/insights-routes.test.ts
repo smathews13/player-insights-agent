@@ -13,6 +13,7 @@ import {
   DEVELOPMENT_IDENTITY,
   discloseAnswerProvenance,
   extractAnalysisPlan,
+  extractAttachment,
   extractAttachmentText,
   extractClarification,
   extractDashboard,
@@ -652,6 +653,14 @@ describe('attachments', () => {
   it('caps extracted text so a large report cannot blow up the prompt', async () => {
     const text = await extractAttachmentText('big.txt', Buffer.from('a'.repeat(120_000), 'utf8'));
     expect(text).toHaveLength(50_000);
+  });
+
+  it('says when the file was cut, and how long it was', async () => {
+    const cut = await extractAttachment('big.txt', Buffer.from('a'.repeat(60_000), 'utf8'));
+    expect(cut).toMatchObject({ truncated: true, originalChars: 60_000 });
+    expect(cut.text).toHaveLength(50_000);
+    const whole = await extractAttachment('small.txt', Buffer.from('a'.repeat(100), 'utf8'));
+    expect(whole).toMatchObject({ truncated: false, originalChars: 100 });
   });
 });
 
