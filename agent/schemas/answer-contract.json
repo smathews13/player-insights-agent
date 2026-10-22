@@ -27,6 +27,18 @@
           "additionalProperties": true,
           "title": "Layout",
           "type": "object"
+        },
+        "views": {
+          "items": {
+            "$ref": "#/$defs/ChartView"
+          },
+          "title": "Views",
+          "type": "array"
+        },
+        "view_dimension": {
+          "default": "",
+          "title": "View Dimension",
+          "type": "string"
         }
       },
       "required": [
@@ -36,6 +48,39 @@
         "data"
       ],
       "title": "Chart",
+      "type": "object"
+    },
+    "ChartView": {
+      "description": "One alternative of a switchable chart: a whole Plotly figure with its own label.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "data": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Data",
+          "type": "array"
+        },
+        "layout": {
+          "additionalProperties": true,
+          "title": "Layout",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "data"
+      ],
+      "title": "ChartView",
       "type": "object"
     },
     "Derivation": {
@@ -87,6 +132,67 @@
         "supports"
       ],
       "title": "DocumentSnippet",
+      "type": "object"
+    },
+    "EvidenceBlock": {
+      "description": "One completed tool call, structured. Exactly nine keys.",
+      "properties": {
+        "turn_id": {
+          "default": "",
+          "title": "Turn Id",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "result": {
+          "default": "",
+          "title": "Result",
+          "type": "string"
+        },
+        "sources": {
+          "items": {},
+          "title": "Sources",
+          "type": "array"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        },
+        "total_rows": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Rows"
+        },
+        "compressed": {
+          "default": false,
+          "title": "Compressed",
+          "type": "boolean"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool"
+      ],
+      "title": "EvidenceBlock",
       "type": "object"
     },
     "Figure": {
@@ -385,6 +491,13 @@
       "title": "Charts",
       "type": "array"
     },
+    "chart_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Chart Evidence",
+      "type": "array"
+    },
     "sources": {
       "items": {
         "$ref": "#/$defs/Source"
@@ -420,6 +533,13 @@
     },
     "trace": {
       "$ref": "#/$defs/TraceSummary"
+    },
+    "evidence_blocks": {
+      "items": {
+        "$ref": "#/$defs/EvidenceBlock"
+      },
+      "title": "Evidence Blocks",
+      "type": "array"
     }
   },
   "required": [

@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+import runtime_settings
 from runtime_settings import RuntimeSettings, activate, current, prompt_fragment, today_line
 
 
@@ -10,7 +11,7 @@ def test_absent_settings_preserve_compiled_behavior():
     assert activate({}) == RuntimeSettings()
     assert current().loop.max_steps == 40
     assert current().loop.max_tool_calls == 80
-    assert current().answer.max_charts == 1
+    assert current().answer.max_charts == 6
     assert current().answer.max_figures == 6
     assert current().loop.max_run_seconds == 550
 
@@ -67,7 +68,7 @@ def test_request_settings_control_loop_and_answer_contract():
     assert settings.answer.max_figures == 4
     assert settings.answer.charts is False
     fragment = prompt_fragment()
-    assert "clarification policy=strict" in fragment
+    assert "clarification policy: ask whenever a governed term is ambiguous." in fragment
     assert "Today's date is " in fragment
     assert "takeaway guidance: Lead with the decision." in fragment
     assert "narrative guidance: Name the source beside each finding." in fragment
@@ -130,3 +131,48 @@ def test_the_answer_reserve_scales_and_is_zero_at_the_floor():
     assert answer_reserve_seconds() == 25
     activate({"runtime_settings": {"loop": {"maxRunSeconds": 550}}})
     assert answer_reserve_seconds() == 25
+
+
+def test_out_of_range_settings_clamp_to_the_bound_and_are_disclosed():
+    value = runtime_settings.activate(
+        {"runtime_settings": {"loop": {"maxToolCalls": 500}, "answer": {"maxFigures": 3}}}
+    )
+    assert value.loop.max_tool_calls == runtime_settings.MAX_TOOL_CALLS_CEILING
+    assert any("tool-call limit of 500" in notice for notice in value.notices)
+    assert not any("figure limit" in notice for notice in value.notices)
+
+
+def test_non_whole_settings_fall_back_to_default_and_say_so():
+    value = runtime_settings.activate(
+        {"runtime_settings": {"answer": {"maxCharts": 2.5, "maxFigures": 4.0, "maxCaveats": True}}}
+    )
+    assert value.answer.max_charts == 6
+    assert value.answer.max_figures == 4
+    assert any("chart limit (2.5) is not a whole number" in n for n in value.notices)
+    assert any("caveat limit (True)" in n for n in value.notices)
+    assert runtime_settings.activate({"runtime_settings": {"answer": {}}}).notices == ()
+
+
+def test_each_clarification_policy_becomes_its_sentence_in_the_finder_prompt():
+    from runtime_settings import CLARIFICATION_SENTENCES, finder_fragment
+
+    for policy, sentence in CLARIFICATION_SENTENCES.items():
+        activate({"runtime_settings": {"behavior": {"clarification": policy}}})
+        fragment = finder_fragment()
+        assert sentence in fragment
+        assert "Runtime answer contract" not in fragment
+        assert "takeaway" not in fragment
+
+
+def test_knowledge_tools_are_built_from_on_demand_files(tmp_path):
+    import knowledge
+
+    folder = tmp_path / knowledge.ON_DEMAND_DIR
+    folder.mkdir()
+    (folder / "refund-policy.md").write_text("when: a refund rule is asked about.\nBody text.")
+    (folder / "no-when.md").write_text("Body only.")
+    found = knowledge.load_on_demand(tmp_path)
+    assert list(found) == ["refund_policy"]
+    tool = knowledge.knowledge_tools(found)[0]["function"]
+    assert tool["description"].startswith("Call ONLY when")
+    assert found["refund_policy"][1] == "Body text."

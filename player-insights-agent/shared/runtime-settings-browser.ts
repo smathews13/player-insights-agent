@@ -94,8 +94,18 @@ export const DARK_ENTITY_STYLES: RuntimeEntityStyles = {
   tag: { foreground: '#f2f6fa', background: '#243746' },
 };
 
-/** Daylight provenance chips: governed identifiers use one measured family. */
+/** Daylight provenance chips, as configured in Settings > Appearance. */
 export const LIGHT_ENTITY_STYLES: RuntimeEntityStyles = {
+  catalog: { foreground: '#1a5b8f', background: '#e7f4fd' },
+  schema: { foreground: '#4c5c68', background: '#fff5d6' },
+  table: { foreground: '#0e1720', background: '#f0fff3' },
+  column: { foreground: '#4c5c68', background: '#eaebeb' },
+  quote: { foreground: '#4c5c68', background: '#ffffff' },
+  tag: { foreground: '#0e1720', background: '#e8f1fa' },
+};
+
+/** The light defaults before the configured set above; migrate as defaults, not choices. */
+export const PREVIOUS_LIGHT_ENTITY_STYLES: RuntimeEntityStyles = {
   catalog: { foreground: '#1a5b8f', background: '#e8f1fa' },
   schema: { foreground: '#4c5c68', background: '#eef2f5' },
   table: { foreground: '#0e1720', background: '#e2e8ed' },
@@ -142,12 +152,16 @@ export type DensityId = (typeof DENSITY_IDS)[number];
 
 export const THEME_FONT_COLORS: Record<'dark' | 'light', { body: string; muted: string }> = {
   dark: { body: '#ffffff', muted: '#c5ccd4' },
-  light: { body: '#0e1720', muted: '#62727f' },
+  light: { body: '#161616', muted: '#4e4646' },
 };
 export const LEGACY_LIGHT_MUTED_COLOR = '#6b7a87';
+export const PREVIOUS_LIGHT_MUTED_COLOR = '#62727f';
 
 export function upgradeFontColorForContrast(color: string, scheme: 'dark' | 'light'): string {
-  return scheme === 'light' && sameHex(color, LEGACY_LIGHT_MUTED_COLOR) ? THEME_FONT_COLORS.light.muted : color;
+  return scheme === 'light' &&
+    (sameHex(color, LEGACY_LIGHT_MUTED_COLOR) || sameHex(color, PREVIOUS_LIGHT_MUTED_COLOR))
+    ? THEME_FONT_COLORS.light.muted
+    : color;
 }
 
 export const FONT_FAMILY_STACKS: Record<FontFamilyId, string> = {
@@ -232,7 +246,12 @@ export function upgradeEntityStylesForScheme(
     RUNTIME_ENTITY_KINDS.map((kind) => {
       const style = styles[kind];
       const opposite = scheme === 'light' ? DARK_ENTITY_STYLES[kind] : LIGHT_ENTITY_STYLES[kind];
-      const currentDefaults = [target[kind], LEGACY_LIGHT_ENTITY_STYLES[kind], PAPER_ENTITY_STYLES[kind]];
+      const currentDefaults = [
+        target[kind],
+        PREVIOUS_LIGHT_ENTITY_STYLES[kind],
+        LEGACY_LIGHT_ENTITY_STYLES[kind],
+        PAPER_ENTITY_STYLES[kind],
+      ];
       const carriesOppositeDefault =
         (sameHex(style.foreground, opposite.foreground) &&
           currentDefaults.some((candidate) => sameHex(style.background, candidate.background))) ||
@@ -242,6 +261,7 @@ export function upgradeEntityStylesForScheme(
         kind,
         sameHexStyle(style, PAPER_ENTITY_STYLES[kind]) ||
         sameHexStyle(style, LEGACY_LIGHT_ENTITY_STYLES[kind]) ||
+        sameHexStyle(style, PREVIOUS_LIGHT_ENTITY_STYLES[kind]) ||
         sameHexStyle(style, DARK_ENTITY_STYLES[kind]) ||
         sameHexStyle(style, LIGHT_ENTITY_STYLES[kind]) ||
         carriesOppositeDefault
@@ -266,7 +286,7 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     charts: true,
     figures: true,
     caveats: true,
-    maxCharts: 1,
+    maxCharts: 6,
     maxFigures: 6,
     maxCaveats: 0,
     narrativeMaxCharacters: 0,
@@ -285,12 +305,12 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
   entityStyles: DEFAULT_ENTITY_STYLES,
   fontBodyColor: THEME_FONT_COLORS.light.body,
   fontMutedColor: THEME_FONT_COLORS.light.muted,
-  fontFamily: 'dm-sans',
-  fontSize: 'm',
-  mobileFontSize: 'auto',
+  fontFamily: 'system',
+  fontSize: 'l',
+  mobileFontSize: 's',
   backgroundGraphics: true,
   animations: true,
-  density: 'comfortable',
+  density: 'compact',
 };
 
 type JsonObject = Record<string, unknown>;
@@ -418,10 +438,10 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
   const timezone = trimmedString(behavior.timezone, 80);
   const colorScheme = oneOf(root.colorScheme === undefined ? 'light' : root.colorScheme, ['dark', 'light'] as const);
   const entityStyles = colorScheme ? parseEntityStyles(root.entityStyles, colorScheme) : null;
-  const fontFamily = oneOf(root.fontFamily === undefined ? 'dm-sans' : root.fontFamily, FONT_FAMILY_IDS);
-  const fontSize = oneOf(root.fontSize === undefined ? 'm' : root.fontSize, FONT_SIZE_IDS);
-  const mobileFontSize = oneOf(root.mobileFontSize === undefined ? 'auto' : root.mobileFontSize, MOBILE_FONT_SIZE_IDS);
-  const density = oneOf(root.density === undefined ? 'comfortable' : root.density, DENSITY_IDS);
+  const fontFamily = oneOf(root.fontFamily === undefined ? 'system' : root.fontFamily, FONT_FAMILY_IDS);
+  const fontSize = oneOf(root.fontSize === undefined ? 'l' : root.fontSize, FONT_SIZE_IDS);
+  const mobileFontSize = oneOf(root.mobileFontSize === undefined ? 's' : root.mobileFontSize, MOBILE_FONT_SIZE_IDS);
+  const density = oneOf(root.density === undefined ? 'compact' : root.density, DENSITY_IDS);
   const fontBodyColor =
     root.fontBodyColor === undefined && colorScheme
       ? THEME_FONT_COLORS[colorScheme].body

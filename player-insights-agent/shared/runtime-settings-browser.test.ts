@@ -136,8 +136,8 @@ describe('browser runtime settings cache parser', () => {
 
   it('upgrades the retired light tertiary value to the accessible replacement', () => {
     const legacy = changed(['fontMutedColor'], '#6b7a87');
-    expect(parsePersistedRuntimeSettings(legacy)?.fontMutedColor).toBe('#62727f');
-    expect(RuntimeSettingsSchema.parse(legacy).fontMutedColor).toBe('#62727f');
+    expect(parsePersistedRuntimeSettings(legacy)?.fontMutedColor).toBe('#4e4646');
+    expect(RuntimeSettingsSchema.parse(legacy).fontMutedColor).toBe('#4e4646');
   });
 
   it('is strict at every object level and requires every non-defaulted field', () => {

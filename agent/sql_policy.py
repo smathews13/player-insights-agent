@@ -15,7 +15,9 @@ case-sensitivity bug once made a rule match nothing while exiting 0.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import difflib
+from collections.abc import Mapping, Sequence
+from contextvars import ContextVar
 
 import sqlglot
 from sqlglot import exp
@@ -24,8 +26,10 @@ from failures import (
     ASSET_NOT_IN_MANIFEST,
     ASSET_UNRESOLVED,
     COLUMN_POLICY_VIOLATION,
+    SQL_AGGREGATE_SHAPE,
     SQL_CARTESIAN_JOIN,
     SQL_NOT_READ_ONLY,
+    SQL_UNKNOWN_COLUMN,
     SQL_UNPARSEABLE,
 )
 
@@ -107,10 +111,27 @@ class SqlRefused(ValueError):
     it was not.
     """
 
-    def __init__(self, message: str, code: str = "", remedy: str = "") -> None:
+    def __init__(
+        self,
+        message: str,
+        code: str = "",
+        remedy: str = "",
+        *,
+        disclosed: bool = True,
+        disclosure: str = "",
+    ) -> None:
         super().__init__(message)
+        #: What the READER is told, when it should differ from what the model reads.
+        #: The model reads `message`; the reader never wrote the SQL and is not
+        #: offered a "did you mean".
+        self.disclosure = disclosure
         self.code = code
         self.remedy = remedy
+        #: False for a refusal about how a statement is WRITTEN that a rewrite
+        #: usually recovers. It is still counted as remediable, but it is not added
+        #: to the run's refusals, so the reader is not told about a hiccup the
+        #: model fixed on its own.
+        self.disclosed = disclosed
 
 
 def parse_sql(sql: str) -> exp.Expression:
@@ -666,6 +687,145 @@ def refuse_degenerate_joins(tree: exp.Expression) -> None:
         )
 
 
+_PERCENTILES = (
+    exp.ApproxQuantile,
+    exp.Quantile,
+    exp.Median,
+    exp.PercentileCont,
+    exp.PercentileDisc,
+)
+
+
+def _inside_window(node: exp.Expression) -> bool:
+    return node.find_ancestor(exp.Window) is not None
+
+
+def _own_select(node: exp.Expression) -> exp.Expression | None:
+    return node.find_ancestor(exp.Select)
+
+
+def refuse_distinct_beside_percentile(tree: exp.Expression) -> None:
+    """Refuse a SELECT with a DISTINCT aggregate and a percentile side by side.
+
+    Measured: with that pair the warehouse builds one percentile sketch per distinct
+    id and runs until it is cancelled, spending the turn's wait budget. Two queries
+    take seconds. Each SELECT is judged on its own (CTEs and subqueries are separate
+    scopes), anything inside a window function is skipped, and several
+    COUNT(DISTINCT ...) in one SELECT stay allowed.
+    """
+
+    distinct_in: dict[int, exp.Expression] = {}
+    percentile_in: dict[int, exp.Expression] = {}
+    for node in tree.find_all(exp.Distinct):
+        if isinstance(node.parent, exp.AggFunc) and not _inside_window(node):
+            select = _own_select(node)
+            if select is not None:
+                distinct_in[id(select)] = select
+    for node in tree.find_all(*_PERCENTILES):
+        if not _inside_window(node):
+            select = _own_select(node)
+            if select is not None:
+                percentile_in[id(select)] = select
+    if not set(distinct_in) & set(percentile_in):
+        return
+    raise SqlRefused(
+        "Refused before running: one SELECT puts a DISTINCT aggregate (for example "
+        "COUNT(DISTINCT id)) beside a percentile or median. The warehouse builds one "
+        "percentile sketch per distinct id and runs until it is cancelled.",
+        SQL_AGGREGATE_SHAPE,
+        remedy=(
+            "split it into two queries -- one for the distinct count, one for the "
+            "percentile -- or use approx_count_distinct, which is within about 5%"
+        ),
+        disclosed=False,
+    )
+
+
+_DESCRIBED: ContextVar[dict[str, tuple[str, ...]] | None] = ContextVar(
+    "described_columns", default=None
+)
+
+
+def begin_described_columns() -> dict[str, tuple[str, ...]]:
+    """Start this turn's record of tables whose WHOLE column list has been read."""
+
+    fresh: dict[str, tuple[str, ...]] = {}
+    _DESCRIBED.set(fresh)
+    return fresh
+
+
+def remember_columns(table: str, columns: Sequence[str]) -> None:
+    held = _DESCRIBED.get()
+    if held is not None and columns:
+        held[table.lower()] = tuple(columns)
+
+
+def known_columns() -> dict[str, tuple[str, ...]]:
+    return _DESCRIBED.get() or {}
+
+
+_FAIL_OPEN = (exp.Lateral, exp.Unnest, exp.Pivot, exp.With)
+
+
+def refuse_unknown_columns(tree: exp.Expression, known: Mapping[str, Sequence[str]]) -> None:
+    """Refuse a column the table does not have, in a single-table scope.
+
+    Only for a table whose whole column list was read this run (`known`). A scope is
+    judged only when it has ONE source, a declared three-part table, no joins. Aliases
+    defined in the SELECT are allowed anywhere (ORDER BY, GROUP BY, HAVING, QUALIFY).
+    Fails open, refusing nothing, on LATERAL VIEW, UNNEST, PIVOT, CTEs, `t.*`, struct
+    fields and lambda parameters: each makes "this name is not a column" a guess.
+    """
+
+    if not known or any(tree.find(kind) for kind in _FAIL_OPEN):
+        return
+    for select in tree.find_all(exp.Select):
+        source = select.args.get("from") or select.args.get("from_")
+        if source is None or select.args.get("joins"):
+            continue
+        table = source.this
+        if not isinstance(table, exp.Table) or not (table.catalog and table.db and table.name):
+            continue
+        full = f"{table.catalog}.{table.db}.{table.name}"
+        columns = known.get(full.lower())
+        if not columns:
+            continue
+        have = {name.lower() for name in columns}
+        aliases = {alias.alias.lower() for alias in tree.find_all(exp.Alias) if alias.alias}
+        own_names = {table.name.lower(), (table.alias or "").lower()}
+        for column in select.find_all(exp.Column):
+            if column.find_ancestor(exp.Select) is not select:
+                continue
+            if column.find_ancestor(exp.Lambda) is not None:
+                continue
+            if (
+                isinstance(column.this, exp.Star)
+                or column.args.get("db")
+                or column.args.get("catalog")
+            ):
+                continue
+            qualifier = (column.table or "").lower()
+            if qualifier and qualifier not in own_names:
+                continue
+            name = column.name
+            if not name or name.lower() in have or name.lower() in aliases:
+                continue
+            close = difflib.get_close_matches(name, list(columns), n=3, cutoff=0.5)
+            nearest = ", ".join(close)
+            raise SqlRefused(
+                f"Refused before running: '{name}' is not a column of {full}. Its real "
+                "columns were already read with describe_table this run, so check that "
+                "read rather than guessing another name.",
+                SQL_UNKNOWN_COLUMN,
+                disclosure=(
+                    f"Part of this request looked for a column named '{name}' on {full}, "
+                    "which has no such column."
+                    + (f" The closest ones it does have are: {nearest}." if nearest else "")
+                    + " That part is not answered here and was not answered another way."
+                ),
+            )
+
+
 def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
     """Check one statement against the declared table set, and say what it reads.
 
@@ -705,6 +865,8 @@ def validate_sql(sql: str, readable: Sequence[str]) -> list[str]:
     # answer and closes every route to it; this one is about the statement and
     # invites a rewrite, and the weaker finding must not be the one the model reads.
     refuse_degenerate_joins(tree)
+    refuse_distinct_beside_percentile(tree)
+    refuse_unknown_columns(tree, known_columns())
     # Attributed with the declaration's own spelling, so one table cited two ways
     # in two answers is not read as two tables. Empty when the statement named
     # no table: that is a read of nothing, not an unresolved source.

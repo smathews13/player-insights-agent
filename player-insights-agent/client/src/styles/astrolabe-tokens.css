@@ -282,9 +282,9 @@
    */
   /* One opaque daylight triple per kind. Runtime foreground/background choices
      may override the pair; borders and semantic weights remain kind-owned. */
-  --ast-entity-catalog-fill: var(--ast-info-fill);
-  --ast-entity-schema-fill: #eef2f5;
-  --ast-entity-table-fill: var(--ast-hairline);
+  --ast-entity-catalog-fill: #e7f4fd;
+  --ast-entity-schema-fill: #fff5d6;
+  --ast-entity-table-fill: #f0fff3;
   --ast-entity-catalog-fg: var(--entity-catalog-fg, var(--ast-info-text));
   --ast-entity-catalog-bg: var(--entity-catalog-bg, var(--ast-entity-catalog-fill));
   --ast-entity-catalog-border: var(--ast-info-border);
@@ -298,11 +298,11 @@
   --ast-entity-table-border: var(--ast-hairline-strong);
   --ast-entity-table-weight: 600;
   --ast-entity-column-fg: var(--entity-column-fg, var(--ast-text-long));
-  --ast-entity-column-bg: var(--entity-column-bg, var(--ast-neutral-fill));
+  --ast-entity-column-bg: var(--entity-column-bg, #eaebeb);
   --ast-entity-column-border: transparent;
   --ast-entity-column-weight: 400;
   --ast-entity-quote-fg: var(--entity-quote-fg, var(--ast-neutral-text));
-  --ast-entity-quote-bg: var(--entity-quote-bg, var(--ast-fill-band));
+  --ast-entity-quote-bg: var(--entity-quote-bg, #ffffff);
   --ast-entity-quote-border: transparent;
   --ast-entity-quote-weight: 400;
   --ast-entity-tag-fg: var(--entity-tag-fg, var(--ast-text));

@@ -152,7 +152,7 @@ def test_the_outage_caveat_still_leads_and_the_substitution_refines_it():
 
     caveats = ask(build(llm, tools)).custom_outputs["answer"]["caveats"]
 
-    assert "did not respond during this run" in caveats[0], "the outage leads"
+    assert "Genie space" in caveats[0] and "during this run" in caveats[0], "the outage leads"
     assert "did not come from the route" in caveats[1], "and this sits directly beneath it"
 
 
@@ -207,5 +207,7 @@ def test_a_genie_outage_with_no_substitute_is_still_only_an_outage():
 
     answer = ask(build(llm, tools)).custom_outputs["answer"]
 
-    assert any("did not respond" in caveat for caveat in answer["caveats"]), "the outage is said"
+    assert any("This answer is degraded" in caveat for caveat in answer["caveats"]), (
+        "the outage is said"
+    )
     assert not any("did not come from the route" in caveat for caveat in answer["caveats"])

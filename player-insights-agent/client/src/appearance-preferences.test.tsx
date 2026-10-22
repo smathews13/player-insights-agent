@@ -78,8 +78,8 @@ describe('Appearance preferences', () => {
     }
 
     expect(text).toContain('role="group" aria-label="Text"');
-    expect(text).toContain('aria-label="Font: DM Sans"');
-    expect(text).toContain('aria-label="Font size M"');
+    expect(text).toContain('aria-label="Font: System"');
+    expect(text).toContain('aria-label="Font size L"');
     expect(text).toContain('>Body text</span>');
     expect(text).toContain('>Secondary</span>');
     expect(text).toContain('type="color"');
@@ -133,23 +133,27 @@ describe('Appearance preferences', () => {
     const invalidLegacyDensity = JSON.stringify({ ...DEFAULT_RUNTIME_SETTINGS, density: 'dense' });
     expect(runtimeAppearanceFromCache(invalidLegacyDensity)).toEqual({
       ...DEFAULT_RUNTIME_SETTINGS,
-      density: 'comfortable',
+      density: 'compact',
     });
   });
 
   it('toggles the one root density contract in both directions independently of theme', () => {
     const setAttribute = vi.fn();
-    const compact = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const, density: 'compact' as const };
+    const comfortable = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      colorScheme: 'light' as const,
+      density: 'comfortable' as const,
+    };
 
-    writeRuntimeAppearanceAttributes(compact, { setAttribute });
     writeRuntimeAppearanceAttributes(DEFAULT_RUNTIME_SETTINGS, { setAttribute });
+    writeRuntimeAppearanceAttributes(comfortable, { setAttribute });
 
     expect(setAttribute.mock.calls.filter(([name]) => name === 'data-density')).toEqual([
       ['data-density', 'compact'],
       ['data-density', 'comfortable'],
     ]);
-    expect(compact.colorScheme).toBe('light');
-    expect(compact.density).toBe('compact');
+    expect(comfortable.colorScheme).toBe('light');
+    expect(DEFAULT_RUNTIME_SETTINGS.density).toBe('compact');
   });
 
   it('renders consolidated controls and preview from a complete custom draft', () => {
@@ -225,13 +229,13 @@ describe('Appearance preferences', () => {
       'data-theme': 'light',
       'data-background-graphics': 'on',
       'data-animations': 'on',
-      'data-density': 'comfortable',
+      'data-density': 'compact',
     });
     expect(Object.fromEntries(variables)).toMatchObject({
       '--ast-text': DEFAULT_RUNTIME_SETTINGS.fontBodyColor,
       '--ast-text-secondary': DEFAULT_RUNTIME_SETTINGS.fontMutedColor,
-      '--font-sans': FONT_FAMILY_STACKS['dm-sans'],
-      '--text-base': '13px',
+      '--font-sans': FONT_FAMILY_STACKS.system,
+      '--text-base': '15px',
     });
 
     adoptRuntimeEntityStyles(draft, root.style);
@@ -242,11 +246,11 @@ describe('Appearance preferences', () => {
   it('adopts a valid cached appearance before startup and safely rejects malformed cache values', () => {
     expect(INDEX).toContain('data-background-graphics="on"');
     expect(INDEX).toContain('data-animations="on"');
-    expect(INDEX).toContain('data-density="comfortable"');
+    expect(INDEX).toContain('data-density="compact"');
     expect(INDEX).toContain("const colorScheme = cachedScheme || 'light';");
     expect(INDEX).not.toContain('prefers-color-scheme');
     expect(INDEX.indexOf(RUNTIME_APPEARANCE_CACHE_KEY)).toBeLessThan(INDEX.indexOf('/src/main.tsx'));
-    expect(INDEX).toContain("root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable'");
+    expect(INDEX).toContain("root.dataset.density = saved.density === 'comfortable' ? 'comfortable' : 'compact'");
     expect(INDEX).toContain('const sizeScale = { s: 0.92, m: 1, l: 1.15 }[saved.fontSize]');
     expect(INDEX).toContain("saved.mobileFontSize === 'auto' || saved.mobileFontSize == null");
     expect(INDEX).toContain('if (readableOnSurfaces(saved.fontBodyColor))');

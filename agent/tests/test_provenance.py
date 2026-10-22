@@ -48,15 +48,20 @@ def test_the_source_is_the_table_the_statement_read():
 def test_the_metric_is_the_alias_the_query_gave_it():
     """The query already named its number better than the aggregate does."""
 
-    entry = one(
-        f"SELECT count(DISTINCT platformid_accountid) AS active_players FROM {ACTIVITY}"
+    entry = one(f"SELECT count(DISTINCT platformid_accountid) AS active_players FROM {ACTIVITY}")
+    assert (
+        entry["metric"]
+        == "active_players \u00b7 counted by platformid_accountid (one row per account)"
     )
-    assert entry["metric"] == "active_players"
 
 
 def test_an_unaliased_aggregate_is_named_by_what_it_computes():
     entry = one(f"SELECT count(DISTINCT platformid_accountid) FROM {ACTIVITY}")
-    assert entry["metric"] == "count(distinct platformid_accountid)"
+    assert (
+        entry["metric"]
+        == "count(distinct platformid_accountid) \u00b7 counted by "
+        "platformid_accountid (one row per account)"
+    )
 
 
 def test_plain_columns_are_not_reported_as_metrics():
@@ -147,9 +152,7 @@ def test_a_long_in_list_names_a_few_values_and_counts_the_rest():
 def test_a_player_key_in_a_filter_is_named_without_its_value():
     """The population was narrowed to one player. Which player is not published."""
 
-    entry = one(
-        f"SELECT count(*) AS c FROM {ACTIVITY} WHERE platformid_accountid = 'abc-123'"
-    )
+    entry = one(f"SELECT count(*) AS c FROM {ACTIVITY} WHERE platformid_accountid = 'abc-123'")
     assert "abc-123" not in entry["filter"]
     assert entry["filter"] == f"platformid_accountid = {provenance.WITHHELD}"
 
@@ -164,8 +167,7 @@ def test_a_withheld_predicate_is_still_reported_rather_than_dropped():
     """A filter that vanished would report a narrowed population as the whole one."""
 
     entry = one(
-        f"SELECT count(*) AS c FROM {ACTIVITY} "
-        "WHERE player_id = 'p-1' AND title_name = 'IFR2'"
+        f"SELECT count(*) AS c FROM {ACTIVITY} WHERE player_id = 'p-1' AND title_name = 'IFR2'"
     )
     assert entry["filter"].count(provenance.WITHHELD) == 1
     assert "title_name = 'rdr2'" in entry["filter"]
@@ -174,10 +176,8 @@ def test_a_withheld_predicate_is_still_reported_rather_than_dropped():
 def test_an_identifying_column_may_still_be_counted_by_name():
     """The guardrail is about values. A cardinality is the product working."""
 
-    entry = one(
-        f"SELECT count(DISTINCT platformid_accountid) AS players FROM {ACTIVITY}"
-    )
-    assert entry["metric"] == "players"
+    entry = one(f"SELECT count(DISTINCT platformid_accountid) AS players FROM {ACTIVITY}")
+    assert entry["metric"] == "players \u00b7 counted by platformid_accountid (one row per account)"
 
 
 def test_an_ordinary_name_column_is_not_withheld():
@@ -244,9 +244,7 @@ def test_no_field_can_grow_without_bound():
     bound for a Lakebase row and a trace, neither of which keeps questions.
     """
 
-    entry = one(
-        f"SELECT count(*) AS c FROM {ACTIVITY} WHERE note = '{'x' * 4000}'"
-    )
+    entry = one(f"SELECT count(*) AS c FROM {ACTIVITY} WHERE note = '{'x' * 4000}'")
     assert len(entry["filter"]) <= provenance.MAX_FIELD_CHARS
 
 
@@ -271,15 +269,13 @@ def answered(**results) -> dict:
 
 def test_the_answer_carries_the_derivation_of_the_query_that_ran():
     answer = answered(
-        data_genie=ToolResult(
-            text="8,413 active players.", sql=QUERY, sources=[ACTIVITY]
-        )
+        data_genie=ToolResult(text="8,413 active players.", sql=QUERY, sources=[ACTIVITY])
     )
 
     assert answer["derivation"] == [
         {
             "source": ACTIVITY,
-            "metric": "active_players",
+            "metric": "active_players \u00b7 counted by platformid_accountid (one row per account)",
             "window": "≥ '2025-06-01'",
             "filter": "title_name = 'rdr2'",
         }
@@ -305,3 +301,16 @@ def test_the_field_is_present_even_when_there_is_nothing_to_say():
     answer = answered(data_genie=ToolResult(text="Nothing was queried.", sources=[]))
 
     assert answer["derivation"] == []
+
+
+def test_a_distinct_count_names_its_counting_unit():
+    entry = one(f"SELECT COUNT(DISTINCT player_id) AS weekly_players FROM {ACTIVITY}")
+    assert entry["metric"] == "weekly_players \u00b7 counted by player_id (one row per player)"
+
+
+def test_counts_of_rows_and_sums_name_no_unit():
+    assert "counted by" not in one(f"SELECT COUNT(*) AS n FROM {ACTIVITY}")["metric"]
+    assert "counted by" not in one(f"SELECT SUM(minutes) AS m FROM {ACTIVITY}")["metric"]
+    assert (
+        "counted by" not in one(f"SELECT COUNT(DISTINCT title_name) AS t FROM {ACTIVITY}")["metric"]
+    )

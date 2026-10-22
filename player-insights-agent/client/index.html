@@ -5,7 +5,7 @@
   data-theme="light"
   data-background-graphics="on"
   data-animations="on"
-  data-density="comfortable"
+  data-density="compact"
 >
   <head>
     <meta charset="UTF-8" />
@@ -28,7 +28,7 @@
         if (saved && typeof saved === 'object') {
           root.dataset.backgroundGraphics = saved.backgroundGraphics === false ? 'off' : 'on';
           root.dataset.animations = saved.animations === false ? 'off' : 'on';
-          root.dataset.density = saved.density === 'compact' ? 'compact' : 'comfortable';
+          root.dataset.density = saved.density === 'comfortable' ? 'comfortable' : 'compact';
           const hex = /^#[0-9a-f]{6}$/i;
           const luminance = (value) => {
             const channels = [1, 3, 5]

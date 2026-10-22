@@ -32,6 +32,8 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
+from failures import failure_cause
+
 #: Which route a tool belongs to, for the only question this module asks: did the
 #: evidence come from somewhere other than where the run first tried?
 #:
@@ -167,7 +169,13 @@ class RouteLedger:
         for substitution in self.substitutions:
             failed = ROUTE_NAMES.get(substitution.failure.route, substitution.failure.route)
             used = ROUTE_NAMES.get(substitution.route, substitution.route)
-            pair = f"{failed} was tried first and did not respond, so {used} was used instead"
+            cause, code = failure_cause(substitution.failure.reason)
+            what = {
+                "rejected": f"rejected the request ({code})" if code else "rejected the request",
+                "cancelled": "was cancelled at the wait limit",
+                "timed out": "timed out",
+            }.get(cause, "failed")
+            pair = f"{failed} was tried first and {what}, so {used} was used instead"
             if pair not in routes:
                 routes.append(pair)
         return (

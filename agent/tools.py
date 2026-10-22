@@ -49,6 +49,7 @@ from sql_policy import (  # noqa: F401 - re-exported for callers and tests
     referenced_tables,
     refuse_degenerate_joins,
     refuse_restricted_columns,
+    remember_columns,
     restricted_output_columns,
     validate_sql,
 )
@@ -421,6 +422,9 @@ def dictionary_scope_note(dropped: Sequence[str]) -> str:
 #: running statement is stopped and reported as too slow, not left running.
 SQL_WAIT_CEILING_SECONDS = 50
 SQL_WAIT_FLOOR_SECONDS = 5
+#: One statement may wait for at most this share of what the turn has left, so a single
+#: slow read cannot take the time every later step needed.
+SQL_WAIT_FRACTION_OF_REMAINING = 0.5
 
 #: Total allowance for a statement that ANSWERS the question. 50s is the
 #: platform ceiling for a synchronous wait, so 300s is a different call, not a
@@ -833,7 +837,18 @@ def render_rows(
     total: int,
     budget: RowBudget = SAMPLE_BUDGET,
 ) -> str:
-    """A result set as text, bounded by `budget` and saying what it left out.
+    return render_rows_counted(columns, rows, total, budget)[0]
+
+
+def render_rows_counted(
+    columns: Sequence[str],
+    rows: Sequence[Sequence[Any]],
+    total: int,
+    budget: RowBudget = SAMPLE_BUDGET,
+) -> tuple[str, int]:
+    """`render_rows`, plus how many rows it actually showed.
+
+    A result set as text, bounded by `budget` and saying what it left out.
 
     Shared by the SQL path and the Genie path so that one cap and one disclosure
     serve both, rather than the Genie path arriving with a limit of its own.
@@ -860,7 +875,7 @@ def render_rows(
     # express.
     if total > shown:
         rendered.append(truncation_note(shown, total))
-    return "\n".join(rendered)
+    return "\n".join(rendered), shown
 
 
 @dataclass
@@ -1734,7 +1749,12 @@ class PlayerInsightTools:
             if wait_seconds > SQL_WAIT_CEILING_SECONDS
             else 0.0
         )
-        return max(0.0, min(float(wait_seconds), remaining - reserve))
+        return max(
+            0.0,
+            min(
+                float(wait_seconds), remaining * SQL_WAIT_FRACTION_OF_REMAINING, remaining - reserve
+            ),
+        )
 
     def _wait_timeout(self, wait_seconds: int, allowance: float | None = None) -> str:
         """What to ask the warehouse to wait, clamped to what is legal and affordable.
@@ -2293,6 +2313,8 @@ class PlayerInsightTools:
         # than against the columns parsed out of them. A table whose extended
         # section was read whole has nothing missing to disclose.
         truncated = total > len(rows)
+        if not truncated and not (columns or "").strip():
+            remember_columns(name, [field for field, _ in described])
         patterns = [part.strip().lower() for part in (columns or "").split(",") if part.strip()]
         shown = (
             described

@@ -11,11 +11,11 @@ const source = (name: string) => readFileSync(new URL(name, import.meta.url), 'u
 describe('light entity color contract', () => {
   it('ships the approved opaque pair for every entity kind', () => {
     expect(DEFAULT_ENTITY_STYLES).toEqual({
-      catalog: { foreground: '#1a5b8f', background: '#e8f1fa' },
-      schema: { foreground: '#4c5c68', background: '#eef2f5' },
-      table: { foreground: '#0e1720', background: '#e2e8ed' },
-      column: { foreground: '#4c5c68', background: '#f2f5f8' },
-      quote: { foreground: '#4c5c68', background: '#f2f5f8' },
+      catalog: { foreground: '#1a5b8f', background: '#e7f4fd' },
+      schema: { foreground: '#4c5c68', background: '#fff5d6' },
+      table: { foreground: '#0e1720', background: '#f0fff3' },
+      column: { foreground: '#4c5c68', background: '#eaebeb' },
+      quote: { foreground: '#4c5c68', background: '#ffffff' },
       tag: { foreground: '#0e1720', background: '#e8f1fa' },
     });
     for (const kind of RUNTIME_ENTITY_KINDS) {

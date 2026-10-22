@@ -197,3 +197,31 @@ def test_an_identity_mode_that_could_not_be_read_is_its_own_answer():
     # could not read its identity has to say unknown.
     assert failures.IDENTITY_UNKNOWN in failures.IDENTITY_MODES
     assert failures.IDENTITY_UNKNOWN != failures.IDENTITY_SERVICE_PRINCIPAL
+
+
+class TestFailureCause:
+    @pytest.mark.parametrize(
+        ("reason", "expected"),
+        [
+            ("SqlDenied: SQL CANCELED: still running", ("cancelled", "")),
+            (
+                "SqlDenied: SQL FAILED: [UNRESOLVED_COLUMN.WITH_SUGGESTION] x",
+                ("rejected", "UNRESOLVED_COLUMN"),
+            ),
+            (
+                "The gateway refused this request (REQUEST_LIMIT_EXCEEDED: nope)",
+                ("rejected", "REQUEST_LIMIT_EXCEEDED"),
+            ),
+            ("TimeoutError: waited", ("timed out", "")),
+            ("WarehouseStarting: coming up", ("timed out", "")),
+            ("RuntimeError: the call timed out", ("timed out", "")),
+            ("RuntimeError: boom", ("failed", "")),
+        ],
+    )
+    def test_cause(self, reason, expected):
+        assert failures.failure_cause(reason) == expected
+
+    def test_slow_read_whatever_the_prefix(self):
+        assert failures.is_slow_sql_read("Anything: SQL PENDING: x")
+        assert failures.is_slow_sql_read("SQL RUNNING: x")
+        assert not failures.is_slow_sql_read("SQL FAILED: [X]")

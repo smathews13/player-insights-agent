@@ -57,7 +57,7 @@ describe('Appearance contrast validation', () => {
     expect(markup).toContain('aria-invalid="true"');
     expect(markup).toContain('Catalog text needs at least 4.5:1 contrast; this pair is 1.00:1.');
     expect(markup).toContain('--entity-catalog-fg:#1a5b8f');
-    expect(markup).toContain('--entity-catalog-bg:#e8f1fa');
+    expect(markup).toContain('--entity-catalog-bg:#e7f4fd');
   });
 
   it('leaves Entity colors as the final section in default and custom states', () => {

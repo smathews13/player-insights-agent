@@ -13,10 +13,12 @@ ANSWER_CONTRACT_FIELDS: tuple[str, ...] = (
     'content',
     'figures',
     'charts',
+    'chart_evidence',
     'sources',
     'document_snippets',
     'caveats',
     'derivation',
     'sql',
     'trace',
+    'evidence_blocks',
 )

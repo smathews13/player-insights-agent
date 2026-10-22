@@ -377,7 +377,7 @@ def test_an_ordinary_genie_outage_still_reads_as_an_outage():
     answer = ask(build(llm, tools)).custom_outputs["answer"]
 
     caveats = " ".join(answer["caveats"])
-    assert "did not respond during this run" in caveats
+    assert "the governed data Genie space timed out" in caveats
     assert "CAN RUN" not in caveats
     # Still marked degraded, though: it is still an answer over fewer surfaces.
     assert DEGRADED_ANSWER_MARKER in caveats
