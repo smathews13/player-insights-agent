@@ -2142,7 +2142,8 @@ describe('what the route actually puts on the wire', () => {
     });
     // `input` stays at twelve, but the whole conversation travels in `prior_turns`:
     // one entry per earlier assistant turn, oldest first, including the first.
-    const priorTurns = captured[captured.length - 1]?.payload.custom_inputs.prior_turns as {
+    const priorTurns = (captured[captured.length - 1]?.payload.custom_inputs as Record<string, unknown>)
+      .prior_turns as {
       question?: string;
     }[];
     expect(priorTurns).toHaveLength(7);

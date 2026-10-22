@@ -295,12 +295,18 @@ def definition_of(block: Mapping[str, Any], ref: str) -> Definition | None:
                         and left.name.lower() == right.name.lower() != unit
                     ):
                         filters.add(f"same {left.name.lower()} on both sides"[:MAX_FILTER_CHARS])
-        where = _arg(select, "where")
-        for condition in _conjuncts(where.this if where is not None else None):
-            if _is_time(condition):
-                window.update(_bounds(condition))
-            elif isinstance(condition, (exp.EQ, exp.In)):
-                filters.add(_compact(condition)[:MAX_FILTER_CHARS])
+        # The count may sit over a subquery or CTE that holds the real WHERE.
+        layer: exp.Select | None = select
+        for _ in range(5):
+            if layer is None:
+                break
+            where = _arg(layer, "where")
+            for condition in _conjuncts(where.this if where is not None else None):
+                if _is_time(condition):
+                    window.update(_bounds(condition))
+                elif isinstance(condition, (exp.EQ, exp.In)):
+                    filters.add(_compact(condition)[:MAX_FILTER_CHARS])
+            layer = _source_select(layer, ctes)
         figure = None if _arg(select, "group") is not None else _numeric_figure(result)
         if not tables:
             tables = set(referenced_tables(tree))

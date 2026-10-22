@@ -111,7 +111,7 @@ import {
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
 import { buildPriorTurns, extractEvidenceBlocks, fitPriorTurns } from '../lib/prior-turns';
-import { fitAttachmentText } from '../lib/attachment-text';
+import { fitAttachmentText, type AttachmentRow } from '../lib/attachment-text';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
 import { AGENT_WAKE_PAYLOAD, createAgentWarmup } from '../lib/agent-warmup';
@@ -5247,7 +5247,10 @@ export function setupInsightsRoutes(
       const attachmentRows = attachmentRead.available ? attachmentRead.rows : [];
       const historyResult = { rows: historyRows };
       // The newest files win the space, in upload order (see fitAttachmentText).
-      const attachmentFit = fitAttachmentText(attachmentRows, MAX_CONVERSATION_ATTACHMENT_TEXT);
+      const attachmentFit = fitAttachmentText(
+        attachmentRows as unknown as readonly AttachmentRow[],
+        MAX_CONVERSATION_ATTACHMENT_TEXT
+      );
       const attachmentText = attachmentFit.text;
       if (attachmentFit.cut.length > 0) {
         console.warn(
@@ -5916,6 +5919,7 @@ export function setupInsightsRoutes(
                     ...proseOnlyAnswer(`msg-${crypto.randomUUID()}`, liveText, collectedStages),
                     mode: 'live',
                     provenance: 'live',
+                    evidence_blocks: [],
                   },
                   platformTraceId
                 ),

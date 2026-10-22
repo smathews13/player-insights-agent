@@ -250,3 +250,16 @@ def test_a_parser_that_raises_means_no_check_not_a_dead_turn(monkeypatch):
     monkeypatch.setattr(drift, "current_definitions", boom)
     _, response = _run(_matches())
     assert response.custom_outputs["type"] == "answer"
+
+
+def test_a_where_inside_a_cte_or_subquery_still_counts_as_the_window():
+    cte = (
+        f"WITH w AS (SELECT {UNIT} FROM {ACTIVITY} WHERE event_date >= '2025-01-01' "
+        f"GROUP BY {UNIT}) SELECT COUNT(*) FROM w"
+    )
+    sub = (
+        f"SELECT COUNT(*) FROM (SELECT DISTINCT {UNIT} FROM {ACTIVITY} "
+        "WHERE event_date >= '2025-01-01')"
+    )
+    assert one(cte).window == one(sub).window
+    assert one(cte).window
