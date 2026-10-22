@@ -38,6 +38,7 @@ MAX_TEXT_CHARS = 20_000
 MAX_LIST_ITEMS = 50
 MAX_BLOCKS_PER_TURN = 100
 MAX_RESULT_CHARS = 40_000
+MAX_APP_DROPPED = 100_000
 
 TURN_TYPES = frozenset({"answer", "clarification", "plan", "report", "dashboard", "unavailable"})
 ROW_TOOLS = ("run_sql", "query_named_table", "data_genie")
@@ -51,6 +52,10 @@ COMPRESSED_CAVEAT = (
 )
 OMITTED_CAVEAT = (
     "The earliest parts of this conversation were too long to read in full and were not read."
+)
+APP_DROPPED_CAVEAT = (
+    "The start of this conversation ({count} earlier {noun}) was too long to send, "
+    "so it was not read."
 )
 UNREADABLE_CAVEAT = "The earlier conversation could not be read; only this message was used."
 ROWS_DROPPED_CAVEAT = (
@@ -107,17 +112,28 @@ class Parsed:
     carried: int = 0
     rejected: int = 0
     dropped: int = 0
+    # Oldest turns the app left out to fit its request budget (`prior_turns_dropped`).
+    app_dropped: int = 0
 
 
-def parse_prior_turns(value: Any) -> Parsed | None:
+def parse_app_dropped(value: Any) -> int:
+    """`prior_turns_dropped`: a whole, non-negative count, or 0 for anything else."""
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return 0
+    return min(value, MAX_APP_DROPPED)
+
+
+def parse_prior_turns(value: Any, app_dropped: Any = None) -> Parsed | None:
     """The carried turns, bounded; None when the field is absent or not a list.
 
     A list -- even an empty one -- means "present". Anything else means today's path.
+    `app_dropped` is the app's count of the oldest turns it could not fit.
     """
 
     if not isinstance(value, list):
         return None
-    parsed = Parsed(carried=len(value))
+    parsed = Parsed(carried=len(value), app_dropped=parse_app_dropped(app_dropped))
     if len(value) > MAX_TURNS:
         parsed.dropped = len(value) - MAX_TURNS
         value = value[-MAX_TURNS:]
@@ -240,11 +256,15 @@ def fit_turns(turns: list[dict[str, Any]], budget: int = HISTORY_TOKEN_BUDGET) -
 
 def history_caveats(fitted: Fitted, parsed: Parsed) -> list[str]:
     notes: list[str] = []
-    if fitted.compressed or fitted.omitted or parsed.dropped:
-        if fitted.omitted or parsed.dropped:
-            notes.append(OMITTED_CAVEAT)
-        if fitted.compressed:
-            notes.append(COMPRESSED_CAVEAT)
+    # The app's count says more than the generic note, and both describe the same
+    # loss -- the start of the chat -- so it replaces it rather than joining it.
+    if parsed.app_dropped:
+        count = parsed.app_dropped
+        notes.append(APP_DROPPED_CAVEAT.format(count=count, noun="turn" if count == 1 else "turns"))
+    elif fitted.omitted or parsed.dropped:
+        notes.append(OMITTED_CAVEAT)
+    if fitted.compressed:
+        notes.append(COMPRESSED_CAVEAT)
     return notes
 
 
