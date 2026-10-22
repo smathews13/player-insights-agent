@@ -248,8 +248,7 @@ def tool_selection(outputs, expectations) -> Feedback:
         return Feedback(
             value=None,
             rationale=(
-                "The case declares no expected route, so there is nothing to check "
-                "the run against."
+                "The case declares no expected route, so there is nothing to check the run against."
             ),
         )
     observed = observed_routes(outputs)
@@ -665,8 +664,7 @@ def identity_mismatch(outputs, expectations) -> Feedback:
     return Feedback(
         value=False,
         rationale=(
-            "A mismatched credential was not refused; the run returned "
-            f"'{envelope.get('type')}'."
+            f"A mismatched credential was not refused; the run returned '{envelope.get('type')}'."
         ),
     )
 
@@ -724,8 +722,7 @@ def persona_column_mask(outputs, expectations) -> Feedback:
         return Feedback(
             value=None,
             rationale=(
-                "The run returned no value for the named column, so masking could "
-                "not be observed."
+                "The run returned no value for the named column, so masking could not be observed."
             ),
         )
     masked = all(

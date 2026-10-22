@@ -161,9 +161,7 @@ def test_the_release_and_cost_facts_this_side_owns_are_recorded():
 def test_a_build_that_baked_no_sha_records_no_release_fact():
     """A local run and an uncertified build both arrive with it empty."""
 
-    assert "release.build_sha" not in correlation.facts(
-        requirement(request_id=MINTED), settings()
-    )
+    assert "release.build_sha" not in correlation.facts(requirement(request_id=MINTED), settings())
 
 
 def test_facts_are_all_strings_because_a_tag_value_is_text():

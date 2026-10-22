@@ -76,9 +76,7 @@ class FakeIndex:
             raise self.error
         names = [*sl.RETRIEVED_COLUMNS, "score"]
         return SimpleNamespace(
-            manifest=SimpleNamespace(
-                columns=[SimpleNamespace(name=name) for name in names]
-            ),
+            manifest=SimpleNamespace(columns=[SimpleNamespace(name=name) for name in names]),
             result=SimpleNamespace(
                 data_array=[
                     [*[item.get(name) for name in sl.RETRIEVED_COLUMNS], 0.9] for item in self.rows
@@ -89,9 +87,7 @@ class FakeIndex:
 
 def workspace_for(rows, error=None, me=None):
     index = FakeIndex(rows, error)
-    current_user = SimpleNamespace(
-        me=(lambda: me) if me is not None else _raise_no_identity
-    )
+    current_user = SimpleNamespace(me=(lambda: me) if me is not None else _raise_no_identity)
     return SimpleNamespace(vector_search_indexes=index, current_user=current_user), index
 
 
@@ -115,9 +111,9 @@ class TestScopeEnforcement:
             [row(authorized_scope=[sl.group_scope("Restricted")])],
             me=person("a@example.com", "Analysts"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert outcome.entries == []
         assert outcome.withheld == 1
 
@@ -126,9 +122,9 @@ class TestScopeEnforcement:
             [row(authorized_scope=[sl.group_scope("Analysts")])],
             me=person("a@example.com", "Analysts"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert len(outcome.entries) == 1
 
     def test_a_user_token_matches_regardless_of_case(self):
@@ -136,16 +132,16 @@ class TestScopeEnforcement:
             [row(authorized_scope=[sl.user_scope("a.person@example.com")])],
             me=person("A.Person@Example.com"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert len(outcome.entries) == 1
 
     def test_an_empty_scope_matches_nobody(self):
         workspace, _ = workspace_for([row(authorized_scope=[])], me=person("a@example.com"))
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert outcome.entries == []
 
     def test_an_unparseable_scope_matches_nobody(self):
@@ -153,9 +149,7 @@ class TestScopeEnforcement:
         bug that quietly publishes the whole corpus."""
 
         for value in ("not json", 7, None, {"scope": "all"}):
-            workspace, _ = workspace_for(
-                [row(authorized_scope=value)], me=person("a@example.com")
-            )
+            workspace, _ = workspace_for([row(authorized_scope=value)], me=person("a@example.com"))
             outcome = sr.SemanticRetrieval(
                 settings_for(), workspace, user_authorized=True
             ).retrieve("players")
@@ -165,9 +159,9 @@ class TestScopeEnforcement:
         workspace, _ = workspace_for(
             [row(authorized_scope=json.dumps([sl.PUBLIC_SCOPE]))], me=person("a@example.com")
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert len(outcome.entries) == 1
 
     def test_a_shared_principal_sees_only_public_entries(self):
@@ -178,9 +172,9 @@ class TestScopeEnforcement:
         workspace, _ = workspace_for(
             [row(authorized_scope=[sl.group_scope("Analysts")]), row(entry_id="b")]
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=False
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=False).retrieve(
+            "players"
+        )
         assert len(outcome.entries) == 1
         assert outcome.scopes.verified is False
 
@@ -189,9 +183,9 @@ class TestScopeEnforcement:
         silently, so this path is reached by a normal-looking run."""
 
         workspace, _ = workspace_for([row(authorized_scope=[sl.group_scope("Analysts")])])
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert outcome.entries == []
 
     def test_an_unverified_run_says_so_in_the_result(self):
@@ -211,9 +205,9 @@ class TestScopeEnforcement:
             [row(authorized_scope=[sl.group_scope("Restricted")])],
             me=person("a@example.com"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
+        )
         assert outcome.withheld == 1
         text = outcome.rendered().lower()
         assert "withheld" not in text
@@ -230,9 +224,9 @@ class TestManifestBoundary:
             [row(asset="other.sch.secret", name="other.sch.secret")],
             me=person("a@example.com"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("secret")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "secret"
+        )
         assert outcome.entries == []
         assert outcome.withheld == 1
 
@@ -240,21 +234,19 @@ class TestManifestBoundary:
         """Unity Catalog names are case-insensitive. Comparing them raw drops
         entries for a reason nobody could see."""
 
-        workspace, _ = workspace_for(
-            [row(asset="CAT.SCH.PLAYERS")], me=person("a@example.com")
+        workspace, _ = workspace_for([row(asset="CAT.SCH.PLAYERS")], me=person("a@example.com"))
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "players"
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("players")
         assert len(outcome.entries) == 1
 
     def test_an_entry_naming_no_asset_is_not_refused_by_the_manifest(self):
         workspace, _ = workspace_for(
             [row(entry_kind=sl.KIND_TERM, name="churn", asset="")], me=person("a@example.com")
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("churn")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "churn"
+        )
         assert len(outcome.entries) == 1
 
 
@@ -408,9 +400,7 @@ class TestQuery:
 
     def test_it_over_fetches_so_the_scope_test_has_something_to_keep(self):
         workspace, index = workspace_for([row()], me=person("a@example.com"))
-        sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
-            "x", limit=4
-        )
+        sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve("x", limit=4)
         assert index.calls[0]["num_results"] == 4 * sr.OVERFETCH
 
     def test_the_over_fetch_is_capped(self):
@@ -425,9 +415,9 @@ class TestQuery:
             [row(entry_id=str(n), name=f"n{n}", asset="") for n in range(40)],
             me=person("a@example.com"),
         )
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("x", limit=999)
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "x", limit=999
+        )
         assert len(outcome.entries) == sr.MAX_LIMIT
 
     def test_scalar_filters_are_pushed_down(self):
@@ -444,9 +434,9 @@ class TestQuery:
         the result."""
 
         workspace, _ = workspace_for([row(domain="something-else")], me=person("a@example.com"))
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("x", domain="monetisation")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "x", domain="monetisation"
+        )
         assert outcome.entries == []
 
     def test_the_scope_test_is_never_pushed_down(self):
@@ -464,9 +454,9 @@ class TestQuery:
         a positional read shifts every field by one."""
 
         workspace, _ = workspace_for([row(name="the-name")], me=person("a@example.com"))
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=True
-        ).retrieve("x")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=True).retrieve(
+            "x"
+        )
         assert outcome.entries[0].name == "the-name"
 
     def test_the_index_defaults_to_the_one_the_bundle_declares(self):
@@ -480,9 +470,9 @@ class TestUnavailable:
         answerable through the tools that existed before this one."""
 
         workspace, _ = workspace_for([], error=RuntimeError("endpoint is PROVISIONING"))
-        outcome = sr.SemanticRetrieval(
-            settings_for(), workspace, user_authorized=False
-        ).retrieve("x")
+        outcome = sr.SemanticRetrieval(settings_for(), workspace, user_authorized=False).retrieve(
+            "x"
+        )
         assert outcome.failure_code == sr.DEPENDENCY_UNAVAILABLE
         text = outcome.rendered()
         assert "SEMANTIC SEARCH UNAVAILABLE" in text
@@ -559,12 +549,7 @@ class TestConfiguredIndex:
 
     def test_retirement_ignores_a_baked_index(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(sr, "SEMANTIC_RETRIEVAL_ENABLED", False)
-        assert (
-            sr.configured_index(
-                settings_for(), {sr.MODEL_CONFIG_KEY: "baked.sem.idx"}, {}
-            )
-            == ""
-        )
+        assert sr.configured_index(settings_for(), {sr.MODEL_CONFIG_KEY: "baked.sem.idx"}, {}) == ""
 
     def test_the_derived_name_matches_what_the_bundle_declares(self):
         """Two places name this index, and they are a YAML file and a Python
@@ -621,9 +606,7 @@ class TestConfigurationEntry:
         monkeypatch.setattr(sr, "SEMANTIC_RETRIEVAL_ENABLED", True)
 
     def test_it_reports_the_index_a_release_searches(self):
-        entry = sr.configuration_entry(
-            settings_for(), {sr.MODEL_CONFIG_KEY: "baked.sem.idx"}, {}
-        )
+        entry = sr.configuration_entry(settings_for(), {sr.MODEL_CONFIG_KEY: "baked.sem.idx"}, {})
         assert entry["key"] == sr.MODEL_CONFIG_KEY
         assert entry["value"] == "baked.sem.idx"
         assert entry["source"] == config.FROM_ARTIFACT
@@ -643,9 +626,7 @@ class TestConfigurationEntry:
         assert entry["source"] == ""
 
     def test_an_environment_value_says_it_came_from_the_environment(self):
-        entry = sr.configuration_entry(
-            settings_for(), {}, {sr.SEMANTIC_INDEX_ENV: "env.sem.idx"}
-        )
+        entry = sr.configuration_entry(settings_for(), {}, {sr.SEMANTIC_INDEX_ENV: "env.sem.idx"})
         assert entry["value"] == "env.sem.idx"
         assert entry["source"] == config.FROM_ENVIRONMENT
 

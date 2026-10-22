@@ -115,9 +115,7 @@ def test_the_schema_refusal_speaks_to_whoever_can_act_on_it():
     refused_sql = gateway().admit_result_schema(sql_verdict, ["email"])
     assert "Name the columns you need" in refused_sql.reason
 
-    genie_verdict = gateway().admit_genie_query(
-        "data_genie", "SELECT * FROM cat.sch.players"
-    )
+    genie_verdict = gateway().admit_genie_query("data_genie", "SELECT * FROM cat.sch.players")
     refused_genie = gateway().admit_result_schema(genie_verdict, ["email"])
     assert "Ask for the question in aggregate" in refused_genie.reason
 
@@ -481,9 +479,7 @@ def test_a_refused_statement_is_recorded_as_a_hash_and_never_as_text():
     # A refused statement can contain the identifier it was refused for, and
     # persisting it would put that value in Lakebase and the trace, which is
     # where the refusal exists to keep it out of.
-    verdict = gateway().admit_statement(
-        "run_sql", "SELECT crm_customer_ref FROM cat.sch.players"
-    )
+    verdict = gateway().admit_statement("run_sql", "SELECT crm_customer_ref FROM cat.sch.players")
     record = verdict.as_record()
     assert "crm_customer_ref" not in str(record["sql_sha256"])
     assert record["sql_sha256"]

@@ -87,8 +87,7 @@ def test_no_more_than_the_cap_are_described_at_once():
     runtime._describe_for_plan(tools, candidates(12), time.perf_counter() + 30)
 
     assert tools.peak <= MAX_PARALLEL_TOOL_CALLS, (
-        f"{tools.peak} describes were in flight at once, past the cap of "
-        f"{MAX_PARALLEL_TOOL_CALLS}"
+        f"{tools.peak} describes were in flight at once, past the cap of {MAX_PARALLEL_TOOL_CALLS}"
     )
     assert tools.peak > 1, "nothing ran concurrently, so the batch is serial again"
 
@@ -119,6 +118,5 @@ def test_a_spent_deadline_keeps_what_was_already_described():
     # a plan that conflated them would send somebody to an admin to be granted
     # something they already hold.
     assert not discovery.unreadable, (
-        f"tables cut off by the deadline were reported as unreadable: "
-        f"{discovery.unreadable}"
+        f"tables cut off by the deadline were reported as unreadable: {discovery.unreadable}"
     )

@@ -27,10 +27,7 @@ if (
 ):
     REPO = AGENT.parent.parent
 # Harness: extensions/sample-neutral/agent -> repo root two levels up
-if not any(
-    (REPO / name).is_dir()
-    for name in ("player-insights-agent", "app", "platform")
-):
+if not any((REPO / name).is_dir() for name in ("player-insights-agent", "app", "platform")):
     REPO = AGENT
     for parent in AGENT.parents:
         if (parent / "platform" / "app" / "shared").is_dir() or (

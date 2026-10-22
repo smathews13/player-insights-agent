@@ -129,9 +129,7 @@ def resolve_index(settings: Settings, raw: Any = None) -> str:
     )
 
 
-def configuration_entry(
-    settings: Settings, baked: Any = None, env: Any = None
-) -> dict[str, Any]:
+def configuration_entry(settings: Settings, baked: Any = None, env: Any = None) -> dict[str, Any]:
     """The semantic index, in the shape the rest of the configuration is reported in.
 
     THE APP COULD NOT SEE THIS AT ALL BEFORE, and the gap was invisible from both
@@ -440,8 +438,9 @@ class SemanticRetrieval:
     ) -> RetrievalOutcome:
         scopes = caller_scopes(self.workspace, user_authorized=self.user_authorized)
         wanted = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
-        filters = _filters(kind=kind, label=label, title=title, domain=domain,
-                           certification=certification)
+        filters = _filters(
+            kind=kind, label=label, title=title, domain=domain, certification=certification
+        )
 
         try:
             response = self.workspace.vector_search_indexes.query_index(

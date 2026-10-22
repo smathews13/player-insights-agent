@@ -49,9 +49,7 @@ def _decode(value: str) -> bytes:
 
 
 def _canonical(payload: dict[str, Any]) -> bytes:
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode()
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def _refuse() -> None:

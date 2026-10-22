@@ -215,9 +215,7 @@ def main() -> int:
         f"raw index query returned {sorted(name for name in raw if name.startswith(PROBE_PREFIX))}",
     )
 
-    retrieval = sr.SemanticRetrieval(
-        settings, workspace, user_authorized=True, index=index_name
-    )
+    retrieval = sr.SemanticRetrieval(settings, workspace, user_authorized=True, index=index_name)
     outcome = retrieval.retrieve(PROBE_QUESTION, limit=10)
     returned = [entry.name for entry in outcome.entries]
 
@@ -285,9 +283,7 @@ def main() -> int:
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed")
     if args.out:
         args.out.write_text(
-            json.dumps(
-                [{"check": n, "passed": p, "detail": d} for n, p, d in results], indent=2
-            )
+            json.dumps([{"check": n, "passed": p, "detail": d} for n, p, d in results], indent=2)
         )
     return 1 if failed else 0
 
