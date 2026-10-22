@@ -58,8 +58,7 @@ def test_the_metric_is_the_alias_the_query_gave_it():
 def test_an_unaliased_aggregate_is_named_by_what_it_computes():
     entry = one(f"SELECT count(DISTINCT platformid_accountid) FROM {ACTIVITY}")
     assert (
-        entry["metric"]
-        == "count(distinct platformid_accountid) \u00b7 counted by "
+        entry["metric"] == "count(distinct platformid_accountid) \u00b7 counted by "
         "platformid_accountid (one row per account)"
     )
 
