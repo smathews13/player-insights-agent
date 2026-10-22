@@ -3239,11 +3239,9 @@ export function HomePage() {
                 the column IS and the heading is what the column HOLDS, which is why
                 they are two lines rather than one -- the pill reports on the
                 harness rather than on the list, so it belongs beside the eyebrow. */}
+            {/* The hide control leads the column's top row, mirroring the conversation
+                rail's control: same edge of its pane, same height. */}
             <div className="trace-head">
-              <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
-              <RunStatusPill status={runStatus} onDark />
-            </div>
-            <div className="trace-title-row">
               <button
                 type="button"
                 className="inspector-collapse-toggle"
@@ -3254,6 +3252,10 @@ export function HomePage() {
               >
                 <PanelRightClose aria-hidden="true" />
               </button>
+              <p className="ast-eyebrow">{HARNESS_EYEBROW}</p>
+              <RunStatusPill status={runStatus} onDark />
+            </div>
+            <div className="trace-title-row">
               <h3 className="trace-title">Agent path</h3>
             </div>
             {/* A clarification has a trace too, and it is the one that explains why the

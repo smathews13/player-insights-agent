@@ -16,12 +16,12 @@
 }
 
 /* The light-surface mark is the white d-pad used on the loading screen, in both
-   themes; the black d-pad is print-only. A hairline keeps white legible on white. */
+   themes; the black d-pad is print-only. A solid outline keeps white legible on white. */
 .pia-mark--light {
   --pia-mark-ink: var(--ast-white);
   --pia-mark-accent: var(--ast-ice-accent);
   --pia-mark-engraving: var(--ast-navy);
-  filter: drop-shadow(0 0 1px var(--border));
+  --pia-mark-outline: #5f6f7c;
 }
 
 .pia-mark--dark {

@@ -215,6 +215,14 @@ html[data-theme='dark'] .ask-layout > .trace-inspector {
   justify-content: space-between;
   gap: 8px;
 }
+/* The pane's 20px inset and this 28px control put its centre 34px down, which is
+   where the conversation rail's 16px inset and 36px New conversation row put its. */
+.trace-head > .inspector-collapse-toggle {
+  align-self: flex-start;
+}
+.trace-head > .inspector-collapse-toggle + .ast-eyebrow {
+  margin-right: auto;
+}
 /*
  * What the column holds.
  *

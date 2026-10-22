@@ -82,6 +82,8 @@ export const PLATE = '#e8f0fa';
 export const INK = '#ffffff';
 export const ACCENT = '#8fc1e8';
 export const ENGRAVING = '#9aa3ad';
+/** The white cross's edge, so it reads on the ice plate at a 16px tab. */
+export const OUTLINE = '#5f6f7c';
 
 /**
  * The plate's corner, as a fraction of the tile.
@@ -118,6 +120,7 @@ function paint(which: PiaMarkPaint | undefined): string | undefined {
   if (!which) return undefined;
   if (which === 'ink') return INK;
   if (which === 'accent') return ACCENT;
+  if (which === 'outline') return OUTLINE;
   return ENGRAVING;
 }
 
@@ -176,6 +179,8 @@ export function iconSvg(size: number, cut: IconCut = 'engraved'): string {
     return [
       `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64" fill="none">`,
       `<rect width="64" height="64" rx="12" fill="${PLATE}" />`,
+      `<rect x="21" y="4" width="22" height="56" rx="6" fill="${INK}" stroke="${OUTLINE}" stroke-width="6" />`,
+      `<rect x="4" y="21" width="56" height="22" rx="6" fill="${INK}" stroke="${OUTLINE}" stroke-width="6" />`,
       `<rect x="21" y="4" width="22" height="56" rx="6" fill="${INK}" />`,
       `<rect x="4" y="21" width="56" height="22" rx="6" fill="${INK}" />`,
       `<circle cx="32" cy="32" r="8" fill="${ACCENT}" />`,
@@ -183,7 +188,16 @@ export function iconSvg(size: number, cut: IconCut = 'engraved'): string {
     ].join('');
   }
   const inset = (PIA_MARK_VIEWBOX * (1 - MARK_SPAN)) / 2;
-  const shapes = (cut === 'simplified' ? PIA_DPAD_SIMPLIFIED : PIA_DPAD_ENGRAVED).map(element).join('');
+  const drawn = cut === 'simplified' ? PIA_DPAD_SIMPLIFIED : PIA_DPAD_ENGRAVED;
+  const outline = drawn
+    .filter((shape) => shape.role === 'arm' && shape.kind === 'rect')
+    .map((shape) =>
+      shape.kind === 'rect'
+        ? `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="${shape.rx}" fill="${INK}" stroke="${OUTLINE}" stroke-width="4" />`
+        : ''
+    )
+    .join('');
+  const shapes = outline + drawn.map(element).join('');
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${PIA_MARK_VIEWBOX} ${PIA_MARK_VIEWBOX}" fill="none">`,
     `<rect width="${PIA_MARK_VIEWBOX}" height="${PIA_MARK_VIEWBOX}" rx="${PIA_MARK_VIEWBOX * PLATE_CORNER}" fill="${PLATE}" />`,

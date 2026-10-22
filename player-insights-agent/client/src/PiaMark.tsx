@@ -16,6 +16,8 @@ import {
 
 function paint(value: PiaMarkPaint | undefined): string | undefined {
   if (!value) return undefined;
+  // Only light-surface tones set an outline; everywhere else it is not drawn.
+  if (value === 'outline') return 'var(--pia-mark-outline, transparent)';
   return `var(--pia-mark-${value})`;
 }
 
@@ -24,11 +26,13 @@ export function PiaShape({
   className,
   paintOverride,
   style,
+  vectorEffect,
 }: {
   element: PiaMarkElement;
   className?: string;
   paintOverride?: PiaMarkPaint;
   style?: CSSProperties;
+  vectorEffect?: 'non-scaling-stroke';
 }) {
   const fill = paint(element.fill ? (paintOverride ?? element.fill) : undefined) ?? 'none';
   const stroke = paint(element.stroke ? (paintOverride ?? element.stroke) : undefined);
@@ -38,6 +42,7 @@ export function PiaShape({
     stroke,
     strokeWidth: element.strokeWidth,
     opacity: element.opacity,
+    vectorEffect,
     style,
     'data-pia-role': element.role,
   };
@@ -68,9 +73,27 @@ export function PiaDrawing({
   elements: readonly PiaMarkElement[];
   shapeClassName?: (element: PiaMarkElement, index: number) => string | undefined;
 }) {
-  return elements.map((element, index) => (
-    <PiaShape element={element} className={shapeClassName?.(element, index)} key={JSON.stringify(element)} />
-  ));
+  // The arms' outline is drawn as a pass of its own, under the arms: each arm
+  // stroked, then every arm filled over it, so only the outside edge of the cross
+  // shows and the two arms do not draw a seam across each other at the centre.
+  const outline = elements
+    .filter((element) => element.role === 'arm')
+    .map((element) => (
+      <PiaShape
+        // A screen width rather than a grid one, so a 16px mark and the loading
+        // screen's both get a visible edge; half of it shows outside the cross.
+        element={{ ...element, fill: 'ink', stroke: 'outline', strokeWidth: 2.5, role: 'outline' }}
+        vectorEffect="non-scaling-stroke"
+        className="pia-mark__outline"
+        key={`outline-${JSON.stringify(element)}`}
+      />
+    ));
+  return [
+    ...outline,
+    ...elements.map((element, index) => (
+      <PiaShape element={element} className={shapeClassName?.(element, index)} key={JSON.stringify(element)} />
+    )),
+  ];
 }
 
 export function PiaMark({
