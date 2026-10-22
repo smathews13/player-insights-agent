@@ -9,8 +9,8 @@
 
 export type PiaMarkKind = 'dpad' | 'cluster';
 export type PiaMarkTone = 'light' | 'dark' | 'mono' | 'print';
-export type PiaMarkPaint = 'ink' | 'accent' | 'engraving';
-export type PiaMarkRole = 'arm' | 'glyph' | 'guide' | 'center';
+export type PiaMarkPaint = 'ink' | 'accent' | 'engraving' | 'outline';
+export type PiaMarkRole = 'arm' | 'glyph' | 'guide' | 'center' | 'outline';
 
 type ShapeBase = {
   fill?: PiaMarkPaint;

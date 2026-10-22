@@ -199,6 +199,16 @@
   visibility: visible;
 }
 
+/*
+ * Every loader but the panel draws only the four symbols, with no white arms
+ * behind them, so white symbols vanished on a light button or row. They take the
+ * colour of the text they sit beside, which is already chosen to read there.
+ */
+html:root .pia-loader-mark:not(.pia-loader-mark--panel) {
+  --pia-mark-ink: currentColor;
+  --pia-mark-accent: currentColor;
+}
+
 @media (prefers-contrast: more) {
   .pia-loader__label {
     font-weight: 700;

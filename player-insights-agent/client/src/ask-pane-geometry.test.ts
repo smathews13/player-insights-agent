@@ -60,14 +60,19 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     );
   });
 
-  it('puts each open-pane collapse control in line with that pane heading', () => {
+  it('puts each open-pane collapse control on its pane’s top row, at the same height', () => {
     expect(HOME).toMatch(
       /className=\{scope === 'rail' \? 'rail-primary-actions'[\s\S]*?<Button[\s\S]*?New conversation[\s\S]*?className="rail-collapse-toggle"/
     );
     expect(HOME).not.toContain('rail-collapse-head');
     expect(HOME).toMatch(
-      /className="trace-title-row"[\s\S]*?className="inspector-collapse-toggle"[\s\S]*?<h3 className="trace-title">Agent path/
+      /className="trace-head"[\s\S]*?className="inspector-collapse-toggle"[\s\S]*?HARNESS_EYEBROW[\s\S]*?<h3 className="trace-title">Agent path/
     );
+    // Same centre line: the right pane's 20px inset plus half the 28px control is the
+    // left rail's 16px inset plus half its 36px New conversation row.
+    expect(rule(RAIL, '.trace-inspector')).toMatch(/padding:\s*20px 12px 20px 20px/);
+    expect(RAIL).toMatch(/\n\.conversation-rail \{[^}]*padding:\s*16px 8px 16px 16px/);
+    expect(rule(RAIL, '.trace-head > .inspector-collapse-toggle')).toContain('align-self: flex-start');
     expect(rule(RAIL, '.rail-primary-actions')).toMatch(/display:\s*flex[\s\S]*align-items:\s*center/);
     expect(rule(RAIL, '.rail-new-conversation')).toMatch(/flex:\s*1 1 auto[\s\S]*min-width:\s*0/);
     expect(rule(RAIL, '.trace-title-row')).toMatch(/display:\s*flex[\s\S]*align-items:\s*center/);

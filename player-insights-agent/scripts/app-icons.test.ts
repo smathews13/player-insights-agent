@@ -138,7 +138,7 @@ describe('every icon is the Player Insights Agent D-pad on its plate, not a lett
       const { raw } = await decode(await committed(name));
 
       // Above the mark's rim and inside the plate.
-      expect(apart(pixel(raw, size, 0.5, 0.04).slice(0, 3), rgb(PLATE)), `${name} plate`).toBeLessThan(12);
+      expect(apart(pixel(raw, size, 0.2, 0.2).slice(0, 3), rgb(PLATE)), `${name} plate`).toBeLessThan(12);
       // The corner is outside the rounded plate, so there is nothing there.
       expect(pixel(raw, size, 0, 0)[3], `${name} corner`).toBeLessThan(128);
     }
