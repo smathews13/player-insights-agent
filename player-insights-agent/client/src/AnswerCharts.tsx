@@ -1,5 +1,6 @@
 import { Component, lazy, Suspense, useState, type ErrorInfo, type ReactNode } from 'react';
-import { Skeleton } from './ui';
+import { Maximize2, Minimize2 } from 'lucide-react';
+import { Button, Skeleton } from './ui';
 import { AppSelect } from './AppSelect';
 import { isStaleBuildError, STALE_BUILD_MESSAGE } from './stale-build';
 import { AnswerOriginLinks } from './DataEntityLinks';
@@ -75,6 +76,9 @@ const PlotlyFigure = lazy(() => import('./PlotlyFigure'));
  */
 const CHART_HEIGHT = 260;
 
+/** The plot's height when the reader enlarges it: the panel then takes the whole row too. */
+const ENLARGED_HEIGHT = 440;
+
 /**
  * What the agent's derived `kind` should be called.
  *
@@ -149,12 +153,14 @@ class ChartBoundary extends Component<
 
 function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void }) {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [enlarged, setEnlarged] = useState(false);
+  const height = enlarged ? ENLARGED_HEIGHT : CHART_HEIGHT;
   const name = chart.title.trim() || kindLabel(chart.kind);
   const { figure, view } = chartFigure(chart, selectedId);
   const views = chart.views ?? [];
   const dimension = chart.view_dimension ?? 'view';
   return (
-    <figure className="answer-chart-panel">
+    <figure className="answer-chart-panel" data-enlarged={enlarged || undefined}>
       {/* An eyebrow, not a heading: the answer's takeaway is the heading on this card
           and a chart panel sits several blocks under it. Opposite it sits this chart's
           own export menu -- a reader can take one panel as a PNG for a slide or as its
@@ -174,19 +180,25 @@ function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void
           />
         ) : null}
         {/* What is on screen is what is exported, and its label is in the file name. */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="answer-chart-size"
+          aria-pressed={enlarged}
+          aria-label={enlarged ? `Shrink ${name}` : `Enlarge ${name}`}
+          title={enlarged ? 'Shrink' : 'Enlarge'}
+          onClick={() => setEnlarged((value) => !value)}
+        >
+          {enlarged ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+        </Button>
         <ChartExportMenu chart={figure} name={view ? `${name} - ${view.label}` : name} />
       </div>
       <ChartBoundary onFailure={onFailure}>
         {/* The fallback is the plot's own height so the transcript does not jump when
             the chunk lands. */}
-        <Suspense fallback={<Skeleton style={{ height: CHART_HEIGHT }} className="w-full" />}>
-          <PlotlyFigure
-            kind={chart.kind}
-            data={figure.data}
-            layout={figure.layout}
-            title={name}
-            height={CHART_HEIGHT}
-          />
+        <Suspense fallback={<Skeleton style={{ height }} className="w-full" />}>
+          <PlotlyFigure kind={chart.kind} data={figure.data} layout={figure.layout} title={name} height={height} />
         </Suspense>
       </ChartBoundary>
     </figure>
@@ -229,9 +241,13 @@ export function AnswerCharts({
           <AnswerOriginLinks sources={origin} />
         </div>
       ) : null}
-      {charts.map((chart) => (
-        <ChartPanel chart={chart} onFailure={onFailure} key={chart.id} />
-      ))}
+      {/* The panels have a grid of their own. The source row spanning the tracks kept
+          every auto-fit track occupied, so one chart got a third of the card. */}
+      <div className="answer-charts-grid">
+        {charts.map((chart) => (
+          <ChartPanel chart={chart} onFailure={onFailure} key={chart.id} />
+        ))}
+      </div>
     </div>
   );
 }

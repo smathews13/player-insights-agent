@@ -155,6 +155,7 @@ import { elapsedSeconds, seatForTranscript } from './working-animation';
 import { ToolCallsLabel } from './ToolCallsLabel';
 import { waitForWarehouseReady } from './warehouse-warmup';
 import {
+  attachmentsCutFrom,
   normalizeAnswer,
   normalizeClarification,
   storedExecutionIdentity,
@@ -279,9 +280,8 @@ function AttachmentsCutNote({ names }: { names?: string[] }) {
 }
 
 function cutNames(raw: Record<string, unknown>): { attachmentsCut?: string[] } {
-  if (!Array.isArray(raw.attachments_cut)) return {};
-  const names = raw.attachments_cut.filter((name): name is string => typeof name === 'string' && name !== '');
-  return names.length > 0 ? { attachmentsCut: names } : {};
+  const names = attachmentsCutFrom(raw);
+  return names ? { attachmentsCut: names } : {};
 }
 
 function normalizeResponse(raw: unknown, executionIdentity?: unknown): AgentResponse | null {
@@ -3481,30 +3481,33 @@ const MessageItem = memo(function MessageItem({
   }
   if (response.type === 'plan') {
     return (
-      <PlanCard
-        plan={response.plan}
-        loading={loading}
-        resolved={resolved}
-        approved={approved}
-        approvalExecuted={approvalExecuted}
-        approvalPending={approvalPending}
-        canRevise={canRevisePlan}
-        ranSourceNames={planRanSourceNames}
-        onApprove={(planToRun) =>
-          onAsk(planToRun.question, {
-            planId: planToRun.id,
-            plan: planToRun,
-            label: PLAN_APPROVAL_LABEL,
-          })
-        }
-        // A revision is a question, so it is asked like one: no approval
-        // attached, so nothing runs and the agent comes back with a new plan.
-        // It used to drop the plan's original question into the composer and
-        // focus it, which left the reader looking at the words they had already
-        // typed with nothing to say what had happened. The editor is on the
-        // card now; see PlanCard and plan-revision.ts.
-        onRevise={(request) => onAsk(request)}
-      />
+      <>
+        <PlanCard
+          plan={response.plan}
+          loading={loading}
+          resolved={resolved}
+          approved={approved}
+          approvalExecuted={approvalExecuted}
+          approvalPending={approvalPending}
+          canRevise={canRevisePlan}
+          ranSourceNames={planRanSourceNames}
+          onApprove={(planToRun) =>
+            onAsk(planToRun.question, {
+              planId: planToRun.id,
+              plan: planToRun,
+              label: PLAN_APPROVAL_LABEL,
+            })
+          }
+          // A revision is a question, so it is asked like one: no approval
+          // attached, so nothing runs and the agent comes back with a new plan.
+          // It used to drop the plan's original question into the composer and
+          // focus it, which left the reader looking at the words they had already
+          // typed with nothing to say what had happened. The editor is on the
+          // card now; see PlanCard and plan-revision.ts.
+          onRevise={(request) => onAsk(request)}
+        />
+        <AttachmentsCutNote names={attachmentsCutFrom(response)} />
+      </>
     );
   }
   if (response.type === 'dashboard') {

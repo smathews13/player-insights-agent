@@ -161,10 +161,24 @@ describe('the list is as long as the answer’s own chart list', () => {
     // two card insets, any of which can be absent, so two readers at the same
     // window width get different room here. `auto-fit` asks how much width the
     // row actually got; a media query would be measuring the wrong box.
-    const rule = ruleFor('.answer-charts {');
+    const rule = ruleFor('.answer-charts-grid {');
     expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr))');
     expect(rule).toContain('gap: 12px');
     expect(CSS).not.toContain('@media');
+  });
+
+  it('keeps the source row out of the panel grid, so one chart takes the whole row', () => {
+    const markup = renderToStaticMarkup(
+      <AnswerCharts charts={[chart()]} sources={[{ name: 'main.game.daily', freshness: '', role: 'reading' }]} />
+    );
+    const grid = markup.indexOf('answer-charts-grid');
+    expect(grid).toBeGreaterThan(markup.indexOf('answer-charts-origin'));
+    expect(ruleFor('.answer-charts-origin {')).not.toContain('grid-column');
+    expect(ruleFor('.answer-chart-panel[data-enlarged] {')).toContain('grid-column: 1 / -1');
+  });
+
+  it('offers to enlarge each chart', () => {
+    expect(render([chart()])).toMatch(/aria-label="Enlarge [^"]+"/);
   });
 
   it('draws nothing at all for an answer that carried no charts', () => {

@@ -2160,6 +2160,8 @@ describe('what the route actually puts on the wire', () => {
     expect(priorTurns[6]?.question).toBe('seed question 6');
     // And the stored trace never rides along.
     expect(JSON.stringify(priorTurns)).not.toContain('"trace"');
+    // Nothing was dropped, so no count is sent.
+    expect(captured[captured.length - 1]?.payload.custom_inputs).not.toHaveProperty('prior_turns_dropped');
   });
 
   it('replays a stored plan turn with its id so the agent can match the approval', async () => {

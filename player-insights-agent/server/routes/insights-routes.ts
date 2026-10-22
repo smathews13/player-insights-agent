@@ -5717,7 +5717,10 @@ export function setupInsightsRoutes(
                   'answering a question the user has not authorised yet.'
               );
             }
-            const planResponse = planStoredResponse(plan, reissued ? approvedPlanId : null);
+            const planResponse = {
+              ...planStoredResponse(plan, reissued ? approvedPlanId : null),
+              ...attachmentsCutField,
+            };
             await safeQuery(
               appkit,
               `INSERT INTO ${APP_SCHEMA}.messages

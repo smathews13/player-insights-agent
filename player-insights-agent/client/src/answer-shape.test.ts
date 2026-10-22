@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAnswer, normalizeClarification, normalizeStage, normalizeTrace } from './answer-shape';
+import {
+  attachmentsCutFrom,
+  normalizeAnswer,
+  normalizeClarification,
+  normalizeStage,
+  normalizeTrace,
+  type WireAnswer,
+} from './answer-shape';
 
 /**
  * These tests exist because of a specific failure, and they are written to fail
@@ -294,5 +301,18 @@ describe('attachments_cut', () => {
   it('says nothing when none were cut', () => {
     expect(normalizeAnswer({ attachments_cut: [] }).attachmentsCut).toBeUndefined();
     expect(normalizeAnswer({}).attachmentsCut).toBeUndefined();
+  });
+});
+
+describe('attachments_cut survives a second pass', () => {
+  it('keeps the note when an answer that was already normalized is normalized again', () => {
+    const once = normalizeAnswer({ attachments_cut: ['long.pdf'] });
+    expect(normalizeAnswer(once as unknown as WireAnswer).attachmentsCut).toEqual(['long.pdf']);
+  });
+
+  it('reads either spelling for any result type', () => {
+    expect(attachmentsCutFrom({ attachments_cut: ['a.txt'] })).toEqual(['a.txt']);
+    expect(attachmentsCutFrom({ attachmentsCut: ['b.txt'] })).toEqual(['b.txt']);
+    expect(attachmentsCutFrom({ attachments_cut: [] })).toBeUndefined();
   });
 });

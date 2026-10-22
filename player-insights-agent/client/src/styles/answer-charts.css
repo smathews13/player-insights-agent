@@ -32,11 +32,19 @@
  */
 .answer-charts {
   display: grid;
+  gap: 12px;
+}
+/* The panels' own grid, so nothing spanning it keeps an empty track open: one chart
+   takes the whole row, two share it. */
+.answer-charts-grid {
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 12px;
 }
-.answer-charts-origin {
+.answer-chart-panel[data-enlarged] {
   grid-column: 1 / -1;
+}
+.answer-charts-origin {
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -99,10 +107,11 @@
 }
 .answer-chart-head .answer-chart-view-select {
   flex: 0 1 auto;
-  min-width: 0;
+  /* Readable before it shrinks: below this the trigger showed one letter. */
+  min-width: min(9rem, 45%);
   max-width: 55%;
 }
-.answer-chart-head .export-menu {
+.answer-chart-head :is(.export-menu, .answer-chart-size) {
   flex: 0 0 auto;
 }
 
