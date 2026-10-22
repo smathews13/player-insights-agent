@@ -1610,7 +1610,7 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         "warehouse_id",
         "data_genie_space_id",
         "dictionary_genie_space_id",
-            "genie_mcp_public_key",
+        "genie_mcp_public_key",
         "llm_endpoint",
         "llm_gateway_endpoint",
         "llm_gateway",
@@ -1655,8 +1655,7 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
     for key in derived:
         assert ENV_VARS[key] not in source, f"{ENV_VARS[key]} is the repository's to decide"
     assert (
-        "release_value PLAYER_INSIGHTS_CATALOG_DENYLIST catalog_denylist "
-        "bundle_var_or_empty"
+        "release_value PLAYER_INSIGHTS_CATALOG_DENYLIST catalog_denylist bundle_var_or_empty"
     ) in source
 
 
@@ -1799,9 +1798,7 @@ def test_lakebase_owner_role_is_private_and_used_only_for_database_creation():
     declared = variables["lakebase_database_owner_role"]
     assert declared["default"] == ""
     deploy = (
-        Path(__file__).resolve().parents[2]
-        / "bundle"
-        / "ensure-lakebase-database.sh"
+        Path(__file__).resolve().parents[2] / "bundle" / "ensure-lakebase-database.sh"
     ).read_text()
     assert "bundle_var lakebase_database_owner_role" in deploy
     assert "create-database" in deploy

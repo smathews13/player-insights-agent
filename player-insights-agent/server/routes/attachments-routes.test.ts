@@ -16,6 +16,7 @@ const loadFixture = (name: string) => readFile(path.join(fixtureDir, name));
 interface StoredAttachment {
   filename: string;
   extracted_text: string;
+  truncated: unknown;
 }
 
 /**
@@ -28,7 +29,7 @@ function createLakebase() {
     attachments,
     query(text: string, params: unknown[] = []) {
       if (text.includes('INSERT INTO player_insights.attachments')) {
-        attachments.push({ filename: String(params[3]), extracted_text: String(params[6]) });
+        attachments.push({ filename: String(params[3]), extracted_text: String(params[6]), truncated: params[7] });
         return Promise.resolve({ rows: [] });
       }
       if (text.includes('FROM player_insights.attachments') && text.includes('extracted_text')) {
@@ -94,6 +95,21 @@ function upload(filename: string, body: Buffer, conversationId = 'conv-pdf') {
     body: new Uint8Array(body),
   });
 }
+
+describe('a file over the per-file limit', () => {
+  it('says it was cut, and stores that so a reload says it too', async () => {
+    const response = await upload('long.txt', Buffer.from('a'.repeat(60_000), 'utf8'), 'conv-long');
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ truncated: true, original_chars: 60_000 });
+    expect(lakebase.attachments.find((a) => a.filename === 'long.txt')?.truncated).toBe(true);
+  });
+
+  it('does not flag a file of exactly the limit', async () => {
+    const response = await upload('exact.txt', Buffer.from('a'.repeat(50_000), 'utf8'), 'conv-long');
+    expect((await response.json()) as Record<string, unknown>).not.toHaveProperty('truncated');
+    expect(lakebase.attachments.find((a) => a.filename === 'exact.txt')?.truncated).toBe(false);
+  });
+});
 
 describe('PDF upload route', () => {
   it('accepts a text-bearing PDF and stores the extracted text', async () => {
