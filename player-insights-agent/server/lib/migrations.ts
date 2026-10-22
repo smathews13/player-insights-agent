@@ -1026,6 +1026,17 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
     statements: [ORGANIZATION_PROFILES_DDL],
     down: [`DROP TABLE IF EXISTS ${ORGANIZATION_PROFILES_TABLE}`],
   },
+  {
+    version: 44,
+    name: 'attachment truncated flag',
+    /**
+     * Whether only the start of an upload was kept. Recorded at upload because the
+     * stored text cannot say it: a file of exactly the limit and a longer file cut to
+     * it store the same text. NULL on rows from before; the list read falls back.
+     */
+    statements: [`ALTER TABLE ${APP_SCHEMA}.attachments ADD COLUMN IF NOT EXISTS truncated BOOLEAN`],
+    down: [`ALTER TABLE ${APP_SCHEMA}.attachments DROP COLUMN IF EXISTS truncated`],
+  },
 ];
 
 /**

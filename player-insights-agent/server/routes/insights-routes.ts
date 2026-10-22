@@ -4700,7 +4700,7 @@ export function setupInsightsRoutes(
         appkit,
         'GET /api/conversations/:id/attachments',
         `SELECT a.id, a.filename, a.mime_type, a.size_bytes, a.created_at,
-                char_length(a.extracted_text) >= ${MAX_ATTACHMENT_TEXT} AS truncated
+                COALESCE(a.truncated, char_length(a.extracted_text) >= ${MAX_ATTACHMENT_TEXT}) AS truncated
          FROM ${APP_SCHEMA}.attachments a
          JOIN ${APP_SCHEMA}.conversations c ON c.id = a.conversation_id
          WHERE a.conversation_id = $1 AND ($3 OR c.user_email = $2)
@@ -4815,8 +4815,8 @@ export function setupInsightsRoutes(
         );
         await appkit.lakebase.query(
           `INSERT INTO ${APP_SCHEMA}.attachments
-             (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
-             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+             (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text, truncated)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
           [
             id,
             conversationId,
@@ -4825,6 +4825,7 @@ export function setupInsightsRoutes(
             req.header('content-type') ?? 'application/octet-stream',
             bytes.length,
             extractedText,
+            extracted.truncated,
           ]
         );
       } catch (error) {
@@ -4840,9 +4841,8 @@ export function setupInsightsRoutes(
         mime_type: req.header('x-file-type') ?? 'application/octet-stream',
         size_bytes: bytes.length,
         status: 'ready',
-        // Only the start of this file is stored and read. Said here so the chip can
-        // say it; after a reload the list read derives the same fact from the stored
-        // text reaching the limit, so no schema change carries it.
+        // Only the start of this file is stored and read. Stored too, so the chip
+        // still says it after a reload.
         ...(extracted.truncated ? { truncated: true, original_chars: extracted.originalChars } : {}),
       });
     });

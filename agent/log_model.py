@@ -257,9 +257,7 @@ resources = [
 # The manifest becomes an upper bound rather than a floor, which is why
 # `list_data_assets` and every answer's caveats say so: a row filter does not
 # fail, it returns fewer rows.
-scopes = (
-    api_scopes(settings, semantic_index=semantic_index) if user_auth.enabled else ()
-)
+scopes = api_scopes(settings, semantic_index=semantic_index) if user_auth.enabled else ()
 if user_auth.enabled and not scopes:
     raise SystemExit(
         "Refusing to log with user authorization and no API scopes. A "
