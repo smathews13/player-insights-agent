@@ -75,6 +75,8 @@ export interface ClarificationResponse {
   type: 'clarification';
   mode: 'live';
   clarification: Clarification;
+  /** Files the agent did not read in full, named so the reader is told. */
+  attachmentsCut?: string[];
 }
 /** A multi-section document authored by the agent. */
 export interface ReportResponse {
@@ -82,6 +84,7 @@ export interface ReportResponse {
   mode: 'live';
   id: string;
   report: Report;
+  attachmentsCut?: string[];
 }
 /** A complete standalone HTML dashboard authored by the agent. */
 export interface DashboardResponse {
@@ -89,6 +92,7 @@ export interface DashboardResponse {
   mode: 'live';
   id: string;
   dashboard: Dashboard;
+  attachmentsCut?: string[];
 }
 export type AgentResponse = Answer | PlanResponse | ClarificationResponse | ReportResponse | DashboardResponse;
 export interface Identity {
@@ -361,6 +365,8 @@ export interface Attachment {
   filename: string;
   mime_type: string;
   size_bytes: number;
+  /** Only the start of this file is read: it was longer than the per-file limit. */
+  truncated?: boolean;
   status: 'parsing' | 'ready' | 'error';
   error?: string;
   /** Set while parsing so the chip can show elapsed time for slow PDF extraction. */

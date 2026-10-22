@@ -267,22 +267,48 @@ function parsingLabel(attachment: Attachment, now: number) {
  * analysis, so there is no data-access identity for either to have, and
  * stamping one on them would be a claim about a run that did not happen.
  */
+/** The note under a result built from files the agent did not read in full. */
+function AttachmentsCutNote({ names }: { names?: string[] }) {
+  if (!names || names.length === 0) return null;
+  return (
+    <span className="trace-summary-note" role="status">
+      Too much attached text for one question, so the agent did not read all of {names.join(', ')}. Remove older files
+      or attach less to include it.
+    </span>
+  );
+}
+
+function cutNames(raw: Record<string, unknown>): { attachmentsCut?: string[] } {
+  if (!Array.isArray(raw.attachments_cut)) return {};
+  const names = raw.attachments_cut.filter((name): name is string => typeof name === 'string' && name !== '');
+  return names.length > 0 ? { attachmentsCut: names } : {};
+}
+
 function normalizeResponse(raw: unknown, executionIdentity?: unknown): AgentResponse | null {
   if (!raw || typeof raw !== 'object') return null;
   const response = raw as Record<string, unknown>;
   if (response.type === 'plan') return response as unknown as PlanResponse;
   if (response.type === 'clarification') {
-    return { type: 'clarification', mode: 'live', clarification: normalizeClarification(response.clarification) };
+    return {
+      type: 'clarification',
+      mode: 'live',
+      clarification: normalizeClarification(response.clarification),
+      ...cutNames(response),
+    };
   }
   if (response.type === 'dashboard') {
     const dashboard = normalizeDashboard(response.dashboard);
     const id = typeof response.id === 'string' && response.id ? response.id : `msg-${crypto.randomUUID()}`;
-    return dashboard ? ({ type: 'dashboard', mode: 'live', id, dashboard } satisfies DashboardResponse) : null;
+    return dashboard
+      ? ({ type: 'dashboard', mode: 'live', id, dashboard, ...cutNames(response) } satisfies DashboardResponse)
+      : null;
   }
   if (response.type === 'report') {
     const report = normalizeReport(response.report);
     const id = typeof response.id === 'string' && response.id ? response.id : `msg-${crypto.randomUUID()}`;
-    return report ? ({ type: 'report', mode: 'live', id, report } satisfies ReportResponse) : null;
+    return report
+      ? ({ type: 'report', mode: 'live', id, report, ...cutNames(response) } satisfies ReportResponse)
+      : null;
   }
   // Legacy stored answers may predate the `type` discriminator. A value that
   // does declare a different type is not an answer, even if it happens to carry
@@ -3059,7 +3085,9 @@ export function HomePage() {
                         ? parsingLabel(attachment, now)
                         : attachment.status === 'error'
                           ? attachment.error
-                          : `${Math.max(1, Math.round(attachment.size_bytes / 1024))} KB · Ready`}
+                          : `${Math.max(1, Math.round(attachment.size_bytes / 1024))} KB · ${
+                              attachment.truncated ? 'Only the first part of this file is read' : 'Ready'
+                            }`}
                     </small>
                   </span>
                   <button
@@ -3440,12 +3468,15 @@ const MessageItem = memo(function MessageItem({
   }
   if (response.type === 'clarification') {
     return (
-      <ClarificationCard
-        clarification={response.clarification}
-        loading={loading}
-        resolved={resolved}
-        onAnswer={(reply) => onAsk(reply)}
-      />
+      <>
+        <ClarificationCard
+          clarification={response.clarification}
+          loading={loading}
+          resolved={resolved}
+          onAnswer={(reply) => onAsk(reply)}
+        />
+        <AttachmentsCutNote names={response.attachmentsCut} />
+      </>
     );
   }
   if (response.type === 'plan') {
@@ -3488,6 +3519,7 @@ const MessageItem = memo(function MessageItem({
         }
       >
         <DashboardCard dashboard={response.dashboard} />
+        <AttachmentsCutNote names={response.attachmentsCut} />
       </Suspense>
     );
   }
@@ -3503,6 +3535,7 @@ const MessageItem = memo(function MessageItem({
         }
       >
         <ReportCard report={response.report} />
+        <AttachmentsCutNote names={response.attachmentsCut} />
       </Suspense>
     );
   }
