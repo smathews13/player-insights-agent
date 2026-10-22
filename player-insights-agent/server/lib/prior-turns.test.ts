@@ -183,12 +183,13 @@ describe('fitPriorTurns', () => {
 });
 
 describe('fitPriorTurnsCounted', () => {
-  it('counts the oldest turns that did not fit, and the rest are unchanged', () => {
-    const turns = Array.from({ length: 6 }, (_, index) => ({ turn_id: `t${index}`, narrative: 'x'.repeat(40_000) }));
-    const counted = fitPriorTurnsCounted(turns, 10_000, { bodyBudget: 130_000 });
-    expect(counted.dropped).toBe(6 - counted.turns.length);
-    expect(counted.dropped).toBeGreaterThan(0);
-    expect(counted.turns[counted.turns.length - 1]?.turn_id).toBe('t5');
+  it('counts the two oldest turns when the budget is too small for them, and keeps the rest unchanged', () => {
+    const turns = Array.from({ length: 5 }, (_, index) => ({ turn_id: `t${index}`, narrative: 'x'.repeat(40_000) }));
+    const perTurn = Buffer.byteLength(JSON.stringify(turns[0]), 'utf8') + 1;
+    const empty = Buffer.byteLength(JSON.stringify({ prior_turns: [] }), 'utf8');
+    const counted = fitPriorTurnsCounted(turns, 10_000, { bodyBudget: 10_000 + empty + 3 * perTurn });
+    expect(counted.dropped).toBe(2);
+    expect(counted.turns).toEqual(turns.slice(2));
   });
 
   it('is zero when everything fits', () => {

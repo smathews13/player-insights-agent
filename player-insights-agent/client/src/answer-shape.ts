@@ -523,6 +523,19 @@ export interface NormalizedAnswer {
  * provenance did not survive the wire is exactly the answer that must not be
  * badged as a live agent response.
  */
+/**
+ * The files a result was built without reading in full. Either spelling, so a result
+ * normalized twice (the transcript re-reads what a live reply was turned into) keeps
+ * the note it had after the first pass.
+ */
+export function attachmentsCutFrom(raw: object): string[] | undefined {
+  const record = raw as { attachments_cut?: unknown; attachmentsCut?: unknown };
+  const value = record.attachments_cut ?? record.attachmentsCut;
+  if (!Array.isArray(value)) return undefined;
+  const names = value.filter((name): name is string => typeof name === 'string' && name !== '');
+  return names.length > 0 ? names : undefined;
+}
+
 export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
   const normalized: NormalizedAnswer = {
     id: asString(raw.id),
@@ -547,10 +560,8 @@ export function normalizeAnswer(raw: WireAnswer): NormalizedAnswer {
   // unknown word treated as if it were 'live' by a check written as `!== 'mixed'`.
   if (isAnswerProvenance(raw.provenance)) normalized.provenance = raw.provenance;
   if (raw.runStored === false) normalized.runStored = false;
-  if (Array.isArray(raw.attachments_cut)) {
-    const names = raw.attachments_cut.filter((name): name is string => typeof name === 'string' && name !== '');
-    if (names.length > 0) normalized.attachmentsCut = names;
-  }
+  const cut = attachmentsCutFrom(raw);
+  if (cut) normalized.attachmentsCut = cut;
   // Either spelling, so that normalizing an answer twice says what normalizing
   // it once said. The wire name is what a reply and a stored row use and is
   // therefore preferred; the normalized name is what an answer that has already

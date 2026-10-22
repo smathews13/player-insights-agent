@@ -458,8 +458,10 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // tuned: 320 came down to 260 when the panel lost its card header and gained
     // a sibling beside it.
     expect(CHARTS).toContain('const CHART_HEIGHT = 260;');
-    expect(CHARTS).toContain('<Skeleton style={{ height: CHART_HEIGHT }}');
-    expect(CHARTS).toContain('height={CHART_HEIGHT}');
+    // One `height` for both, switched between the two constants by the enlarge control.
+    expect(CHARTS).toContain('const height = enlarged ? ENLARGED_HEIGHT : CHART_HEIGHT;');
+    expect(CHARTS).toContain('<Skeleton style={{ height }}');
+    expect(CHARTS).toContain('height={height}');
     // Both numbers counted in the code alone: the comment above the constant says
     // what the old height was and why it came down, which is prose about a literal
     // rather than a second literal.
