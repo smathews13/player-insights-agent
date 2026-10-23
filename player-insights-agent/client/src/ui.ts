@@ -14,7 +14,7 @@
 
 import { createElement } from 'react';
 import type { ComponentProps } from 'react';
-import { Input as AppKitInput, Textarea as AppKitTextarea } from '@databricks/appkit-ui/react';
+import { Input as AppKitInput, Table as AppKitTable, Textarea as AppKitTextarea } from '@databricks/appkit-ui/react';
 import { withPasswordManagerOptOut } from './password-manager-optout';
 import type { PasswordManagerOptOutProps } from './password-manager-optout';
 
@@ -75,4 +75,23 @@ export function Input(props: ComponentProps<'input'> & PasswordManagerOptOutProp
 /** Multi-line text input field. Ignored by password managers. */
 export function Textarea(props: ComponentProps<'textarea'> & PasswordManagerOptOutProps) {
   return createElement(AppKitTextarea, withPasswordManagerOptOut(props));
+}
+
+/**
+ * A table whose sideways-scrolling box the keyboard can reach and a screen reader
+ * can name. For tables with nothing focusable inside: without a tab stop, columns
+ * scrolled out of a narrow window cannot be brought back from the keyboard.
+ *
+ * AppKit's `Table` renders that box itself and passes no props to it, so the
+ * attributes are set on the table's parent once it mounts.
+ */
+export function ScrollTable({ label, ...props }: ComponentProps<'table'> & { label: string }) {
+  const markScrollBox = (table: HTMLTableElement | null) => {
+    const box = table?.parentElement;
+    if (!box) return;
+    box.tabIndex = 0;
+    box.setAttribute('role', 'region');
+    box.setAttribute('aria-label', label);
+  };
+  return createElement(AppKitTable, { ...props, ref: markScrollBox });
 }

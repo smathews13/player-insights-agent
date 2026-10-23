@@ -6,7 +6,7 @@ import { MATCHING_POLICY_REFERENCE, mlflowTraceHref } from '../../shared/benchma
 import type { GenieAccuracyCaseView, GenieAccuracyRunView } from '../../shared/eval-genie-run';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 import { PiaBusyButtonContent } from './PiaLoader';
-import { Table } from './ui';
+import { ScrollTable } from './ui';
 
 function formatSuiteDuration(startedAt: string, finishedAt: string): string {
   const ms = Date.parse(finishedAt) - Date.parse(startedAt);
@@ -57,7 +57,7 @@ export function GenieAccuracyResult({
         suiteDuration={formatSuiteDuration(run.startedAt, run.finishedAt)}
         excluded={String(excludedCount(run))}
       />
-      <Table className="bench-sheet">
+      <ScrollTable className="bench-sheet" label="Genie accuracy results by case">
         <thead>
           <tr>
             <th>Case</th>
@@ -72,7 +72,7 @@ export function GenieAccuracyResult({
             <GenieCaseRows key={entry.id} entry={entry} />
           ))}
         </tbody>
-      </Table>
+      </ScrollTable>
     </>
   );
 }
