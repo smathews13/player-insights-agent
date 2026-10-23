@@ -34,7 +34,7 @@ import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } fro
 import { ArrowLeft, ArrowUpRight, ChevronRight, Layers3, Search, ThumbsDown, ThumbsUp, Users, X } from 'lucide-react';
 import { astPill, type AstPillFamily } from './pia-pill';
 import { BrandIcon } from './BrandIcon';
-import { Button, Input, Skeleton } from './ui';
+import { Button, Input, Skeleton, Table } from './ui';
 import { AppSelect } from './AppSelect';
 import { PiaFlicker } from './PiaFlicker';
 import { PiaLoader } from './PiaLoader';
@@ -900,7 +900,7 @@ export function QuestionList({
     );
   }
   return (
-    <table className="monitoring-table">
+    <Table className="monitoring-table">
       <thead>
         {/* The widths are the design's, and they are on the header cells because
             that is where a table's column widths are settled. Without them the
@@ -946,7 +946,7 @@ export function QuestionList({
           />
         ))}
       </tbody>
-    </table>
+    </Table>
   );
 }
 

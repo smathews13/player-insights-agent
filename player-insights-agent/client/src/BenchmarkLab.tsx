@@ -345,7 +345,7 @@ export function HeldOutEvaluation({
         </p>
       ) : null}
       <div className="bench-scorers">
-        <table className="bench-sheet">
+        <Table className="bench-sheet">
           <thead>
             <tr>
               <th>Scorer</th>
@@ -385,7 +385,7 @@ export function HeldOutEvaluation({
                   );
                 })}
           </tbody>
-        </table>
+        </Table>
       </div>
     </LabSurface>
   );
