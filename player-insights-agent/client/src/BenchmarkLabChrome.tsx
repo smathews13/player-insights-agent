@@ -20,6 +20,7 @@ import {
   type PocContractView,
 } from '../../shared/benchmark-lab-v3';
 import { PiaBusyButtonContent } from './PiaLoader';
+import { Table } from './ui';
 
 export function GenieStatTiles({
   accuracy,
@@ -412,7 +413,7 @@ function DefaultEvaluationSet() {
       }
     >
       <p className="bench-count-line ast-num">No cases yet</p>
-      <table className="bench-sheet">
+      <Table className="bench-sheet">
         <thead>
           <tr>
             <th>Case</th>
@@ -432,7 +433,7 @@ function DefaultEvaluationSet() {
             </td>
           </tr>
         </tbody>
-      </table>
+      </Table>
     </LabSurface>
   );
 }
@@ -552,7 +553,7 @@ function DefaultFailureInvestigation({ cases }: { cases: { id: string; question:
 function DefaultHeldOut() {
   return (
     <LabSurface id="lab-held-out" title="Held-out evaluation">
-      <table className="bench-sheet">
+      <Table className="bench-sheet">
         <thead>
           <tr>
             <th>Scorer</th>
@@ -563,7 +564,7 @@ function DefaultHeldOut() {
           </tr>
         </thead>
         <tbody />
-      </table>
+      </Table>
     </LabSurface>
   );
 }
