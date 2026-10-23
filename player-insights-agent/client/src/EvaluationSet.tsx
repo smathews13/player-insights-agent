@@ -16,7 +16,7 @@ import { AppSelect } from './AppSelect';
 import { astPill } from './pia-pill';
 import { BenchButton, LabSurface } from './BenchmarkLabChrome';
 import { PiaBusyButtonContent } from './PiaLoader';
-import { Table } from './ui';
+import { ScrollTable } from './ui';
 import type { EvaluationLabModel } from './use-evaluation-lab';
 
 const TAG_LABEL: Record<CaseTag, string> = {
@@ -62,7 +62,7 @@ export function EvaluationSetTable({
 }) {
   const rows = lab.cases.filter((row) => !reviewerOnly || row.review === 'draft' || row.review === 'disputed');
   return (
-    <Table className="bench-sheet">
+    <ScrollTable className="bench-sheet" label="Evaluation cases">
       <thead>
         <tr>
           <th>Case</th>
@@ -95,7 +95,7 @@ export function EvaluationSetTable({
           ))
         )}
       </tbody>
-    </Table>
+    </ScrollTable>
   );
 }
 
