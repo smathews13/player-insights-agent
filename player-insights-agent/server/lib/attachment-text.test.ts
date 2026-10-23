@@ -8,7 +8,7 @@ describe('fitAttachmentText', () => {
   it('is byte for byte what it always was when everything fits', () => {
     const rows = [file('a.md', 10), file('b.txt', 20)];
     const expected = `## a.md\n${'x'.repeat(10)}\n\n## b.txt\n${'x'.repeat(20)}`;
-    expect(fitAttachmentText(rows, 80_000)).toEqual({ text: expected, cut: [] });
+    expect(fitAttachmentText(rows, 80_000)).toMatchObject({ text: expected, cut: [] });
   });
 
   it('keeps the newest files whole and shortens the oldest, in upload order', () => {
@@ -38,6 +38,29 @@ describe('fitAttachmentText', () => {
   });
 
   it('is empty for no files', () => {
-    expect(fitAttachmentText([], 80_000)).toEqual({ text: '', cut: [] });
+    expect(fitAttachmentText([], 80_000)).toEqual({ text: '', cut: [], files: [] });
+  });
+
+  it('says what reached the agent of each file, in upload order', () => {
+    const rows = [
+      file('older-notes.txt', 31_000),
+      { ...file('brief.md', 50_000), truncated: true },
+      file('notes.txt', 20_000),
+    ];
+    const { cut, files } = fitAttachmentText(rows, 80_000);
+    expect(cut).toEqual(['older-notes.txt']);
+    expect(files[0]).toMatchObject({ filename: 'older-notes.txt', truncated: false, original_chars: 31_000 });
+    expect(files.slice(1)).toEqual([
+      { filename: 'brief.md', truncated: true, original_chars: null, kept_chars: 50_000 },
+      { filename: 'notes.txt', truncated: false, original_chars: 20_000, kept_chars: 20_000 },
+    ]);
+    expect(files[0].kept_chars).toBeLessThan(31_000);
+  });
+
+  it('counts a file left out whole as nothing kept', () => {
+    const rows = [file('one.md', 50_000), file('two.md', 50_000), file('three.md', 50_000)];
+    const { files } = fitAttachmentText(rows, 80_000);
+    expect(files[0].kept_chars).toBe(0);
+    expect(files[2].kept_chars).toBe(50_000);
   });
 });

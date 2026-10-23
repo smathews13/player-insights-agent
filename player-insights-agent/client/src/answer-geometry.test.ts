@@ -455,9 +455,9 @@ describe('the chart panel is a panel on this card, not a second page', () => {
   it('holds the plot and the skeleton at the same one number', () => {
     // One constant for both, so the transcript does not jump when the chunk
     // lands. Two literals would drift the moment either was tuned -- and one was
-    // tuned: 320 came down to 260 when the panel lost its card header and gained
-    // a sibling beside it.
-    expect(CHARTS).toContain('const CHART_HEIGHT = 260;');
+    // tuned twice: 320 came down to 260 when the panel lost its card header, and
+    // went back up once a single chart took the whole row.
+    expect(CHARTS).toContain('const CHART_HEIGHT = 320;');
     // One `height` for both, switched between the two constants by the enlarge control.
     expect(CHARTS).toContain('const height = enlarged ? ENLARGED_HEIGHT : CHART_HEIGHT;');
     expect(CHARTS).toContain('<Skeleton style={{ height }}');
@@ -466,8 +466,8 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     // what the old height was and why it came down, which is prose about a literal
     // rather than a second literal.
     const code = CHARTS.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(code.match(/\b260\b/g)).toHaveLength(1);
-    expect(code).not.toMatch(/\b320\b/);
+    expect(code.match(/\b320\b/g)).toHaveLength(1);
+    expect(code).not.toMatch(/\b260\b/);
   });
 
   it('fetches Plotly only when an answer carries a chart', () => {

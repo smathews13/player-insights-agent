@@ -191,7 +191,7 @@ describe('the list is as long as the answer’s own chart list', () => {
   it('reserves the plot’s height while the chunk is in flight', () => {
     // The skeleton and the plot share one constant, so the transcript does not
     // jump when 1.4 MB lands.
-    expect(render([chart()])).toContain('height:260px');
+    expect(render([chart()])).toContain('height:320px');
   });
 });
 

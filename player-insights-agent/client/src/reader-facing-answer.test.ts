@@ -60,6 +60,33 @@ describe('the takeaway a reader is shown', () => {
   it('refuses to invent a finding when only a dump survived', () => {
     expect(readerFacingTakeaway('The analysis completed from assessed sources.', DUMP)).toBe('');
   });
+
+  it('with no takeaway, never titles a long paragraph cut with an ellipsis and prints it again whole', () => {
+    const rest = ' Console players followed, and the gap narrowed in the last week of the month.'.repeat(4);
+    const paragraph = `PC led distinct players at 18,402 across the quarter.${rest}`;
+    const narrative = `${paragraph}\n\nMobile was not in scope.`;
+
+    const headline = readerFacingTakeaway('', narrative);
+    const body = readerFacingNarrative('', narrative);
+
+    expect(headline).toBe('PC led distinct players at 18,402 across the quarter.');
+    expect(headline).not.toContain('…');
+    expect(body).not.toContain(headline);
+    expect(body.startsWith('Console players followed')).toBe(true);
+    expect(body).toContain('Mobile was not in scope.');
+  });
+
+  it('leaves the headline empty rather than cut when the first sentence alone is too long', () => {
+    const sentence = `PC led ${'and kept leading '.repeat(20)}to the end`;
+    expect(readerFacingTakeaway('', sentence)).toBe('');
+    expect(readerFacingNarrative('', sentence)).toBe(sentence);
+  });
+
+  it('drops a short first line that is the headline, heading marks and all', () => {
+    expect(readerFacingNarrative('', '## PC led on distinct players.\n\nConsoles followed.')).toBe(
+      'Consoles followed.'
+    );
+  });
 });
 
 describe('whether the section may call itself a final answer', () => {

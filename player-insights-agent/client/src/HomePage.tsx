@@ -115,6 +115,7 @@ import { isMlflowTraceId } from '../../shared/mlflow-trace-id';
 import {
   beginLiveAsk,
   endLiveAsk,
+  endLiveAskForRun,
   hydrateLiveAsk,
   identifyLiveAsk,
   openLiveAsk,
@@ -1232,7 +1233,7 @@ export function HomePage() {
           updateActiveConversationRuns((current) =>
             settleActiveConversationRun(current, runConversationId, status, null)
           );
-          endLiveAsk(runConversationId, status.run_id);
+          endLiveAskForRun(runConversationId, status);
           return 'stop' as const;
         }
         // Keep Live until the terminal summary for THIS run is readable. A
@@ -1264,7 +1265,7 @@ export function HomePage() {
         updateActiveConversationRuns((current) =>
           settleActiveConversationRun(current, runConversationId, status, summaries.get(runConversationId) ?? null)
         );
-        endLiveAsk(runConversationId, status.run_id);
+        endLiveAskForRun(runConversationId, status);
         // The terminal overlay is gone before the persisted answer is exposed.
         // Reversing these two operations produced one committed frame containing
         // the answer plus a brand-new "Live" card beneath it.

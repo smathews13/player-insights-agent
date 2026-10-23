@@ -72,12 +72,13 @@ const PlotlyFigure = lazy(() => import('./PlotlyFigure'));
  * from 320: the panel is 12px of padding and an eyebrow now rather than a card
  * header, a hairline and 16px, and the charted variant puts two of these side by side
  * where the table it replaces was one block. At 320 a pair of them was taller than
- * the answer above it.
+ * the answer above it. Back up to 320 once a single chart took the whole row: at
+ * 260 a full-width plot was a strip, and its axis read as two or three ticks.
  */
-const CHART_HEIGHT = 260;
+const CHART_HEIGHT = 320;
 
 /** The plot's height when the reader enlarges it: the panel then takes the whole row too. */
-const ENLARGED_HEIGHT = 440;
+const ENLARGED_HEIGHT = 560;
 
 /**
  * What the agent's derived `kind` should be called.

@@ -1065,7 +1065,51 @@ export function answerInline(
   tracked: readonly string[],
   columns: readonly string[] = []
 ): Inline[] {
-  return linkifyInline(parseInline(source, 0), declared, tracked, columns);
+  return linkifyInline(withoutRepeatedName(parseInline(source, 0)), declared, tracked, columns);
+}
+
+function plainText(node: Inline): string {
+  if (node.kind === 'text' || node.kind === 'code') return node.runs.map((run) => run.text).join('');
+  if (node.kind === 'strong' || node.kind === 'link') return node.children.map(plainText).join('');
+  return '';
+}
+
+const IDENTIFIER = /^[A-Za-z0-9_.-]+$/;
+
+/** Which of two names to keep when they name one thing: the fuller one, or neither. */
+function sameName(one: string, other: string): 'first' | 'second' | null {
+  const a = one.trim().toLowerCase();
+  const b = other.trim().toLowerCase();
+  if (!IDENTIFIER.test(a) || !IDENTIFIER.test(b)) return null;
+  if (a === b || a.endsWith(`.${b}`)) return 'first';
+  if (b.endsWith(`.${a}`)) return 'second';
+  return null;
+}
+
+/**
+ * One name written twice, side by side, as code and then bold (or the other way
+ * round): `main.gold.sessions` **sessions**. Drawn as written it is the same
+ * table as two different chips, so the fuller one is kept and the echo dropped.
+ * Only adjacent names, separated by nothing but a space; prose is never touched.
+ */
+function withoutRepeatedName(nodes: Inline[]): Inline[] {
+  const out: Inline[] = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    const gap = nodes[index + 1];
+    const next = nodes[index + 2];
+    const chip = (candidate: Inline | undefined) => candidate?.kind === 'code' || candidate?.kind === 'strong';
+    if (chip(node) && gap?.kind === 'text' && plainText(gap).trim() === '' && chip(next) && node.kind !== next?.kind) {
+      const keep = sameName(plainText(node), plainText(next));
+      if (keep) {
+        out.push(keep === 'first' ? node : next);
+        index += 2;
+        continue;
+      }
+    }
+    out.push(node);
+  }
+  return out;
 }
 
 /**

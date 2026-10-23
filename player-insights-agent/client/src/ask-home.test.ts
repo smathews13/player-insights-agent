@@ -690,7 +690,7 @@ describe('the inspector while a run is still going', () => {
     expect(waiting).toBeGreaterThan(-1);
     expect(waiting).toBeLessThan(summaries);
     expect(parked).toContain('settleActiveConversationRun');
-    expect(parked).toContain('endLiveAsk(runConversationId, status.run_id)');
+    expect(parked).toContain('endLiveAskForRun(runConversationId, status)');
   });
 
   it('keeps the numbered constellation in the desktop and mobile harnesses', () => {

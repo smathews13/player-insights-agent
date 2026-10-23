@@ -230,6 +230,41 @@ export function endLiveAsk(conversationId: string, expectedRunId?: string): void
   announce();
 }
 
+/**
+ * How far a run's server start may precede this browser's record of it and still
+ * be the same run. The two clocks are different machines; a tab learning about a
+ * run from its durable row records that row's start, so the two agree exactly.
+ */
+const RUN_START_SKEW_MS = 5_000;
+
+/**
+ * Whether a terminal ledger row is the run this conversation has on record.
+ *
+ * A tab knows its own ask by the id it minted, which the ledger keeps as
+ * `correlation_id`, not as `run_id`. A tab that never identified the run -- one
+ * started from another tab or a script and learned by replay -- has no id at
+ * all, and is matched by start time instead, so the previous turn's row cannot
+ * end a question this tab has only just sent.
+ */
+export function isRecordedRun(
+  conversationId: string,
+  row: { run_id: string; correlation_id?: string | null; created_at: string }
+): boolean {
+  const run = runs.get(conversationId);
+  if (!run) return false;
+  if (run.runId !== null) return run.runId === row.run_id || run.runId === row.correlation_id;
+  const created = Date.parse(row.created_at);
+  return Number.isFinite(created) && created >= run.startedAt - RUN_START_SKEW_MS;
+}
+
+/** End the conversation's live run when the ledger row says that run is over. */
+export function endLiveAskForRun(
+  conversationId: string,
+  row: { run_id: string; correlation_id?: string | null; created_at: string }
+): void {
+  if (isRecordedRun(conversationId, row)) endLiveAsk(conversationId);
+}
+
 export function stopLiveAsk(conversationId: string, notice: string, expectedRunId?: string): void {
   const run = runs.get(conversationId);
   if (!run) return;

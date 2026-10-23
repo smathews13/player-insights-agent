@@ -127,7 +127,11 @@ function firstFinding(narrative: string): string {
         !TOOL_CALL.test(line)
     );
   if (!first) return '';
-  return first.length > TAKEAWAY_LIMIT ? `${first.slice(0, TAKEAWAY_LIMIT - 1)}…` : first;
+  if (first.length <= TAKEAWAY_LIMIT) return first;
+  // Never a cut line: a headline ending in "…" over the same paragraph printed
+  // whole below is the sentence twice, once broken. The first sentence, or none.
+  const sentence = /^(.+?[.!?])(?:\s|$)/.exec(first)?.[1] ?? '';
+  return sentence.length <= TAKEAWAY_LIMIT ? sentence : '';
 }
 
 /**
@@ -168,11 +172,19 @@ export function readerFacingNarrative(
   const firstAt = lines.findIndex((line) => line.trim());
   if (firstAt < 0) return cleaned;
   const first = lines[firstAt].trim();
+  // A headline lifted from the narrative's first sentence leaves the rest of that
+  // paragraph in the body, without the sentence the title already says.
+  const unmarked = first.replace(/^#+\s*/, '');
+  if (headline && headline !== takeaway.trim() && unmarked !== headline && unmarked.startsWith(headline)) {
+    lines[firstAt] = unmarked.slice(headline.length).trim();
+    return lines.join('\n').replace(/^\n+/, '').trim();
+  }
   // Drop a leading line that restates the title: the stored takeaway, the
   // headline we just chose, the unanswered line over a landed card, or the
   // canned completion the deadline path wrote.
   if (
     first === headline ||
+    (headline !== '' && unmarked === headline) ||
     first === takeaway.trim() ||
     isCannedTakeaway(first) ||
     (UNANSWERED_TAKEAWAY.test(first) &&

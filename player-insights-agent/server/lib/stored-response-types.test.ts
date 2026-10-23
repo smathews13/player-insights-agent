@@ -61,4 +61,12 @@ describe('evidence blocks on stored documents', () => {
   it('stores an empty array when the backend sent none', () => {
     expect(documentStoredResponse('dashboard', 'd-1', {}, TRACE).evidence_blocks).toEqual([]);
   });
+
+  it('keeps the rows a clarification read at the top level, never inside the clarification', () => {
+    const blocks = [{ tool: 'run_sql', result: 'rows' }];
+    const stored = clarificationStoredResponse({ id: 'c-1', question: 'Which month?' }, TRACE, blocks);
+    expect(stored.evidence_blocks).toEqual(blocks);
+    expect(JSON.stringify(stored.clarification)).not.toContain('run_sql');
+    expect(clarificationStoredResponse({ id: 'c-2' }, TRACE).evidence_blocks).toEqual([]);
+  });
 });

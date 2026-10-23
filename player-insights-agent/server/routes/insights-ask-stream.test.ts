@@ -264,7 +264,10 @@ describe('POST /api/insights/ask, asked for as a stream', () => {
           contextReads.push('history');
           await contextGate;
         }
-        if (normalised.includes('SELECT filename, extracted_text FROM player_insights.attachments')) {
+        if (
+          normalised.startsWith('SELECT filename, extracted_text') &&
+          normalised.includes('FROM player_insights.attachments')
+        ) {
           contextReads.push('attachments');
           await contextGate;
         }
