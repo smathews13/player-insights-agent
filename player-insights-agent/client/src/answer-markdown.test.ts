@@ -728,3 +728,34 @@ describe('the rendered Markdown is styled as part of an answer', () => {
     expect(STYLESHEET).toContain('.answer-heading,');
   });
 });
+
+describe('one table name written twice, side by side', () => {
+  const kinds = (nodes: Inline[]) => nodes.map((node) => node.kind);
+  const text = (nodes: Inline[]): string =>
+    nodes
+      .map((node) =>
+        node.kind === 'text' || node.kind === 'code'
+          ? node.runs.map((run) => run.text).join('')
+          : node.kind === 'strong' || node.kind === 'link'
+            ? text(node.children)
+            : ''
+      )
+      .join('');
+
+  it('keeps the fuller name when code is echoed in bold', () => {
+    const nodes = answerInline('Only `main.gold.player_sessions` **player_sessions** was read.', [], []);
+    expect(kinds(nodes)).toEqual(['text', 'code', 'text']);
+    expect(text(nodes)).toBe('Only main.gold.player_sessions was read.');
+  });
+
+  it('keeps the fuller name when bold is echoed in code', () => {
+    const nodes = answerInline('Only **main.gold.player_sessions** `player_sessions` was read.', [], []);
+    expect(kinds(nodes)).toEqual(['text', 'strong', 'text']);
+    expect(text(nodes)).toBe('Only main.gold.player_sessions was read.');
+  });
+
+  it('leaves two different names, and bold prose after a name, alone', () => {
+    expect(kinds(answerInline('`gold.sessions` **gold.players**', [], []))).toEqual(['code', 'text', 'strong']);
+    expect(kinds(answerInline('`gold.sessions` **is stale**', [], []))).toEqual(['code', 'text', 'strong']);
+  });
+});

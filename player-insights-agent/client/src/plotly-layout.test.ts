@@ -104,7 +104,8 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
   });
 
   it('samples, truncates and angles many categories only when a narrow axis is crowded', () => {
-    const labels = Array.from({ length: 14 }, (_, index) => `Long category label number ${index + 1}`);
+    // Short names, so the chart stays upright: long ones are turned sideways instead.
+    const labels = Array.from({ length: 40 }, (_, index) => `Cohort ${index + 1}`);
     const spec = verticalBar(labels);
     spec.data[0].hovertext = labels.map((label) => `Full tooltip: ${label}`);
     const { data, layout } = layoutFigure(spec, LIGHT, { width: 320, height: 260 });
@@ -126,9 +127,56 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
 
     expect(y.tickangle).toBe(0);
     expect(y.tickvals).toEqual(labels);
-    expect((y.ticktext as string[]).every((label) => label.length <= 18)).toBe(true);
+    const lines = (y.ticktext as string[]).flatMap((label) => label.split('<br>'));
+    expect(lines.every((line) => line.length <= 18)).toBe(true);
+    expect((y.ticktext as string[]).join('')).not.toContain('…');
     expect(at(data[0]).y).toEqual(labels);
-    expect(layout.height).toBe(352);
+    expect(layout.height).toBe(480);
+  });
+
+  it('turns ten long-named vertical bars sideways, every name whole, under the whole title', () => {
+    const labels = Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`);
+    const title = 'Weekly active players by live event across every platform in the last quarter';
+    const spec = frozen({ ...verticalBar(labels), layout: { ...verticalBar(labels).layout, title: { text: title } } });
+    const { data, layout } = layoutFigure(spec, LIGHT, { width: 620, height: 320 });
+
+    expect(at(data[0]).orientation).toBe('h');
+    expect(at(data[0]).y).toEqual(labels);
+    expect(at(data[0]).x).toEqual(labels.map((_, at) => at + 1));
+    expect(at(at(layout.xaxis).title).text).toBe('Players');
+    expect(at(layout.yaxis).autorange).toBe('reversed');
+    const ticks = at(layout.yaxis).ticktext as string[] | undefined;
+    if (ticks) expect(ticks.join('')).not.toContain('…');
+    const drawnTitle = String(at(layout.title).text);
+    expect(drawnTitle.replace(/<br>/g, ' ')).toBe(title);
+    expect(drawnTitle).not.toContain('…');
+    expect(at(layout.xaxis).nticks).toBeGreaterThanOrEqual(5);
+  });
+
+  it('leaves a few long-named bars upright, and a bar chart with notes pinned to it alone', () => {
+    const few = layoutFigure(
+      verticalBar(['Velocity Heights Online', 'Iron Frontier Online', 'Outfit The Old Country']),
+      LIGHT,
+      {
+        width: 620,
+        height: 320,
+      }
+    );
+    expect(at(few.data[0]).orientation).toBeUndefined();
+
+    const labels = Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`);
+    const pinned = verticalBar(labels);
+    pinned.layout.annotations = [{ x: labels[0], y: 1, text: 'Launch' }];
+    expect(at(layoutFigure(pinned, LIGHT, { width: 620, height: 320 }).data[0]).orientation).toBeUndefined();
+  });
+
+  it('swaps axis references in a hover template when it turns bars sideways', () => {
+    const labels = Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`);
+    const spec = verticalBar(labels);
+    spec.data[0].hovertemplate = '%{x}: %{y:,.0f} players<extra></extra>';
+    expect(at(layoutFigure(spec, LIGHT, { width: 620, height: 320 }).data[0]).hovertemplate).toBe(
+      '%{y}: %{x:,.0f} players<extra></extra>'
+    );
   });
 });
 

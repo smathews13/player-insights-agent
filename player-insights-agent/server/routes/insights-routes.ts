@@ -111,9 +111,15 @@ import {
 } from '../lib/execution-identity-readiness';
 import { documentRunTrace } from '../lib/document-run-trace';
 import { buildPriorTurns, extractEvidenceBlocks, fitPriorTurnsCounted } from '../lib/prior-turns';
-import { fitAttachmentText, type AttachmentRow } from '../lib/attachment-text';
+import { fitAttachmentText, type AttachmentRow, type AttachmentSent } from '../lib/attachment-text';
 import { clarificationStoredResponse, documentStoredResponse, planStoredResponse } from '../lib/stored-response-types';
 import { liftHistoricalClarificationTraces, repairHistoricalDocumentRuns } from '../lib/document-run-repair';
+import {
+  backfillTraceRatings,
+  copyRatingToTrace,
+  type MlflowTransport,
+  workspaceMlflowTransport,
+} from '../lib/trace-feedback';
 import { AGENT_WAKE_PAYLOAD, createAgentWarmup } from '../lib/agent-warmup';
 import { requestLatencyRecorder } from '../lib/request-latency';
 import type { TraceTokenEvidenceReader } from '../lib/mlflow-token-evidence';
@@ -2512,7 +2518,8 @@ export function conversationMessagesQuery(
  * is written before Model Serving starts and remains readable after the
  * original SSE connection is gone.
  */
-export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, state, created_at, updated_at, terminal_code, terminal_message_id
+export const CONVERSATION_RUN_STATUS_QUERY = `SELECT run_id, correlation_id, state, created_at, updated_at, terminal_code,
+       terminal_message_id
   FROM ${APP_SCHEMA}.runs
   WHERE conversation_id = $1 AND ($3 OR user_email = $2)
   ORDER BY created_at DESC
@@ -3305,6 +3312,10 @@ interface AskServingInputs {
    * validate here. See priorEvidenceFromHistory (MIT-14658).
    */
   priorEvidence?: string[];
+  /** Files that were shortened or left out to fit the conversation's limit. */
+  attachmentsCut?: string[];
+  /** What reached the agent of each file, so it can say when one was cut. */
+  attachments?: AttachmentSent[];
 }
 
 /**
@@ -3332,12 +3343,16 @@ export function buildAskServingBody({
   llmRoute,
   genieMcpCapability,
   priorEvidence,
+  attachmentsCut,
+  attachments,
 }: AskServingInputs): Record<string, unknown> {
   const custom_inputs: Record<string, unknown> = { conversation_id: conversationId };
   if (approvedPlanId) custom_inputs.approved_plan_id = approvedPlanId;
   if (approvedPlan) custom_inputs.approved_plan = approvedPlan;
   if (executePlan !== undefined) custom_inputs.execute_plan = executePlan;
   if (attachmentText) custom_inputs.attachment_text = attachmentText;
+  if (attachmentsCut && attachmentsCut.length > 0) custom_inputs.attachments_cut = attachmentsCut;
+  if (attachments && attachments.length > 0) custom_inputs.attachments = attachments;
   if (requestId) custom_inputs.request_id = requestId;
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
@@ -3859,6 +3874,23 @@ async function prepareStore(appkit: InsightsAppKit): Promise<void> {
         'New clarification turns are unaffected.'
     );
   }
+  // Not awaited: it reads each rated trace from MLflow, and nothing on this path
+  // waits on MLflow.
+  void backfillTraceRatings(appkit.lakebase, workspaceMlflowTransport())
+    .then((copied) => {
+      if (copied.written > 0 || copied.failed > 0) {
+        console.log(
+          `[feedback] Older ratings copied onto their MLflow traces: written ${copied.written}, ` +
+            `already there ${copied.alreadyCopied}, failed ${copied.failed}, skipped ${copied.skipped}.`
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn(
+        `[feedback] Older ratings were not copied onto their MLflow traces: ${(error as Error).message}. ` +
+          'Every rating is still stored in the app.'
+      );
+    });
 }
 
 /**
@@ -3898,6 +3930,8 @@ export function setupInsightsRoutes(
     eagerIdentityReadiness?: boolean;
     /** Test seam; production reads the exact served MLmodel auth policy. */
     genieMcpModelSupport?: () => Promise<boolean>;
+    /** Test seam; production writes ratings to MLflow as the app SP. */
+    traceFeedbackTransport?: MlflowTransport;
   } = {}
 ): Promise<{ storeReady: Promise<void> }> {
   // BEFORE `prepareStore`, not after, and that ordering is load-bearing rather
@@ -5253,7 +5287,9 @@ export function setupInsightsRoutes(
         readStored(
           appkit,
           'POST /api/insights/ask (attachments)',
-          `SELECT filename, extracted_text FROM ${APP_SCHEMA}.attachments
+          `SELECT filename, extracted_text,
+                  COALESCE(truncated, char_length(extracted_text) >= ${MAX_ATTACHMENT_TEXT}) AS truncated
+             FROM ${APP_SCHEMA}.attachments
            WHERE conversation_id = $1 AND user_email = $2 ORDER BY created_at`,
           [conversationId, email]
         ),
@@ -5523,6 +5559,8 @@ export function setupInsightsRoutes(
             approvedPlan,
             executePlan,
             attachmentText,
+            attachmentsCut: attachmentFit.cut,
+            attachments: attachmentFit.files,
             stream: reply.wantsStream,
             requestId: identity.correlationId,
             runId: identity.requestId,
@@ -5759,7 +5797,11 @@ export function setupInsightsRoutes(
               bindServingMlflowTraceId(clarification, servingMlflowTraceId(endpointResult))
             );
             const clarificationResponse = {
-              ...clarificationStoredResponse(honestClarification, honestClarification.trace),
+              ...clarificationStoredResponse(
+                honestClarification,
+                honestClarification.trace,
+                extractEvidenceBlocks(endpointResult)
+              ),
               ...attachmentsCutField,
             };
             await safeQuery(
@@ -6485,6 +6527,18 @@ export function setupInsightsRoutes(
       }
       markResponse(res, noSubstitution());
       res.status(201).json(feedback);
+      // After the answer, and never in its way: the stored rating is the record.
+      void copyRatingToTrace(appkit.lakebase, options.traceFeedbackTransport ?? workspaceMlflowTransport(), {
+        feedbackId: feedback.id,
+        messageId: feedback.messageId,
+        sentiment: feedback.sentiment,
+        comment: feedback.comment,
+        email,
+      }).catch((error: unknown) => {
+        console.warn(
+          `[feedback] Rating ${feedback.id} was stored but not copied onto its MLflow trace: ${(error as Error).message}.`
+        );
+      });
     });
 
     /**

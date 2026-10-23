@@ -20,8 +20,8 @@ describe('Home terminal render ordering', () => {
     const terminal = polling.slice(polling.indexOf("status?.state === 'CANCELLED'"));
 
     expect(terminal.indexOf('settleActiveConversationRun(')).toBeGreaterThan(-1);
-    expect(terminal.indexOf('endLiveAsk(')).toBeGreaterThan(-1);
-    expect(terminal.indexOf('endLiveAsk(')).toBeLessThan(
+    expect(terminal.indexOf('endLiveAskForRun(')).toBeGreaterThan(-1);
+    expect(terminal.indexOf('endLiveAskForRun(')).toBeLessThan(
       terminal.indexOf('setMessages((current) => mergeNewestConversationMessages')
     );
   });

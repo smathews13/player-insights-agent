@@ -11,6 +11,12 @@ import { normalizeStage, type TraceStage } from './answer-shape';
 
 export interface ConversationRunStatus {
   run_id: string;
+  /**
+   * The id the browser that sent the ask minted for it. A tab that streamed the
+   * ask knows its run by this id rather than by `run_id`. Optional so a client
+   * can outlive a server that predates the field.
+   */
+  correlation_id?: string | null;
   state: string;
   created_at: string;
   updated_at: string;

@@ -724,6 +724,7 @@ interface StoredAttachment {
   conversation_id: string;
   filename: string;
   extracted_text: string;
+  truncated?: boolean;
 }
 
 interface StoredBenchmarkRun {
@@ -973,7 +974,7 @@ function memoryLakebase(
       if (sql.includes('FROM player_insights.attachments')) {
         const rows = attachments
           .filter((attachment) => attachment.conversation_id === params[0])
-          .map(({ filename, extracted_text }) => ({ filename, extracted_text }));
+          .map(({ filename, extracted_text, truncated }) => ({ filename, extracted_text, truncated }));
         return Promise.resolve({ rows });
       }
 
@@ -2090,6 +2091,30 @@ describe('what the route actually puts on the wire', () => {
     const customInputs = captured[0]?.payload.custom_inputs as Record<string, unknown>;
     expect(customInputs.attachment_text).toBe('## a.txt\nfirst report\n\n## b.pdf\nsecond report');
     expect(String(customInputs.attachment_text)).not.toContain('must not leak');
+  });
+
+  it('tells the agent which files were cut, at upload or to fit the conversation', async () => {
+    process.env.DATABRICKS_SERVING_ENDPOINT_NAME = 'player-insights-agent';
+    const captured: CapturedInvocation[] = [];
+    const lakebase = memoryLakebase([
+      { conversation_id: 'conv-cut', filename: 'older-notes.txt', extracted_text: 'o'.repeat(40_000) },
+      { conversation_id: 'conv-cut', filename: 'notes.txt', extracted_text: 'n'.repeat(50_000), truncated: true },
+    ]);
+    const app = await startInsightsApp(agentContractTransport(captured), lakebase);
+
+    try {
+      await app.ask({ conversationId: 'conv-cut', prompt: NONTRIVIAL_QUESTION });
+    } finally {
+      await app.close();
+    }
+
+    const customInputs = captured[0]?.payload.custom_inputs as Record<string, unknown>;
+    expect(customInputs.attachments_cut).toEqual(['older-notes.txt']);
+    const sent = customInputs.attachments as Record<string, unknown>[];
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({ filename: 'older-notes.txt', truncated: false, original_chars: 40_000 });
+    expect(sent[0].kept_chars).toBeLessThan(40_000);
+    expect(sent[1]).toEqual({ filename: 'notes.txt', truncated: true, original_chars: null, kept_chars: 50_000 });
   });
 
   it('omits attachment_text entirely when the conversation has no attachments', async () => {

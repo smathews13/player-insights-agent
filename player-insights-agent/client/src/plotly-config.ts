@@ -500,13 +500,20 @@ export interface FigureViewport {
   height: number;
 }
 
-const DEFAULT_VIEWPORT: FigureViewport = { width: 640, height: 260 };
+const DEFAULT_VIEWPORT: FigureViewport = { width: 640, height: 320 };
 const MOBILE_WIDTH = 480;
 const NARROW_WIDTH = 360;
 const TICK_CHARACTER_WIDTH = 5;
 const FLAT_TICK_PADDING = 36;
 const MAX_TICK_LINES = 2;
+/** A sideways bar has the row to itself, so its name may take a third line. */
+const HORIZONTAL_TICK_LINES = 3;
 const AXIS_TITLE_STANDOFF = 12;
+/** A vertical bar chart with more categories than this, and long names, is drawn sideways. */
+const FLIP_CATEGORY_COUNT = 6;
+const FLIP_LABEL_CHARS = 12;
+const TITLE_CHARACTER_WIDTH = 7;
+const TITLE_LINE_HEIGHT = 18;
 const ELLIPSIS = '…';
 
 type AxisName = 'xaxis' | 'yaxis';
@@ -638,7 +645,7 @@ function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxi
     if (longest > limit) {
       axis.tickmode = 'array';
       axis.tickvals = [...category.values];
-      axis.ticktext = labels.map((label) => escapedLabel(clippedLine(label, limit)));
+      axis.ticktext = labels.map((label) => fittedTickLabel(label, limit, HORIZONTAL_TICK_LINES));
     }
     return 'horizontal';
   }
@@ -671,6 +678,92 @@ function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxi
   axis.ticktext = indices.map((index) => escapedLabel(clippedLine(labels[index], lineChars)));
   axis.tickangle = -45;
   return 'angled';
+}
+
+function swapAxisReferences(value: unknown): unknown {
+  return typeof value === 'string'
+    ? value.replace(/%\{([xy])\b/g, (_, axis: string) => `%{${axis === 'x' ? 'y' : 'x'}`)
+    : value;
+}
+
+/**
+ * Turn a crowded vertical bar chart on its side.
+ *
+ * Ten long names under vertical bars can only be angled and cut. Sideways, each
+ * name gets a row of its own and reads whole. Only a chart that is bars and
+ * nothing else, with no shapes or notes pinned to its axes, is turned: those
+ * would have to be moved too, and a wrong move is worse than angled labels.
+ */
+function flipCrowdedBars(data: Record<string, unknown>[], layout: Record<string, unknown>, kind: string): void {
+  if (kind !== 'bar' || data.length === 0) return;
+  if (!data.every((trace) => traceType(trace) === 'bar' && text(trace.orientation) !== 'h')) return;
+  if (list(layout.shapes).length > 0 || list(layout.annotations).length > 0) return;
+  if (data.some((trace) => trace.error_x !== undefined || trace.error_y !== undefined)) return;
+  const xaxis = record(layout.xaxis);
+  if (['date', 'linear', 'log'].includes(text(xaxis.type)) || xaxis.tickmode === 'array') return;
+  const names = data.map((trace) => distinctStrings(trace.x)).find((one) => one !== null);
+  if (!names || names.every((name) => TIMESTAMP.test(cleanLabel(name)))) return;
+  const longest = Math.max(...names.map((name) => cleanLabel(name).length));
+  if (names.length <= FLIP_CATEGORY_COUNT || longest <= FLIP_LABEL_CHARS) return;
+
+  for (const trace of data) {
+    const { x, y } = trace;
+    trace.x = y;
+    trace.y = x;
+    trace.orientation = 'h';
+    for (const key of ['hovertemplate', 'texttemplate']) {
+      if (Array.isArray(trace[key])) trace[key] = (trace[key] as unknown[]).map(swapAxisReferences);
+      else trace[key] = swapAxisReferences(trace[key]);
+      if (trace[key] === undefined) delete trace[key];
+    }
+  }
+  const yaxis = record(layout.yaxis);
+  layout.xaxis = yaxis;
+  // The first category stays on top, where it was leftmost.
+  layout.yaxis = { ...xaxis, autorange: 'reversed' };
+}
+
+function tickLines(axis: Record<string, unknown>): number {
+  const labels = stringList(axis.ticktext);
+  return labels ? Math.max(1, ...labels.map((label) => label.split('<br>').length)) : 1;
+}
+
+/** More gridlines on the value axis than Plotly's default for a small box. */
+function raiseValueTicks(
+  layout: Record<string, unknown>,
+  category: CategoryAxis | null,
+  width: number,
+  height: number
+) {
+  for (const name of ['xaxis', 'yaxis'] as const) {
+    if (category?.name === name || !layout[name]) continue;
+    const axis = branch(layout, name);
+    if (axis.nticks !== undefined || axis.dtick !== undefined || axis.tickmode === 'array') continue;
+    if (['date', 'category', 'multicategory'].includes(text(axis.type))) continue;
+    const span = name === 'xaxis' ? width / 70 : height / 40;
+    axis.nticks = Math.max(5, Math.min(12, Math.floor(span)));
+  }
+}
+
+/**
+ * The figure's own title, wrapped to the box rather than cut by it. Returns the
+ * number of lines so the top margin can make room for them.
+ */
+function wrapFigureTitle(layout: Record<string, unknown>, width: number): number {
+  if (!titleHasText(layout.title)) return 0;
+  if (typeof layout.title === 'string') layout.title = { text: layout.title };
+  const title = branch(layout, 'title');
+  const lineChars = Math.max(24, Math.floor((width - 32) / TITLE_CHARACTER_WIDTH));
+  const words = cleanLabel(String(title.text)).split(' ').filter(Boolean);
+  const rows: string[] = [];
+  for (const word of words) {
+    const current = rows.at(-1);
+    if (current !== undefined && current.length + word.length + 1 <= lineChars)
+      rows[rows.length - 1] = `${current} ${word}`;
+    else rows.push(word);
+  }
+  title.text = rows.map(escapedLabel).join('<br>');
+  return rows.length;
 }
 
 function titleHasText(value: unknown): boolean {
@@ -746,15 +839,27 @@ function responsiveHeight(
   legend: boolean,
   categoryCount: number,
   horizontal: boolean,
-  title: boolean
+  titleLines: number,
+  labelLines = 1
 ): number {
+  // The ceiling follows the box asked for, so an enlarged chart can grow past
+  // the inline one's limit.
+  const ceiling = Math.max(480, Math.round(base * 1.5));
   let height = base;
   if (width <= MOBILE_WIDTH && legend) height += 28;
   if (treatment === 'wrapped') height += 24;
   if (treatment === 'angled') height += width <= MOBILE_WIDTH ? 42 : 28;
-  if (title) height += 18;
-  if (horizontal) height = Math.max(height, Math.min(440, 88 + categoryCount * 22 + (legend ? 28 : 0)));
-  return Math.min(440, height);
+  height += titleLines * TITLE_LINE_HEIGHT;
+  if (horizontal) {
+    height = Math.max(
+      height,
+      Math.min(
+        ceiling,
+        88 + categoryCount * (16 + 12 * labelLines) + (legend ? 28 : 0) + titleLines * TITLE_LINE_HEIGHT
+      )
+    );
+  }
+  return Math.min(ceiling, height);
 }
 
 /**
@@ -778,6 +883,8 @@ export function layoutFigure(
     .trim()
     .toLowerCase();
 
+  flipCrowdedBars(data, layout, kind);
+  const titleLines = wrapFigureTitle(layout, width);
   layout.autosize = true;
   layout.minreducedwidth = Math.max(96, Math.min(180, Math.floor(width * 0.42)));
   layout.minreducedheight = 96;
@@ -786,7 +893,7 @@ export function layoutFigure(
     ...incomingMargin,
     l: numberBetween(incomingMargin.l, 8, 40, 8),
     r: numberBetween(incomingMargin.r, 8, 40, 8),
-    t: numberBetween(incomingMargin.t, titleHasText(layout.title) ? 32 : 8, 56, titleHasText(layout.title) ? 32 : 8),
+    t: titleLines > 0 ? Math.max(32, 14 + titleLines * TITLE_LINE_HEIGHT) : numberBetween(incomingMargin.t, 8, 56, 8),
     b: numberBetween(incomingMargin.b, 8, 40, 8),
     pad: numberBetween(incomingMargin.pad, 0, 8, 0),
     autoexpand: true,
@@ -803,15 +910,18 @@ export function layoutFigure(
   const legend = placeLegend(layout, data, width);
   const category = categoricalAxis(data, layout, kind);
   const horizontal = category?.name === 'yaxis';
-  layout.height = responsiveHeight(
+  const height = responsiveHeight(
     baseHeight,
     width,
     treatment,
     legend,
     category?.values.length ?? 0,
     horizontal,
-    titleHasText(layout.title)
+    titleLines,
+    horizontal ? tickLines(record(layout.yaxis)) : 1
   );
+  layout.height = height;
+  raiseValueTicks(layout, category, width, height);
 
   return { data: data as PlotData[], layout: layout as PlotLayout };
 }

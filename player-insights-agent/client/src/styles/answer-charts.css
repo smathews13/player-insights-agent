@@ -123,9 +123,7 @@
   letter-spacing: var(--ast-tracking-eyebrow);
   text-transform: uppercase;
   color: var(--ast-text-secondary);
-  /* One line. A chart the agent titled with a sentence must not push the plot down
-     the panel; the whole title is still the plot's accessible name. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Wrapped, never cut: a title cut to "Weekly active players by…" hides what
+     the chart is of. */
+  overflow-wrap: anywhere;
 }

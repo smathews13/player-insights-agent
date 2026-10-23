@@ -35,9 +35,17 @@ export function planStoredResponse(plan: unknown, supersededApprovalId?: string 
 /**
  * A clarification is a turn of the conversation and so a run: its trace is stored
  * at the top level, where the run lists read it, as well as inside `clarification`.
+ * The rows the agent read before it asked sit at the top level too, so the next
+ * turn can be checked against them.
  */
-export function clarificationStoredResponse<T, Tr>(clarification: T, trace: Tr) {
-  return { type: 'clarification' as const, mode: 'live' as const, clarification, trace };
+export function clarificationStoredResponse<T, Tr>(clarification: T, trace: Tr, evidenceBlocks: unknown[] = []) {
+  return {
+    type: 'clarification' as const,
+    mode: 'live' as const,
+    clarification,
+    trace,
+    evidence_blocks: evidenceBlocks,
+  };
 }
 
 /** A built dashboard or report, with the run trace the run lists read. */
