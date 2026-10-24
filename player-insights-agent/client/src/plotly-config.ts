@@ -512,7 +512,7 @@ const AXIS_TITLE_STANDOFF = 12;
 /** A vertical bar chart with more categories than this, and long names, is drawn sideways. */
 const FLIP_CATEGORY_COUNT = 6;
 const FLIP_LABEL_CHARS = 12;
-const TITLE_CHARACTER_WIDTH = 7;
+const TITLE_CHARACTER_WIDTH = 9;
 const TITLE_LINE_HEIGHT = 18;
 const ELLIPSIS = '…';
 
@@ -699,6 +699,7 @@ function flipCrowdedBars(data: Record<string, unknown>[], layout: Record<string,
   if (!data.every((trace) => traceType(trace) === 'bar' && text(trace.orientation) !== 'h')) return;
   if (list(layout.shapes).length > 0 || list(layout.annotations).length > 0) return;
   if (data.some((trace) => trace.error_x !== undefined || trace.error_y !== undefined)) return;
+  if (data.some((trace) => !['', 'x'].includes(text(trace.xaxis)) || !['', 'y'].includes(text(trace.yaxis)))) return;
   const xaxis = record(layout.xaxis);
   if (['date', 'linear', 'log'].includes(text(xaxis.type)) || xaxis.tickmode === 'array') return;
   const names = data.map((trace) => distinctStrings(trace.x)).find((one) => one !== null);
@@ -731,6 +732,7 @@ function tickLines(axis: Record<string, unknown>): number {
 /** More gridlines on the value axis than Plotly's default for a small box. */
 function raiseValueTicks(
   layout: Record<string, unknown>,
+  data: Record<string, unknown>[],
   category: CategoryAxis | null,
   width: number,
   height: number
@@ -740,6 +742,9 @@ function raiseValueTicks(
     const axis = branch(layout, name);
     if (axis.nticks !== undefined || axis.dtick !== undefined || axis.tickmode === 'array') continue;
     if (['date', 'category', 'multicategory'].includes(text(axis.type))) continue;
+    // Names on this axis are categories whatever the kind says; thinning their ticks would hide some.
+    const field = name === 'xaxis' ? 'x' : 'y';
+    if (data.some((trace) => stringList(trace[field]) !== null)) continue;
     const span = name === 'xaxis' ? width / 70 : height / 40;
     axis.nticks = Math.max(5, Math.min(12, Math.floor(span)));
   }
@@ -921,7 +926,7 @@ export function layoutFigure(
     horizontal ? tickLines(record(layout.yaxis)) : 1
   );
   layout.height = height;
-  raiseValueTicks(layout, category, width, height);
+  raiseValueTicks(layout, data, category, width, height);
 
   return { data: data as PlotData[], layout: layout as PlotLayout };
 }

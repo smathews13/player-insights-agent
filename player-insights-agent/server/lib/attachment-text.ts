@@ -14,7 +14,7 @@ export interface AttachmentRow {
 }
 
 /**
- * What reached the agent of one file, sent as `custom_inputs.attachments`.
+ * What reached the agent of one file, sent as `custom_inputs.files_sent`.
  * `original_chars` is null when the file was cut at upload: only its stored start
  * is kept, so its full length is not known here.
  */

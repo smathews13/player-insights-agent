@@ -2109,8 +2109,9 @@ describe('what the route actually puts on the wire', () => {
     }
 
     const customInputs = captured[0]?.payload.custom_inputs as Record<string, unknown>;
-    expect(customInputs.attachments_cut).toEqual(['older-notes.txt']);
-    const sent = customInputs.attachments as Record<string, unknown>[];
+    expect(customInputs.files_cut).toEqual(['older-notes.txt']);
+    expect(Object.keys(customInputs).filter((key) => key.includes('attachment'))).toEqual(['attachment_text']);
+    const sent = customInputs.files_sent as Record<string, unknown>[];
     expect(sent).toHaveLength(2);
     expect(sent[0]).toMatchObject({ filename: 'older-notes.txt', truncated: false, original_chars: 40_000 });
     expect(sent[0].kept_chars).toBeLessThan(40_000);
