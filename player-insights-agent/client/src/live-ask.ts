@@ -89,6 +89,12 @@ export interface LiveAsk {
    * watched fill in. The next question in the same conversation replaces it.
    */
   inFlight: boolean;
+  /**
+   * Learned from the durable poll rather than sent from this tab. Only such a
+   * run is matched to a ledger row by start time: its start IS that row's, while
+   * a question sent here starts on this machine's clock, which may disagree.
+   */
+  replayed: boolean;
 }
 
 type Listener = () => void;
@@ -163,6 +169,7 @@ export function beginLiveAsk({
     stages: [],
     stopNotice: null,
     inFlight: true,
+    replayed: false,
   });
   announce();
 }
@@ -253,6 +260,7 @@ export function isRecordedRun(
   const run = runs.get(conversationId);
   if (!run) return false;
   if (run.runId !== null) return run.runId === row.run_id || run.runId === row.correlation_id;
+  if (!run.replayed) return false;
   const created = Date.parse(row.created_at);
   return Number.isFinite(created) && created >= run.startedAt - RUN_START_SKEW_MS;
 }
@@ -369,6 +377,7 @@ export function hydrateLiveAsk({
     // A run being replayed is a run the caller found still working. A run that
     // has ended is settled by `endLiveAsk`, and its entry is kept with its steps.
     inFlight: run?.inFlight ?? true,
+    replayed: run?.replayed ?? true,
   });
   announce();
 }

@@ -170,6 +170,24 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
     expect(at(layoutFigure(pinned, LIGHT, { width: 620, height: 320 }).data[0]).orientation).toBeUndefined();
   });
 
+  it('leaves bars on a second axis upright', () => {
+    const labels = Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`);
+    const spec = verticalBar(labels);
+    spec.data[0].yaxis = 'y2';
+    expect(at(layoutFigure(spec, LIGHT, { width: 620, height: 320 }).data[0]).orientation).toBeUndefined();
+  });
+
+  it('never thins the ticks of an axis that carries names', () => {
+    const spec: FigureSpec = {
+      kind: 'box',
+      data: [{ type: 'box', x: ['PC', 'PS5', 'Xbox'], y: [1, 2, 3] }],
+      layout: { xaxis: axis(), yaxis: axis({ title: { text: 'Hours' } }) },
+    };
+    const { layout } = layoutFigure(spec, LIGHT, { width: 620, height: 320 });
+    expect(at(layout.xaxis).nticks).toBeUndefined();
+    expect(at(layout.yaxis).nticks).toBeGreaterThanOrEqual(5);
+  });
+
   it('swaps axis references in a hover template when it turns bars sideways', () => {
     const labels = Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`);
     const spec = verticalBar(labels);

@@ -5906,3 +5906,16 @@ def test_the_moving_marker_skips_empty_messages_and_restores_after_a_failure():
     except RuntimeError:
         pass
     assert messages[-1] == {"role": "user", "content": "q"}
+
+
+def test_file_cut_report_from_the_app_is_not_read_as_file_text():
+    # The app reports which files were cut under keys without "attachment" in
+    # them, because every key that contains it is read as file text.
+    text = "## a.txt\nalpha body\n\n## b.txt\nbeta body"
+    report = {
+        "files_cut": ["old.txt"],
+        "files_sent": [{"filename": "a.txt", "truncated": False, "original_chars": 10, "kept_chars": 10}],
+    }
+    assert agent._attachment_read({"attachment_text": text, **report}) == agent._attachment_read(
+        {"attachment_text": text}
+    )

@@ -72,6 +72,22 @@ describe('endLiveAskForRun', () => {
     expect(readLiveAsk(CONVERSATION)?.inFlight).toBe(true);
   });
 
+  it('leaves a just-sent, not yet identified ask running whatever the clocks say', () => {
+    beginLiveAsk({ conversationId: CONVERSATION, question: 'Q', startedAt: STARTED - 120_000 });
+
+    endLiveAskForRun(CONVERSATION, row());
+
+    expect(readLiveAsk(CONVERSATION)?.inFlight).toBe(true);
+  });
+
+  it("leaves a replayed ask running when the row is the previous turn's", () => {
+    hydrateLiveAsk({ conversationId: CONVERSATION, stages: [step], question: 'Q', startedAt: STARTED });
+
+    endLiveAskForRun(CONVERSATION, row({ created_at: new Date(STARTED - 60_000).toISOString() }));
+
+    expect(readLiveAsk(CONVERSATION)?.inFlight).toBe(true);
+  });
+
   it("leaves a just-sent ask running when the row is the previous turn's", () => {
     beginLiveAsk({ conversationId: CONVERSATION, question: 'Q', startedAt: STARTED });
 

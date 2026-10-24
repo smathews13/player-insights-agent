@@ -3351,8 +3351,10 @@ export function buildAskServingBody({
   if (approvedPlan) custom_inputs.approved_plan = approvedPlan;
   if (executePlan !== undefined) custom_inputs.execute_plan = executePlan;
   if (attachmentText) custom_inputs.attachment_text = attachmentText;
-  if (attachmentsCut && attachmentsCut.length > 0) custom_inputs.attachments_cut = attachmentsCut;
-  if (attachments && attachments.length > 0) custom_inputs.attachments = attachments;
+  // Named without "attachment": the agent reads every custom input whose key
+  // contains that word as file text, and would take these lists for files.
+  if (attachmentsCut && attachmentsCut.length > 0) custom_inputs.files_cut = attachmentsCut;
+  if (attachments && attachments.length > 0) custom_inputs.files_sent = attachments;
   if (requestId) custom_inputs.request_id = requestId;
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
