@@ -85,3 +85,14 @@ describe('the run trace carries the runtime that Ask sent', () => {
     expect(trace.toolStages).toEqual([]);
   });
 });
+
+describe('the run trace carries the answer body that holds its tables', () => {
+  it('passes the stored content through to the Run Explorer', () => {
+    const content = '**By platform**\n\n| Platform | Players |\n| --- | --- |\n| PC | 10 |';
+    expect(conversationRunTrace(row({ content }), '').content).toBe(content);
+  });
+
+  it('leaves content off a run that stored none', () => {
+    expect(conversationRunTrace(row({}), '').content).toBeUndefined();
+  });
+});

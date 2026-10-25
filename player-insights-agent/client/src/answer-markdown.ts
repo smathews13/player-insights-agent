@@ -127,10 +127,28 @@ export type AnswerBlockSelection = 'all' | 'prose' | 'tables';
  * column and tables in the evidence section. Filtering the parsed tree keeps
  * every character in the surviving blocks and avoids regex rules that can eat
  * a pipe used as prose or part of a fenced code block.
+ *
+ * A table travels with the heading written directly above it -- a Markdown
+ * heading or a line that is bold and nothing else. Split apart, the headings
+ * stacked up in the narrative with nothing under them and the tables arrived
+ * further down with nothing naming them. Every block lands in exactly one of
+ * the two selections, in the order it was written.
  */
 export function selectAnswerBlocks(blocks: readonly Block[], selection: AnswerBlockSelection): Block[] {
   if (selection === 'all') return [...blocks];
-  return blocks.filter((block) => (selection === 'tables' ? block.kind === 'table' : block.kind !== 'table'));
+  const evidence = blocks.map(
+    (block, index) => block.kind === 'table' || (isTableHeading(block) && blocks[index + 1]?.kind === 'table')
+  );
+  return blocks.filter((_, index) => (selection === 'tables' ? evidence[index] : !evidence[index]));
+}
+
+function isTableHeading(block: Block): boolean {
+  if (block.kind === 'heading') return true;
+  if (block.kind !== 'paragraph') return false;
+  const meaningful = block.children.filter(
+    (node) => !(node.kind === 'text' && /^\s*:?\s*$/.test(node.runs.map((run) => run.text).join('')))
+  );
+  return meaningful.length > 0 && meaningful.every((node) => node.kind === 'strong');
 }
 
 /**

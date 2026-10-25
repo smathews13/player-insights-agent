@@ -325,25 +325,9 @@ export function AnswerCard({
             />
           ) : null}
         </div>
-        {/* Charts XOR tables, which is the specification's rule and is about what
-            the reader is shown, not about what the answer is allowed to keep. One
-            representation of a set of numbers is evidence; the same numbers twice
-            is a reader checking a chart against a table instead of reading either.
-
-            So when this answer charted, the Markdown rows are FOLDED rather than
-            dropped. Two things made folding necessary instead of the plain `else`
-            this was:
-
-            1. A chart can fail to draw -- a chunk that 404s after a redeploy, a
-               spec Plotly refuses -- and the panel then said so into a card with
-               no figures anywhere in it. The evidence was gone and the answer
-               still read as answered. `chartsFailed` unfolds the rows.
-            2. A plot summarises. The two-panel rule pairs a full series with a
-               recent window, so the rows behind it can hold dates and values no
-               panel plots. A reader who wants those had nowhere to go.
-
-            Folded, so the card still reads as one piece of evidence. Reachable,
-            so nothing the agent measured is only in a picture. */}
+        {/* Charts, then every table with its heading, as the backend sent them.
+            The backend owns what an answer shows; this card does not fold or
+            drop any of it. */}
         <AnswerEvidence
           narrative={narrative}
           content={readerAnswer.content}

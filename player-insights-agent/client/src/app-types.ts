@@ -224,6 +224,8 @@ export interface RunTrace {
   stakeholder: string | null;
   takeaway: string;
   narrative: string;
+  /** The answer's second body, where the agent usually writes its tables. */
+  content?: string;
   sql: string;
   /** Canonical Plotly specs returned by the answer, when this run produced charts. */
   charts?: Chart[];

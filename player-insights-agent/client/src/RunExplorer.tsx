@@ -634,6 +634,7 @@ export function RunExplorer() {
                       <FinalAnswer
                         takeaway={runTrace.takeaway}
                         narrative={runTrace.narrative}
+                        content={runTrace.content}
                         charts={runTrace.charts}
                         sources={runTrace.sources}
                         caveats={runTrace.caveats}
