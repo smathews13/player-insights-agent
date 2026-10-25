@@ -1122,6 +1122,8 @@ export const RunTraceSchema = z.looseObject({
   stakeholder: z.string().nullable(),
   takeaway: z.string(),
   narrative: z.string(),
+  /** The answer's second body, where the agent usually writes its tables. */
+  content: z.string().optional(),
   sql: z.string(),
   /** Canonical Plotly specs for the chart-building stage, when this answer had any. */
   charts: z.array(ChartSchema).optional(),
@@ -1526,6 +1528,7 @@ export function conversationRunTrace(row: Record<string, unknown>, experimentId:
     mode,
     takeaway: typeof record.takeaway === 'string' ? record.takeaway : '',
     narrative: typeof record.narrative === 'string' ? record.narrative : '',
+    ...(typeof record.content === 'string' && record.content.trim() ? { content: record.content } : {}),
     sql: typeof record.sql === 'string' ? record.sql : '',
     ...(charts.success ? { charts: charts.data } : {}),
     sources: answer.success ? answer.data.sources : [],

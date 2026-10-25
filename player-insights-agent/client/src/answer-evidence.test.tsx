@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AnswerEvidence } from './AnswerEvidence';
-import { carriesTable } from './answer-markdown';
+import { carriesTable, parseAnswerMarkdown, selectAnswerBlocks } from './answer-markdown';
 import type { Chart } from './AnswerCharts';
 
 /**
  * That one answer is not drawn as rows on one surface and as pictures on another.
  *
- * The live card folded its tables in behind its charts. The Run Explorer, showing
+ * The live card once folded its tables in behind its charts. The Run Explorer, showing
  * the same stored answer, printed the narrative whole -- tables included -- and
  * handed the run's charts to the Agent map tab. So the reader who opened a past
  * run saw the numbers as a table on Overview and the same numbers as a chart one
@@ -40,11 +40,39 @@ describe('the evidence half of an answer', () => {
     expect(html).not.toContain('Show the rows behind this');
   });
 
-  it('folds the rows in behind a chart rather than dropping them', () => {
+  it('draws every table under the chart, unfolded', () => {
     const html = markup({ narrative: WITH_TABLE, charts: [CHART], sources: SOURCES });
     expect(html).toContain('Chart evidence');
-    // Reachable, so nothing the agent measured is only ever in a picture.
-    expect(html).toContain('Show the rows behind this');
+    expect(html).toContain('<table');
+    expect(html).not.toContain('Show the rows behind this');
+    expect(html.indexOf('answer-chart')).toBeLessThan(html.indexOf('<table'));
+  });
+
+  it('draws all twelve tables the backend sent, each under its own heading', () => {
+    const names = [
+      'Alpha',
+      'Bravo',
+      'Charlie',
+      'Delta',
+      'Echo',
+      'Foxtrot',
+      'Golf',
+      'Hotel',
+      'India',
+      'Juliet',
+      'Kilo',
+      'Lima',
+    ];
+    const content = names
+      .map((name) => [`**${name} breakdown**`, '', '| Week | Sessions |', '| --- | --- |', '| 1 | 10 |'].join('\n'))
+      .join('\n\n');
+    const html = markup({ narrative: 'Sessions rose.', content, charts: [CHART], sources: SOURCES });
+    expect(html.match(/<table/g)).toHaveLength(12);
+    // Written order, and every heading sits directly above its own table.
+    const pieces = html.split('<table').slice(0, -1);
+    names.forEach((name, index) => {
+      expect(pieces[index]).toContain(`<strong>${name} breakdown</strong>`);
+    });
   });
 
   it('says nothing at all when the answer measured nothing', () => {
@@ -79,10 +107,39 @@ describe('both surfaces that show an answer', () => {
     expect(finalAnswer).toMatch(/text=\{story\}[\s\S]{0,80}blocks="prose"/);
   });
 
-  it('keeps the charts-or-rows rule out of the card, so it cannot drift', () => {
+  it('keeps the evidence layout out of the card, so it cannot drift', () => {
     // The card held its own copy of this. Two copies is how the Explorer's went
     // stale without anyone noticing.
     expect(card).not.toContain('answer-evidence');
-    expect(card).not.toContain('Show the rows behind this');
+  });
+
+  it('hands the Explorer the answer body that holds the tables', () => {
+    expect(explorer).toContain('content={runTrace.content}');
+    expect(finalAnswer).toMatch(/<AnswerEvidence[^>]*content=\{content\}/);
+  });
+});
+
+describe('splitting an answer into narrative and evidence', () => {
+  const source = [
+    'Intro.',
+    '',
+    '**Weekly split**',
+    '',
+    '| Week | Sessions |',
+    '| --- | --- |',
+    '| 1 | 10 |',
+    '',
+    '**Not a table heading**',
+    '',
+    'Closing.',
+  ].join('\n');
+
+  it('moves a heading with the table under it and leaves every other block in the narrative', () => {
+    const blocks = parseAnswerMarkdown(source);
+    const prose = selectAnswerBlocks(blocks, 'prose');
+    const tables = selectAnswerBlocks(blocks, 'tables');
+    expect(tables.map((block) => block.kind)).toEqual(['paragraph', 'table']);
+    expect(prose).toHaveLength(blocks.length - 2);
+    expect(prose.every((block) => !tables.includes(block))).toBe(true);
   });
 });

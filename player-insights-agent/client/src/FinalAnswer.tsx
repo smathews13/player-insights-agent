@@ -26,6 +26,7 @@ import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 export function FinalAnswer({
   takeaway,
   narrative,
+  content: storedContent,
   charts,
   sources,
   caveats,
@@ -37,6 +38,7 @@ export function FinalAnswer({
 }: {
   takeaway: string;
   narrative: string;
+  content?: string | null;
   charts?: Chart[];
   sources: { name: string; freshness: string }[];
   caveats: readonly string[];
@@ -46,10 +48,18 @@ export function FinalAnswer({
   conversationId?: string | null;
   runId?: string | null;
 }) {
-  const displayed = normalizeReaderAnswer({ takeaway, narrative, sources, caveats, sql });
+  const displayed = normalizeReaderAnswer({
+    takeaway,
+    narrative,
+    ...(storedContent ? { content: storedContent } : {}),
+    sources,
+    caveats,
+    sql,
+  });
   const honesty = answerHonesty({ truncated, caveats: displayed.caveats ?? [], narrative: displayed.narrative });
   const headline = readerFacingTakeaway(displayed.takeaway ?? '', displayed.narrative ?? '');
   const story = readerFacingNarrative(displayed.takeaway ?? '', displayed.narrative ?? '');
+  const content = displayed.content ?? null;
   const restCaveats = displayed.caveats ?? [];
   const columns = mentionedIdentifiers([story]);
   return (
@@ -73,16 +83,26 @@ export function FinalAnswer({
             <EntityText text={headline} sources={sources} />
           </h4>
         ) : null}
-        {/* Prose only: the tables that came with it are evidence and are drawn
-            below under the same charts-or-rows rule the live card uses. */}
+        {/* Prose only: the tables that came with it, and their headings, are
+            drawn below by the same evidence component the live card uses. */}
         <AnswerProse text={story} sources={sources} columns={columns} blocks="prose" preserveProse />
-        <AnswerEvidence narrative={story} charts={charts} sources={sources} />
+        {content ? (
+          <AnswerProse
+            text={content}
+            sources={sources}
+            columns={mentionedIdentifiers([content])}
+            badges
+            blocks="prose"
+            preserveProse
+          />
+        ) : null}
+        <AnswerEvidence narrative={story} content={content} charts={charts} sources={sources} />
         <SourcesModule
           sources={sources}
           caveats={restCaveats}
           derivation={derivation}
           sql={sql}
-          hideWorkspaceLinks={evidenceLinkedSourceNames(story, null, charts, sources)}
+          hideWorkspaceLinks={evidenceLinkedSourceNames(story, content, charts, sources)}
         />
         {conversationId ? (
           <Link className="final-answer-open" to={conversationHref(conversationId, runId)}>

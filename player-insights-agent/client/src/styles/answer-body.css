@@ -633,32 +633,6 @@
   overflow: visible;
   align-content: start;
 }
-/*
- * The control that unfolds the rows behind a charted answer.
- *
- * `justify-self: start` because the evidence section is a grid and a button in a
- * grid cell stretches: unpinned, a quiet disclosure became a full-width bar under
- * the panel, which reads as a primary action rather than as a footnote to one.
- *
- * Sized and coloured down to the caption scale on purpose. The charts are the
- * evidence; this offers the same numbers for a reader who wants the rows, and a
- * control that competed with the panel above it would be arguing the opposite.
- */
-.answer-evidence-rows {
-  justify-self: start;
-  height: auto;
-  padding: 2px 6px;
-  color: var(--ast-text-secondary);
-  font-size: var(--ast-fs-11);
-}
-/* The rows themselves, once open, take the section's own spacing rather than
-   sitting flush against the control that revealed them. */
-.answer-evidence [data-slot='collapsible-content'] > .answer-prose {
-  display: grid;
-  gap: 14px;
-  margin-top: 8px;
-  min-width: 0;
-}
 
 /*
  * Sources list: one leftover table per bullet. Filter, metric and window sit
