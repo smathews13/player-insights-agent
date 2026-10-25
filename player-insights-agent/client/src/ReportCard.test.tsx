@@ -54,4 +54,18 @@ describe('ReportCard', () => {
     expect(markup).toContain('Bare Report');
     expect(markup).toContain('Just prose, nothing structured.');
   });
+
+  it('draws a table written into a section body, under its heading', () => {
+    // The report is drawn as the agent wrote it. Its body tables were once
+    // filtered out, taking their numbers off the page with no note.
+    const written: Report = {
+      schema_version: 'pia.report/1',
+      title: 'Written Tables',
+      sections: [{ body: 'Intro.\n\n**By platform**\n\n| Platform | Players |\n| --- | --- |\n| PC | 10 |' }],
+    };
+    const markup = renderToStaticMarkup(<ReportCard report={written} />);
+    expect(markup).toContain('<strong>By platform</strong>');
+    expect(markup).toContain('<table');
+    expect(markup.indexOf('By platform')).toBeLessThan(markup.indexOf('<table'));
+  });
 });

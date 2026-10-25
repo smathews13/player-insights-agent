@@ -99,7 +99,7 @@ function ReportSectionView({ section, sources }: { section: ReportSection; sourc
   return (
     <section className="space-y-3">
       {section.heading ? <h4 className="font-semibold">{section.heading}</h4> : null}
-      {section.body ? <AnswerProse text={section.body} sources={sources ?? []} blocks="prose" preserveProse /> : null}
+      {section.body ? <AnswerProse text={section.body} sources={sources ?? []} blocks="all" preserveProse /> : null}
       <ReportFigures figures={section.figures} />
       <ReportTableView table={section.table} />
       {charts.length > 0 ? <AnswerCharts charts={charts} /> : null}
@@ -127,7 +127,7 @@ export function ReportCard({ report }: { report: Report }) {
       </CardHeader>
       <CardContent className="space-y-6">
         {report.summary ? (
-          <AnswerProse text={report.summary} sources={report.sources ?? []} blocks="prose" preserveProse />
+          <AnswerProse text={report.summary} sources={report.sources ?? []} blocks="all" preserveProse />
         ) : null}
         {report.sections.map((section, index) => (
           <ReportSectionView key={section.id ?? index} section={section} sources={report.sources} />
