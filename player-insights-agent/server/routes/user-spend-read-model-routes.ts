@@ -38,6 +38,8 @@ import { userEmail, type InsightsAppKit } from './insights-routes';
 
 export const USER_SPEND_RESPONSE_REVISION = 2;
 
+type KnownUser = { email: string; role: string };
+
 export const USER_SPEND_READ_MODEL_ROUTES = [
   '/api/monitoring/user-spend',
   '/api/monitoring/user-spend/:email',
@@ -263,6 +265,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       console.warn(`[user-spend-read-model] asynchronous refresh failed (${error.name}); serving the last good rows.`);
     });
   };
+  const configuredUsers = (): KnownUser[] => everyKnownUser({ seed: seedRoles(), stored: [] });
   const readDaily = (
     req: Request,
     range: ReturnType<typeof opsDayRange>,
@@ -271,9 +274,11 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     limit = pageSize(req),
     offset = pageOffset(req),
     rosterOnly = allowBrowse,
-    organizationDomains: readonly string[] = []
+    organizationDomains: readonly string[] = [],
+    knownUsers: readonly KnownUser[] = configuredUsers()
   ) =>
     readUserSpendReadModelPage(appkit.lakebase, {
+      knownUsers,
       range,
       principal,
       allowBrowse,
@@ -295,9 +300,11 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
     limit = pageSize(req),
     offset = pageOffset(req),
     rosterOnly = allowBrowse,
-    organizationDomains: readonly string[] = []
+    organizationDomains: readonly string[] = [],
+    knownUsers: readonly KnownUser[] = configuredUsers()
   ) =>
     readUserSpendHourlyPage(appkit.lakebase, {
+      knownUsers,
       window,
       principal,
       allowBrowse,
@@ -384,6 +391,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       const source = sourceFor(req);
       const manifest = currentOrganizationMappings();
       let organizations: OrganizationFilterOption[];
+      let knownUsers: KnownUser[] = [];
       try {
         const personaFilter = queryText(req, 'persona');
         const [roster, assignments] = await Promise.all([
@@ -391,6 +399,7 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
           personaFilter ? listSpAssignments(appkit) : Promise.resolve([]),
         ]);
         const entries = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
+        knownUsers = entries;
         const assignmentByEmail = new Map(
           assignments.map((assignment) => [assignment.email.trim().toLowerCase(), assignment.personaId])
         );
@@ -416,8 +425,8 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       const organizationDomains = organizationSuffixesForSelection(organizationSelection(req), organizations);
       const readRosterPage = () =>
         hourly
-          ? readHourly(req, window, principal, true, limit, offset, true, organizationDomains)
-          : readDaily(req, range, principal, true, limit, offset, true, organizationDomains);
+          ? readHourly(req, window, principal, true, limit, offset, true, organizationDomains, knownUsers)
+          : readDaily(req, range, principal, true, limit, offset, true, organizationDomains, knownUsers);
       let recovery: UserSpendRecoveryResult;
       try {
         recovery = await recoverInitialUserSpendRead({

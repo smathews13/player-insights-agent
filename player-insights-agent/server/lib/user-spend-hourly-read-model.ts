@@ -517,22 +517,38 @@ hourly_app AS (
 app_totals AS (
   SELECT SUM(app_spend_usd) AS app_spend_usd, SUM(app_spend_dbu) AS app_spend_dbu FROM hourly_app
 ),
-identity_population AS (
-  SELECT roster.user_key, roster.display_email, roster.app_role, roster.identity_updated_at
+known_identity AS (
+  SELECT DISTINCT ON (candidate.user_key) candidate.user_key, candidate.app_role
   FROM (
-    SELECT DISTINCT ON (lower(email))
-           lower(email) AS user_key, lower(email) AS display_email,
-           CASE WHEN role IN ('super_admin', 'admin', 'consumer') THEN role ELSE 'admin' END AS app_role,
-           added_at AS identity_updated_at
+    SELECT lower(trim(supplied.email)) AS user_key,
+           CASE WHEN supplied.role IN ('super_admin', 'admin', 'consumer') THEN supplied.role ELSE 'consumer' END AS app_role,
+           0 AS priority,
+           NULL::timestamptz AS added_at
+    FROM unnest($15::text[], $16::text[]) AS supplied(email, role)
+    UNION ALL
+    SELECT lower(email),
+           CASE WHEN role IN ('super_admin', 'admin', 'consumer') THEN role ELSE 'admin' END,
+           1,
+           added_at
     FROM ${appTable('admin_emails')}
-    ORDER BY lower(email), added_at DESC
-  ) roster
+  ) candidate
+  WHERE position('@' in candidate.user_key) > 0
+  ORDER BY candidate.user_key, candidate.priority, candidate.added_at DESC NULLS LAST
+),
+identity_population AS (
+  SELECT known_identity.user_key, known_identity.user_key AS display_email, known_identity.app_role
+  FROM known_identity
   WHERE $14::boolean
-    AND ($5::boolean OR roster.user_key = lower($6))
+    AND ($5::boolean OR known_identity.user_key = lower($6))
   UNION ALL
-  SELECT aggregated.user_key, aggregated.display_email, 'consumer', NULL::timestamptz
+  -- People admitted through an app group have activity and no role row.
+  SELECT aggregated.user_key, aggregated.display_email, 'consumer'
   FROM aggregated
-  WHERE NOT $14::boolean AND aggregated.user_key = lower($6)
+  WHERE ($14::boolean
+         AND position('@' in aggregated.user_key) > 0
+         AND NOT EXISTS (SELECT 1 FROM known_identity WHERE known_identity.user_key = aggregated.user_key)
+         AND ($5::boolean OR aggregated.user_key = lower($6)))
+     OR (NOT $14::boolean AND aggregated.user_key = lower($6))
 ),
 identity_revision AS (
   SELECT GREATEST(
@@ -626,6 +642,8 @@ export async function readUserSpendHourlyPage(
     staleMs?: number;
     now?: number;
     rosterOnly?: boolean;
+    /** Effective roles, including deploy-configured admins with no stored row. */
+    knownUsers?: readonly { email: string; role: string }[];
   }
 ): Promise<UserSpendReadModelPage> {
   const appScope = (input.appScope ?? process.env.DATABRICKS_APP_NAME ?? '').trim() || 'player-insights';
@@ -647,6 +665,8 @@ export async function readUserSpendHourlyPage(
     limit,
     offset,
     input.rosterOnly ?? input.allowBrowse,
+    (input.knownUsers ?? []).map((user) => user.email),
+    (input.knownUsers ?? []).map((user) => user.role),
   ]);
   const first = result.rows[0];
   const metadata =
