@@ -320,15 +320,40 @@ describe('fast read semantics', () => {
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM player_insights.admin_emails');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LEFT JOIN aggregated');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE $14::boolean');
-    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('WHERE NOT $14::boolean');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('OR (NOT $14::boolean AND aggregated.user_key = lower($6))');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain('WHERE NOT $13::boolean');
-    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('AND ($5::boolean OR roster.user_key = lower($6))');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('AND ($5::boolean OR known_identity.user_key = lower($6))');
     expect(READ_USER_SPEND_SUMMARY_QUERY).not.toContain("COALESCE(NULLIF(admin_user.role, ''), 'consumer')");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('BOOL_AND(billing_complete)');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('SUM(spend_usd) AS spend_usd');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain("WHEN COUNT(spend_usd) = 0 THEN 'unavailable'");
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('cardinality($10::text[]) = 0');
     expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('LIMIT $12 OFFSET $13');
+  });
+
+  it('lists people with no stored role row: configured admins and anyone with activity', async () => {
+    /*
+     * A customer deployment configures its admins in the deploy and admits
+     * everyone else through an app group, so it stores no role rows. Listing
+     * only stored rows showed that deployment an empty User Monitoring.
+     * Checked against Postgres by hand: the old query returned no one there.
+     */
+    const store = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    await readUserSpendReadModelPage(store, {
+      appScope: 'astrolabe',
+      range: { from: '2026-08-31', to: '2026-08-31' },
+      principal: 'admin@example.test',
+      allowBrowse: true,
+      unit: 'USD',
+      knownUsers: [{ email: 'admin@example.test', role: 'super_admin' }],
+    });
+    const params = store.query.mock.calls[0][1] as unknown[];
+    expect(params[14]).toEqual(['admin@example.test']);
+    expect(params[15]).toEqual(['super_admin']);
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain('FROM unnest($15::text[], $16::text[])');
+    expect(READ_USER_SPEND_SUMMARY_QUERY).toContain(
+      'NOT EXISTS (SELECT 1 FROM known_identity WHERE known_identity.user_key = aggregated.user_key)'
+    );
   });
 
   it('starts only one local timer and shutdown prevents its immediate warm', async () => {
