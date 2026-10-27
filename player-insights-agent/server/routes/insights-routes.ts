@@ -1032,6 +1032,28 @@ async function callerReadsSharedConversations(
 }
 
 /**
+ * Whether this caller may READ one conversation, named by id, that they do not own.
+ *
+ * Wider than the rail, and on purpose. Run Explorer lists every run to an
+ * administrator whatever the shared-rail flag says (`callerReadsEveryRun`), and
+ * each run already carries its question, its whole stored answer and its
+ * asker's address. Its "Open full response" link names that conversation, so
+ * gating the transcript on the flag as well sent an administrator from a run
+ * they could read to an Ask screen that read nothing back -- an empty 200, a
+ * blank composer, and no sign that the thread existed. Opening a thread by id
+ * therefore follows the Run Explorer's rule, while LISTING everyone's threads in
+ * the rail still needs the flag, and every write stays owner-only.
+ */
+async function callerReadsNamedConversation(
+  store: InsightsAppKit['lakebase'],
+  email: string,
+  rolesReady?: () => Promise<void>
+): Promise<boolean> {
+  await rolesReady?.();
+  return callerReadsEveryRun(store, email);
+}
+
+/**
  * The only thing `POST /api/insights/ask` can end up serving as an answer.
  *
  * There used to be a second member here, `representativeFallback(prompt,
@@ -4632,7 +4654,7 @@ export function setupInsightsRoutes(
      */
     app.get('/api/conversations/:id/messages', async (req, res) => {
       const email = userEmail(req);
-      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const readsShared = await callerReadsNamedConversation(appkit.lakebase, email, options.rolesReady);
       const rawLimit = req.query.limit;
       const rawCursor = req.query.cursor;
       const paged = rawLimit !== undefined || rawCursor !== undefined;
@@ -4698,7 +4720,7 @@ export function setupInsightsRoutes(
      */
     app.get('/api/conversations/:id/run', async (req, res) => {
       const email = userEmail(req);
-      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const readsShared = await callerReadsNamedConversation(appkit.lakebase, email, options.rolesReady);
       const read = await readStored(appkit, 'GET /api/conversations/:id/run', CONVERSATION_RUN_STATUS_QUERY, [
         req.params.id,
         email,
@@ -4734,7 +4756,7 @@ export function setupInsightsRoutes(
      */
     app.get('/api/conversations/:id/attachments', async (req, res) => {
       const email = userEmail(req);
-      const readsShared = await callerReadsSharedConversations(appkit.lakebase, email, options.rolesReady);
+      const readsShared = await callerReadsNamedConversation(appkit.lakebase, email, options.rolesReady);
       const read = await readStored(
         appkit,
         'GET /api/conversations/:id/attachments',

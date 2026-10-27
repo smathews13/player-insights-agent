@@ -154,17 +154,33 @@ describe('source security invariants', () => {
     expect(guard).toContain('opensAdminSurfaces(role)');
   });
 
+  it('opens one named conversation on the role alone, the same rule Run Explorer lists runs by', () => {
+    const guard = ROUTE_SOURCE.slice(
+      ROUTE_SOURCE.indexOf('async function callerReadsNamedConversation'),
+      ROUTE_SOURCE.indexOf('/**\n * The only thing `POST /api/insights/ask`')
+    );
+    expect(guard).toContain('await rolesReady?.()');
+    expect(guard).toContain('return callerReadsEveryRun(store, email)');
+    expect(guard).not.toContain('sharedRail');
+  });
+
   it('guards every conversation-bound read while leaving owner-only writes narrow', () => {
-    for (const route of [
-      "app.get('/api/conversations'",
-      "app.get('/api/conversations/:id/messages'",
-      "app.get('/api/conversations/:id/run'",
-      "app.get('/api/conversations/:id/attachments'",
-      "app.post('/api/feedback'",
-    ]) {
+    // Listing everyone's threads, and rating someone else's answer, need the
+    // operator's switch.
+    for (const route of ["app.get('/api/conversations'", "app.post('/api/feedback'"]) {
       const start = ROUTE_SOURCE.indexOf(route);
       expect(start, route).toBeGreaterThan(-1);
       expect(ROUTE_SOURCE.slice(start, start + 700), route).toContain('callerReadsSharedConversations');
+    }
+    // Reading one thread by id follows Run Explorer, whose link names it.
+    for (const route of [
+      "app.get('/api/conversations/:id/messages'",
+      "app.get('/api/conversations/:id/run'",
+      "app.get('/api/conversations/:id/attachments'",
+    ]) {
+      const start = ROUTE_SOURCE.indexOf(route);
+      expect(start, route).toBeGreaterThan(-1);
+      expect(ROUTE_SOURCE.slice(start, start + 700), route).toContain('callerReadsNamedConversation');
     }
     const upload = ROUTE_SOURCE.slice(
       ROUTE_SOURCE.indexOf("app.post('/api/conversations/:id/attachments'"),
@@ -288,6 +304,61 @@ describe('what the rail reads', () => {
     expect(list.sql).not.toContain('c.user_email = $1');
     expect(list.params).toEqual([]);
     expect(messages.sql).not.toContain('AND c.user_email = $2');
+    expect(messages.params).toEqual(['conv-bob', 'alice@example.example', 51]);
+  });
+
+  /**
+   * The Run Explorer's "Open full response" with the rail per-user.
+   *
+   * Run Explorer lists every run to an admin whatever the flag says, so its link
+   * named threads the Ask screen then refused to read: the messages read came
+   * back an empty 200 and the admin landed on a blank composer. Opening by id
+   * now follows the role; listing everyone's threads still needs the flag.
+   */
+  it.each(['admin', 'super_admin'] as const)(
+    'lets a %s open a conversation named by Run Explorer while the rail stays per-user',
+    async (role) => {
+      process.env[SHARED_CONVERSATION_RAIL_ENV] = 'false';
+      const store = recordingStore(role);
+      const app = await startApp(store.lakebase);
+      store.queries.length = 0;
+
+      try {
+        await app.fetch('/api/conversations', { headers: asAlice });
+        await app.fetch('/api/conversations/conv-bob/messages?limit=50', { headers: asAlice });
+        await app.fetch('/api/conversations/conv-bob/run', { headers: asAlice });
+        await app.fetch('/api/conversations/conv-bob/attachments', { headers: asAlice });
+      } finally {
+        await app.close();
+      }
+
+      const [list, messages] = store.reads();
+      expect(list.sql).toContain('WHERE c.user_email = $1');
+      expect(list.params).toEqual(['alice@example.example']);
+      expect(messages.sql).toContain('WHERE m.conversation_id = $1');
+      expect(messages.sql).not.toContain('AND c.user_email = $2');
+      // The rail's persona join reads `runs` too, so the status read is found by its predicate.
+      const run = store.queries.find((entry) => entry.sql.includes('($3 OR user_email = $2)'));
+      const attachments = store.queries.find((entry) => /FROM player_insights\.attachments/i.test(entry.sql));
+      expect(run?.params).toEqual(['conv-bob', 'alice@example.example', true]);
+      expect(attachments?.params).toEqual(['conv-bob', 'alice@example.example', true]);
+    }
+  );
+
+  it('keeps a consumer on their own conversation when the rail is per-user', async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'false';
+    const store = recordingStore();
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+
+    try {
+      await app.fetch('/api/conversations/conv-bob/messages?limit=50', { headers: asAlice });
+    } finally {
+      await app.close();
+    }
+
+    const [messages] = store.reads();
+    expect(messages.sql).toContain('AND c.user_email = $2');
     expect(messages.params).toEqual(['conv-bob', 'alice@example.example', 51]);
   });
 

@@ -26,7 +26,7 @@
  */
 
 import { conversationTitle, PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
-import type { Conversation } from './app-types';
+import type { Conversation, ConversationMessage } from './app-types';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
 
 /**
@@ -221,4 +221,29 @@ export function claimConversationTitle(
     },
     ...items.filter((item) => item.id !== claim.id),
   ];
+}
+
+/**
+ * Whose questions an open transcript holds: the conversation's owner, not the reader.
+ *
+ * The rail row is read first because it is there sooner. The stored messages
+ * carry the same owner as `asked_by`, joined from the conversation row, and are
+ * the source when the rail has no row for the thread -- an administrator who
+ * opened a colleague's conversation from Run Explorer on a per-user rail. Without
+ * that second source the colleague's questions carried the administrator's name.
+ *
+ * The signed-in address is the last fallback, and only for a conversation
+ * nothing has a row for yet -- a blank draft this session just minted, where the
+ * reader is about to become the owner.
+ */
+export function transcriptAsker(
+  conversations: readonly Conversation[],
+  conversationId: string,
+  messages: readonly ConversationMessage[],
+  signedInAs: string
+): string {
+  const railOwner = conversations.find((item) => item.id === conversationId)?.user_email;
+  if (typeof railOwner === 'string' && railOwner.trim()) return railOwner;
+  const storedOwner = messages.find((message) => typeof message.asked_by === 'string')?.asked_by;
+  return typeof storedOwner === 'string' && storedOwner.trim() ? storedOwner : signedInAs;
 }

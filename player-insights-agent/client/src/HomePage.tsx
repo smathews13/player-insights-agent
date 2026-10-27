@@ -23,6 +23,7 @@ import {
   railEmptyNotice,
   railOwnership,
   signedInOwner,
+  transcriptAsker,
   unaskedConversation,
 } from './conversation-rail';
 import {
@@ -2298,20 +2299,19 @@ export function HomePage() {
    * the app asserting authorship, on a screen whose whole purpose is to say who
    * asked what.
    *
-   * `messages` carries no owner and is not going to: the ask route refuses a
+   * The `messages` table has no owner column and is not going to: the ask route refuses a
    * conversation somebody else owns, so a thread has exactly one asker and the
    * conversation row is where it is recorded. That is the same column
    * `monitoring-routes.ts` reads as `asked_by` and the same one the rail draws its
    * watermark from, so all three now answer "who asked this" identically.
    *
-   * The signed-in address is the fallback rather than the default, and only for a
-   * conversation the rail has no row for yet -- a blank draft this session just
-   * minted, where the reader is about to become the owner.
+   * The rules for which source wins live in `transcriptAsker`, beside the
+   * rail's other ownership rules.
    */
-  const asker = useMemo(() => {
-    const owner = conversations.find((item) => item.id === conversationId)?.user_email;
-    return typeof owner === 'string' && owner.trim() ? owner : identity.signedInAs;
-  }, [conversations, conversationId, identity.signedInAs]);
+  const asker = useMemo(
+    () => transcriptAsker(conversations, conversationId, messages, identity.signedInAs),
+    [conversations, conversationId, messages, identity.signedInAs]
+  );
   /** Owner and organization are ANDed; each multiselect is ORed within itself. */
   const visibleEntries = useMemo(() => {
     const serverMatches =
