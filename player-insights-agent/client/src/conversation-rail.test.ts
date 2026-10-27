@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
-import type { Conversation } from './app-types';
+import type { Conversation, ConversationMessage } from './app-types';
 import {
   claimConversationTitle,
   ownerKey,
   railOwnership,
   signedInOwner,
+  transcriptAsker,
   unaskedConversation,
 } from './conversation-rail';
 import { IDENTITY_RESOLVING, IDENTITY_UNAVAILABLE } from './user-initials';
@@ -316,5 +317,50 @@ describe('the rail draws one answer to "whose is this", not two', () => {
   it('filters on the normalised key, so a selection survives a change of case', () => {
     expect(HOME_PAGE).toContain('normalizeOwnerSelection(current, available)');
     expect(HOME_PAGE).toMatch(/selectedOwners=\{activeOwnerFilters\}/);
+  });
+});
+
+/**
+ * Whose questions an open transcript holds.
+ *
+ * An administrator who follows Run Explorer's "Open full response" into a
+ * colleague's thread on a per-user rail has no rail row for it, so the owner
+ * has to come from the stored messages; falling through to the reader stamped
+ * the colleague's questions with the administrator's name.
+ */
+describe('the asker of an open transcript', () => {
+  const COLLEAGUE = 'colleague@example.com';
+  const askedBy = (owner: unknown): ConversationMessage[] => [
+    { id: 'msg-q', role: 'user', content: QUESTION, asked_by: owner },
+    { id: 'msg-a', role: 'assistant', content: '', asked_by: owner },
+  ];
+
+  it('prefers the rail row when it has one', () => {
+    const rail = [stored('conv-1', QUESTION, COLLEAGUE)];
+    expect(transcriptAsker(rail, 'conv-1', askedBy('someone.else@example.com'), ME)).toBe(COLLEAGUE);
+  });
+
+  it('reads the stored owner when the rail has no row for the thread', () => {
+    const rail = [stored('conv-mine', QUESTION, ME)];
+    expect(transcriptAsker(rail, 'conv-colleague', askedBy(COLLEAGUE), ME)).toBe(COLLEAGUE);
+  });
+
+  it('reads the stored owner when the rail row carries no address', () => {
+    expect(transcriptAsker([stored('conv-1', QUESTION, undefined)], 'conv-1', askedBy(COLLEAGUE), ME)).toBe(
+      COLLEAGUE
+    );
+  });
+
+  it.each([undefined, null, '', '   '])('falls back to the reader when the stored owner is %j', (owner) => {
+    expect(transcriptAsker([], 'conv-draft', askedBy(owner), ME)).toBe(ME);
+  });
+
+  it('falls back to the reader for a draft with no messages yet', () => {
+    expect(transcriptAsker([], 'conv-draft', [], ME)).toBe(ME);
+  });
+
+  it('is what the transcript is labelled with, recomputed when the messages arrive', () => {
+    expect(HOME_PAGE).toContain('transcriptAsker(conversations, conversationId, messages, identity.signedInAs)');
+    expect(HOME_PAGE).toContain('[conversations, conversationId, messages, identity.signedInAs]');
   });
 });

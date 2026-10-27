@@ -361,6 +361,8 @@ export interface ConversationMessage {
   usefulness?: unknown;
   /** The comment given with Not helpful feedback, so reopening preserves it. */
   feedback_comment?: unknown;
+  /** The conversation owner's address, joined in by the stored read; absent on optimistic rows. */
+  asked_by?: unknown;
 }
 export interface Attachment {
   id: string;
