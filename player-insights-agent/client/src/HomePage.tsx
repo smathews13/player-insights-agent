@@ -20,6 +20,7 @@ import { PASSWORD_MANAGER_OPT_OUT } from './password-manager-optout';
 import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title';
 import {
   claimConversationTitle,
+  colleagueThread,
   railEmptyNotice,
   railOwnership,
   signedInOwner,
@@ -735,12 +736,19 @@ export function HomePage() {
   // attach-control.ts: the state it is in has to be readable off one object,
   // because the label, the glyph, `aria-busy` and `disabled` are four
   // expressions of it and they were previously going to disagree.
-  const attachControl = attachControlState({ attaching, asking: loading, conversationLoading });
+  const thread = colleagueThread(conversations, conversationId, messages, identity.signedInAs);
+  const attachControl = attachControlState({
+    attaching,
+    asking: loading,
+    conversationLoading,
+    readOnly: thread.readOnly,
+  });
   // One condition for the Ask button and for Return, so the key cannot start a
   // run the button is disabled for -- a second submission while one is in
   // flight, or an empty prompt.
   const budgetBlocked = budgetStatus?.level === 'approval-required';
   const canAsk =
+    !thread.readOnly &&
     draft.trim().length > 0 &&
     !loading &&
     !warehousePreparing &&
@@ -2893,7 +2901,9 @@ export function HomePage() {
                     // answer rated earlier in a thread came back with its rating
                     // nowhere on screen -- indistinguishable from the rating having
                     // been lost, which is what it was reported as.
-                    showFeedback={(index === lastAssistantIndex && !loading) || Boolean(entry.saved)}
+                    showFeedback={
+                      thread.canRate && ((index === lastAssistantIndex && !loading) || Boolean(entry.saved))
+                    }
                     onAsk={askRow}
                     onFeedbackChange={changeFeedback}
                     onSaveFeedback={rateRow}
@@ -3058,6 +3068,12 @@ export function HomePage() {
             error={budgetApprovalError}
             onApprove={() => void approveBudgetOverage()}
           />
+          {thread.readOnly && (
+            <p className="composer-notice" role="status">
+              This conversation belongs to {thread.owner}. You can read it, but only they can ask follow-up questions or
+              attach files to it.
+            </p>
+          )}
           {attachmentsUnreadable && (
             <p className="composer-notice" role="status">
               Any documents attached to this conversation could not be read just now, so none are listed. Whatever was
@@ -3094,6 +3110,7 @@ export function HomePage() {
                   <button
                     type="button"
                     aria-label={`Remove ${attachment.filename}`}
+                    disabled={thread.readOnly}
                     onClick={() => void removeAttachment(attachment)}
                   >
                     <X />
@@ -3107,7 +3124,7 @@ export function HomePage() {
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Ask about player behavior, engagement, addressability, or data quality…"
             rows={2}
-            disabled={conversationLoading}
+            disabled={conversationLoading || thread.readOnly}
             // A textarea does not submit its form implicitly, so Return has to be
             // wired by hand. Default is prevented for every plain Return, including
             // one this cannot act on, so a keypress meant as "send" never leaves a
@@ -3160,7 +3177,7 @@ export function HomePage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                disabled={clearingDocs || loading || conversationLoading}
+                disabled={clearingDocs || loading || conversationLoading || thread.readOnly}
                 aria-busy={clearingDocs || undefined}
                 onClick={() => void clearDocs()}
               >

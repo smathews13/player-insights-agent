@@ -114,10 +114,30 @@ export function isCannedTakeaway(text: string): boolean {
   return CANNED_TAKEAWAY.some((pattern) => pattern.test(value));
 }
 
+/** A heading directly over a table names that table; lifting it as the title strips the table of its name. */
+function headsTable(lines: readonly string[], at: number): boolean {
+  if (!/^#+\s/.test(lines[at].trim())) return false;
+  const next = lines.slice(at + 1).find((line) => line.trim());
+  return next !== undefined && next.trim().startsWith('|');
+}
+
+const ABBREVIATION = /(?:^|[\s(.])(?:vs|e\.g|i\.e|approx|etc|incl|est|avg|no|mr|mrs|ms|dr|st|[A-Za-z])\.$/i;
+
+/** The first full sentence, not the text up to an abbreviation's or a decimal's full stop. */
+function firstSentence(line: string): string {
+  const stop = /[.!?](?=\s+["“'(]?[A-Z0-9]|\s*$)/g;
+  for (let match = stop.exec(line); match; match = stop.exec(line)) {
+    const candidate = line.slice(0, match.index + 1);
+    if (match[0] === '.' && ABBREVIATION.test(candidate)) continue;
+    return candidate;
+  }
+  return '';
+}
+
 function firstFinding(narrative: string): string {
-  const first = stripToolCallDumps(narrative)
-    .split('\n')
-    .map((line) => line.trim().replace(/^#+\s*/, ''))
+  const lines = stripToolCallDumps(narrative).split('\n');
+  const first = lines
+    .map((line, at) => (headsTable(lines, at) ? '' : line.trim().replace(/^#+\s*/, '')))
     .find(
       (line) =>
         line &&
@@ -130,7 +150,7 @@ function firstFinding(narrative: string): string {
   if (first.length <= TAKEAWAY_LIMIT) return first;
   // Never a cut line: a headline ending in "…" over the same paragraph printed
   // whole below is the sentence twice, once broken. The first sentence, or none.
-  const sentence = /^(.+?[.!?])(?:\s|$)/.exec(first)?.[1] ?? '';
+  const sentence = firstSentence(first);
   return sentence.length <= TAKEAWAY_LIMIT ? sentence : '';
 }
 

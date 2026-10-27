@@ -24,6 +24,8 @@ export interface AttachControlInput {
   asking: boolean;
   /** The conversation has not loaded, so there is nothing to attach to yet. */
   conversationLoading: boolean;
+  /** The thread is a colleague's, opened to read; the server refuses an upload to it. */
+  readOnly?: boolean;
 }
 
 export interface AttachControlState {
@@ -48,9 +50,14 @@ export const ATTACH_LABEL = 'Attach context';
  */
 export const ATTACHING_LABEL = 'Attaching…';
 
-export function attachControlState({ attaching, asking, conversationLoading }: AttachControlInput): AttachControlState {
+export function attachControlState({
+  attaching,
+  asking,
+  conversationLoading,
+  readOnly = false,
+}: AttachControlInput): AttachControlState {
   return {
-    disabled: attaching || asking || conversationLoading,
+    disabled: attaching || asking || conversationLoading || readOnly,
     pending: attaching,
     label: attaching ? ATTACHING_LABEL : ATTACH_LABEL,
   };

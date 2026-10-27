@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { visibleRunTraceState } from './app-state';
 import type { Run } from './app-types';
 import { RunDetailSkeleton } from './RunExplorer';
-import { resolveRunSelection, runDetailMode, searchWithRun, validRunId } from './run-explorer-state';
+import { hasStoredAnswer, resolveRunSelection, runDetailMode, searchWithRun, validRunId } from './run-explorer-state';
 
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 
@@ -112,5 +112,31 @@ describe('Run Explorer URL selection', () => {
     const late = { runId: 'run_deep', state: { status: 'ready' as const, data: {} as never } };
     expect(visibleRunTraceState('run_new', late)).toEqual({ status: 'loading' });
     expect(visibleRunTraceState('run_deep', late)).toBe(late.state);
+  });
+});
+
+describe('Run Explorer stored answer', () => {
+  const blank = { takeaway: '', narrative: '', content: '', charts: [] };
+
+  it('draws an answer whose headline is empty but whose story is not', () => {
+    expect(hasStoredAnswer({ ...blank, narrative: 'Players rose 12% week on week.' })).toBe(true);
+  });
+
+  it('draws an answer that only carried tables or charts', () => {
+    expect(hasStoredAnswer({ ...blank, content: '| a |\n|---|\n| 1 |' })).toBe(true);
+    expect(hasStoredAnswer({ ...blank, charts: [{ id: 'c', kind: 'bar', data: [], layout: {} }] as never })).toBe(true);
+  });
+
+  it('falls back to the note and link when nothing was stored', () => {
+    expect(hasStoredAnswer({ ...blank, takeaway: '  ' })).toBe(false);
+  });
+});
+
+describe('Run Explorer answer link without a stored answer', () => {
+  const source = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
+
+  it('still offers the conversation when the run stored no answer', () => {
+    expect(source).toMatch(/hasStoredAnswer\(runTrace\)/);
+    expect(source).toMatch(/conversationHref\(selected\.conversation_id, selected\.id\)/);
   });
 });

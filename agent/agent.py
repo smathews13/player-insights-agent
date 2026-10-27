@@ -1474,6 +1474,41 @@ def _attachment_read(custom_inputs: dict[str, Any]) -> tuple[str, str]:
     return joined[:MAX_ATTACHMENT_CHARS], note
 
 
+def _app_file_cut_note(custom_inputs: dict[str, Any]) -> str:
+    """The caveat for files the app cut before the text reached the agent, "" when none.
+
+    The app fits attachments to its own budget first and reports what it dropped as
+    `files_cut` (names) and what it shortened in `files_sent` (`truncated`). Neither
+    shows in the text itself, so without this the answer could not say so.
+    """
+
+    def names(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+    dropped = names(custom_inputs.get("files_cut"))
+    sent = custom_inputs.get("files_sent")
+    shortened = names(
+        [
+            item.get("filename")
+            for item in (sent if isinstance(sent, list) else [])
+            if isinstance(item, dict) and item.get("truncated") is True
+        ]
+    )
+    parts = []
+    if dropped:
+        parts.append(f"{_and_list([repr(n) for n in dropped])} did not fit and was not sent")
+    if shortened:
+        parts.append(f"only the start of {_and_list([repr(n) for n in shortened])} was sent")
+    if not parts:
+        return ""
+    return (
+        f"Of the attached files, {'; '.join(parts)}. "
+        "Anything in the missing part is not reflected in this answer."
+    )
+
+
 def _attachment_context(custom_inputs: dict[str, Any]) -> str:
     """Return bounded text from explicitly attachment-shaped custom inputs."""
 
@@ -6672,7 +6707,9 @@ Tables available to this analysis, with their columns:
         raw_question = question
         question, revision_note = _revision_request(question)
         attachment_context, attachment_note = _attachment_read(custom_inputs)
-        _attachment_note.set(attachment_note)
+        _attachment_note.set(
+            " ".join(n for n in (_app_file_cut_note(custom_inputs), attachment_note) if n)
+        )
         _asked_text.set(f"{raw_question}\n{attachment_context or ''}")
         # The whole conversation, within a budget, replaces the last-12-messages cut
         # whenever the app sends it. Without it nothing changes.

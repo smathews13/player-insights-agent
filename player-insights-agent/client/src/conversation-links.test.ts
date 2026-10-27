@@ -92,8 +92,12 @@ describe('the pages at each end of that link', () => {
     // after inline feedback moved into the KPI row.
     expect(FINAL_ANSWER).toContain("import { conversationHref } from './conversation-links'");
     expect(FINAL_ANSWER).toContain('to={conversationHref(conversationId, runId)}');
-    expect(RUN_EXPLORER).not.toContain('conversationHref');
-    expect(RUN_EXPLORER).not.toContain('Open full response');
+    // Run Explorer draws its own link only in the branch with no answer card, so
+    // a run that stored no answer still leads to its conversation; never both.
+    expect(RUN_EXPLORER.match(/Open full response/g)).toHaveLength(1);
+    expect(RUN_EXPLORER).toMatch(
+      /hasStoredAnswer\(runTrace\) \? \([\s\S]*<FinalAnswer[\s\S]*\) : \([\s\S]*conversationHref\(selected\.conversation_id, selected\.id\)/
+    );
   });
 
   it('leaves no hand-built link to Ask PIA in the run explorer', () => {

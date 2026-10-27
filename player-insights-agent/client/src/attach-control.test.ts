@@ -54,6 +54,10 @@ describe('the attach control refuses input while it is working', () => {
     expect(state({ attaching: true })).toEqual({ disabled: true, pending: true, label: ATTACHING_LABEL });
   });
 
+  it('is disabled but not pending in a colleague thread opened to read', () => {
+    expect(state({ readOnly: true })).toEqual({ disabled: true, pending: false, label: ATTACH_LABEL });
+  });
+
   it('says it is working, in the present tense', () => {
     // "Attached" would be a claim about an outcome this control does not know.
     // The chip row under the composer reports what happened to each file.

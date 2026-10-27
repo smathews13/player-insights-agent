@@ -16,7 +16,7 @@
  * everything the answer's panel already had: the roll-up by tool type, and a row
  * that opens onto the arguments and result the agent recorded.
  */
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import './styles/routes/runs.css';
 import { listAvailability, listUnreachable, type ListAvailability } from './list-availability';
@@ -48,6 +48,7 @@ import { ToolCallsLabel } from './ToolCallsLabel';
 import { readConversationList } from './initial-rail';
 import { RunDetails } from './RunDetails';
 import { FinalAnswer } from './FinalAnswer';
+import { conversationHref } from './conversation-links';
 import { useRunTrace, type RunTraceState } from './app-state';
 import { PageHeading } from './page-chrome';
 import { RunHeader } from './RunHeader';
@@ -64,6 +65,7 @@ import { RunOverviewKpis } from './RunOverviewKpis';
 import {
   conversationFilterOptions,
   conversationRunNumber,
+  hasStoredAnswer,
   matchingRuns,
   resolveRunSelection,
   runDetailMode,
@@ -630,7 +632,7 @@ export function RunExplorer() {
                           : undefined
                       }
                     />
-                    {runTrace.takeaway ? (
+                    {hasStoredAnswer(runTrace) ? (
                       <FinalAnswer
                         takeaway={runTrace.takeaway}
                         narrative={runTrace.narrative}
@@ -644,9 +646,19 @@ export function RunExplorer() {
                         conversationId={selected?.conversation_id}
                         runId={selected?.id}
                       />
-                    ) : runTrace?.note ? (
-                      <p className="text-muted-foreground text-sm">{runTrace.note}</p>
-                    ) : null}
+                    ) : (
+                      <>
+                        {runTrace?.note ? <p className="text-muted-foreground text-sm">{runTrace.note}</p> : null}
+                        {selected?.conversation_id ? (
+                          <Link
+                            className="final-answer-open"
+                            to={conversationHref(selected.conversation_id, selected.id)}
+                          >
+                            Open full response →
+                          </Link>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </TabsContent>
                 <TabsContent value="map" className="run-detail-tab-panel">

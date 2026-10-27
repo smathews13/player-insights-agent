@@ -247,3 +247,25 @@ export function transcriptAsker(
   const storedOwner = messages.find((message) => typeof message.asked_by === 'string')?.asked_by;
   return typeof storedOwner === 'string' && storedOwner.trim() ? storedOwner : signedInAs;
 }
+
+/**
+ * What the reader may do in a thread somebody else asked.
+ *
+ * An administrator can open any conversation by id from Run Explorer, but the
+ * server keeps asking, uploading and deleting owner-only, and lets a reader
+ * rate someone else's answer only where the rail is shared -- which is when the
+ * thread is in the reader's rail at all. Offering the controls anyway produced
+ * "No conversation with this id belongs to you" after the question was typed.
+ */
+export function colleagueThread(
+  conversations: readonly Conversation[],
+  conversationId: string,
+  messages: readonly ConversationMessage[],
+  signedInAs: string
+): { owner: string | null; readOnly: boolean; canRate: boolean } {
+  const me = signedInOwner(signedInAs);
+  if (!me || !conversationId) return { owner: null, readOnly: false, canRate: true };
+  const owner = transcriptAsker(conversations, conversationId, messages, signedInAs);
+  if (ownerKey(owner) === ownerKey(me)) return { owner: null, readOnly: false, canRate: true };
+  return { owner, readOnly: true, canRate: conversations.some((item) => item.id === conversationId) };
+}
