@@ -9,6 +9,7 @@ import {
 } from './user-spend-read-model-routes';
 import type { InsightsAppKit } from './insights-routes';
 import {
+  READ_USER_SPEND_ACTIVE_EMAILS_QUERY,
   READ_USER_SPEND_COMPONENTS_QUERY,
   READ_USER_SPEND_REFRESH_STATE_QUERY,
   READ_USER_SPEND_SUMMARY_QUERY,
@@ -164,7 +165,8 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(3);
+    // Roster, active users for the filter counts, and the page itself.
+    expect(query).toHaveBeenCalledTimes(4);
     const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
     expect(summary?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
     expect(summary?.sql).toContain('FROM player_insights.admin_emails');
@@ -252,7 +254,7 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(3);
     const hourly = calls.find((call) => call.sql === READ_USER_SPEND_HOURLY_SUMMARY_QUERY);
     expect(hourly?.params).toEqual(expect.arrayContaining(['2026-08-31T04:00:00.000Z', '2026-09-01T04:00:00.000Z']));
     expect(hourly?.sql).not.toMatch(/system\.billing|sql\/history|\/api\/2\.0/i);
@@ -460,7 +462,28 @@ describe('User Monitoring read-model routes', () => {
     );
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'identity_roster_unavailable' }));
-    expect(query).toHaveBeenCalledTimes(1);
+    // The roster and the active-user count start together; no page is read.
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls.map(([sql]) => sql as string)).not.toContain(READ_USER_SPEND_SUMMARY_QUERY);
+  });
+
+  it('counts people seen only in activity in the organization filter', async () => {
+    // A deployment with no stored role rows: the list shows these people, so
+    // the organization dropdown has to count them too.
+    const groupUser = storedRow({ user_key: 'group-user@other.test', display_email: 'group-user@other.test' });
+    const { handlers, calls } = routes([groupUser], []);
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend')!(
+      {
+        query: { from: '2026-08-25', to: '2026-08-31', unit: 'USD' },
+        headers: { 'x-forwarded-email': 'admin@example.test' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    expect(calls.map((call) => call.sql)).toContain(READ_USER_SPEND_ACTIVE_EMAILS_QUERY);
+    const payload = res.json.mock.calls[0][0] as { organizations: Array<{ name: string; count: number }> };
+    expect(payload.organizations).toContainEqual(expect.objectContaining({ name: 'other.test', count: 1 }));
   });
 
   it('binds the consumer route to the authenticated identity and never enables browse scope', async () => {
