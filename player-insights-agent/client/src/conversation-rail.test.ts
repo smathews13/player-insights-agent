@@ -5,6 +5,7 @@ import { PLACEHOLDER_CONVERSATION_TITLE } from '../../shared/conversation-title'
 import type { Conversation, ConversationMessage } from './app-types';
 import {
   claimConversationTitle,
+  colleagueThread,
   ownerKey,
   railOwnership,
   signedInOwner,
@@ -346,9 +347,7 @@ describe('the asker of an open transcript', () => {
   });
 
   it('reads the stored owner when the rail row carries no address', () => {
-    expect(transcriptAsker([stored('conv-1', QUESTION, undefined)], 'conv-1', askedBy(COLLEAGUE), ME)).toBe(
-      COLLEAGUE
-    );
+    expect(transcriptAsker([stored('conv-1', QUESTION, undefined)], 'conv-1', askedBy(COLLEAGUE), ME)).toBe(COLLEAGUE);
   });
 
   it.each([undefined, null, '', '   '])('falls back to the reader when the stored owner is %j', (owner) => {
@@ -362,5 +361,41 @@ describe('the asker of an open transcript', () => {
   it('is what the transcript is labelled with, recomputed when the messages arrive', () => {
     expect(HOME_PAGE).toContain('transcriptAsker(conversations, conversationId, messages, identity.signedInAs)');
     expect(HOME_PAGE).toContain('[conversations, conversationId, messages, identity.signedInAs]');
+  });
+});
+
+/**
+ * A colleague's thread opened from Run Explorer is read-only, because the server
+ * refuses the follow-up question and, on a per-user rail, the rating.
+ */
+describe('what a reader may do in a colleague thread', () => {
+  const COLLEAGUE = 'colleague@example.com';
+  const askedBy = (owner: string): ConversationMessage[] => [
+    { id: 'msg-q', role: 'user', content: QUESTION, asked_by: owner },
+  ];
+
+  it('leaves the reader their own thread, whatever the case of the address', () => {
+    const rail = [stored('conv-1', QUESTION, ME.toUpperCase())];
+    expect(colleagueThread(rail, 'conv-1', [], ME)).toEqual({ owner: null, readOnly: false, canRate: true });
+  });
+
+  it('makes a colleague thread opened by id read-only and unrated on a per-user rail', () => {
+    expect(colleagueThread([], 'conv-colleague', askedBy(COLLEAGUE), ME)).toEqual({
+      owner: COLLEAGUE,
+      readOnly: true,
+      canRate: false,
+    });
+  });
+
+  it('still lets a shared-rail reader rate a colleague answer they cannot ask in', () => {
+    const rail = [stored('conv-colleague', QUESTION, COLLEAGUE)];
+    expect(colleagueThread(rail, 'conv-colleague', [], ME)).toMatchObject({ readOnly: true, canRate: true });
+  });
+
+  it('wires the composer, attach control and ratings to it', () => {
+    expect(HOME_PAGE).toMatch(/!thread\.readOnly &&\s+draft\.trim\(\)/);
+    expect(HOME_PAGE).toContain('disabled={conversationLoading || thread.readOnly}');
+    expect(HOME_PAGE).toMatch(/attachControlState\(\{[^}]*readOnly: thread\.readOnly/);
+    expect(HOME_PAGE).toMatch(/showFeedback=\{\s+thread\.canRate &&/);
   });
 });

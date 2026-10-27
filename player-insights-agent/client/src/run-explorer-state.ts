@@ -1,5 +1,5 @@
 import type { TraceStage } from './answer-shape';
-import type { Conversation, Run } from './app-types';
+import type { Conversation, Run, RunTrace } from './app-types';
 import { runLabel } from './run-label';
 import { identityName } from './user-identity';
 
@@ -213,4 +213,11 @@ export function matchingRuns(
     const matchesSearch = haystack.toLowerCase().includes(search);
     return inConversation && inUser && matchesSearch;
   });
+}
+
+/** An empty headline is valid; the story, second body or charts can still carry the answer. */
+export function hasStoredAnswer(trace: Pick<RunTrace, 'takeaway' | 'narrative' | 'content' | 'charts'>): boolean {
+  return Boolean(
+    trace.takeaway.trim() || trace.narrative.trim() || trace.content?.trim() || (trace.charts?.length ?? 0) > 0
+  );
 }

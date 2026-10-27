@@ -221,3 +221,21 @@ describe('whether the section may call itself a final answer', () => {
     expect(honesty.tone).toBe('partial');
   });
 });
+
+describe('a headline lifted from the story', () => {
+  it('leaves a heading that names a table in place over its table', () => {
+    const narrative = '## By platform\n\n| platform | players |\n|---|---|\n| PC | 10 |';
+    expect(readerFacingTakeaway('', narrative)).toBe('');
+    expect(readerFacingNarrative('', narrative)).toContain('## By platform');
+  });
+
+  it('still lifts a heading that stands over prose', () => {
+    expect(readerFacingTakeaway('', '## Players rose this week\n\nMostly on PC.')).toBe('Players rose this week');
+  });
+
+  it('does not end a long first sentence at an abbreviation or decimal', () => {
+    const first = `Players rose 12.5% vs. last week, led by PC and console ${'x'.repeat(120)}.`;
+    const narrative = `${first} The second sentence ${'y'.repeat(200)}.`;
+    expect(readerFacingTakeaway('', narrative)).toBe(first);
+  });
+});

@@ -5914,8 +5914,29 @@ def test_file_cut_report_from_the_app_is_not_read_as_file_text():
     text = "## a.txt\nalpha body\n\n## b.txt\nbeta body"
     report = {
         "files_cut": ["old.txt"],
-        "files_sent": [{"filename": "a.txt", "truncated": False, "original_chars": 10, "kept_chars": 10}],
+        "files_sent": [
+            {"filename": "a.txt", "truncated": False, "original_chars": 10, "kept_chars": 10}
+        ],
     }
     assert agent._attachment_read({"attachment_text": text, **report}) == agent._attachment_read(
         {"attachment_text": text}
     )
+
+
+def test_file_cut_report_from_the_app_becomes_a_caveat():
+    report = {
+        "files_cut": ["old.txt"],
+        "files_sent": [
+            {"filename": "a.txt", "truncated": True, "original_chars": None, "kept_chars": 10},
+            {"filename": "b.txt", "truncated": False, "original_chars": 5, "kept_chars": 5},
+        ],
+    }
+    note = agent._app_file_cut_note(report)
+    assert "'old.txt' did not fit and was not sent" in note
+    assert "only the start of 'a.txt' was sent" in note
+    assert "b.txt" not in note
+
+
+def test_no_file_cut_report_means_no_caveat():
+    assert agent._app_file_cut_note({}) == ""
+    assert agent._app_file_cut_note({"files_cut": [], "files_sent": "junk"}) == ""
