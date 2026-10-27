@@ -12,6 +12,7 @@ import { currentOrganizationMappings } from '../lib/organization-profiles';
 import { USER_MONITORING_SCHEMA_REVISION, type UserMonitoringPayload } from '../../shared/user-monitoring-contract';
 import type { SpendByUserPayload, UserSpendAmount, UserSpendReconciliation } from '../../shared/user-spend-contract';
 import {
+  readUserSpendActiveEmails,
   readUserSpendReadModelComponents,
   readUserSpendReadModelPage,
   runUserSpendReadModelRefresh,
@@ -24,6 +25,7 @@ import {
   type UserSpendRecoveryResult,
 } from '../lib/user-spend-recovery';
 import {
+  readUserSpendHourlyActiveEmails,
   readUserSpendHourlyComponents,
   readUserSpendHourlyPage,
   rollingCompleteHours,
@@ -394,12 +396,25 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       let knownUsers: KnownUser[] = [];
       try {
         const personaFilter = queryText(req, 'persona');
-        const [roster, assignments] = await Promise.all([
+        const [roster, assignments, activeEmails] = await Promise.all([
           readRosterForRequest(appkit.lakebase, req),
           personaFilter ? listSpAssignments(appkit) : Promise.resolve([]),
+          // Only the filter counts depend on this, so a failed read narrows
+          // the counts rather than failing the list.
+          (hourly
+            ? readUserSpendHourlyActiveEmails(appkit.lakebase, { window })
+            : readUserSpendActiveEmails(appkit.lakebase, { range })
+          ).catch(() => [] as string[]),
         ]);
-        const entries = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
-        knownUsers = entries;
+        knownUsers = everyKnownUser({ seed: seedRoles(), stored: roster.rows });
+        // The list shows people seen only in activity as consumers; count them the same way.
+        const knownEmails = new Set(knownUsers.map((entry) => entry.email.toLowerCase()));
+        const entries = [
+          ...knownUsers,
+          ...[...new Set(activeEmails.map((email) => email.toLowerCase()))]
+            .filter((email) => !knownEmails.has(email))
+            .map((email) => ({ email, role: 'consumer' })),
+        ];
         const assignmentByEmail = new Map(
           assignments.map((assignment) => [assignment.email.trim().toLowerCase(), assignment.personaId])
         );

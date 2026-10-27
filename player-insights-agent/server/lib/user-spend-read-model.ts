@@ -851,6 +851,29 @@ export async function readUserSpendReadModelPage(
   };
 }
 
+export const READ_USER_SPEND_ACTIVE_EMAILS_QUERY = `SELECT DISTINCT user_key
+FROM ${USER_SPEND_DAILY_TABLE}
+WHERE app_scope = $1
+  AND calculation_version = $2
+  AND activity_date BETWEEN $3::date AND $4::date
+  AND position('@' in user_key) > 0`;
+
+/** Everyone the User Monitoring list shows for activity alone, for its filter counts. */
+export async function readUserSpendActiveEmails(
+  store: UserSpendReadModelStore,
+  input: { appScope?: string; calculationVersion?: number; range: OpsDayRange }
+): Promise<string[]> {
+  const appScope = (input.appScope ?? process.env.DATABRICKS_APP_NAME ?? '').trim() || 'player-insights';
+  const version = input.calculationVersion ?? USER_SPEND_CALCULATION_VERSION;
+  const result = await store.query(READ_USER_SPEND_ACTIVE_EMAILS_QUERY, [
+    appScope,
+    version,
+    input.range.from,
+    input.range.to,
+  ]);
+  return result.rows.flatMap((row) => (typeof row.user_key === 'string' ? [row.user_key] : []));
+}
+
 export async function readUserSpendReadModelComponents(
   store: UserSpendReadModelStore,
   input: {

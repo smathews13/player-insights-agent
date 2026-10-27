@@ -742,6 +742,28 @@ export async function readUserSpendHourlyPage(
   };
 }
 
+export const READ_USER_SPEND_HOURLY_ACTIVE_EMAILS_QUERY = `SELECT DISTINCT user_key
+FROM ${USER_SPEND_HOURLY_TABLE}
+WHERE app_scope = $1 AND calculation_version = $2
+  AND activity_hour >= $3::timestamptz AND activity_hour < $4::timestamptz
+  AND position('@' in user_key) > 0`;
+
+/** Everyone the User Monitoring list shows for activity alone, for its filter counts. */
+export async function readUserSpendHourlyActiveEmails(
+  store: UserSpendReadModelStore,
+  input: { appScope?: string; calculationVersion?: number; window: RollingHourWindow }
+): Promise<string[]> {
+  const appScope = (input.appScope ?? process.env.DATABRICKS_APP_NAME ?? '').trim() || 'player-insights';
+  const version = input.calculationVersion ?? USER_SPEND_CALCULATION_VERSION;
+  const result = await store.query(READ_USER_SPEND_HOURLY_ACTIVE_EMAILS_QUERY, [
+    appScope,
+    version,
+    input.window.from,
+    input.window.to,
+  ]);
+  return result.rows.flatMap((row) => (typeof row.user_key === 'string' ? [row.user_key] : []));
+}
+
 export async function readUserSpendHourlyComponents(
   store: UserSpendReadModelStore,
   input: {
