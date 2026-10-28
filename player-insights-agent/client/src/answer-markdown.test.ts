@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { answerBlocks, answerInline, parseAnswerMarkdown, safeHref, type Block, type Inline } from './answer-markdown';
+import {
+  answerBlocks,
+  answerInline,
+  parseAnswerMarkdown,
+  safeHref,
+  selectAnswerBlocks,
+  type Block,
+  type Inline,
+} from './answer-markdown';
 import { stylesheet } from './styles/stylesheet';
 
 /**
@@ -757,5 +765,42 @@ describe('one table name written twice, side by side', () => {
   it('leaves two different names, and bold prose after a name, alone', () => {
     expect(kinds(answerInline('`gold.sessions` **gold.players**', [], []))).toEqual(['code', 'text', 'strong']);
     expect(kinds(answerInline('`gold.sessions` **is stale**', [], []))).toEqual(['code', 'text', 'strong']);
+  });
+});
+
+describe('a label between a list and its table', () => {
+  const answer = [
+    '- Spend rose 12% week over week.',
+    '- Most of it came from one region.',
+    '',
+    '**Spend by region**',
+    '',
+    '| Region | Spend |',
+    '| --- | --- |',
+    '| EMEA | 40 |',
+  ].join('\n');
+
+  it('ends the list, so the label names the table instead of becoming a bullet', () => {
+    const blocks = parseAnswerMarkdown(answer);
+    expect(blocks.map((block) => block.kind)).toEqual(['list', 'paragraph', 'table']);
+    const list = blocks[0];
+    expect(list.kind === 'list' && list.items).toHaveLength(2);
+    expect(selectAnswerBlocks(blocks, 'tables').map((block) => block.kind)).toEqual(['paragraph', 'table']);
+  });
+
+  it('ends the list with no blank line, and leaves a bold line with no table under it in the list', () => {
+    expect(parseAnswerMarkdown(answer.replace('\n\n**', '\n**')).map((block) => block.kind)).toEqual([
+      'list',
+      'paragraph',
+      'table',
+    ]);
+    const kept = parseAnswerMarkdown('- One\n**Two**\n- Three');
+    expect(kept.map((block) => block.kind)).toEqual(['list']);
+  });
+
+  it('keeps a #### label with its table', () => {
+    const blocks = parseAnswerMarkdown(answer.replace('**Spend by region**', '#### Spend by region'));
+    expect(blocks.map((block) => block.kind)).toEqual(['list', 'heading', 'table']);
+    expect(selectAnswerBlocks(blocks, 'tables').map((block) => block.kind)).toEqual(['heading', 'table']);
   });
 });

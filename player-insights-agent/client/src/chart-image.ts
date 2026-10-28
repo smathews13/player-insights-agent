@@ -1,5 +1,5 @@
 import Plotly from 'plotly.js-cartesian-dist-min';
-import { layoutFigure, readChartTheme, type FigureViewport } from './plotly-config';
+import { chartFlipDecision, layoutFigure, readChartTheme, type FigureViewport } from './plotly-config';
 import type { Chart } from './AnswerCharts';
 
 /**
@@ -61,7 +61,12 @@ export async function chartPngDataUrl(
   format: ChartImageFormat = 'png'
 ): Promise<string> {
   const theme = readChartTheme();
-  const figure = layoutFigure({ kind: chart.kind, data: chart.data, layout: chart.layout }, theme, viewport);
+  const views = chart.views ?? [];
+  const flip =
+    views.length >= 2
+      ? chartFlipDecision(views.map((view) => ({ kind: chart.kind, data: view.data, layout: view.layout })))
+      : undefined;
+  const figure = layoutFigure({ kind: chart.kind, data: chart.data, layout: chart.layout, flip }, theme, viewport);
   const height = typeof figure.layout.height === 'number' ? figure.layout.height : viewport.height;
   return Plotly.toImage(
     { data: figure.data, layout: figure.layout },

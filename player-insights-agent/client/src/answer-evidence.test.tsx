@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AnswerEvidence } from './AnswerEvidence';
-import { carriesTable, parseAnswerMarkdown, selectAnswerBlocks } from './answer-markdown';
+import { carriesTable, drawnAsWritten, parseAnswerMarkdown, selectAnswerBlocks } from './answer-markdown';
 import type { Chart } from './AnswerCharts';
 
 /**
@@ -141,5 +141,44 @@ describe('splitting an answer into narrative and evidence', () => {
     expect(tables.map((block) => block.kind)).toEqual(['paragraph', 'table']);
     expect(prose).toHaveLength(blocks.length - 2);
     expect(prose.every((block) => !tables.includes(block))).toBe(true);
+  });
+});
+
+describe('content written as labelled sections', () => {
+  const SECTIONS = [
+    '**Sessions by week**',
+    '',
+    'Sessions rose in week two.',
+    '',
+    '| Week | Sessions |',
+    '| --- | --- |',
+    '| 1 | 10 |',
+    '',
+    '**Players by week**',
+    '',
+    'Players held steady.',
+    '',
+    '| Week | Players |',
+    '| --- | --- |',
+    '| 1 | 4 |',
+  ].join('\n');
+
+  it('is drawn as written, so each label keeps its table under it', () => {
+    expect(drawnAsWritten(SECTIONS)).toBe(true);
+    expect(drawnAsWritten(WITH_TABLE)).toBe(false);
+    expect(drawnAsWritten(['**Only one**', '', 'A note.', '', WITH_TABLE].join('\n'))).toBe(false);
+  });
+
+  it('leaves those tables out of the evidence below, so none is drawn twice', () => {
+    expect(markup({ narrative: 'Sessions rose.', content: SECTIONS, sources: SOURCES })).toBe('');
+    expect(markup({ narrative: 'Sessions rose.', content: WITH_TABLE, sources: SOURCES })).toContain('<table');
+  });
+
+  it('is seated with every block on the card and in the stored answer', () => {
+    for (const file of ['AnswerCard.tsx', 'FinalAnswer.tsx']) {
+      expect(readFileSync(new URL(file, import.meta.url), 'utf8')).toMatch(
+        /drawnAsWritten\([^)]*\) \? 'all' : 'prose'/
+      );
+    }
   });
 });

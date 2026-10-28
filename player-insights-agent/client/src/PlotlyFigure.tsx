@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Plotly, { type PlotData, type PlotLayout } from 'plotly.js-cartesian-dist-min';
 import {
   CHART_THEME_ATTRIBUTE,
+  chartFlipDecision,
   FIGURE_CONFIG,
   layoutFigure,
   readChartTheme,
@@ -40,12 +41,14 @@ export interface PlotlyFigureProps {
    * presentation pass in plotly-config.ts, which gates the line treatment on it.
    */
   kind: string;
+  /** Every view of a chart that has several. The sideways turn is decided over all of them. */
+  views?: readonly { data: Record<string, unknown>[]; layout: Record<string, unknown> }[];
   /** Used for the accessible name, since a canvas-like plot has no readable text. */
   title: string;
   height: number;
 }
 
-export default function PlotlyFigure({ data, layout, kind, title, height }: PlotlyFigureProps) {
+export default function PlotlyFigure({ data, layout, kind, views, title, height }: PlotlyFigureProps) {
   const host = useRef<HTMLDivElement | null>(null);
   /**
    * The paint, read from the document rather than passed down.
@@ -84,10 +87,11 @@ export default function PlotlyFigure({ data, layout, kind, title, height }: Plot
     // re-render from a parent state change does not tear the chart down and rebuild it.
     // One call site, so the reviewed config object cannot be bypassed by a second one.
     let measuredWidth = element.clientWidth || 640;
+    const flip = views ? chartFlipDecision(views.map((view) => ({ kind, ...view }))) : undefined;
     const paint = () => {
       // Theme and geometry are both applied to a copy. Width is the actual chart box,
       // not the window: opening a rail can halve this column without resizing either.
-      const figure = layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height });
+      const figure = layoutFigure({ kind, data, layout, flip }, theme, { width: measuredWidth, height });
       const drawnHeight = typeof figure.layout.height === 'number' ? figure.layout.height : height;
       if (element.style.height !== `${drawnHeight}px`) element.style.height = `${drawnHeight}px`;
       void Plotly.react(element, figure.data, figure.layout, FIGURE_CONFIG);
@@ -138,7 +142,7 @@ export default function PlotlyFigure({ data, layout, kind, title, height }: Plot
       // dropping the node without purging leaks both.
       Plotly.purge(element);
     };
-  }, [data, layout, kind, height, theme]);
+  }, [data, layout, kind, views, height, theme]);
 
   // `role="img"` with the chart's own title: Plotly draws into SVG whose text nodes read
   // as a stream of disconnected axis labels, so the panel announces itself once instead.

@@ -858,6 +858,30 @@ WHERE app_scope = $1
   AND activity_date BETWEEN $3::date AND $4::date
   AND position('@' in user_key) > 0`;
 
+export const READ_USER_SPEND_EVER_ACTIVE_QUERY = `SELECT EXISTS (
+  SELECT 1 FROM ${USER_SPEND_DAILY_TABLE}
+  WHERE app_scope = $1 AND calculation_version = $2 AND user_key = lower($3)
+) OR EXISTS (
+  SELECT 1 FROM ${appTable('user_spend_hourly')}
+  WHERE app_scope = $1 AND calculation_version = $2 AND user_key = lower($3)
+) AS ever_active`;
+
+/**
+ * Whether this person has any recorded activity in this app, in any period.
+ *
+ * Someone admitted through an app group has no role row, so without this a
+ * profile opened for a quiet period had nothing to anchor it and was refused.
+ */
+export async function userSpendEverActive(
+  store: UserSpendReadModelStore,
+  input: { appScope?: string; calculationVersion?: number; email: string }
+): Promise<boolean> {
+  const appScope = (input.appScope ?? process.env.DATABRICKS_APP_NAME ?? '').trim() || 'player-insights';
+  const version = input.calculationVersion ?? USER_SPEND_CALCULATION_VERSION;
+  const result = await store.query(READ_USER_SPEND_EVER_ACTIVE_QUERY, [appScope, version, input.email.trim()]);
+  return result.rows[0]?.ever_active === true;
+}
+
 /** Everyone the User Monitoring list shows for activity alone, for its filter counts. */
 export async function readUserSpendActiveEmails(
   store: UserSpendReadModelStore,

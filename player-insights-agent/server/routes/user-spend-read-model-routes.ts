@@ -16,6 +16,7 @@ import {
   readUserSpendReadModelComponents,
   readUserSpendReadModelPage,
   runUserSpendReadModelRefresh,
+  userSpendEverActive,
   type UserSpendReadModelPage,
   type UserSpendRefreshSource,
 } from '../lib/user-spend-read-model';
@@ -504,8 +505,18 @@ export function setupUserSpendReadModelRoutes(appkit: InsightsAppKit, deps: User
       const source = sourceFor(req);
       let recovery: UserSpendRecoveryResult;
       try {
+        // Someone the list showed for activity alone keeps a profile in a quiet
+        // period, reading zero, as a user with a role does.
+        const everActive = await userSpendEverActive(appkit.lakebase, { email }).catch(() => false);
+        const configured = configuredUsers();
+        const profileUsers: KnownUser[] =
+          everActive && !configured.some((user) => user.email.toLowerCase() === email)
+            ? [...configured, { email, role: 'consumer' }]
+            : configured;
         const readProfile = () =>
-          hourly ? readHourly(req, window, email, false, 1, 0, true) : readDaily(req, range, email, false, 1, 0, true);
+          hourly
+            ? readHourly(req, window, email, false, 1, 0, true, [], profileUsers)
+            : readDaily(req, range, email, false, 1, 0, true, [], profileUsers);
         recovery = await recoverInitialUserSpendRead({
           read: readProfile,
           isRostered: async () => {

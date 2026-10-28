@@ -194,7 +194,7 @@ def activate(custom_inputs: dict[str, Any]) -> RuntimeSettings:
             charts=_boolean(answer.get("charts"), True),
             figures=_boolean(answer.get("figures"), True),
             caveats=_boolean(answer.get("caveats"), True),
-            max_charts=_integer(answer.get("maxCharts"), 6, 0, 6, "chart limit", notices),
+            max_charts=_integer(answer.get("maxCharts"), 6, 0, 10, "chart limit", notices),
             max_figures=_integer(answer.get("maxFigures"), 6, 0, 12, "figure limit", notices),
             max_caveats=_integer(answer.get("maxCaveats"), 0, 0, 20, "caveat limit", notices),
             narrative_max_characters=_integer(

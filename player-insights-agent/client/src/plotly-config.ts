@@ -487,6 +487,8 @@ export interface FigureSpec {
   kind: string;
   data: Record<string, unknown>[];
   layout: Record<string, unknown>;
+  /** The chart's sideways decision across all its views. Absent, the figure decides alone. */
+  flip?: boolean;
 }
 
 export interface ThemedFigure {
@@ -503,6 +505,7 @@ export interface FigureViewport {
 const DEFAULT_VIEWPORT: FigureViewport = { width: 640, height: 320 };
 const MOBILE_WIDTH = 480;
 const NARROW_WIDTH = 360;
+/** Ticks are 8px monospace (`AXIS_LABEL_SIZE`, `theme.mono`): 0.6em is about 4.8px a character. */
 const TICK_CHARACTER_WIDTH = 5;
 const FLAT_TICK_PADDING = 36;
 const MAX_TICK_LINES = 2;
@@ -556,16 +559,17 @@ function fittedTickLabel(value: string, lineChars: number, lines = MAX_TICK_LINE
   const words = cleanLabel(value).split(' ').filter(Boolean);
   if (words.length === 0) return '';
   const rows: string[] = [];
-  for (const original of words) {
-    let word = original;
-    while (word.length > lineChars) {
-      rows.push(word.slice(0, lineChars));
-      word = word.slice(lineChars);
-    }
-    if (!word) continue;
-    const current = rows.at(-1);
-    if (current && current.length + word.length + 1 <= lineChars) rows[rows.length - 1] = `${current} ${word}`;
-    else rows.push(word);
+  for (const word of words) {
+    wordPieces(word, lineChars).forEach((piece, index) => {
+      // The first piece follows a space; the rest continue the same word.
+      const gap = index === 0 ? 1 : 0;
+      const current = rows.at(-1);
+      if (current && current.length + gap + piece.length <= lineChars) {
+        rows[rows.length - 1] = `${current}${gap ? ' ' : ''}${piece}`;
+      } else {
+        rows.push(piece);
+      }
+    });
   }
   if (rows.length > lines) {
     const kept = rows.slice(0, lines);
@@ -573,6 +577,22 @@ function fittedTickLabel(value: string, lineChars: number, lines = MAX_TICK_LINE
     return kept.map(escapedLabel).join('<br>');
   }
   return rows.map(escapedLabel).join('<br>');
+}
+
+/**
+ * A word too long for a line, cut where a reader expects it: after a hyphen
+ * first, so "free-to-play" breaks as "free-to-" / "play" rather than "free-to-p" /
+ * "lay". Only a run with no hyphen in reach is split mid-letter.
+ */
+function wordPieces(word: string, lineChars: number): string[] {
+  if (word.length <= lineChars) return [word];
+  return word
+    .split(/(?<=-)/)
+    .flatMap((part) =>
+      Array.from({ length: Math.ceil(part.length / lineChars) }, (_, at) =>
+        part.slice(at * lineChars, (at + 1) * lineChars)
+      )
+    );
 }
 
 function distinctStrings(values: unknown): string[] | null {
@@ -694,18 +714,61 @@ function swapAxisReferences(value: unknown): unknown {
  * nothing else, with no shapes or notes pinned to its axes, is turned: those
  * would have to be moved too, and a wrong move is worse than angled labels.
  */
-function flipCrowdedBars(data: Record<string, unknown>[], layout: Record<string, unknown>, kind: string): void {
-  if (kind !== 'bar' || data.length === 0) return;
-  if (!data.every((trace) => traceType(trace) === 'bar' && text(trace.orientation) !== 'h')) return;
-  if (list(layout.shapes).length > 0 || list(layout.annotations).length > 0) return;
-  if (data.some((trace) => trace.error_x !== undefined || trace.error_y !== undefined)) return;
-  if (data.some((trace) => !['', 'x'].includes(text(trace.xaxis)) || !['', 'y'].includes(text(trace.yaxis)))) return;
+function canFlipBars(data: readonly Record<string, unknown>[], layout: Record<string, unknown>, kind: string): boolean {
+  if (kind !== 'bar' || data.length === 0) return false;
+  // A trace already on its side stays as sent.
+  if (!data.every((trace) => traceType(trace) === 'bar' && text(trace.orientation) !== 'h')) return false;
+  if (list(layout.shapes).length > 0 || list(layout.annotations).length > 0) return false;
+  if (data.some((trace) => trace.error_x !== undefined || trace.error_y !== undefined)) return false;
+  if (data.some((trace) => !['', 'x'].includes(text(trace.xaxis)) || !['', 'y'].includes(text(trace.yaxis)))) {
+    return false;
+  }
   const xaxis = record(layout.xaxis);
-  if (['date', 'linear', 'log'].includes(text(xaxis.type)) || xaxis.tickmode === 'array') return;
+  if (['date', 'linear', 'log'].includes(text(xaxis.type)) || xaxis.tickmode === 'array') return false;
   const names = data.map((trace) => distinctStrings(trace.x)).find((one) => one !== null);
-  if (!names || names.every((name) => TIMESTAMP.test(cleanLabel(name)))) return;
+  return Boolean(names && !names.every((name) => TIMESTAMP.test(cleanLabel(name))));
+}
+
+function barsCrowded(data: readonly Record<string, unknown>[]): boolean {
+  const names = data.map((trace) => distinctStrings(trace.x)).find((one) => one !== null);
+  if (!names) return false;
   const longest = Math.max(...names.map((name) => cleanLabel(name).length));
-  if (names.length <= FLIP_CATEGORY_COUNT || longest <= FLIP_LABEL_CHARS) return;
+  return names.length > FLIP_CATEGORY_COUNT && longest > FLIP_LABEL_CHARS;
+}
+
+/**
+ * One sideways decision for every view of a chart.
+ *
+ * Decided per view, a view with short names stood upright and the next, with long
+ * ones, lay down, so switching views swapped the axes. All views turn when any is
+ * crowded and every one can be turned; otherwise none does.
+ */
+export function chartFlipDecision(figures: readonly FigureSpec[]): boolean {
+  if (figures.length === 0) return false;
+  const kind = (figure: FigureSpec) =>
+    String(figure.kind ?? '')
+      .trim()
+      .toLowerCase();
+  const views = figures.map((figure) => ({
+    data: figure.data.map((trace) => record(trace)),
+    layout: record(figure.layout),
+    kind: kind(figure),
+  }));
+  return (
+    views.every((view) => canFlipBars(view.data, view.layout, view.kind)) &&
+    views.some((view) => barsCrowded(view.data))
+  );
+}
+
+function flipCrowdedBars(
+  data: Record<string, unknown>[],
+  layout: Record<string, unknown>,
+  kind: string,
+  decided?: boolean
+): void {
+  if (!canFlipBars(data, layout, kind)) return;
+  if (!(decided ?? barsCrowded(data))) return;
+  const xaxis = record(layout.xaxis);
 
   for (const trace of data) {
     const { x, y } = trace;
@@ -888,7 +951,7 @@ export function layoutFigure(
     .trim()
     .toLowerCase();
 
-  flipCrowdedBars(data, layout, kind);
+  flipCrowdedBars(data, layout, kind, figure.flip);
   const titleLines = wrapFigureTitle(layout, width);
   layout.autosize = true;
   layout.minreducedwidth = Math.max(96, Math.min(180, Math.floor(width * 0.42)));

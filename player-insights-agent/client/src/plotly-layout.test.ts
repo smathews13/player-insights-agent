@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { FIGURE_CONFIG, layoutFigure, type ChartTheme, type FigureSpec } from './plotly-config';
+import { chartFlipDecision, FIGURE_CONFIG, layoutFigure, type ChartTheme, type FigureSpec } from './plotly-config';
 
 const LIGHT: ChartTheme = {
   ink: '#161616',
@@ -120,6 +120,14 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
     expect(layout.height).toBe(302);
   });
 
+  it('breaks a long hyphenated name after a hyphen, not in the middle of a word', () => {
+    const labels = Array.from({ length: 8 }, (_, index) => `free-to-play-weekend-tournament-finals-${index + 1}`);
+    const { layout } = layoutFigure(horizontalBar(labels), LIGHT, { width: 320, height: 260 });
+    const rows = String((at(layout.yaxis).ticktext as string[])[0]).split('<br>');
+    expect(rows).toEqual(['free-to-play-', 'weekend-', 'tournament-finals…']);
+    expect(rows.slice(0, -1).every((row) => row.endsWith('-'))).toBe(true);
+  });
+
   it('keeps horizontal bars flat, bounds left labels, and gives every category a readable row', () => {
     const labels = Array.from({ length: 12 }, (_, index) => `Extremely descriptive game title ${index + 1}`);
     const { data, layout } = layoutFigure(horizontalBar(labels), LIGHT, { width: 320, height: 260 });
@@ -168,6 +176,26 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
     const pinned = verticalBar(labels);
     pinned.layout.annotations = [{ x: labels[0], y: 1, text: 'Launch' }];
     expect(at(layoutFigure(pinned, LIGHT, { width: 620, height: 320 }).data[0]).orientation).toBeUndefined();
+  });
+
+  it('turns every view of a chart the same way, so switching views never swaps the axes', () => {
+    const long = verticalBar(
+      Array.from({ length: 10 }, (_, index) => `Velocity Heights Online weekly event ${index + 1}`)
+    );
+    const short = verticalBar(['PC', 'PS5', 'Xbox']);
+    const draw = (spec: FigureSpec, flip: boolean) =>
+      at(layoutFigure({ ...spec, flip }, LIGHT, { width: 620, height: 320 }).data[0]).orientation;
+
+    expect(chartFlipDecision([short, long])).toBe(true);
+    expect(draw(short, true)).toBe('h');
+    expect(draw(long, true)).toBe('h');
+
+    const pinned = verticalBar(['PC', 'PS5', 'Xbox']);
+    pinned.layout.annotations = [{ x: 'PC', y: 1, text: 'Launch' }];
+    expect(chartFlipDecision([pinned, long])).toBe(false);
+    expect(draw(long, false)).toBeUndefined();
+    expect(draw(pinned, true)).toBeUndefined();
+    expect(chartFlipDecision([short, verticalBar(['PS5', 'PC'])])).toBe(false);
   });
 
   it('leaves bars on a second axis upright', () => {
@@ -336,7 +364,7 @@ describe('theme, export and resize use the same pure layout', () => {
   it('recomputes from ResizeObserver width and coalesces container changes without a browser', () => {
     const source = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
     expect(source).toContain('entries[0]?.contentRect.width');
-    expect(source).toContain('layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height })');
+    expect(source).toContain('layoutFigure({ kind, data, layout, flip }, theme, { width: measuredWidth, height })');
     expect(source).toContain('new ResizeObserver(schedule)');
     expect(source).toContain('requestAnimationFrame');
     expect(source.match(/Plotly\.react\(/g)).toHaveLength(1);

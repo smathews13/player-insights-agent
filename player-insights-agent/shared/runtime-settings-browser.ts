@@ -158,8 +158,7 @@ export const LEGACY_LIGHT_MUTED_COLOR = '#6b7a87';
 export const PREVIOUS_LIGHT_MUTED_COLOR = '#62727f';
 
 export function upgradeFontColorForContrast(color: string, scheme: 'dark' | 'light'): string {
-  return scheme === 'light' &&
-    (sameHex(color, LEGACY_LIGHT_MUTED_COLOR) || sameHex(color, PREVIOUS_LIGHT_MUTED_COLOR))
+  return scheme === 'light' && (sameHex(color, LEGACY_LIGHT_MUTED_COLOR) || sameHex(color, PREVIOUS_LIGHT_MUTED_COLOR))
     ? THEME_FONT_COLORS.light.muted
     : color;
 }
@@ -417,7 +416,7 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
     RUNTIME_LOOP_LIMITS.maxRunSeconds.min,
     RUNTIME_LOOP_LIMITS.maxRunSeconds.max
   );
-  const maxCharts = integer(answer.maxCharts, 0, 6);
+  const maxCharts = integer(answer.maxCharts, 0, 10);
   const maxFigures = integer(answer.maxFigures, 0, 12);
   const maxCaveats = integer(answer.maxCaveats, 0, 20);
   const narrativeMaxCharacters = integer(answer.narrativeMaxCharacters, 0, 12_000);
