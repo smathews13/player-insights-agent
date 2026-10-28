@@ -21,7 +21,7 @@ function render(state: PanelLoadState<OpsCostPayload>): string {
 }
 
 describe('user profile spend diagnosis', () => {
-  it.each(['Preparing user spend', 'Billing access required', 'User not added in Identity settings'])(
+  it.each(['Preparing user spend', 'Billing access required', 'No role or activity in this period'])(
     'shows %s as its own state',
     (diagnosis) => {
       const html = render(failed(diagnosis));

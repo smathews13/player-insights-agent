@@ -1431,8 +1431,11 @@ export function PersonSpend({
             <span>Retry shortly while the first read completes.</span>
           ) : diagnosis === 'Billing access required' ? (
             <span>Retry with an administrator identity that can read the app billing sources.</span>
-          ) : diagnosis === 'User not added in Identity settings' ? (
-            <span>Add this user in Identity settings before monitoring their spend.</span>
+          ) : diagnosis === 'No role or activity in this period' ? (
+            <span>
+              This user has no role in Identity settings and no recorded activity in this period. Choose a longer
+              period, or add them in Identity settings.
+            </span>
           ) : null}
         </div>
       </section>
