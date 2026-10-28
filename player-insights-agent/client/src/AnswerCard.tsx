@@ -46,7 +46,7 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
 import { TraceTimeline, type TraceTimelineVariant } from './TraceTimeline';
-import { evidenceLinkedSourceNames } from './answer-table-origins';
+import { evidenceLinkedSourceNames, tableOriginMaps } from './answer-table-origins';
 import { drawnAsWritten } from './answer-markdown';
 import type { Answer, FeedbackEntry } from './app-types';
 import type { FeedbackDirection } from '../../shared/feedback-direction';
@@ -322,6 +322,11 @@ export function AnswerCard({
               columns={mentionedIdentifiers([readerAnswer.content])}
               badges
               blocks={drawnAsWritten(readerAnswer.content) ? 'all' : 'prose'}
+              originMap={
+                drawnAsWritten(readerAnswer.content)
+                  ? tableOriginMaps([narrative, readerAnswer.content], readerAnswer.sources)[1]
+                  : undefined
+              }
               preserveProse
             />
           ) : null}
