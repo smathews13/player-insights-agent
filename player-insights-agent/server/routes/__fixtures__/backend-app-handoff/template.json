@@ -40,7 +40,7 @@
           "charts": "bool, default true",
           "figures": "bool, default true",
           "caveats": "bool, default true",
-          "maxCharts": "int 0-6, default 1",
+          "maxCharts": "int 0-10, default 1",
           "maxFigures": "int 0-12, default 6",
           "maxCaveats": "int 0-20, default 0 = no limit",
           "narrativeMaxCharacters": "int 0-12000, default 0 = no limit",

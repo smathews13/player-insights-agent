@@ -199,7 +199,14 @@ function ChartPanel({ chart, onFailure }: { chart: Chart; onFailure?: () => void
         {/* The fallback is the plot's own height so the transcript does not jump when
             the chunk lands. */}
         <Suspense fallback={<Skeleton style={{ height }} className="w-full" />}>
-          <PlotlyFigure kind={chart.kind} data={figure.data} layout={figure.layout} title={name} height={height} />
+          <PlotlyFigure
+            kind={chart.kind}
+            data={figure.data}
+            layout={figure.layout}
+            views={views.length >= 2 ? views : undefined}
+            title={name}
+            height={height}
+          />
         </Suspense>
       </ChartBoundary>
     </figure>

@@ -95,28 +95,23 @@ function originsFromBlocks(blocks: readonly Block[], pin: readonly SourceRow[]):
     return origins;
   }
 
-  // Two grids from the same queried table both need the header Open link.
-  // Mentions still zip onto tables in order, and a spare pinable still fills
-  // a table that has no mention of its own — but a source is not consumed so
-  // later tables are origin-less. Sources can drop the duplicate Open once
-  // every table that used that object already has it on the header.
-  tables.forEach((_, index) => {
-    const named = mentions[index] ? byName(pin, mentions[index]) : undefined;
-    if (named) {
-      origins[index] = [pinOn(named)];
-      return;
+  // Several tables: each takes only the sources named in its own lead-in, the
+  // prose since the table before it. Zipped by order, a table drew the next
+  // unused source, or reused one, and its Open link pointed at a table its
+  // numbers never came from. No named source is no link -- unless there is only
+  // one source the numbers could have come from.
+  let lead: string[] = [];
+  let table = 0;
+  for (const block of blocks) {
+    if (block.kind !== 'table') {
+      for (const name of mentionedNames(blockText(block), pin)) if (!lead.includes(name)) lead.push(name);
+      continue;
     }
-    const next = pin.find((row) => !assigned.has(row.name.toLowerCase()));
-    if (next) {
-      origins[index] = [pinOn(next)];
-      return;
-    }
-    const shared =
-      (mentions.length > 0 ? byName(pin, mentions[mentions.length - 1]) : undefined) ??
-      origins.find((group) => group.length > 0)?.[0] ??
-      pin[0];
-    origins[index] = [shared];
-  });
+    const named = lead.map((name) => byName(pin, name)).filter((row): row is SourceRow => !!row);
+    origins[table] = (named.length > 0 ? named : pin.length === 1 ? [pin[0]] : []).map(pinOn);
+    lead = [];
+    table += 1;
+  }
   return origins;
 }
 

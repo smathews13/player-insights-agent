@@ -12,7 +12,7 @@
  */
 import { AnswerCharts } from './AnswerCharts';
 import { AnswerProse } from './DataEntityLinks';
-import { carriesTable } from './answer-markdown';
+import { carriesTable, drawnAsWritten } from './answer-markdown';
 import { tableOriginMaps } from './answer-table-origins';
 import { mentionedIdentifiers } from './data-entities';
 import type { Answer } from './app-types';
@@ -30,7 +30,9 @@ export function AnswerEvidence({
   sources: readonly SourceRef[];
 }) {
   const hasCharts = Array.isArray(charts) && charts.length > 0;
-  const hasTables = carriesTable(narrative, content);
+  // Content in labelled sections keeps its tables in place, drawn by the prose seating.
+  const evidenceContent = drawnAsWritten(content) ? null : content;
+  const hasTables = carriesTable(narrative, evidenceContent);
   if (!hasCharts && !hasTables) return null;
   const [narrativeOrigins, contentOrigins] = tableOriginMaps([narrative, content], sources);
   return (
@@ -45,11 +47,11 @@ export function AnswerEvidence({
             blocks="tables"
             originMap={narrativeOrigins}
           />
-          {content ? (
+          {evidenceContent ? (
             <AnswerProse
-              text={content}
+              text={evidenceContent}
               sources={sources}
-              columns={mentionedIdentifiers([content])}
+              columns={mentionedIdentifiers([evidenceContent])}
               blocks="tables"
               originMap={contentOrigins}
             />

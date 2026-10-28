@@ -11,6 +11,7 @@ import type { InsightsAppKit } from './insights-routes';
 import {
   READ_USER_SPEND_ACTIVE_EMAILS_QUERY,
   READ_USER_SPEND_COMPONENTS_QUERY,
+  READ_USER_SPEND_EVER_ACTIVE_QUERY,
   READ_USER_SPEND_REFRESH_STATE_QUERY,
   READ_USER_SPEND_SUMMARY_QUERY,
 } from '../lib/user-spend-read-model';
@@ -62,11 +63,12 @@ function response() {
   return { json, status } as unknown as Response & { json: ReturnType<typeof vi.fn>; status: ReturnType<typeof vi.fn> };
 }
 
-function routes(rows = [storedRow()], rosterRows = rows) {
+function routes(rows = [storedRow()], rosterRows = rows, everActive = false) {
   const handlers = new Map<string, (req: Request, res: Response) => Promise<void>>();
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const query = vi.fn((sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
+    if (sql === READ_USER_SPEND_EVER_ACTIVE_QUERY) return Promise.resolve({ rows: [{ ever_active: everActive }] });
     return Promise.resolve({
       rows: /SELECT email, role, added_by, added_at FROM player_insights\.admin_emails/.test(sql)
         ? rosterRows.map((row) => ({
@@ -316,6 +318,35 @@ describe('User Monitoring read-model routes', () => {
     else process.env.PLAYER_INSIGHTS_ORGANIZATIONS = previousOrganizations;
   });
 
+  it('keeps the profile of someone seen only in activity, in a period they were quiet', async () => {
+    // Admitted through an app group, so no role row. The page query is handed
+    // them as a known consumer and returns their zero row.
+    const quiet = storedRow({
+      display_email: 'group-user@other.test',
+      submitted_questions: '0',
+      run_count: '0',
+      spend_usd: null,
+      spend_dbu: null,
+    });
+    const { handlers, calls } = routes([quiet], [], true);
+    const res = response();
+    await handlers.get('/api/monitoring/user-spend/:email')!(
+      {
+        params: { email: 'group-user@other.test' },
+        query: { from: '2026-08-25', to: '2026-08-31', unit: 'USD' },
+        headers: { 'x-forwarded-email': 'admin@example.test' },
+        header: (name: string) => (name.toLowerCase() === 'x-forwarded-email' ? 'admin@example.test' : undefined),
+      } as unknown as Request,
+      res
+    );
+    const summary = calls.find((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY);
+    expect(summary?.params[14]).toContain('group-user@other.test');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ users: [expect.objectContaining({ email: 'group-user@other.test' })] })
+    );
+  });
+
   it('computes current-period profile KPIs from two bounded Lakebase reads only', async () => {
     const { handlers, query, calls } = routes();
     const res = response();
@@ -328,7 +359,8 @@ describe('User Monitoring read-model routes', () => {
       } as unknown as Request,
       res
     );
-    expect(query).toHaveBeenCalledTimes(2);
+    // The page, its components, and whether this person was ever active.
+    expect(query).toHaveBeenCalledTimes(3);
     expect(calls.filter((call) => call.sql === READ_USER_SPEND_SUMMARY_QUERY)).toHaveLength(1);
     expect(calls.filter((call) => call.sql === READ_USER_SPEND_COMPONENTS_QUERY)).toHaveLength(1);
     expect(JSON.stringify(res.json.mock.calls[0]?.[0])).not.toMatch(

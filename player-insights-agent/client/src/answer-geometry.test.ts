@@ -519,7 +519,7 @@ describe('the chart panel is a panel on this card, not a second page', () => {
     const plot = readFileSync(new URL('./PlotlyFigure.tsx', import.meta.url), 'utf8');
     const config = readFileSync(new URL('./plotly-config.ts', import.meta.url), 'utf8');
     expect(CHARTS).not.toMatch(/automargin|tickangle|ticktext|minreducedwidth/i);
-    expect(plot).toContain('layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height })');
+    expect(plot).toContain('layoutFigure({ kind, data, layout, flip }, theme, { width: measuredWidth, height })');
     expect(plot).not.toMatch(/automargin|tickangle|ticktext|minreducedwidth/i);
     expect(config).toMatch(/automargin|tickangle|ticktext|minreducedwidth/);
   });

@@ -548,7 +548,7 @@ export function RuntimeSettingsPanel({
               checked={settings.answer.charts}
               onToggle={(value) => setAnswer('charts', value)}
             >
-              {number('Max charts', settings.answer.maxCharts, 0, 6, (value) => setAnswer('maxCharts', value), {
+              {number('Max charts', settings.answer.maxCharts, 0, 10, (value) => setAnswer('maxCharts', value), {
                 help: 'How many charts.',
                 helpId: 'runtime-max-charts-help',
               })}

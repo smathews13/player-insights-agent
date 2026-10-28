@@ -92,18 +92,26 @@
 /*
  * The panel's head row: the eyebrow on the left, this chart's export menu on the
  * right. A flex row rather than the panel grid so the menu button sits beside the
- * title on one line and the eyebrow ellipsises into whatever width the menu leaves.
+ * title on one line when there is room for both.
+ *
+ * In a narrow panel the view menu and buttons left the title a sliver, broken
+ * every few letters. Below 16rem the title takes its own row and the controls
+ * wrap under it, kept to the right.
  */
 .answer-chart-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   min-width: 0;
 }
 .answer-chart-head .answer-chart-eyebrow {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 16rem;
+}
+.answer-chart-head > .answer-chart-eyebrow + * {
+  margin-inline-start: auto;
 }
 .answer-chart-head .answer-chart-view-select {
   flex: 0 1 auto;
@@ -124,6 +132,6 @@
   text-transform: uppercase;
   color: var(--ast-text-secondary);
   /* Wrapped, never cut: a title cut to "Weekly active players by…" hides what
-     the chart is of. */
-  overflow-wrap: anywhere;
+     the chart is of. Broken between words; only a word wider than the row splits. */
+  overflow-wrap: break-word;
 }

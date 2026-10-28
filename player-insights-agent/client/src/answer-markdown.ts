@@ -721,8 +721,15 @@ function listStopsAt(lines: readonly SourceLine[], index: number, ordered: boole
   if (HEADING.test(text) || THEMATIC_BREAK.test(text) || FENCE.test(text)) return true;
   const indent = text.length - text.trimStart().length;
   if ((ordered ? BULLET.test(text) : NUMBERED.test(text)) && indent <= baseIndent) return true;
+  if (BOLD_LABEL.test(text)) {
+    const next = nextNonBlank(lines, index + 1);
+    if (next < lines.length && tableOpensAt(lines, next)) return true;
+  }
   return Boolean(tableOpensAt(lines, index));
 }
+
+/** A line that is bold and nothing else -- the label `isTableHeading` keeps with the table under it. */
+const BOLD_LABEL = /^ {0,3}(?:\*\*[^*\n]+\*\*|__[^_\n]+__)\s*:?\s*$/;
 
 /**
  * The content of a line that belongs to the open list without a marker in the
@@ -1138,6 +1145,36 @@ function withoutRepeatedName(nodes: Inline[]): Inline[] {
  * copy of the numbers with it. Absent and empty bodies count as carrying
  * nothing, so a caller can pass an optional second body without guarding it.
  */
+/**
+ * Whether a body is written as labelled sections: two or more labels, each with
+ * a table under it, often after a sentence of its own.
+ *
+ * Split into prose and tables, such a body showed every label in the narrative
+ * with nothing under it and every table at the bottom with nothing naming it. It
+ * is drawn as written instead.
+ */
+export function drawnAsWritten(body: string | null | undefined): boolean {
+  if (!body) return false;
+  let labelled = false;
+  let between = false;
+  let sections = 0;
+  let separated = false;
+  for (const block of parseAnswerMarkdown(stripToolCallDumps(body))) {
+    if (isTableHeading(block)) {
+      labelled = true;
+      between = false;
+    } else if (block.kind === 'table') {
+      if (labelled) sections += 1;
+      if (labelled && between) separated = true;
+      labelled = false;
+    } else {
+      between = true;
+    }
+  }
+  // A label directly over its table already travels with it into the evidence.
+  return sections >= 2 && separated;
+}
+
 export function carriesTable(...bodies: (string | null | undefined)[]): boolean {
   return bodies.some((body) =>
     body ? parseAnswerMarkdown(stripToolCallDumps(body)).some((block) => block.kind === 'table') : false

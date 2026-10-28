@@ -633,7 +633,7 @@ describe('the theme is read off the document, and re-read when it changes', () =
     // The dependency list is the whole mechanism: without `theme` in it the
     // observer would fire, state would change, and the figure on screen would
     // keep its old paint.
-    expect(PLOT_SOURCE).toContain('}, [data, layout, kind, height, theme]);');
+    expect(PLOT_SOURCE).toContain('}, [data, layout, kind, views, height, theme]);');
   });
 });
 
@@ -653,6 +653,8 @@ describe('nothing the figure attaches outlives the panel', () => {
     const calls = PLOT_SOURCE.match(/Plotly\.react\(/g) ?? [];
     expect(calls).toHaveLength(1);
     expect(PLOT_SOURCE).toContain('FIGURE_CONFIG)');
-    expect(PLOT_SOURCE).toContain('layoutFigure({ kind, data, layout }, theme, { width: measuredWidth, height })');
+    expect(PLOT_SOURCE).toContain(
+      'layoutFigure({ kind, data, layout, flip }, theme, { width: measuredWidth, height })'
+    );
   });
 });

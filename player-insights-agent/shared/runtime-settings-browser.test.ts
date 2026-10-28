@@ -68,7 +68,7 @@ describe('browser runtime settings cache parser', () => {
       [['loop', 'maxSteps'], 1, 40],
       [['loop', 'maxToolCalls'], 1, 80],
       [['loop', 'maxRunSeconds'], 30, 550],
-      [['answer', 'maxCharts'], 0, 6],
+      [['answer', 'maxCharts'], 0, 10],
       [['answer', 'maxFigures'], 0, 12],
       [['answer', 'maxCaveats'], 0, 20],
       [['answer', 'narrativeMaxCharacters'], 0, 12_000],

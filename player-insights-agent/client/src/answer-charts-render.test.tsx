@@ -100,6 +100,12 @@ describe('a chart panel heads itself with an eyebrow and nothing else', () => {
     expect(rule).toContain('text-transform: uppercase');
     expect(rule).toContain('color: var(--ast-text-secondary)');
   });
+
+  it('gives the title its own row in a narrow panel instead of squeezing it beside the controls', () => {
+    expect(ruleFor('.answer-chart-head {')).toContain('flex-wrap: wrap');
+    expect(ruleFor('.answer-chart-head .answer-chart-eyebrow {')).toContain('flex: 1 1 16rem');
+    expect(ruleFor('.answer-chart-eyebrow {')).toContain('overflow-wrap: break-word');
+  });
 });
 
 describe('the panel is a tinted surface, not the card recipe', () => {
