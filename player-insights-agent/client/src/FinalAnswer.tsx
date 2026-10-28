@@ -18,7 +18,7 @@ import { PiaAvatar } from './PiaMark';
 import { SourcesModule } from './SourcesModule';
 import { mentionedIdentifiers } from './data-entities';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
-import { evidenceLinkedSourceNames } from './answer-table-origins';
+import { evidenceLinkedSourceNames, tableOriginMaps } from './answer-table-origins';
 import { drawnAsWritten } from './answer-markdown';
 import type { Derivation } from './answer-shape';
 import type { Chart } from './AnswerCharts';
@@ -94,6 +94,7 @@ export function FinalAnswer({
             columns={mentionedIdentifiers([content])}
             badges
             blocks={drawnAsWritten(content) ? 'all' : 'prose'}
+            originMap={drawnAsWritten(content) ? tableOriginMaps([story, content], sources)[1] : undefined}
             preserveProse
           />
         ) : null}

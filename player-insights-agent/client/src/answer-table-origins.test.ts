@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { tableOriginLists } from './answer-table-origins';
 import type { SourceRef } from './answer-shape';
@@ -36,5 +37,16 @@ describe('which source a table links to', () => {
   it('links every table when only one source could be behind the numbers', () => {
     const body = [TABLE, '', TABLE].join('\n\n');
     expect(names(tableOriginLists([body], [SESSIONS]))).toEqual([['main.gold.sessions'], ['main.gold.sessions']]);
+  });
+});
+
+describe('tables drawn in place link like the Sources list expects', () => {
+  it('reads the narrative’s mention of a source for the first table of the content', () => {
+    const narrative = 'Sessions came from main.gold.sessions.';
+    const content = ['**By week**', '', 'Rose in week two.', '', TABLE].join('\n');
+    expect(names(tableOriginLists([narrative, content], [SESSIONS, PLAYERS]))).toEqual([['main.gold.sessions']]);
+    for (const file of ['AnswerCard.tsx', 'FinalAnswer.tsx']) {
+      expect(readFileSync(new URL(file, import.meta.url), 'utf8')).toMatch(/tableOriginMaps\(\[[^\]]+\], [^)]+\)\[1\]/);
+    }
   });
 });
