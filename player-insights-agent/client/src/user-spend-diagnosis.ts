@@ -4,7 +4,7 @@ export const USER_SPEND_DIAGNOSES = [
   'Lakebase update required',
   'Preparing user spend',
   'Billing access required',
-  'User not added in Identity settings',
+  'No role or activity in this period',
 ] as const;
 
 export type UserSpendDiagnosis = (typeof USER_SPEND_DIAGNOSES)[number];
@@ -24,7 +24,7 @@ export async function userSpendHttpDiagnosis(response: Response): Promise<UserSp
     case 'lakebase_update_required':
       return 'Lakebase update required';
     case 'monitoring_user_not_rostered':
-      return 'User not added in Identity settings';
+      return 'No role or activity in this period';
     case 'billing_access_required':
       return 'Billing access required';
     case 'user_spend_preparing':

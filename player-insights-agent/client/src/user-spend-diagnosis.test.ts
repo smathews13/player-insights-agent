@@ -7,7 +7,7 @@ describe('user-spend diagnosis', () => {
     ['lakebase_update_required', 'Lakebase update required'],
     ['user_spend_preparing', 'Preparing user spend'],
     ['billing_access_required', 'Billing access required'],
-    ['monitoring_user_not_rostered', 'User not added in Identity settings'],
+    ['monitoring_user_not_rostered', 'No role or activity in this period'],
   ] as const)('maps %s without exposing server detail', async (error, expected) => {
     const response = new Response(JSON.stringify({ error, detail: 'private database detail' }), {
       status: error === 'monitoring_user_not_rostered' ? 404 : 503,
