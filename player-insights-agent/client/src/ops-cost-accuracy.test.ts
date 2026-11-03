@@ -37,6 +37,7 @@ function tile(overrides: Partial<CostTile> & Pick<CostTile, 'id'>): CostTile {
 function payload(tiles: CostTile[]): OpsCostPayload {
   return {
     tiles,
+    range: { from: '2026-08-27', to: '2026-09-02' },
     currency: 'USD',
     throughDay: '2026-09-02',
     perQuestion: {
@@ -133,9 +134,31 @@ describe('Cost component accuracy presentation', () => {
     const sql = tile({ id: 'sql-warehouse', amount: 200, marginalAmount: 0.2 });
     const current = payload([serving, foundation, sql]);
     expect(costCardView(serving, current)).toMatchObject({ amount: '64.00 USD', evidence: '' });
-    expect(costCardView(sql, current)).toMatchObject({ title: 'Ask SQL', amount: '0.20 USD' });
-    expect(questionCostCardView(current).amount).toBe('0.20 USD');
+    expect(costCardView(sql, current)).toMatchObject({ title: 'SQL warehouse', amount: '200.00 USD' });
+    expect(questionCostCardView(current)).toMatchObject({
+      amount: '66.10 USD',
+      secondaryMetric: 'Extra cost of one more question: 0.20 USD',
+    });
     expect(costCardView(serving, current).evidence).not.toMatch(/interactive requests/);
+  });
+
+  it('splits the SQL card into questions, Genie and the app pages so it adds up to its figure', () => {
+    const sql = tile({
+      id: 'sql-warehouse',
+      amount: 100,
+      dbus: 50,
+      sqlExecution: { questionsMs: 1_000, genieMs: 3_000, appPagesMs: 6_000 },
+    });
+    expect(costCardView(sql, payload([sql])).secondaryMetric).toBe(
+      'Questions 10.00 USD · Genie 30.00 USD · Cost & Monitoring pages 60.00 USD'
+    );
+    expect(costCardView(sql, payload([sql]), 'DBU').secondaryMetric).toBe(
+      'Questions 5.00 DBU · Genie 15.00 DBU · Cost & Monitoring pages 30.00 DBU'
+    );
+    const unledgered = { ...sql, sqlExecution: { questionsMs: null, genieMs: 0, appPagesMs: 10_000 } };
+    expect(costCardView(unledgered, payload([unledgered])).secondaryMetric).toBe(
+      'Questions unmeasured · Genie 0.00 USD · Cost & Monitoring pages 100.00 USD'
+    );
   });
 
   it('keeps Free and Charged per-space and comparable in either ordering', () => {

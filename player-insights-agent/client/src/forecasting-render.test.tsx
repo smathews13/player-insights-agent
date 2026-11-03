@@ -320,7 +320,7 @@ describe('Forecasting visibility and placement', () => {
 
     const componentIds = [...breakdown.matchAll(/data-cost-component="([^"]+)"/g)].map((match) => match[1]);
     expect(componentIds).toEqual(['serving-endpoint', 'sql-warehouse', 'app-compute', 'genie:data']);
-    for (const component of ['Agent serving', 'Ask SQL', 'App compute', 'Data Genie']) {
+    for (const component of ['Agent serving', 'SQL warehouse', 'App compute', 'Data Genie']) {
       expect(breakdown).toContain(`<span>${component}</span>`);
     }
     expect(breakdown).not.toContain('Vector Search');

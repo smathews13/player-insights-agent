@@ -1602,9 +1602,8 @@ function componentTile(
       warehouseAttribution.askRuns === undefined
         ? null
         : warehouseAttribution.askRuns.reduce((sum, run) => sum + run.executionMs, 0);
-    const attributedExecutionMs =
-      warehouseAttribution.astrolabeExecutionMs +
-      warehouseAttribution.genieSpaces.reduce((sum, space) => sum + space.executionMs, 0);
+    const genieExecutionMs = warehouseAttribution.genieSpaces.reduce((sum, space) => sum + space.executionMs, 0);
+    const attributedExecutionMs = warehouseAttribution.astrolabeExecutionMs + genieExecutionMs;
     if (amount === null || !warehouseAttribution.complete || warehouseAttribution.totalExecutionMs <= 0) {
       return withMeta({
         ...base,
@@ -1630,6 +1629,13 @@ function componentTile(
             marginalAmount: (amount * askExecutionMs) / warehouseAttribution.totalExecutionMs,
             marginalDbus: dbus === null ? null : (dbus * askExecutionMs) / warehouseAttribution.totalExecutionMs,
           }),
+      // Ask statements carry the app tag, so they sit inside the app's tagged
+      // time; the app's own pages are what remains of it.
+      sqlExecution: {
+        questionsMs: askExecutionMs,
+        genieMs: genieExecutionMs,
+        appPagesMs: Math.max(0, warehouseAttribution.astrolabeExecutionMs - (askExecutionMs ?? 0)),
+      },
       pricing,
       note: '',
       unavailable: '',

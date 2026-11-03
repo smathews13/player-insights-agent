@@ -56,6 +56,7 @@ import {
   type TrafficBar,
 } from '../../shared/ops-contract';
 import { PRIMARY_CONNECTION_LABEL, resolvedConnectionState } from './connection-status';
+import { appCostSummary } from '../../shared/app-cost-summary';
 
 const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], string> = {
   'invalid-range': 'the requested dates were invalid',
@@ -362,7 +363,7 @@ export function tileView(tile: CostTile, currency: string, unit: CostBudgetUnit 
 const PRIMARY_COST_TITLES: Readonly<Record<string, string>> = {
   'serving-endpoint': 'Agent serving',
   'foundation-model': 'Foundation model tokens',
-  'sql-warehouse': 'Ask SQL',
+  'sql-warehouse': 'SQL warehouse',
   'app-compute': 'App compute',
 };
 
@@ -384,24 +385,32 @@ function isPartialFoundation(tile: CostTile): boolean {
   );
 }
 
+/**
+ * The SQL card's figure split into who caused it, so the cards visibly add up
+ * to the app total. Each part is the tile amount times its share of the
+ * attributed execution time.
+ */
+function sqlSplitLine(tile: CostTile, currency: string, unit: CostBudgetUnit): string {
+  const split = tile.sqlExecution;
+  const figure = unit === 'DBU' ? tile.dbus : tile.amount;
+  if (!split || typeof figure !== 'number' || !Number.isFinite(figure)) return '';
+  const attributedMs = (split.questionsMs ?? 0) + split.genieMs + split.appPagesMs;
+  if (attributedMs <= 0) return '';
+  const part = (ms: number) => costAmount((figure * ms) / attributedMs, currency, unit);
+  return [
+    `Questions ${split.questionsMs === null ? 'unmeasured' : part(split.questionsMs)}`,
+    `Genie ${part(split.genieMs)}`,
+    `Cost & Monitoring pages ${part(split.appPagesMs)}`,
+  ].join(' · ');
+}
+
 /** The single presentation contract used by every standard Cost card. */
 export function costCardView(
   tile: CostTile,
   payload: Pick<OpsCostPayload, 'currency' | 'throughDay'>,
   unit: CostBudgetUnit = 'USD'
 ): CostCardView {
-  // The SQL component is labelled "Ask SQL", so its card must show only the
-  // execution-time share attributed to Ask. Keep the full warehouse amount on
-  // the payload for app-total reconciliation and forecasting diagnostics.
-  const displayedTile =
-    tile.id === 'sql-warehouse'
-      ? {
-          ...tile,
-          amount: tile.marginalAmount === undefined ? tile.amount : tile.marginalAmount,
-          dbus: tile.marginalDbus === undefined ? tile.dbus : tile.marginalDbus,
-        }
-      : tile;
-  const view = tileView(displayedTile, payload.currency, unit);
+  const view = tileView(tile, payload.currency, unit);
   const partial = isPartialFoundation(tile);
   return {
     id: tile.id,
@@ -412,7 +421,9 @@ export function costCardView(
         ? tile.evidence?.tokens?.total === null || tile.evidence?.tokens?.total === undefined
           ? '— total tokens'
           : `${count(tile.evidence.tokens.total)} total tokens`
-        : '',
+        : tile.id === 'sql-warehouse'
+          ? sqlSplitLine(tile, payload.currency, unit)
+          : '',
     status: 'Estimated',
     basis: primaryBasis(tile),
     evidence: '',
@@ -448,24 +459,37 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     .map((tile) => usableQuestionComponent(tile, unit))
     .filter((value): value is number => value !== null);
   const completed = payload.perQuestion.runsInRange;
-  const value = completed > 0 && usable.length > 0 ? usable.reduce((sum, amount) => sum + amount, 0) / completed : null;
+  const marginal =
+    completed > 0 && usable.length > 0 ? usable.reduce((sum, amount) => sum + amount, 0) / completed : null;
   const partial =
-    value !== null &&
+    marginal !== null &&
     (usable.length < ids.length || components.some((tile) => Boolean(tile && isPartialFoundation(tile))));
+  const summary = appCostSummary(payload, unit);
+  const appTotal = unit === 'DBU' ? summary.dbus : summary.amount;
+  const loaded = completed > 0 && appTotal !== null ? appTotal / completed : null;
+  const marginalLine =
+    marginal === null ? '' : `Extra cost of one more question: ${costAmount(marginal, payload.currency, unit)}`;
   return {
     id: 'average-cost-question',
     title: 'Average cost / question',
-    amount: value === null ? 'No measured average' : costAmount(value, payload.currency, unit),
-    secondaryMetric: '',
+    amount:
+      loaded !== null
+        ? costAmount(loaded, payload.currency, unit)
+        : marginal !== null
+          ? costAmount(marginal, payload.currency, unit)
+          : 'No measured average',
+    secondaryMetric: loaded !== null ? marginalLine : '',
     status: 'Estimated',
     basis: '',
     evidence: '',
     detail:
-      value === null
-        ? 'No usable numerator and denominator were measured.'
-        : partial
-          ? 'Components without a safe measured amount are excluded from this estimate.'
-          : QUESTION_COST_FORMULA,
+      loaded !== null
+        ? `${QUESTION_FULL_COST_FORMULA}${partial ? ' The extra-cost figure excludes components without a safe measured amount.' : ''}`
+        : marginal === null
+          ? 'No usable numerator and denominator were measured.'
+          : partial
+            ? 'Components without a safe measured amount are excluded from this estimate.'
+            : QUESTION_COST_FORMULA,
     resource: '',
   };
 }
@@ -690,7 +714,7 @@ const EMPTY_COST_TILE: Omit<CostTile, 'id' | 'label' | 'resourceKind'> = {
 const EMPTY_COST_TILES: readonly CostTile[] = [
   { ...EMPTY_COST_TILE, id: 'serving-endpoint', label: 'Agent serving', resourceKind: 'serving-endpoint' },
   { ...EMPTY_COST_TILE, id: 'foundation-model', label: 'Foundation model tokens', resourceKind: 'serving-endpoint' },
-  { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'Ask SQL', resourceKind: 'sql-warehouse' },
+  { ...EMPTY_COST_TILE, id: 'sql-warehouse', label: 'SQL warehouse', resourceKind: 'sql-warehouse' },
   { ...EMPTY_COST_TILE, id: 'genie:data', label: 'Data Genie', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'genie:dictionary', label: 'Dictionary Genie', resourceKind: '' },
   { ...EMPTY_COST_TILE, id: 'app-compute', label: 'App compute', resourceKind: 'app' },
@@ -1017,6 +1041,9 @@ export function costCoverageLinesForTile(tileId: string, coverage: CostCoverage 
  */
 export const QUESTION_COST_FORMULA =
   'Marginal serving + foundation tokens + Ask-tagged SQL ÷ all interactive Ask attempts';
+
+/** The headline per-question figure: everything the app cost, including the always-on standing share. */
+export const QUESTION_FULL_COST_FORMULA = 'Full app cost in range ÷ all interactive Ask attempts.';
 
 export function questionServingAverage(payload: OpsCostPayload, unit: CostBudgetUnit = 'USD'): number | null {
   const serving = payload.tiles.find((tile) => tile.id === 'serving-endpoint');
