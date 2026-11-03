@@ -212,12 +212,14 @@ import {
   presentedTokenAge,
   scopesFromToken,
   statementRunnerFor,
+  tokenClientId,
   statusForOutcome,
   tokenGrantsGenie,
   verificationSummary,
   verifyAccess,
   warehouseProbeFor,
 } from './access-verification';
+import { scopesFromRefusal } from '../lib/dependency-probes';
 
 interface QueryResult {
   rows: Record<string, unknown>[];
@@ -3610,12 +3612,16 @@ export class AuthorizationRefused extends Error {
    */
   readonly providerStatus: number | undefined;
 
-  constructor(code: FailureCode, detail: string, providerStatus?: number) {
+  /** What the refused token said about itself; scopes and client only, never the provider's prose. */
+  readonly tokenEvidence: string;
+
+  constructor(code: FailureCode, detail: string, providerStatus?: number, tokenEvidence = '') {
     super(detail);
     this.name = 'AuthorizationRefused';
     this.code = code;
     this.httpStatus = FAILURE_TAXONOMY[code].httpStatus;
     this.providerStatus = providerStatus;
+    this.tokenEvidence = tokenEvidence;
   }
 
   /**
@@ -3632,9 +3638,11 @@ export class AuthorizationRefused extends Error {
    * raised, beside the correlation id the reader is given to quote.
    */
   get disclosable(): string {
-    return this.code === 'USER_NOT_AUTHORIZED'
-      ? 'The endpoint refused this request under the signed-in user\u2019s own credential.'
-      : 'The signed-in user\u2019s credential was not accepted by the endpoint.';
+    const headline =
+      this.code === 'USER_NOT_AUTHORIZED'
+        ? 'The endpoint refused this request under the signed-in user\u2019s own credential.'
+        : 'The signed-in user\u2019s credential was not accepted by the endpoint.';
+    return this.tokenEvidence ? `${headline} ${this.tokenEvidence}` : headline;
   }
 }
 
@@ -3661,6 +3669,26 @@ export function rejectionStatus(error: unknown): number | null {
   if (/\b403\b|permission denied|not authorized|forbidden/i.test(message)) return 403;
   if (/\b401\b|unauthenticated|unauthorized|invalid access token|expired/i.test(message)) return 401;
   return null;
+}
+
+/**
+ * What a refused token held, in words a reader can quote to whoever runs sign-in.
+ *
+ * The same person can reach the app through sign-in paths that issue tokens
+ * from different OAuth clients with different scopes, so one user fails where
+ * another succeeds with nothing in the email to tell them apart. Only the
+ * scope names the provider listed are taken from its message; the rest of it
+ * can name tables and stays in the log.
+ */
+export function refusedTokenEvidence(token: string, providerMessage: string): string {
+  const missing = scopesFromRefusal(providerMessage);
+  const held = scopesFromToken(token);
+  const client = tokenClientId(token);
+  const parts: string[] = [];
+  if (missing.length > 0) parts.push(`Missing permission scopes: ${missing.join(', ')}.`);
+  if (held) parts.push(`Token scopes: ${[...held].sort().join(', ')}.`);
+  if (client) parts.push(`Issued to OAuth client ${client}.`);
+  return parts.join(' ');
 }
 
 /**
@@ -3703,7 +3731,7 @@ export async function invokeServingAsUser(
     // guesses from the message when it has to, because a missed 403 would let a
     // denied request through, and this one must not guess because its only job is
     // to be printed.
-    throw new AuthorizationRefused(code, detail, carriedStatus(error));
+    throw new AuthorizationRefused(code, detail, carriedStatus(error), refusedTokenEvidence(userToken, detail));
   }
 }
 

@@ -76,10 +76,11 @@ export interface UnavailableResult {
   run_id: string | null;
   /**
    * When this surface last had a verified answer from what it depends on, or
-   * null if it never has. Null and "a long time ago" are different facts and a
-   * reader acts differently on them, so null is not rendered as a date.
+   * null if it never has. Absent when nothing recorded it. Null and "a long time
+   * ago" are different facts and a reader acts differently on them, so null is
+   * not rendered as a date.
    */
-  last_verified_at: string | null;
+  last_verified_at?: string | null;
   persistence_status: PersistenceStatus;
   execution_identity?: ExecutionIdentityClaim;
   /**
@@ -168,9 +169,9 @@ export function unavailableResult(input: UnavailableInput): UnavailableResult {
     message: input.message ?? definition.uiMessage,
     request_id: input.requestId,
     run_id: input.runId ?? null,
-    last_verified_at: input.lastVerifiedAt ?? null,
     persistence_status: input.persistence ?? 'unknown',
   };
+  if (input.lastVerifiedAt !== undefined) result.last_verified_at = input.lastVerifiedAt;
   if (input.executionIdentity) result.execution_identity = input.executionIdentity;
   if (input.detail) result.detail = input.detail;
   if (input.evidence) result.evidence = input.evidence;

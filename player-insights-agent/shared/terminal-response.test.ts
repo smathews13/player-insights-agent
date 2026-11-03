@@ -58,11 +58,13 @@ describe('an unavailable result', () => {
 });
 
 describe('the facts a panel has to state and cannot guess', () => {
-  it('reports never-verified as null rather than as a date', () => {
-    // "Last verified: never" and "last verified: three days ago" send a reader
-    // to different places. Defaulting the first to a timestamp, any timestamp,
-    // makes a first deployment look like a recent outage.
-    expect(result().last_verified_at).toBeNull();
+  it('omits the last success when nothing recorded one, rather than claiming never', () => {
+    // "Never verified" printed on every refusal made one user's denial read as
+    // an app that had never worked. Null is kept for a caller that knows.
+    expect(result()).not.toHaveProperty('last_verified_at');
+    expect(
+      unavailableResult({ code: 'DEPENDENCY_UNAVAILABLE', requestId: 'r', lastVerifiedAt: null }).last_verified_at
+    ).toBeNull();
   });
 
   it('reports persistence as unknown when nothing observed it', () => {
