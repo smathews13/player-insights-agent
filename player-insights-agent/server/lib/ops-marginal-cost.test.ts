@@ -153,7 +153,7 @@ describe('Aug 26–Sep 1 component-total and marginal Ask audit fixture', () => 
     expect(tiles.find((tile) => tile.id === 'foundation-model')).toMatchObject({
       label: 'Foundation model tokens',
       amount: 4.088699,
-      quality: 'per-token',
+      quality: 'estimate',
       attribution: 'deployment',
       evidence: {
         coverageComplete: true,
@@ -318,7 +318,7 @@ describe('Aug 26–Sep 1 component-total and marginal Ask audit fixture', () => 
       quality: 'estimate',
       attribution: 'deployment',
       unavailable: '',
-      note: 'Measured lower bound; 1 eligible Ask missing model evidence',
+      note: "Estimated from the app's recorded tokens at this model's billed rate. Lower bound: 1 Ask recorded no tokens.",
       evidence: {
         coverageComplete: false,
         missingEligibleRequests: 1,
@@ -382,31 +382,25 @@ describe('Aug 26–Sep 1 component-total and marginal Ask audit fixture', () => 
 });
 
 describe('foundation billing query contract', () => {
-  it('uses priced model/time/request evidence without a guessed token price or endpoint overlap', () => {
+  it("prices the app's recorded tokens at the model's billed rate instead of matching shared requests", () => {
     const built = buildFoundationCostStatement(IDS, RANGE, runs());
     expect(built?.statement).toContain('system.serving.endpoint_usage');
     expect(built?.statement).toContain('system.billing.list_prices');
-    expect(built?.statement).toContain("request.request_class IN ('ask-exact', 'ask-bounded')");
-    expect(built?.statement).toContain("'known-excluded'");
-    expect(built?.statement).toContain("'ambiguous'");
-    expect(built?.statement).toContain('ask_weight / NULLIF(all_weight, 0)');
-    expect(built?.statement).not.toContain('COALESCE(all_weight, 0) = 0) > 0');
-    expect(built?.statement).toContain("LIKE '%OUTPUT%'");
-    expect(built?.statement).toContain("LIKE '%INPUT%'");
-    expect(built?.statement).toContain("LIKE '%CACHE%' THEN request.input_tokens");
-    expect(built?.statement).not.toContain("LIKE '%CACHE%READ%' THEN 0");
-    expect(built?.statement).toContain("record_type ILIKE '%CORRECT%'");
-    expect(built?.statement).toContain("REGEXP_REPLACE(LOWER(e.endpoint_name), '[^a-z0-9]', '')");
-    expect(built?.statement).toContain('GROUP BY record_id');
-    expect(built?.statement).toContain('MAX(usage_quantity) AS usage_quantity');
+    expect(built?.statement).toContain('ledger.total_tokens / (model_tokens.tokens + ledger.total_tokens)');
+    expect(built?.statement).toContain("u.billing_origin_product = 'MODEL_SERVING'");
     expect(built?.statement).toContain('u.usage_metadata.endpoint_name <> :agentEndpoint');
-    expect(built?.statement).not.toMatch(/input_tokens\s*\+\s*[2-9]\s*\*/);
-    expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).not.toContain(
-      '@example.test'
-    );
+    expect(built?.statement).toContain("record_type ILIKE '%CORRECT%'");
+    expect(built?.statement).toContain('GROUP BY record_id');
+    expect(built?.statement).not.toContain('exact_match');
+    expect(built?.statement).not.toContain('INTERVAL 11 MINUTES');
+    const evidence = JSON.parse(
+      built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value ?? '[]'
+    ) as unknown[];
+    expect(evidence[0]).toEqual({ run_id: 'run-0', input_tokens: 100, output_tokens: 20, total_tokens: 120 });
+    expect(JSON.stringify(evidence)).not.toContain('@example.test');
   });
 
-  it('clips nested model requests and billing rows at the exact first deployment instant', () => {
+  it('clips model usage and billing rows at the exact first deployment instant', () => {
     const built = buildFoundationCostStatement(IDS, { ...RANGE, fromTimestamp: '2026-08-26T18:42:11.000Z' }, runs());
     expect(built?.statement).toContain('u.request_time >= :from_instant');
     expect(built?.statement).toContain('u.usage_start_time >= :from_instant');
@@ -417,17 +411,10 @@ describe('foundation billing query contract', () => {
     });
   });
 
-  it('keeps unfinished Ask attempts from invalidating the whole billing query', () => {
-    const unfinished = { ...runs()[0], completedAt: '' };
-    const built = buildFoundationCostStatement(IDS, RANGE, [unfinished]);
-    expect(built?.statement).toContain("TRY_CAST(NULLIF(run.completed_at, '') AS TIMESTAMP)");
-    expect(built?.statement).toContain('run.started_at_ts + INTERVAL 11 MINUTES');
-    expect(built?.statement).not.toContain('CAST(run.completed_at AS TIMESTAMP)');
-    expect(built?.statement).toContain('FROM request_totals\nCROSS JOIN run_totals\nLEFT JOIN weighted ON TRUE');
-    expect(built?.statement).toContain("WHEN COUNT(record_id) = 0 THEN 'none'");
-    expect(built?.statement).toContain('COUNT(record_id) AS billing_rows');
-    expect(built?.parameters.find((parameter) => parameter.name === 'interactive_runs_json')?.value).toContain(
-      '"completed_at":""'
-    );
+  it('counts runs without recorded tokens as missing evidence rather than failing the read', () => {
+    const built = buildFoundationCostStatement(IDS, RANGE, [{ ...runs()[0], totalTokens: null }]);
+    expect(built?.statement).toContain('expected_runs - covered_runs AS missing_evidence_requests');
+    expect(built?.statement).toContain('WHEN ledger.total_tokens = 0 THEN CAST(0 AS DOUBLE)');
+    expect(built?.statement).toContain("WHEN billing_rows = 0 THEN 'none'");
   });
 });

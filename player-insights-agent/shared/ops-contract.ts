@@ -224,6 +224,14 @@ export interface CostTile {
   standingDbus?: number | null;
   /** Why the marginal/standing split is unavailable while the component total may still be measured. */
   marginalUnavailable?: string;
+  /**
+   * Where the SQL tile's warehouse execution time went, in milliseconds.
+   *
+   * The three parts sum to the time behind `amount`, so a card can split the
+   * figure without re-deriving it. `questions` is null when no Ask run ledger
+   * was available to tie statements to questions.
+   */
+  sqlExecution?: { questionsMs: number | null; genieMs: number; appPagesMs: number };
   /** Whether `amount` is the total over the range or a per-day rate. */
   basis: 'total-in-range' | 'per-day';
   /**
