@@ -98,6 +98,31 @@ export const GENIE_SCOPE = 'dashboards.genie';
 /** The CLI's own scope, which stands for every API rather than naming them. */
 const ALL_APIS_SCOPE = 'all-apis';
 
+/** The unverified JWT payload, or null for a PAT or any token that is not a JWT. */
+function tokenClaims(token: string): Record<string, unknown> | null {
+  const segments = token.split('.');
+  if (segments.length !== 3) return null;
+  try {
+    const payload = segments[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+    return claims && typeof claims === 'object' && !Array.isArray(claims) ? (claims as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The OAuth client the token was issued to, or null when it does not say.
+ *
+ * Two sign-in paths can hand the same person tokens from different clients
+ * with different scopes, which is invisible from the email alone.
+ */
+export function tokenClientId(token: string): string | null {
+  const claims = tokenClaims(token);
+  const raw = claims?.client_id ?? claims?.azp ?? claims?.cid;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+}
+
 /**
  * What the token says it can do, read off the token rather than asserted here.
  *
@@ -105,16 +130,9 @@ const ALL_APIS_SCOPE = 'all-apis';
  * claim shape. Treating that as "said no" declines a check that would succeed.
  */
 export function scopesFromToken(token: string): string[] | null {
-  const segments = token.split('.');
-  if (segments.length !== 3) return null;
-  let claims: Record<string, unknown>;
-  try {
-    const payload = segments[1].replace(/-/g, '+').replace(/_/g, '/');
-    claims = JSON.parse(Buffer.from(payload, 'base64').toString('utf8')) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  const raw = claims?.scope ?? claims?.scopes;
+  const claims = tokenClaims(token);
+  if (!claims) return null;
+  const raw = claims.scope ?? claims.scopes;
   if (typeof raw === 'string') {
     const scopes = raw.split(/\s+/).filter(Boolean);
     return scopes.length ? scopes : null;
