@@ -67,6 +67,22 @@
   height: 11px;
 }
 
+/* An organization option in a filter menu: the mark beside the name. It lives
+   with the mark rather than with Monitoring because Ask's conversation filter
+   uses it too, and Monitoring's route stylesheet never loads there. */
+.monitoring-organization-option-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.monitoring-organization-option-content > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (forced-colors: active) {
   .roster-organization-mark {
     color: CanvasText;

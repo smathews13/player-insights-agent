@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const BASE_CSS = read('./styles/base.css');
 const MONITORING_CSS = read('./styles/monitoring.css');
+const ORGANIZATION_CSS = read('./styles/organization-avatar.css');
 const RESPONSIVE_CSS = read('./styles/responsive-monitoring.css');
 const MONITORING_SOURCE = read('./MonitoringPage.tsx');
 const METRICS_SOURCE = read('../../server/lib/user-spend-metrics.ts');
@@ -26,9 +27,16 @@ describe('Monitoring tool columns', () => {
       /td\.user-profile-modal-tools-column,[\s\S]*?white-space:\s*nowrap[\s\S]*?overflow-wrap:\s*normal/s
     );
     expect(MONITORING_CSS).toMatch(/\.monitoring-question-text\s*\{[^}]*overflow:\s*hidden/s);
-    expect(MONITORING_CSS).toMatch(
+    expect(ORGANIZATION_CSS).toMatch(
       /\.monitoring-organization-option-content > span:last-child\s*\{[^}]*text-overflow:\s*ellipsis/s
     );
+  });
+
+  it('lays out organization options wherever the mark loads, including Ask', () => {
+    expect(ORGANIZATION_CSS).toMatch(
+      /\.monitoring-organization-option-content\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/s
+    );
+    expect(MONITORING_CSS).not.toContain('.monitoring-organization-option-content');
   });
 });
 
