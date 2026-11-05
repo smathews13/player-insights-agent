@@ -208,12 +208,21 @@ html[data-theme='dark'] .ask-layout > .trace-inspector {
  * the pill reports whether the harness is live and the heading names the list.
  * `baseline` rather than `center`: an 11px eyebrow and a 20px pill centred
  * against each other leave the letterforms sitting low.
+ *
+ * The pill wraps under the eyebrow when the column cannot hold both, and its
+ * words wrap only when the column is narrower than the pill alone: a label such
+ * as "Waking the agent · about 2 min" otherwise runs past the pane's edge.
  */
 .trace-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
+}
+.trace-head > .run-status {
+  max-width: 100%;
+  white-space: normal;
 }
 /* The pane's 20px inset and this 28px control put its centre 34px down, which is
    where the conversation rail's 16px inset and 36px New conversation row put its. */

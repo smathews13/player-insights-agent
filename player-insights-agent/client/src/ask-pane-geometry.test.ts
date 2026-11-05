@@ -78,6 +78,11 @@ describe('Ask and Run use page-specific desktop pane geometry', () => {
     expect(rule(RAIL, '.trace-title-row')).toMatch(/display:\s*flex[\s\S]*align-items:\s*center/);
   });
 
+  it('keeps a long run status inside the Agent path pane', () => {
+    expect(rule(RAIL, '.trace-head')).toContain('flex-wrap: wrap');
+    expect(rule(RAIL, '.trace-head > .run-status')).toMatch(/max-width:\s*100%[\s\S]*white-space:\s*normal/);
+  });
+
   it('keeps Agent path sticky while the page owns scrolling', () => {
     const right = rule(RAIL, '.trace-inspector');
     expect(right).toContain('position: sticky');
