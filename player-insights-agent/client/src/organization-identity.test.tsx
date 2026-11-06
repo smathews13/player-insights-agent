@@ -140,8 +140,6 @@ describe('organization user badges', () => {
   it.each([
     ['<your-username>', 'databricks', '<your-username>'],
     ['producer@take2games.com', 'acme-interactive', 'producer'],
-    ['artist@2k.com', '2k', 'artist'],
-    ['designer@northwindgames.com', 'northwind-games', 'designer'],
   ])('shows the canonical organization mark and user handle for %s', (email, organizationId, handle) => {
     const markup = renderToStaticMarkup(
       <MemoryRouter>

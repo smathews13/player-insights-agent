@@ -160,11 +160,23 @@ describe('organization profile routes', () => {
   });
 
   it('replaces a second edit of the same organization rather than stacking it', async () => {
+    process.env.PLAYER_INSIGHTS_ORGANIZATIONS = JSON.stringify([
+      {
+        id: 'example-studio',
+        domain: 'studio.example',
+        domainSuffixes: ['studio.example', 'partner.example'],
+        name: 'Example Studio',
+        monogram: 'ES',
+        logoKey: 'monogram',
+        ariaLabel: 'Organization: Example Studio',
+        fallback: 'monogram',
+      },
+    ]);
     const store = memoryStore();
     const call = mount(store);
-    await call('PUT', '/api/admin/organizations', { body: { domain: 'northwindlondon.com', name: 'Studio London' } });
-    await call('PUT', '/api/admin/organizations', { body: { domain: 'northwindgames.com', name: 'Studio Games' } });
-    expect([...store.rows.keys()]).toEqual(['northwindgames.com']);
+    await call('PUT', '/api/admin/organizations', { body: { domain: 'partner.example', name: 'Studio Partner' } });
+    await call('PUT', '/api/admin/organizations', { body: { domain: 'studio.example', name: 'Studio Games' } });
+    expect([...store.rows.keys()]).toEqual(['studio.example']);
   });
 
   it.each([

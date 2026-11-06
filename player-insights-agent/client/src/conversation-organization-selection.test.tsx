@@ -32,7 +32,7 @@ describe('conversation organization filter', () => {
     );
     expect(markup).toContain('>All organizations<');
     expect(organizations.map((organization) => organization.name)).toEqual([
-      'Contoso',
+      '2k.com',
       'Databricks',
       'Take-Two Interactive',
     ]);
@@ -44,14 +44,14 @@ describe('conversation organization filter', () => {
     expect(conversationMatchesOrganizations(conversations[1], ['acme-interactive'])).toBe(false);
     const organizations = railOrganizations(conversations);
     expect(organizationSelectionSummary([], organizations)).toBe('All organizations');
-    expect(toggleOrganizationSelection([], '2k')).toEqual(['2k']);
-    expect(toggleOrganizationSelection(['2k'], '2k')).toEqual([]);
+    expect(toggleOrganizationSelection([], 'domain:2k.com')).toEqual(['domain:2k.com']);
+    expect(toggleOrganizationSelection(['domain:2k.com'], 'domain:2k.com')).toEqual([]);
     expect(
       normalizeOrganizationSelection(
-        ['missing', '2k'],
+        ['missing', 'domain:2k.com'],
         organizations.map((item) => item.id)
       )
-    ).toEqual(['2k']);
+    ).toEqual(['domain:2k.com']);
   });
 
   it('renders the Databricks and Acme organization artwork in menu rows', () => {
