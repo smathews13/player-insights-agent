@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Request, Response } from 'express';
 import { RuntimeSettingsPatchSchema } from '../../shared/runtime-settings';
-import { ownsPreferenceDefaults } from '../../shared/preference-default-owner';
+import { ownsPreferenceDefaults } from '../lib/preference-default-owner';
 import { recordAdminAction } from '../lib/admin-roles';
 import {
   deleteUserRuntimeSettings,
@@ -113,7 +113,9 @@ export function setupRuntimeSettingsRoutes(appkit: InsightsAppKit): void {
         return;
       }
       if (ownsPreferenceDefaults(actor)) {
-        res.status(409).json({ error: 'default_owner_cannot_reset', detail: 'Rida’s settings are the default.' });
+        res
+          .status(409)
+          .json({ error: 'default_owner_cannot_reset', detail: 'This user’s settings are the deployment default.' });
         return;
       }
       try {

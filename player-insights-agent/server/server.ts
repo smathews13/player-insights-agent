@@ -2,6 +2,8 @@ import { createApp, lakebase, server } from '@databricks/appkit';
 import { lakebasePoolSettings } from './lib/lakebase-pool';
 import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 import { recordReleaseEnvironment, restoreReleaseEnvironment } from './lib/release-environment';
+import { recordIdentityCarryover, restoreIdentityCarryover } from './lib/identity-carryover';
+import { applyLegacyPreferenceDefaultOwner } from './lib/preference-default-owner';
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
 import { readMlflowTokenEvidence } from './lib/mlflow-token-evidence';
@@ -53,6 +55,15 @@ createApp({
           'from the app-owned store.'
       );
     }
+    // Access groups, pinned super admins and the preferences owner stay out of
+    // public artifacts; restore whatever this deployment last stated.
+    const restoredIdentityValues = await restoreIdentityCarryover(appkit.lakebase);
+    if (restoredIdentityValues > 0) {
+      console.warn(
+        `[identity-config] Deploy from Git restored ${restoredIdentityValues} identity values from the app-owned store.`
+      );
+    }
+    applyLegacyPreferenceDefaultOwner();
     const [
       { setupInsightsRoutes, MIGRATIONS },
       { setupSettingsRoutes },
@@ -141,6 +152,9 @@ createApp({
       async () => {
         if (await recordReleaseEnvironment(appkit.lakebase)) {
           console.log('[release-config] Recorded target runtime configuration for future source-only deploys.');
+        }
+        if (await recordIdentityCarryover(appkit.lakebase)) {
+          console.log('[identity-config] Recorded identity configuration for future deploys that omit it.');
         }
       },
       () => undefined
