@@ -51,20 +51,6 @@ describe('organization mapping', () => {
         logoKey: 'acme',
         fallback: 'monogram',
       },
-      {
-        id: '2k',
-        name: 'Contoso',
-        domain: '2k.com',
-        logoKey: '2k',
-        fallback: 'monogram',
-      },
-      {
-        id: 'northwind-games',
-        name: 'Northwind Games',
-        domain: 'northwindgames.com',
-        logoKey: 'northwind',
-        fallback: 'monogram',
-      },
     ]);
     for (const organization of ORGANIZATION_MANIFEST) {
       expect(organization.domainSuffixes).toContain(organization.domain);
@@ -89,9 +75,8 @@ describe('organization mapping', () => {
   it.each([
     ['leader@labs.databricks.com', 'databricks'],
     ['producer@take2games.com', 'acme-interactive'],
-    ['artist@2k.com', '2k'],
-    ['designer@northwindgames.com', 'northwind-games'],
-    ['developer@northwindlondon.com', 'northwind-games'],
+    ['artist@2k.com', 'domain:2k.com'],
+    ['designer@northwindgames.com', 'domain:northwindgames.com'],
   ])('maps canonical organization domains for %s', (email, id) => {
     expect(organizationForEmail(email, []).id).toBe(id);
   });
@@ -194,18 +179,18 @@ describe('organization mapping', () => {
   describe('admin-edited profiles', () => {
     it('renames a built-in organization by domain without changing its id, logo or other domains', () => {
       const mappings = parseOrganizationMappings(undefined, [
-        { domain: 'northwindlondon.com', name: 'Studio Games', monogram: 'SG' },
+        { domain: 'take2games.com', name: 'Studio Games', monogram: 'SG' },
       ]);
-      const entry = mappings.find((candidate) => candidate.id === 'northwind-games');
+      const entry = mappings.find((candidate) => candidate.id === 'acme-interactive');
       expect(entry).toMatchObject({
         name: 'Studio Games',
         monogram: 'SG',
         ariaLabel: 'Organization: Studio Games',
-        logoKey: 'northwind',
-        domain: 'northwindgames.com',
+        logoKey: 'acme',
+        domain: 'take2games.com',
       });
-      expect(entry?.domainSuffixes).toEqual(['northwindgames.com', 'northwindnewengland.com', 'northwindlondon.com']);
-      expect(organizationForEmail('dev@northwindnewengland.com', mappings).name).toBe('Studio Games');
+      expect(entry?.domainSuffixes).toEqual(['take2games.com']);
+      expect(organizationForEmail('dev@take2games.com', mappings).name).toBe('Studio Games');
     });
 
     it('survives the client re-merge, where the built-in entry must not shadow the edit', () => {

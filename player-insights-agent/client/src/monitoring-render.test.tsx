@@ -1483,7 +1483,9 @@ describe('the User Monitoring browser', () => {
     expect(visible).toContain('All organizations');
     expect(markup).toContain('aria-label="Filter users by organization: All organizations"');
     expect(markup).toContain('data-organization-id="northwind-games"');
-    expect(markup).toMatch(/data-organization-id="northwind-games"[^>]*data-organization-mark="raw"[^>]*><svg/);
+    expect(markup).toMatch(
+      /data-organization-id="northwind-games"[^>]*data-organization-mark="raw"[^>]*><span aria-hidden="true">R\*</
+    );
     expect(markup).toMatch(
       /monitoring-user-identity[\s\S]*?data-organization-id="northwind-games"[\s\S]*?identity-chip-name">ada\.reader/
     );

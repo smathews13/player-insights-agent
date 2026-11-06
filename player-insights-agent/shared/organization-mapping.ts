@@ -53,26 +53,6 @@ export const ORGANIZATION_MANIFEST: readonly OrganizationMapping[] = [
     ariaLabel: 'Organization: Take-Two Interactive',
     fallback: 'monogram',
   },
-  {
-    id: '2k',
-    domain: '2k.com',
-    domainSuffixes: ['2k.com'],
-    name: 'Contoso',
-    monogram: 'Contoso',
-    logoKey: '2k',
-    ariaLabel: 'Organization: Contoso',
-    fallback: 'monogram',
-  },
-  {
-    id: 'northwind-games',
-    domain: 'northwindgames.com',
-    domainSuffixes: ['northwindgames.com', 'northwindnewengland.com', 'northwindlondon.com'],
-    name: 'Northwind Games',
-    monogram: 'R*',
-    logoKey: 'northwind',
-    ariaLabel: 'Organization: Northwind Games',
-    fallback: 'monogram',
-  },
 ] as const;
 
 /**
