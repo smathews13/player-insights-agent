@@ -1,5 +1,5 @@
 import { appTable } from '../../shared/app-schema';
-import { ownsPreferenceDefaults } from '../../shared/preference-default-owner';
+import { ownsPreferenceDefaults } from './preference-default-owner';
 import {
   DEFAULT_RUNTIME_SETTINGS,
   parseStoredRuntimeSettings,
