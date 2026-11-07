@@ -84,6 +84,17 @@ describe('categorical tick decisions are bounded by labels, count and chart dire
     expect(at(x.title).standoff).toBe(12);
   });
 
+  it('measures category names at the size the spec sets them', () => {
+    const labels = ['Region 001', 'Region 002', 'Region 003', 'Region 004', 'Region 005', 'Region 006'];
+    const viewport = { width: 360, height: 260 };
+    expect(at(layoutFigure(verticalBar(labels), LIGHT, viewport).layout.xaxis).tickangle).toBe(0);
+
+    const presented = verticalBar(labels);
+    presented.layout.xaxis = axis({ tickfont: { family: "'DM Sans', sans-serif", size: 12 } });
+    // Twelve-pixel names need half again the room, so the same six no longer fit flat.
+    expect(at(layoutFigure(presented, LIGHT, viewport).layout.xaxis).tickangle).not.toBe(0);
+  });
+
   it('wraps a few long vertical-bar labels without replacing their category values', () => {
     const labels = [
       'Sid Meier Dynasty Seven Anniversary Collection',

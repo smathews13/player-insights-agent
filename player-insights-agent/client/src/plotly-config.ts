@@ -143,6 +143,9 @@ const PEAK_DOT = 7;
 /** Tick labels. Small, because the marks are the figure and the axis is the caption. */
 const AXIS_LABEL_SIZE = 8;
 
+/** The largest category tick a spec may ask for; names are words, but still the caption. */
+const CATEGORY_LABEL_MAX_SIZE = 14;
+
 /** The legend, which Plotly draws and this file only paints. */
 const LEGEND_LABEL_SIZE = 9;
 
@@ -297,8 +300,13 @@ function soleMaximum(values: number[]): number {
   return ties === 1 ? at : -1;
 }
 
-/** The theme's paint on the figure's frame: text, axes, gridlines, tooltip, legend. */
-function paintFrame(layout: Record<string, unknown>, theme: ChartTheme): void {
+/**
+ * The theme's paint on the figure's frame: text, axes, gridlines, tooltip, legend.
+ *
+ * Value ticks are numbers and take the theme's mono face. Category ticks the spec set
+ * in a word face are names, so that face and its size stand; only their colour is themed.
+ */
+function paintFrame(layout: Record<string, unknown>, theme: ChartTheme, categoryAxis: AxisName | null): void {
   // Transparent in both themes, so the panel behind the plot is the surface and a
   // spec that named white does not lay a white slab on the night sky.
   layout.paper_bgcolor = TRANSPARENT;
@@ -325,8 +333,15 @@ function paintFrame(layout: Record<string, unknown>, theme: ChartTheme): void {
     axis.gridwidth = 1;
     const ticks = branch(axis, 'tickfont');
     ticks.color = theme.muted;
-    ticks.size = AXIS_LABEL_SIZE;
-    ticks.family = theme.mono;
+    const sentSize = typeof ticks.size === 'number' && Number.isFinite(ticks.size) ? ticks.size : null;
+    const sentFamily = typeof ticks.family === 'string' ? ticks.family.trim() : '';
+    // A mono face on category ticks is the engineering style, which keeps today's look.
+    const sentWords = name === categoryAxis && sentFamily !== '' && !/mono/i.test(sentFamily);
+    ticks.size =
+      sentWords && sentSize !== null
+        ? Math.min(CATEGORY_LABEL_MAX_SIZE, Math.max(AXIS_LABEL_SIZE, sentSize))
+        : AXIS_LABEL_SIZE;
+    if (!sentWords) ticks.family = theme.mono;
     if (record(axis.title).text !== undefined) branch(branch(axis, 'title'), 'font').color = theme.muted;
   }
 
@@ -338,8 +353,10 @@ function paintFrame(layout: Record<string, unknown>, theme: ChartTheme): void {
     if (themed) edge.color = themed;
     else if (typeof edge.color === 'string' && edge.color.trim().toLowerCase() === AGENT_INK) edge.color = theme.ink;
   }
+  // A note in a series colour names that series, so it keeps the series' themed paint.
   for (const note of list(layout.annotations)) {
-    branch(record(note), 'font').color = theme.ink;
+    const font = branch(record(note), 'font');
+    font.color = themedSeries(font.color, theme) ?? theme.ink;
   }
 }
 
@@ -507,6 +524,12 @@ const MOBILE_WIDTH = 480;
 const NARROW_WIDTH = 360;
 /** Ticks are 8px monospace (`AXIS_LABEL_SIZE`, `theme.mono`): 0.6em is about 4.8px a character. */
 const TICK_CHARACTER_WIDTH = 5;
+
+/** A tick character's width at the axis's own size, so a 12px category name gets 12px of room. */
+function tickCharacterWidth(axis: Record<string, unknown>): number {
+  const size = record(axis.tickfont).size;
+  return typeof size === 'number' && size > AXIS_LABEL_SIZE ? Math.round(size * 0.6) : TICK_CHARACTER_WIDTH;
+}
 const FLAT_TICK_PADDING = 36;
 const MAX_TICK_LINES = 2;
 /** A sideways bar has the row to itself, so its name may take a third line. */
@@ -655,13 +678,11 @@ function sampledIndices(length: number, maximum: number): number[] {
 
 function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxis, width: number): TickTreatment {
   const labels = category.labels.map(cleanLabel);
+  const characterWidth = tickCharacterWidth(axis);
   const longest = Math.max(...labels.map((label) => label.length));
   if (category.name === 'yaxis') {
     axis.tickangle = 0;
-    const limit = Math.max(
-      12,
-      Math.min(width <= MOBILE_WIDTH ? 18 : 28, Math.floor((width * 0.3) / TICK_CHARACTER_WIDTH))
-    );
+    const limit = Math.max(12, Math.min(width <= MOBILE_WIDTH ? 18 : 28, Math.floor((width * 0.3) / characterWidth)));
     if (longest > limit) {
       axis.tickmode = 'array';
       axis.tickvals = [...category.values];
@@ -672,14 +693,14 @@ function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxi
 
   const usable = Math.max(120, width - FLAT_TICK_PADDING);
   const flatCharacters = labels.reduce((total, label) => total + label.length, 0);
-  if (flatCharacters * TICK_CHARACTER_WIDTH <= usable && longest <= 12) {
+  if (flatCharacters * characterWidth <= usable && longest <= 12) {
     axis.tickangle = 0;
     return 'flat';
   }
 
   const slot = usable / labels.length;
   if (labels.length <= 6 && longest > 12 && slot >= 44) {
-    const lineChars = Math.max(8, Math.min(18, Math.floor(slot / TICK_CHARACTER_WIDTH)));
+    const lineChars = Math.max(8, Math.min(18, Math.floor(slot / characterWidth)));
     axis.tickmode = 'array';
     axis.tickvals = [...category.values];
     axis.ticktext = labels.map((label) => fittedTickLabel(label, lineChars));
@@ -689,10 +710,7 @@ function treatCategoryTicks(axis: Record<string, unknown>, category: CategoryAxi
 
   const maximumTicks = Math.max(2, Math.floor(usable / (width <= NARROW_WIDTH ? 42 : 50)));
   const indices = sampledIndices(labels.length, maximumTicks);
-  const lineChars = Math.max(
-    8,
-    Math.min(width <= MOBILE_WIDTH ? 12 : 16, Math.floor((slot * 1.4) / TICK_CHARACTER_WIDTH))
-  );
+  const lineChars = Math.max(8, Math.min(width <= MOBILE_WIDTH ? 12 : 16, Math.floor((slot * 1.4) / characterWidth)));
   axis.tickmode = 'array';
   axis.tickvals = indices.map((index) => category.values[index]);
   axis.ticktext = indices.map((index) => escapedLabel(clippedLine(labels[index], lineChars)));
@@ -1007,7 +1025,7 @@ export function themedFigure(figure: FigureSpec, theme: ChartTheme): ThemedFigur
     .trim()
     .toLowerCase();
 
-  paintFrame(layout, theme);
+  paintFrame(layout, theme, categoricalAxis(data, layout, kind)?.name ?? null);
   for (const trace of data) paintTrace(trace, theme);
   if (kind === 'line' || kind === 'scatter') enhanceLines(data, layout, kind, theme);
   dimTrailingBars(data);
