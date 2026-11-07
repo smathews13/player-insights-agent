@@ -335,6 +335,63 @@ describe('the theme is resolved into the figure, one slot at a time', () => {
   });
 });
 
+describe('the presented chart style reaches the screen', () => {
+  /** A ranking as the agent's default style sends it: names in the sans face, a hidden value axis. */
+  function presentedRanking(): FigureSpec {
+    const spec = rankedBarSpec();
+    const layout = spec.layout;
+    layout.xaxis = { ...at(layout.xaxis), tickfont: { family: SANS, size: 12, color: '#161616' } };
+    layout.yaxis = { ...at(layout.yaxis), showticklabels: false };
+    return spec;
+  }
+
+  it('keeps the sans face and size on category names, in both themes', () => {
+    for (const theme of [LIGHT, DARK]) {
+      const { layout } = themedFigure(presentedRanking(), theme);
+      expect(at(at(layout.xaxis).tickfont)).toEqual({ family: SANS, size: 12, color: theme.muted });
+      expect(at(at(layout.yaxis).tickfont)).toMatchObject({ family: theme.mono, size: 8 });
+    }
+  });
+
+  it('keeps the engineering style’s category ticks in mono at the panel size', () => {
+    const { layout } = themedFigure(rankedBarSpec(), LIGHT);
+    expect(at(at(layout.xaxis).tickfont)).toMatchObject({ family: LIGHT.mono, size: 8 });
+  });
+
+  it('keeps the emphasis orange on the leading bar in both themes', () => {
+    const spec = presentedRanking();
+    spec.data = [{ ...at(spec.data[0]), marker: { color: ['#FF3621', '#2272B4', '#04867D', '#4299E0'] } }];
+    for (const theme of [LIGHT, DARK]) {
+      const colours = at(at(themedFigure(spec, theme).data[0]).marker).color as unknown[];
+      expect(colours[0]).toBe('#FF3621');
+      expect(colours.slice(1)).toEqual([theme.accent, theme.second, theme.third]);
+    }
+  });
+
+  it('bounds a category size the spec overstates', () => {
+    const spec = presentedRanking();
+    spec.layout.xaxis = { ...at(spec.layout.xaxis), tickfont: { family: SANS, size: 40 } };
+    expect(at(at(themedFigure(spec, LIGHT).layout.xaxis).tickfont).size).toBe(14);
+  });
+
+  it('draws a line-end name in its line’s themed colour and any other note in ink', () => {
+    const spec = lineSpec();
+    spec.layout = {
+      ...spec.layout,
+      showlegend: false,
+      annotations: [
+        { name: 'presented', text: '<b>Sessions</b> 482', font: { family: SANS, size: 12, color: '#2272B4' } },
+        { name: 'presented', text: '<b>Players</b> 371', font: { family: SANS, size: 12, color: '#04867D' } },
+        { text: 'note', font: { color: '#161616' } },
+      ],
+    };
+    for (const theme of [LIGHT, DARK]) {
+      const notes = (themedFigure(spec, theme).layout.annotations as unknown[]).map((note) => at(at(note).font).color);
+      expect(notes).toEqual([theme.accent, theme.second, theme.ink]);
+    }
+  });
+});
+
 describe('the answer’s own chart object is never written to', () => {
   it('draws a frozen spec in both themes without touching it', () => {
     // Frozen rather than compared, because the module is an ES module and so runs
