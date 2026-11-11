@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { OpenInDatabricks, SourceEntityName } from './DataEntityLinks';
 import { KeepInMind } from './KeepInMind';
+import type { CaveatOrder } from './caveat-priority';
 import { sourceRows } from './source-rows';
 import type { SourceTone } from './source-rows';
 import type { Derivation, SourceRef } from './answer-shape';
@@ -81,6 +82,7 @@ export function SourcesModule({
   derivation = [],
   sql = '',
   hideWorkspaceLinks = [],
+  caveatOrder,
 }: {
   sources: readonly SourceRef[];
   /**
@@ -107,6 +109,8 @@ export function SourcesModule({
    * named twice; Caveats still sees the full list, so a caveat can tag it.
    */
   hideWorkspaceLinks?: readonly string[];
+  /** Passed to KeepInMind; risk order when unset. */
+  caveatOrder?: CaveatOrder;
 }) {
   const hidden = new Set(hideWorkspaceLinks.map((name) => name.trim().toLowerCase()));
   const workspaceLink = (name: string) =>
@@ -215,7 +219,7 @@ export function SourcesModule({
   return (
     <>
       {provenance}
-      <KeepInMind caveats={caveats} sources={rows} sql={sql} />
+      <KeepInMind caveats={caveats} sources={rows} sql={sql} order={caveatOrder} />
     </>
   );
 }

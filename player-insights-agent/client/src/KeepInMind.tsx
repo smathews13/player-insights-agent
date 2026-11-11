@@ -26,7 +26,7 @@ import { Button } from './ui';
 import { EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { caveatScope, emphasiseFigures } from './caveat-emphasis';
-import { rankCaveats } from './caveat-priority';
+import { rankCaveats, type CaveatOrder } from './caveat-priority';
 import { caveatSurface } from './caveat-surface';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
 
@@ -77,6 +77,7 @@ export function KeepInMind({
   sources,
   sql = '',
   limit = 3,
+  order = 'risk',
 }: {
   caveats: readonly string[];
   /** The tables this answer cited, which is what may be tagged inside a caveat. */
@@ -89,10 +90,12 @@ export function KeepInMind({
    * without having to write six caveats to reach the interesting case.
    */
   limit?: number;
+  /** Riskiest first, or as the agent wrote them. The "Above charts" setting picks. */
+  order?: CaveatOrder;
 }) {
   const [showAll, setShowAll] = useState(false);
   const displayed = normalizeReaderAnswer({ caveats, sources, sql });
-  const { top, rest } = rankCaveats(displayed.caveats ?? [], limit);
+  const { top, rest } = rankCaveats(displayed.caveats ?? [], limit, order);
   if (top.length === 0) return null;
 
   return (

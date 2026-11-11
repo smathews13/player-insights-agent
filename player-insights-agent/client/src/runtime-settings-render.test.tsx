@@ -172,6 +172,7 @@ describe('runtime and appearance modal sections', () => {
       'maxFigures',
       'maxCharts',
       'maxCaveats',
+      'caveatsFirst',
     ]) {
       expect(source).toContain(field);
     }

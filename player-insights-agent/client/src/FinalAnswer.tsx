@@ -16,6 +16,7 @@ import { AnswerProse, EntityText } from './DataEntityLinks';
 import { AnswerEvidence } from './AnswerEvidence';
 import { PiaAvatar } from './PiaMark';
 import { SourcesModule } from './SourcesModule';
+import { caveatOrder, useCaveatsFirst } from './caveat-layout';
 import { mentionedIdentifiers } from './data-entities';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
 import { evidenceLinkedSourceNames, tableOriginMaps } from './answer-table-origins';
@@ -63,6 +64,7 @@ export function FinalAnswer({
   const content = displayed.content ?? null;
   const restCaveats = displayed.caveats ?? [];
   const columns = mentionedIdentifiers([story]);
+  const order = caveatOrder(useCaveatsFirst());
   return (
     <Card className="final-answer" data-tone={honesty.tone}>
       <CardContent>
@@ -102,6 +104,7 @@ export function FinalAnswer({
         <SourcesModule
           sources={sources}
           caveats={restCaveats}
+          caveatOrder={order}
           derivation={derivation}
           sql={sql}
           hideWorkspaceLinks={evidenceLinkedSourceNames(story, content, charts, sources)}

@@ -34,6 +34,10 @@ export interface PriorTurn {
   content?: string;
   caveats?: string[];
   sources?: unknown[];
+  /** Answers only, verbatim from the stored answer: `{source, metric, window, filter}` entries. */
+  derivation?: unknown[];
+  /** Answers only, verbatim from the stored answer. */
+  sql?: string;
   evidence_blocks?: unknown[];
   evidence_withheld?: true;
 }
@@ -205,6 +209,9 @@ function turnFrom(row: StoredRow, question: string | undefined): PriorTurn | nul
     if (narrative) turn.narrative = narrative;
     const content = answerContent(response);
     if (content) turn.content = content;
+    if (Array.isArray(response.derivation) && response.derivation.length > 0) turn.derivation = response.derivation;
+    const sql = text(response.sql);
+    if (sql) turn.sql = sql;
   }
 
   const caveats = strings(response.caveats);

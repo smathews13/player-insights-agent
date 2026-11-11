@@ -54,7 +54,8 @@ describe('browser runtime settings cache parser', () => {
       ['answer', 'takeawayGuidance'],
       ['answer', 'narrativeGuidance'],
       ['answer', 'figuresOrder'],
-      ['answer', 'chartsTypes']
+      ['answer', 'chartsTypes'],
+      ['answer', 'caveatsFirst']
     );
     const trimmed = changed(['behavior', 'timezone'], '  America/Denver  ');
 
@@ -97,6 +98,7 @@ describe('browser runtime settings cache parser', () => {
       [['answer', 'narrativeGuidance'], 'x'.repeat(2_001)],
       [['answer', 'figuresOrder'], 'random'],
       [['answer', 'chartsTypes'], 'pie'],
+      [['answer', 'caveatsFirst'], 'false'],
       [['behavior', 'clarification'], 'always'],
       [['behavior', 'timezone'], 'x'.repeat(81)],
       [['behavior', 'injectCurrentDate'], 'false'],

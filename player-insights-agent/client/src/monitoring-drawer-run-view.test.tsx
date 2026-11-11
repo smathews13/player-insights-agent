@@ -243,7 +243,8 @@ describe("the modal draws one run view, the card's own", () => {
       rendered.indexOf('1,200 tokens recorded on this run.')
     );
     expect(rendered.indexOf('1,200 tokens recorded on this run.')).toBeLessThan(rendered.indexOf('Sources'));
-    expect(rendered.indexOf('Sources')).toBeLessThan(rendered.indexOf('Caveats'));
+    // Caveats lead the card under the takeaway (the default "Above charts" layout).
+    expect(rendered.indexOf('Caveats')).toBeLessThan(rendered.indexOf('A narrative sentence.'));
     expect(rendered.indexOf('Caveats')).toBeLessThan(rendered.indexOf('Run process'));
     expect(markup).toContain('aria-label="Caveats"');
     expect(rendered).not.toContain('Keep in mind');
@@ -264,8 +265,9 @@ describe("the modal draws one run view, the card's own", () => {
     expect(figures).toBeGreaterThan(evidence);
     expect(tokens).toBeGreaterThan(figures);
     expect(sources).toBeGreaterThan(tokens);
-    expect(keep).toBeGreaterThan(sources);
-    expect(process).toBeGreaterThan(keep);
+    expect(keep).toBeGreaterThan(-1);
+    expect(keep).toBeLessThan(evidence);
+    expect(process).toBeGreaterThan(sources);
 
     expect(MONITORING).toContain('afterEvidence={');
     expect(MONITORING).toContain('tokensNote(detail.tokens)');

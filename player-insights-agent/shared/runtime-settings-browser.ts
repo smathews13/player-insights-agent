@@ -54,6 +54,7 @@ export const RUNTIME_ANSWER_KEYS = [
   'narrativeGuidance',
   'figuresOrder',
   'chartsTypes',
+  'caveatsFirst',
 ] as const;
 export const RUNTIME_BEHAVIOR_KEYS = ['clarification', 'timezone', 'injectCurrentDate'] as const;
 export const RUNTIME_ENTITY_STYLE_KEYS = ['foreground', 'background'] as const;
@@ -217,6 +218,7 @@ export type RuntimeSettings = {
     narrativeGuidance: string;
     figuresOrder: 'as-ranked' | 'totals-first' | 'averages-first';
     chartsTypes: 'auto' | 'bar' | 'bar-line';
+    caveatsFirst: boolean;
   };
   behavior: {
     clarification: 'strict' | 'balanced' | 'proceed-with-caveat';
@@ -294,6 +296,7 @@ export const DEFAULT_RUNTIME_SETTINGS: RuntimeSettings = {
     narrativeGuidance: '',
     figuresOrder: 'as-ranked',
     chartsTypes: 'auto',
+    caveatsFirst: true,
   },
   behavior: {
     clarification: 'balanced',
@@ -487,6 +490,7 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
     typeof answer.figures !== 'boolean' ||
     typeof answer.caveats !== 'boolean' ||
     typeof behavior.injectCurrentDate !== 'boolean' ||
+    (answer.caveatsFirst !== undefined && typeof answer.caveatsFirst !== 'boolean') ||
     (root.backgroundGraphics !== undefined && typeof root.backgroundGraphics !== 'boolean') ||
     (root.animations !== undefined && typeof root.animations !== 'boolean')
   ) {
@@ -510,6 +514,7 @@ export function parsePersistedRuntimeSettings(value: unknown): RuntimeSettings |
       narrativeGuidance,
       figuresOrder,
       chartsTypes,
+      caveatsFirst: answer.caveatsFirst !== false,
     },
     behavior: {
       clarification,

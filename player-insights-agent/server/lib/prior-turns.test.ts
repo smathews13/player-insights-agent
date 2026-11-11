@@ -117,6 +117,60 @@ describe('buildPriorTurns', () => {
   });
 });
 
+describe('an earlier answer’s derivation and SQL', () => {
+  const answer = (response: Record<string, unknown>) => [
+    { id: 'u1', role: 'user', content: 'How many sign-ups?' },
+    { id: 'a1', role: 'assistant', content: 'headline', response_json: { takeaway: '12', ...response } },
+    { id: 'u2', role: 'user', content: 'now split that by region' },
+  ];
+  const derivation = [{ source: 'main.s.signups', metric: 'count(*)', window: 'last 30 days', filter: 'country = US' }];
+
+  it('carries both verbatim from a SQL answer', () => {
+    const [turn] = buildPriorTurns(answer({ derivation, sql: 'SELECT count(*) FROM main.s.signups' }));
+    expect(turn?.derivation).toEqual(derivation);
+    expect(turn?.sql).toBe('SELECT count(*) FROM main.s.signups');
+  });
+
+  it('carries both from a Genie answer, whatever shape its entries take', () => {
+    const genie = [{ source: 'Genie: Sign-ups space', metric: 'sign-ups', window: '', filter: '', extra: 1 }];
+    const [turn] = buildPriorTurns(answer({ derivation: genie, sql: 'SELECT 1' }));
+    expect(turn?.derivation).toEqual(genie);
+    expect(turn?.sql).toBe('SELECT 1');
+  });
+
+  it('omits each key when the stored value is empty or missing', () => {
+    const [empty] = buildPriorTurns(answer({ derivation: [], sql: '' }));
+    expect(empty).not.toHaveProperty('derivation');
+    expect(empty).not.toHaveProperty('sql');
+    const [missing] = buildPriorTurns(answer({}));
+    expect(missing).not.toHaveProperty('derivation');
+    expect(missing).not.toHaveProperty('sql');
+  });
+
+  it('is never added to a plan, clarification, report, dashboard or unavailable turn', () => {
+    const extra = { derivation, sql: 'SELECT 1' };
+    const rows = [
+      { role: 'user', content: 'q1' },
+      { role: 'assistant', response_json: { type: 'plan', plan: { id: 'p', summary: 's' }, ...extra } },
+      { role: 'user', content: 'q2' },
+      { role: 'assistant', response_json: { type: 'clarification', clarification: { question: 'q' }, ...extra } },
+      { role: 'user', content: 'q3' },
+      { role: 'assistant', response_json: { type: 'report', report: { title: 't' }, ...extra } },
+      { role: 'user', content: 'q4' },
+      { role: 'assistant', response_json: { type: 'dashboard', dashboard: { title: 't' }, ...extra } },
+      { role: 'user', content: 'q5' },
+      { role: 'assistant', response_json: { type: 'unavailable', message: 'm', ...extra } },
+      { role: 'user', content: 'now' },
+    ];
+    const turns = buildPriorTurns(rows);
+    expect(turns).toHaveLength(5);
+    for (const turn of turns) {
+      expect(turn).not.toHaveProperty('derivation');
+      expect(turn).not.toHaveProperty('sql');
+    }
+  });
+});
+
 describe('extractEvidenceBlocks', () => {
   it('finds blocks beside a document, through the wrappers, and is empty when there are none', () => {
     expect(extractEvidenceBlocks({ custom_outputs: { evidence_blocks: [block(1)] } })).toEqual([block(1)]);

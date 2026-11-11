@@ -579,6 +579,18 @@ export function RuntimeSettingsPanel({
                 helpId: 'runtime-max-caveats-help',
               })}
               <span className="runtime-inline-note">0 = all</span>
+              <div className="runtime-field">
+                <span className="runtime-field-label">Above charts</span>
+                <span className="runtime-control-note" id="runtime-caveats-first-help">
+                  Under the takeaway, in the agent’s order. Off: at the end, riskiest first.
+                </span>
+                <StateSwitch
+                  checked={settings.answer.caveatsFirst}
+                  onCheckedChange={(value) => setAnswer('caveatsFirst', value)}
+                  aria-label="Caveats above charts"
+                  aria-describedby="runtime-caveats-first-help"
+                />
+              </div>
             </AnswerRow>
           </section>
 

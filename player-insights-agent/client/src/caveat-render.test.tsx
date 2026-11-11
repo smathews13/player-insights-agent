@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AnswerCard } from './AnswerCard';
+import { forgetLiveRuntimeSettings, rememberLiveRuntimeSettings } from './runtime-settings-live';
+import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import { normalizeAnswer, type WireAnswer } from './answer-shape';
 import { DEGRADED_ANSWER_MARKER } from '../../shared/setup-remedies';
 import type { Answer, FeedbackEntry } from './app-types';
@@ -103,6 +105,16 @@ function renderCard(caveats: string[]): string {
   return renderWire(wireAnswer(caveats));
 }
 
+/** The saved "Above charts" answer setting, as the app root would have loaded it. */
+function caveatsFirst(on: boolean): void {
+  rememberLiveRuntimeSettings({
+    ...DEFAULT_RUNTIME_SETTINGS,
+    answer: { ...DEFAULT_RUNTIME_SETTINGS.answer, caveatsFirst: on },
+  });
+}
+
+afterEach(() => forgetLiveRuntimeSettings());
+
 /** Everything from the Caveats heading down. */
 function caveatsSection(markup: string): string {
   const at = markup.indexOf('Caveats');
@@ -123,7 +135,9 @@ function caveatBullets(markup: string): string[] {
   );
 }
 
-describe('the caveats an answer arrives with', () => {
+describe('the caveats an answer arrives with, with "Above charts" off', () => {
+  beforeEach(() => caveatsFirst(false));
+
   it('shows material caveats and drops process-only figure omissions', () => {
     const markup = renderCard(WIRE_CAVEATS);
 
@@ -307,7 +321,9 @@ describe('the caveats an answer arrives with', () => {
  * true of the other five is that they are still reachable and that the control
  * says they are there -- a fold nobody can see is a deletion with extra steps.
  */
-describe('the three a reader is shown first', () => {
+describe('the three a reader is shown first, with "Above charts" off', () => {
+  beforeEach(() => caveatsFirst(false));
+
   const REFUSAL =
     'A governance control refused part of this request, so that part is not answered here and was not ' +
     'answered another way.';
@@ -349,5 +365,62 @@ describe('the three a reader is shown first', () => {
     const markup = renderCard(WIRE_CAVEATS);
     expect(markup).not.toContain('covers only the data that identity is granted');
     expect(markup).not.toContain('row filters and column masks');
+  });
+});
+
+/**
+ * The default layout: caveats under the takeaway and any degradation banner,
+ * before the narrative and the charts, in the order the agent wrote them.
+ */
+describe('with "Above charts" on', () => {
+  const REFUSAL =
+    'A governance control refused part of this request, so that part is not answered here and was not ' +
+    'answered another way.';
+  const UNDOCUMENTED =
+    'The field launch_campaign_sessions is not documented in the data dictionary; its precise ' +
+    'definition and counting rule are unknown.';
+  const FIVE = [SYNTHETIC, COVERAGE, PLAYER_DAYS, REFUSAL, UNDOCUMENTED];
+
+  it('is the layout before the saved settings have loaded', () => {
+    const markup = renderCard(FIVE);
+    expect(markup.indexOf('keep-in-mind')).toBeLessThan(markup.indexOf('answer-narrative'));
+  });
+
+  it('shows the agent’s first three above the narrative and the rest behind show more', () => {
+    caveatsFirst(true);
+    const markup = renderCard(FIVE);
+    const bullets = caveatBullets(markup).map((bullet) => bullet.replace(/\s+/g, ' '));
+
+    expect(bullets).toEqual([SYNTHETIC, COVERAGE, PLAYER_DAYS].map((caveat) => caveat.replace(/\s+/g, ' ')));
+    expect(markup).toContain('show more');
+    expect(markup).not.toContain('A governance control refused');
+    expect(markup.indexOf('keep-in-mind')).toBeLessThan(markup.indexOf('answer-narrative'));
+    expect(markup.indexOf('keep-in-mind')).toBeLessThan(markup.indexOf('answer-kpis'));
+  });
+
+  it('draws the caveats once, and not again in the Sources module', () => {
+    caveatsFirst(true);
+    const markup = renderCard(FIVE);
+    const module = markup.slice(markup.indexOf('class="sources-module"'));
+
+    expect(markup.match(/aria-label="Caveats"/g)).toHaveLength(1);
+    expect(module).not.toContain('keep-in-mind');
+    expect(markup).toContain('sources-module');
+  });
+
+  it('sits under the degradation banner, not above it', () => {
+    caveatsFirst(true);
+    const markup = renderCard([`${DEGRADED_ANSWER_MARKER} the agent fell back to stored data.`, ...FIVE]);
+
+    expect(markup.indexOf('answer-source-degradation')).toBeLessThan(markup.indexOf('keep-in-mind'));
+    expect(caveatBullets(markup)).toHaveLength(3);
+  });
+
+  it('still drops the identity lecture and merged restatements', () => {
+    caveatsFirst(true);
+    const markup = renderCard([IDENTITY, SYNTHETIC, SYNTHETIC, COVERAGE]);
+
+    expect(markup).not.toContain('produced as analyst@example.com');
+    expect(caveatBullets(markup)).toHaveLength(2);
   });
 });

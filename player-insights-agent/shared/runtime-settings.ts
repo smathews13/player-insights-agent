@@ -114,6 +114,9 @@ export const RuntimeSettingsObjectSchema = z.strictObject({
     narrativeGuidance: z.string().trim().max(2_000).default(''),
     figuresOrder: z.enum(['as-ranked', 'totals-first', 'averages-first']).default('as-ranked'),
     chartsTypes: z.enum(['auto', 'bar', 'bar-line']).default('auto'),
+    // Display only, never sent to the agent: caveats under the takeaway in the
+    // agent's order, or at the foot of the card ranked by risk.
+    caveatsFirst: z.boolean().default(true),
   }),
   behavior: z.strictObject({
     clarification: z.enum(['strict', 'balanced', 'proceed-with-caveat']),
@@ -193,6 +196,7 @@ export const RuntimeSettingsPatchSchema = z.strictObject({
       narrativeGuidance: z.string().trim().max(2_000).optional(),
       figuresOrder: z.enum(['as-ranked', 'totals-first', 'averages-first']).optional(),
       chartsTypes: z.enum(['auto', 'bar', 'bar-line']).optional(),
+      caveatsFirst: z.boolean().optional(),
     })
     .optional(),
   behavior: z

@@ -91,13 +91,7 @@ export type CaveatRisk = (typeof CAVEAT_RISK)[keyof typeof CAVEAT_RISK];
 const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
   [
     CAVEAT_RISK.refused,
-    [
-      /\brefus(?:ed|al|es)\b/,
-      /\bdenied\b/,
-      /\bnot authori[sz]ed\b/,
-      /\baccess was blocked\b/,
-      /\bwas blocked\b/,
-    ],
+    [/\brefus(?:ed|al|es)\b/, /\bdenied\b/, /\bnot authori[sz]ed\b/, /\baccess was blocked\b/, /\bwas blocked\b/],
   ],
   [
     CAVEAT_RISK.evidence,
@@ -152,10 +146,7 @@ const RISK_PATTERNS: readonly (readonly [CaveatRisk, readonly RegExp[]])[] = [
       /\bgrain\b/,
     ],
   ],
-  [
-    CAVEAT_RISK.omitted,
-    [/\bomitted from (?:the )?figures\b/, /\bnot shown in (?:the )?figures\b/, /\bfigure limit\b/],
-  ],
+  [CAVEAT_RISK.omitted, [/\bomitted from (?:the )?figures\b/, /\bnot shown in (?:the )?figures\b/, /\bfigure limit\b/]],
   [
     CAVEAT_RISK.identity,
     [
@@ -315,10 +306,13 @@ function claimOf(caveat: string, risk: CaveatRisk): string {
     .trim();
 }
 
+/** `risk` ranks highest risk first; `received` keeps the order the agent wrote them in. */
+export type CaveatOrder = 'risk' | 'received';
+
 export interface RankedCaveats {
-  /** Shown by default, highest risk first. */
+  /** Shown by default, first in the chosen order. */
   top: string[];
-  /** Behind the toggle, the same ranking continued. Never dropped. */
+  /** Behind the toggle, the same order continued. Never dropped. */
   rest: string[];
   /** How many were collapsed as restatements, for a test to hold this honest. */
   merged: number;
@@ -334,8 +328,11 @@ export interface RankedCaveats {
  * comparing two answers has to see the same list in the same order both times,
  * and that guarantee is worth more than the two characters saved by relying on
  * it.
+ *
+ * `received` skips the sort and nothing else: deduplication and the identity
+ * filter still apply, and a merged restatement still yields to the first copy.
  */
-export function rankCaveats(caveats: readonly string[], limit = 5): RankedCaveats {
+export function rankCaveats(caveats: readonly string[], limit = 5, order: CaveatOrder = 'risk'): RankedCaveats {
   const kept: { text: string; risk: CaveatRisk; index: number }[] = [];
   const claims = new Set<string>();
   let merged = 0;
@@ -358,7 +355,7 @@ export function rankCaveats(caveats: readonly string[], limit = 5): RankedCaveat
     kept.push({ text, risk, index });
   });
 
-  kept.sort((left, right) => left.risk - right.risk || left.index - right.index);
+  if (order === 'risk') kept.sort((left, right) => left.risk - right.risk || left.index - right.index);
   const ordered = kept.map((entry) => entry.text);
   return { top: ordered.slice(0, limit), rest: ordered.slice(limit), merged, dropped };
 }

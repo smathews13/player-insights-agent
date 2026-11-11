@@ -3345,6 +3345,12 @@ interface AskServingInputs {
   attachments?: AttachmentSent[];
 }
 
+/** The settings the agent reads. Display-only answer settings stay in the app. */
+export function agentRuntimeSettings(settings: RuntimeSettings): Record<string, unknown> {
+  const { caveatsFirst: _caveatsFirst, ...answer } = settings.answer;
+  return { ...settings, answer };
+}
+
 /**
  * Builds the exact JSON body sent to Model Serving.
  *
@@ -3385,7 +3391,7 @@ export function buildAskServingBody({
   if (requestId) custom_inputs.request_id = requestId;
   if (runId) custom_inputs.run_id = runId;
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
-  if (runtimeSettings) custom_inputs.runtime_settings = runtimeSettings;
+  if (runtimeSettings) custom_inputs.runtime_settings = agentRuntimeSettings(runtimeSettings);
   if (llmRoute) custom_inputs.llm_route = llmRoute;
   if (genieMcpCapability) {
     custom_inputs.genie_transport = 'mcp';

@@ -69,10 +69,12 @@ describe('what a caveat is read as threatening', () => {
   });
 
   it('reads a truncated run as unaccounted evidence rather than as a slow one', () => {
-    expect(caveatRisk('The analysis stopped early because the 90s budget for this turn was spent, so it may be incomplete.')
+    expect(
+      caveatRisk('The analysis stopped early because the 90s budget for this turn was spent, so it may be incomplete.')
     ).toBe(CAVEAT_RISK.evidence);
     expect(caveatRisk('The turn deadline was reached before the answer could be written.')).toBe(CAVEAT_RISK.evidence);
-    expect(caveatRisk('gold_player_180d_summary player-level data was not queried due to query budget exhaustion.')
+    expect(
+      caveatRisk('gold_player_180d_summary player-level data was not queried due to query budget exhaustion.')
     ).toBe(CAVEAT_RISK.evidence);
   });
 
@@ -212,6 +214,23 @@ describe('the five a reader sees', () => {
   });
 });
 
+describe('in the order the agent sent them', () => {
+  const sent = [SESSION_MINUTES, DATASET_ENDS, REFUSAL, IDENTITY, BAR_WIDTHS, DATASET_ENDS, UNCERTIFIED];
+
+  it('shows the first three the agent wrote, and the rest behind the fold in the same order', () => {
+    const { top, rest, merged, dropped } = rankCaveats(sent, 3, 'received');
+
+    expect(top).toEqual([SESSION_MINUTES, DATASET_ENDS, REFUSAL]);
+    expect(rest).toEqual([BAR_WIDTHS, UNCERTIFIED]);
+    expect(merged).toBe(1);
+    expect(dropped).toBe(1);
+  });
+
+  it('still ranks by risk when asked to', () => {
+    expect(rankCaveats(sent, 3).top[0]).toBe(REFUSAL);
+  });
+});
+
 describe('the two bullets that were saying the same thing', () => {
   /**
    * The reported duplicate. Two producers write it -- the synthesiser's own
@@ -244,8 +263,7 @@ describe('the two bullets that were saying the same thing', () => {
    */
   it('never merges a caveat that only mentions the word in passing', () => {
     const refusalMentioningSynthetic =
-      'A governance control refused part of this request; the synthetic figures that remain cover the ' +
-      'rest of it.';
+      'A governance control refused part of this request; the synthetic figures that remain cover the ' + 'rest of it.';
     const { top, merged } = rankCaveats([refusalMentioningSynthetic, SYNTHETIC_FIRST]);
 
     expect(top).toEqual([refusalMentioningSynthetic, SYNTHETIC_FIRST]);

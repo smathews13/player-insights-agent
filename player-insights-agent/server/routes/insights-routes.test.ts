@@ -5,6 +5,7 @@ import { serving as sdkServing } from '@databricks/sdk-experimental';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { TRACE_SESSION_BASIS } from '../lib/trace-session';
 import {
+  agentRuntimeSettings,
   buildAskServingBody,
   buildServingHistory,
   ApprovedPlanBodySchema,
@@ -1482,6 +1483,21 @@ describe('serving request body', () => {
     ).toBeUndefined();
   });
 
+  it('keeps the display-only caveat layout switch out of the agent request', () => {
+    const body = buildAskServingBody({
+      history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
+      prompt: NONTRIVIAL_QUESTION,
+      conversationId: 'conv-1',
+      attachmentText: '',
+      runtimeSettings: DEFAULT_RUNTIME_SETTINGS,
+    });
+
+    const sent = (body.custom_inputs as { runtime_settings: { answer: Record<string, unknown> } }).runtime_settings;
+    expect(sent.answer).not.toHaveProperty('caveatsFirst');
+    expect(sent.answer.maxCaveats).toBe(DEFAULT_RUNTIME_SETTINGS.answer.maxCaveats);
+    expect(DEFAULT_RUNTIME_SETTINGS.answer.caveatsFirst).toBe(true);
+  });
+
   it('injects the signed capability with its server-selected transport', () => {
     const body = buildAskServingBody({
       history: [{ role: 'user', content: NONTRIVIAL_QUESTION }],
@@ -2028,8 +2044,11 @@ describe('what the route actually puts on the wire', () => {
     }
 
     expect(captured[0]?.payload.custom_inputs).toMatchObject({
-      runtime_settings: stored,
+      runtime_settings: agentRuntimeSettings(stored),
     });
+    expect(
+      (captured[0]?.payload.custom_inputs as { runtime_settings: { answer: object } }).runtime_settings.answer
+    ).not.toHaveProperty('caveatsFirst');
 
     const assistant = lakebase.messages.find((message) => message.role === 'assistant');
     const persisted = JSON.parse(String(assistant?.response_json)) as Record<string, unknown>;

@@ -8,8 +8,9 @@
  *
  * The order of the sections below is the specification's and is argued for
  * there. It is not a layout preference: the fallback banner leads because it
- * governs how every number under it reads, Caveats follow Sources, and the run
- * process sits under the answer it produced.
+ * governs how every number under it reads, and the run process sits under the
+ * answer it produced. Caveats sit under the banners, before the narrative, in
+ * the agent's order; with "Above charts" off they follow Sources, riskiest first.
  */
 import './styles/answer-body.css';
 import './styles/answer-charts.css';
@@ -45,6 +46,9 @@ import { PiaAvatar } from './PiaMark';
 import { AnswerProse, EntityText } from './DataEntityLinks';
 import { mentionedIdentifiers } from './data-entities';
 import { SourcesModule } from './SourcesModule';
+import { KeepInMind } from './KeepInMind';
+import { sourceRows } from './source-rows';
+import { caveatOrder, useCaveatsFirst } from './caveat-layout';
 import { TraceTimeline, type TraceTimelineVariant } from './TraceTimeline';
 import { evidenceLinkedSourceNames, tableOriginMaps } from './answer-table-origins';
 import { drawnAsWritten } from './answer-markdown';
@@ -223,6 +227,7 @@ export function AnswerCard({
     content: readerAnswer.content,
   });
   const keepCaveats = ordinaryCaveats;
+  const caveatsFirst = useCaveatsFirst();
   const badge = answerBadge(readerAnswer);
   const usedAttachments = processTrace.stages.some((stage) => stage.id === 'attachment');
   const missingDocumentFootnotes = usedAttachments && readerAnswer.document_snippets.length === 0;
@@ -307,6 +312,14 @@ export function AnswerCard({
             </AlertDescription>
           </Alert>
         )}
+        {caveatsFirst && (
+          <KeepInMind
+            caveats={keepCaveats}
+            sources={sourceRows(readerAnswer.sources)}
+            sql={readerAnswer.sql}
+            order={caveatOrder(caveatsFirst)}
+          />
+        )}
         <div className="answer-narrative">
           <AnswerProse
             text={narrative}
@@ -359,7 +372,8 @@ export function AnswerCard({
         {afterEvidence}
         <SourcesModule
           sources={readerAnswer.sources}
-          caveats={keepCaveats}
+          caveats={caveatsFirst ? [] : keepCaveats}
+          caveatOrder={caveatOrder(caveatsFirst)}
           derivation={readerAnswer.derivation}
           sql={readerAnswer.sql}
           hideWorkspaceLinks={evidenceLinkedSourceNames(

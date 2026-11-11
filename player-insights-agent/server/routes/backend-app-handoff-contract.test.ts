@@ -20,13 +20,18 @@ const failureMap = readFileSync(
   'utf8'
 );
 
+/** What the agent receives: the saved settings without the app's display-only switches. */
+type WireRuntimeSettings = Omit<RuntimeSettings, 'answer'> & {
+  answer: Omit<RuntimeSettings['answer'], 'caveatsFirst'>;
+};
+
 type RequestFixture = {
   body: {
     input: { role: string; content: string }[];
     custom_inputs: Record<string, unknown> & {
       conversation_id: string;
       execute_plan: boolean;
-      runtime_settings: RuntimeSettings;
+      runtime_settings: WireRuntimeSettings;
     };
     stream: true;
   };
@@ -65,7 +70,11 @@ function requestFromFixture(fixture: RequestFixture) {
     runId: typeof custom.run_id === 'string' ? custom.run_id : undefined,
     expectedUser: typeof custom.expected_user === 'string' ? custom.expected_user : undefined,
     deadlineAt: typeof custom.deadline_at === 'string' ? custom.deadline_at : undefined,
-    runtimeSettings: custom.runtime_settings,
+    // The saved row carries the display-only switch; the rebuilt request must not.
+    runtimeSettings: {
+      ...custom.runtime_settings,
+      answer: { ...custom.runtime_settings.answer, caveatsFirst: false },
+    },
     identityMode: typeof custom.identity_mode === 'string' ? custom.identity_mode : undefined,
     llmRoute: custom.llm_route === 'ai_gateway' ? 'ai_gateway' : custom.llm_route === 'direct' ? 'direct' : undefined,
   });
