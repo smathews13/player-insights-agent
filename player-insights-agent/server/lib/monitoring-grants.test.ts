@@ -51,7 +51,11 @@ beforeEach(() => {
 
 describe('what a missing grant conditions', () => {
   it('names the table and the privilege that was missing', () => {
-    expect(conditioningFor([TABLE], verdicts(denied(TABLE)))).toEqual({ table: TABLE, permission: 'SELECT' });
+    expect(conditioningFor([TABLE], verdicts(denied(TABLE)))).toEqual({
+      table: TABLE,
+      permission: 'SELECT',
+      reason: 'denied',
+    });
   });
 
   /**
@@ -71,6 +75,7 @@ describe('what a missing grant conditions', () => {
     expect(conditioningFor([TABLE], verdicts(verdict))).toEqual({
       table: 'a_catalog',
       permission: 'USE CATALOG',
+      reason: 'denied',
     });
   });
 
@@ -91,22 +96,41 @@ describe('what a missing grant conditions', () => {
   });
 
   /**
-   * A table that could not be checked is not a table that was denied. "Not
-   * checked" in this app always means not checked yet.
+   * A table that could not be checked is not shown as allowed. With several
+   * labels on one deployment, a timed-out check that showed everything would
+   * be a cross-label disclosure.
    */
-  it('does not condition on a table the probe could not classify', () => {
+  it('withholds an answer whose table the probe could not classify', () => {
     const errored: TableVerdict = { table: TABLE, status: 'error', detail: 'Not checked: budget reached.' };
 
-    expect(conditioningFor([TABLE], verdicts(errored))).toBeNull();
+    expect(conditioningFor([TABLE], verdicts(errored))).toEqual({
+      table: TABLE,
+      permission: 'SELECT',
+      reason: 'unverified',
+    });
   });
 
-  it('does not condition on a table that was not in the probed set', () => {
-    expect(conditioningFor(['a.b.late_arrival'], verdicts(ok(TABLE)))).toBeNull();
+  it('withholds an answer whose table was not in the probed set', () => {
+    expect(conditioningFor(['a.b.late_arrival'], verdicts(ok(TABLE)))?.reason).toBe('unverified');
   });
 
-  /** THE DECISION. A failed resolution shows everything. */
-  it('conditions nothing at all when the check did not run', () => {
-    expect(conditioningFor([TABLE, OTHER], unresolvedGrants(0))).toBeNull();
+  it('names a denied table ahead of one that could not be checked', () => {
+    const errored: TableVerdict = { table: TABLE, status: 'error', detail: 'Not checked: budget reached.' };
+
+    expect(conditioningFor([TABLE, OTHER], verdicts(errored, denied(OTHER)))).toMatchObject({
+      table: OTHER,
+      reason: 'denied',
+    });
+  });
+
+  /** THE DECISION. A failed resolution withholds every answer that read a table. */
+  it('withholds the answer when the check did not run', () => {
+    expect(conditioningFor([TABLE, OTHER], unresolvedGrants(0))).toEqual({
+      table: TABLE,
+      permission: 'SELECT',
+      reason: 'unverified',
+    });
+    expect(conditioningFor([], unresolvedGrants(0))).toBeNull();
   });
 });
 
@@ -202,7 +226,7 @@ describe('resolving the grants once per admin per range', () => {
   });
 });
 
-describe('when the check cannot run, everything is shown', () => {
+describe('when the check cannot run, answer bodies are withheld', () => {
   it('reports unresolved when there is nothing to probe with', async () => {
     const resolution = await resolveGrants({
       key: { admin: 'a@example.test', window: 'w1' },
@@ -213,7 +237,7 @@ describe('when the check cannot run, everything is shown', () => {
     });
 
     expect(resolution.resolved).toBe(false);
-    expect(conditioningFor([TABLE], resolution)).toBeNull();
+    expect(conditioningFor([TABLE], resolution)?.reason).toBe('unverified');
   });
 
   it('reports unresolved when the probe throws', async () => {
@@ -226,7 +250,7 @@ describe('when the check cannot run, everything is shown', () => {
     });
 
     expect(resolution.resolved).toBe(false);
-    expect(conditioningFor([TABLE], resolution)).toBeNull();
+    expect(conditioningFor([TABLE], resolution)?.reason).toBe('unverified');
   });
 
   /**
@@ -252,8 +276,8 @@ describe('when the check cannot run, everything is shown', () => {
     });
 
     expect(resolution.resolved).toBe(false);
-    expect(conditioningFor([TABLE], resolution)).toBeNull();
-    expect(conditioningFor([OTHER], resolution)).toBeNull();
+    expect(conditioningFor([TABLE], resolution)?.reason).toBe('unverified');
+    expect(conditioningFor([OTHER], resolution)?.reason).toBe('unverified');
   });
 
   /**

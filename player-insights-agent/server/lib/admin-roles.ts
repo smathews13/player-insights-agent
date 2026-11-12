@@ -496,13 +496,17 @@ export const ADMIN_ROUTE_PREFIXES: readonly string[] = [
  * which is the opposite of the failure mode a per-handler guard has: the handler
  * somebody forgot is the one that serves everybody.
  *
- * ONLY ROSTER MUTATIONS ARE HERE. Both administrator ranks may read Identity;
- * appointing people is the single thing a super admin can do that an admin cannot.
+ * ROSTER AND PERSONA MUTATIONS ARE HERE. Both administrator ranks may read
+ * Identity. Appointing people and changing service-principal personas are the
+ * things a super admin can do that an admin cannot. A persona replaces the
+ * person's own credential on governed reads, so whoever assigns one decides whose
+ * Unity Catalog grants a question runs under; a plain admin assigning one to
+ * themselves would be widening their own data access through an app rank.
  * A super admin reading Monitoring sees exactly what
  * an admin sees, conditioned on their own Unity Catalog grants: the rank is not a
  * grant and does not widen one.
  */
-export const SUPER_ADMIN_ROUTE_PREFIXES: readonly string[] = ['/api/users'];
+export const SUPER_ADMIN_ROUTE_PREFIXES: readonly string[] = ['/api/users', '/api/admin/sp-identity'];
 
 function matchesPrefix(path: string, prefixes: readonly string[]): boolean {
   const lowered = path.toLowerCase();
@@ -519,7 +523,7 @@ export function isSuperAdminRoute(path: string): boolean {
   return matchesPrefix(path, SUPER_ADMIN_ROUTE_PREFIXES);
 }
 
-/** Identity reads are admin-visible; every write under the roster path remains Super-Admin-only. */
+/** Identity reads are admin-visible; every write under the roster and persona paths remains Super-Admin-only. */
 export function requiresSuperAdmin(method: string, path: string): boolean {
   return method.toUpperCase() !== 'GET' && isSuperAdminRoute(path);
 }
@@ -547,7 +551,7 @@ export const ADMIN_REQUIRED_BODY = {
  */
 export const SUPER_ADMIN_REQUIRED_BODY = {
   error: 'super_admin_role_required',
-  detail: 'This deployment restricts changing roles to its super administrator.',
+  detail: 'This deployment restricts changing roles and service-principal personas to its super administrator.',
 } as const;
 
 /**

@@ -490,6 +490,15 @@ describe('the wording rules', () => {
     expect(line).not.toMatch(/denied|blocked|error|warning/i);
   });
 
+  it('says the answer is hidden, without blaming the reader, when access could not be checked', () => {
+    const line = conditioningLine('a_catalog.a_schema.a_table', 'SELECT', 'unverified');
+
+    expect(line).toBe(
+      'a_catalog.a_schema.a_table: your access to this table could not be checked, so the answer is hidden.'
+    );
+    expect(line).not.toMatch(/you do not have|denied|blocked|error|warning/i);
+  });
+
   /** "Not checked" always means not checked yet, and never broken. */
   it('never words an unchecked thing as a failure', () => {
     const view = source('monitoring-view.ts');

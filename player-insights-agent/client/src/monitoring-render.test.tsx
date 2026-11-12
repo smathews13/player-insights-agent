@@ -1267,7 +1267,9 @@ describe('the detail modal', () => {
     const rendered = text(body('ready', { grantsResolution: 'failed' }));
 
     expect(rendered).toContain(GRANTS_UNRESOLVED_LINE);
-    expect(rendered).toContain('Could not check your table permissions just now, so everything is shown.');
+    expect(rendered).toContain(
+      'Could not check your table permissions just now, so answers are hidden until the check succeeds.'
+    );
     // The list is still there. Nothing was hidden.
     expect(rendered).toContain('Compare active players by title over the last 30 days');
   });

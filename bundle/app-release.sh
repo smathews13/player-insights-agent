@@ -60,6 +60,7 @@ DEPLOY_TREE="$APP_DIR/build/deploy"
 APP_DB_GRANT="$BUNDLE_ROOT/bundle/app-db-grant.sh"
 APP_ACL_SELF_GRANT="$BUNDLE_ROOT/bundle/app-acl-self-grant.sh"
 APP_USER_ACCESS="$BUNDLE_ROOT/bundle/app-user-access.sh"
+EXPERIMENT_ACCESS="$BUNDLE_ROOT/bundle/experiment-access.sh"
 
 run_app_db_grant() {
   [[ -f "$APP_DB_GRANT" ]] || die "bundle/app-db-grant.sh is missing. Refusing to deploy
@@ -95,6 +96,18 @@ run_app_user_access() {
     note "WARNING: the customer access groups were NOT granted CAN_USE on $APP_NAME."
     note "Their members cannot open the App until it is fixed. Repair it with:"
     note "  TARGET=$TARGET PROFILE=$PROFILE bundle/app-user-access.sh --apply"
+  fi
+}
+
+# The agent experiment's ACL: the app, the endpoint's creator and the admin
+# group, and no workspace-wide grant, because traces carry each person's
+# questions and returned figures. A warning, not a stop, for the same reason as
+# the App grant above; a failure leaves the previous ACL in place.
+run_experiment_access() {
+  if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$EXPERIMENT_ACCESS" --apply; then
+    note "WARNING: the MLflow experiment ACL was NOT restricted for $APP_NAME."
+    note "Repair it with:"
+    note "  TARGET=$TARGET PROFILE=$PROFILE bundle/experiment-access.sh --apply"
   fi
 }
 
@@ -638,6 +651,7 @@ fi
 run_app_db_grant
 run_app_acl_self_grant
 run_app_user_access
+run_experiment_access
 
 step "Replacing validated staging source at $SRC_PATH"
 clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"

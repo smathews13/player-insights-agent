@@ -1393,10 +1393,16 @@ export function discloseAnswerProvenance<
  */
 export function discloseExecutingIdentity<T extends { caveats: string[]; trace: { id: string } }>(
   answer: T,
-  ranAsSignedInUser: boolean
+  ranAsSignedInUser: boolean,
+  ranAsPersona: string | null = null
 ): T {
-  if (ranAsSignedInUser) return answer;
   if (!isMlflowTraceId(answer.trace.id)) return answer;
+  if (ranAsSignedInUser && ranAsPersona) {
+    const caveat = assignedPersonaCaveat(ranAsPersona);
+    if (answer.caveats.includes(caveat)) return answer;
+    return { ...answer, caveats: [caveat, ...answer.caveats] };
+  }
+  if (ranAsSignedInUser) return answer;
   if (answer.caveats.includes(SERVICE_PRINCIPAL_FALLBACK_CAVEAT)) return answer;
   return { ...answer, caveats: [SERVICE_PRINCIPAL_FALLBACK_CAVEAT, ...answer.caveats] };
 }
@@ -3593,6 +3599,19 @@ export const SERVICE_PRINCIPAL_FALLBACK_CAVEAT =
   'data outside the signed-in account’s direct access.';
 
 /**
+ * The caveat an answer carries when a super administrator assigned the asker a
+ * service-principal persona, so the question ran with the persona's Unity
+ * Catalog grants instead of the asker's own. Without it the answer reads as the
+ * reader's own access, and the grants behind it can be wider or narrower.
+ */
+export function assignedPersonaCaveat(personaName: string): string {
+  return (
+    `Data access scope: this answer ran as the service-principal persona “${personaName}” assigned to you, ` +
+    'so it used that persona’s Unity Catalog grants rather than your own.'
+  );
+}
+
+/**
  * The endpoint would not run this question as the user who asked it.
  *
  * Its own class because it must not be catchable by the same clause as an
@@ -5582,6 +5601,7 @@ export function setupInsightsRoutes(
         // belongs on the answer and the answer is assembled further down. False
         // until something proves otherwise: nothing has run as anybody yet.
         let ranAsSignedInUser = false;
+        let ranAsPersona: string | null = null;
         // How far the run got, read by the failure paths below. Undefined rather
         // than a zeroth stage: a turn that answers with a plan emits no stages at
         // all, and reporting "stopped in step 0" for one would name a step that
@@ -5743,6 +5763,7 @@ export function setupInsightsRoutes(
           // separately and must not inherit a timer intended for the transport.
           clearTimeout(deadlineTimer);
           ranAsSignedInUser = Boolean(identity.token);
+          ranAsPersona = identity.persona?.displayName ?? null;
           /**
            * Before all six result shapes, because a refusal is none of them and looks
            * like one of them.
@@ -6290,7 +6311,11 @@ export function setupInsightsRoutes(
         // so a stored answer reaching here by any route is covered rather than
         // whichever ones somebody remembered.
         const disclosed = normalizeReaderAnswer(
-          discloseExecutingIdentity(withoutUntracedProcess(discloseAnswerProvenance(answer)), ranAsSignedInUser)
+          discloseExecutingIdentity(
+            withoutUntracedProcess(discloseAnswerProvenance(answer)),
+            ranAsSignedInUser,
+            ranAsPersona
+          )
         );
         if (replyIfCancelled()) return;
         // Not `safeQuery`, whose contract is that a failed write does not change

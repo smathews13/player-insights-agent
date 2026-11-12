@@ -947,7 +947,7 @@ export function UserRoleEditor({
               busy={busy}
               personas={spPayload.personas}
               personaByEmail={personaByEmail}
-              personaDisabled={Boolean(spError) && !spLoaded}
+              personaDisabled={!canManageHumanRoles || (Boolean(spError) && !spLoaded)}
               showPersona={true}
               manageHumanRoles={canManageHumanRoles}
               onGroupRoleChange={(mapping, role) =>
@@ -1046,58 +1046,65 @@ export function UserRoleEditor({
       </section>
 
       <section className="settings-identity-section" aria-label="Service principal personas">
-        <SpIdentityEditor
-          payload={spPayload}
-          busy={busy}
-          loading={loading}
-          readError={spError}
-          hasLastGoodPayload={spLoaded}
-          mutationError={spMutationError}
-          onRetryRead={() => void load()}
-          onRename={(id, displayName) =>
-            void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`, {
-              spOperation: 'rename',
-            })
-          }
-          onCreateDefinition={(write) =>
-            run(
-              () => createSpPersonaDefinition(write),
-              `${write.displayName} permissions saved. Connect its service principal next.`,
-              {
-                spOperation: 'definition-save',
-              }
-            )
-          }
-          onUpdateDefinition={(id, write) =>
-            run(
-              () => updateSpPersonaDefinition(id, write),
-              `${write.displayName} permissions updated. Run Check status again.`,
-              {
-                spOperation: 'definition-save',
-              }
-            )
-          }
-          onConnectDefinition={(id: string, write: SpPersonaConnectionWrite) =>
-            run(
-              () => connectSpPersonaDefinition(id, write),
-              'Credential reference saved. Run Check status to verify the connection and permissions.',
-              { spOperation: 'connection-save', apply: setSpPayload }
-            )
-          }
-          onCheckDefinition={(id) =>
-            run(() => checkSpPersonaDefinitionStatus(id), 'Connection and permission status checked.', {
-              spOperation: 'status-check',
-              apply: setSpPayload,
-            })
-          }
-          onDeleteDefinition={(id) =>
-            void run(
-              () => deleteSpPersonaDefinition(id),
-              'Persona configuration removed. No Databricks account identity was changed.',
-              { spOperation: 'definition-delete' }
-            )
-          }
-        />
+        {canManageHumanRoles ? (
+          <SpIdentityEditor
+            payload={spPayload}
+            busy={busy}
+            loading={loading}
+            readError={spError}
+            hasLastGoodPayload={spLoaded}
+            mutationError={spMutationError}
+            onRetryRead={() => void load()}
+            onRename={(id, displayName) =>
+              void run(() => renameSpPersona(id, displayName), `Persona renamed to ${displayName}.`, {
+                spOperation: 'rename',
+              })
+            }
+            onCreateDefinition={(write) =>
+              run(
+                () => createSpPersonaDefinition(write),
+                `${write.displayName} permissions saved. Connect its service principal next.`,
+                {
+                  spOperation: 'definition-save',
+                }
+              )
+            }
+            onUpdateDefinition={(id, write) =>
+              run(
+                () => updateSpPersonaDefinition(id, write),
+                `${write.displayName} permissions updated. Run Check status again.`,
+                {
+                  spOperation: 'definition-save',
+                }
+              )
+            }
+            onConnectDefinition={(id: string, write: SpPersonaConnectionWrite) =>
+              run(
+                () => connectSpPersonaDefinition(id, write),
+                'Credential reference saved. Run Check status to verify the connection and permissions.',
+                { spOperation: 'connection-save', apply: setSpPayload }
+              )
+            }
+            onCheckDefinition={(id) =>
+              run(() => checkSpPersonaDefinitionStatus(id), 'Connection and permission status checked.', {
+                spOperation: 'status-check',
+                apply: setSpPayload,
+              })
+            }
+            onDeleteDefinition={(id) =>
+              void run(
+                () => deleteSpPersonaDefinition(id),
+                'Persona configuration removed. No Databricks account identity was changed.',
+                { spOperation: 'definition-delete' }
+              )
+            }
+          />
+        ) : (
+          <p className="admin-list-note" data-testid="sp-identity-super-admin-only">
+            Only the super administrator can create, change or assign service-principal personas, because a persona
+            replaces the person’s own data access.
+          </p>
+        )}
       </section>
 
       {/* One live region for both, because they are the same slot on screen and two

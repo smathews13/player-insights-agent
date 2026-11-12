@@ -25,21 +25,15 @@
  *     the access-verification path the access gate already uses, and the result
  *     is cached until the range changes.
  *
- *  3. A FAILED RESOLUTION SHOWS EVERYTHING. This is the one that is tempting to
- *     get wrong, because failing closed feels safer. It is not safer, it is
- *     wrong: an admin's grants normally cover whatever a consumer asked about, so
- *     the overwhelmingly likely truth when a permission check times out is that
- *     they were entitled to all of it. The data itself is still governed, because
- *     every query that produced these answers already ran under the asking user's
- *     grants and Unity Catalog is still the boundary. Conditioning is a courtesy
- *     on top of that boundary, not the boundary. Hiding the page when the
- *     courtesy cannot be performed is the failure mode the whole section was
- *     written against.
- *
- * A TABLE THAT COULD NOT BE CHECKED IS NOT A TABLE THAT WAS DENIED. The
- * verification path reports `error` for a probe that ran out of budget or whose
- * refusal it could not classify. Those do not condition anything, for the reason
- * in 3 and because "not checked" in this app always means not checked yet.
+ *  3. A CHECK THAT DID NOT ANSWER HIDES THE ANSWER. Once one deployment serves
+ *     several labels, an admin from one label can be a reader with no grant on
+ *     another label's tables, and a stored answer is that other label's figures
+ *     in prose. Showing it because the check timed out would turn every warehouse
+ *     hiccup into a cross-label disclosure. So a failed resolution, a table the
+ *     probe could not classify, and a table outside the probed set all withhold
+ *     the body with a line saying access could not be checked. Everything in the
+ *     always-shown set still renders, and the cache expires in seconds, so the
+ *     cost is a short wait rather than a blank page.
  */
 
 import {
@@ -60,8 +54,8 @@ export const GRANT_CACHE_MAX_ENTRIES = 256;
  * What the check found, per table, plus whether it ran at all.
  *
  * `resolved: false` is the failure case and carries no verdicts. Callers must
- * treat it as "show everything", never as "deny everything"; `conditioningFor`
- * below enforces that so a caller cannot get it wrong by omission.
+ * treat it as "not established", never as "allowed"; `conditioningFor` below
+ * enforces that so a caller cannot get it wrong by omission.
  */
 export interface GrantResolution {
   resolved: boolean;
@@ -80,26 +74,29 @@ export function unresolvedGrants(now: number): GrantResolution {
  * Returns the FIRST denied table in the order the run recorded its sources, so
  * the line a reader sees is stable across refreshes rather than depending on map
  * iteration. Naming one table is enough: the reader needs a grant to proceed and
- * a list of five does not change what they do next.
+ * a list of five does not change what they do next. A denial outranks a table
+ * that could not be checked, because it tells the reader what to ask for.
  */
 export function conditioningFor(tables: readonly string[], grants: GrantResolution): AnswerConditioning | null {
-  // The whole of decision 3, in one line. Nothing is conditioned when the check
-  // did not run.
-  if (!grants.resolved) return null;
+  if (tables.length === 0) return null;
+  if (!grants.resolved) return { table: tables[0], permission: 'SELECT', reason: 'unverified' };
+  let unverified: string | null = null;
   for (const table of tables) {
     const verdict = grants.verdicts.get(table);
-    // Absent means this table was not in the probed set, which happens when a
-    // run's sources changed after the range was resolved. Not a denial.
-    if (!verdict || verdict.status !== 'denied') continue;
-    return {
-      table: verdict.missing?.object ?? table,
-      // The privilege the refusal actually named, which is not always SELECT: a
-      // refusal naming the catalog is a missing USE CATALOG, and granting SELECT
-      // on a table inside a catalog the reader cannot enter does not clear it.
-      permission: verdict.missing?.permission ?? 'SELECT',
-    };
+    if (verdict?.status === 'ok') continue;
+    if (verdict?.status === 'denied') {
+      return {
+        table: verdict.missing?.object ?? table,
+        // The privilege the refusal actually named, which is not always SELECT: a
+        // refusal naming the catalog is a missing USE CATALOG, and granting SELECT
+        // on a table inside a catalog the reader cannot enter does not clear it.
+        permission: verdict.missing?.permission ?? 'SELECT',
+        reason: 'denied',
+      };
+    }
+    unverified ??= table;
   }
-  return null;
+  return unverified ? { table: unverified, permission: 'SELECT', reason: 'unverified' } : null;
 }
 
 /**
@@ -172,7 +169,7 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
     return empty;
   }
   // No probe means the app has no warehouse, no workspace host, or no forwarded
-  // token to run one with. Unresolved, which shows everything and says so.
+  // token to run one with. Unresolved, which withholds answer bodies and says so.
   if (!options.probe) {
     const failed = unresolvedGrants(now);
     cache.set(id, failed, now, ttl);
@@ -190,7 +187,7 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
   } catch (error) {
     console.warn(
       `[monitoring] Table permissions could not be resolved for ${options.key.admin}: ${(error as Error).message}. ` +
-        'Everything is shown, and the page says the check could not run.'
+        'Answer bodies are withheld, and the page says the check could not run.'
     );
     const failed = unresolvedGrants(now);
     cache.set(id, failed, now, ttl);
@@ -202,7 +199,7 @@ export async function resolveGrants(options: ResolveGrantsOptions): Promise<Gran
   // of denials.
   if (outcome.blocked) {
     console.warn(
-      `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Everything is shown.`
+      `[monitoring] Table permissions not established for ${options.key.admin}: ${outcome.blocked.kind}. Answer bodies are withheld.`
     );
     const failed = unresolvedGrants(now);
     cache.set(id, failed, now, ttl);

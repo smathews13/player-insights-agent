@@ -16,9 +16,11 @@ variables:
             value: ${var.product_slug}
         lifecycle:
           prevent_destroy: true
-        permissions:
-          - level: CAN_EDIT
-            group_name: users
+        # No permissions here. bundle/experiment-access.sh (run by app-release.sh)
+        # grants the app service principal, the endpoint's creator and the admin
+        # group, and removes the workspace-wide `users` grant. A list declared here
+        # would replace the other target's app grant, because Dev and Prod share
+        # this experiment.
 
 resources:
   experiments: ${var.app_experiment_resources}

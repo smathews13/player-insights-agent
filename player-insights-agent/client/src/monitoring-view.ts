@@ -327,7 +327,8 @@ export function partialSentence(counted: number, found: number | null): string {
 }
 
 /** The one line above the list when the permissions check could not run. */
-export const GRANTS_UNRESOLVED_LINE = 'Could not check your table permissions just now, so everything is shown.';
+export const GRANTS_UNRESOLVED_LINE =
+  'Could not check your table permissions just now, so answers are hidden until the check succeeds.';
 
 /*
  * THERE IS DELIBERATELY NO LINE HERE ABOUT THE SIZE OF THE WINDOW.
@@ -350,7 +351,9 @@ export const GRANTS_UNRESOLVED_LINE = 'Could not check your table permissions ju
  */
 
 /** The body line that replaces an answer the reader's grants do not cover. */
-export function conditioningLine(table: string, permission: string): string {
+export function conditioningLine(table: string, permission: string, reason?: 'denied' | 'unverified'): string {
+  if (reason === 'unverified')
+    return `${table}: your access to this table could not be checked, so the answer is hidden.`;
   return `${table}: you do not have ${permission} on this table.`;
 }
 

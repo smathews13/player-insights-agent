@@ -1119,7 +1119,7 @@ export function QuestionDrawer({
              surrounding body text. No warning colour, no icon, no acknowledgement
              step. Everything below still renders. */
         <p className="monitoring-conditioned">
-          {conditioningLine(detail.conditioning.table, detail.conditioning.permission)}
+          {conditioningLine(detail.conditioning.table, detail.conditioning.permission, detail.conditioning.reason)}
         </p>
       ) : answer ? (
         <AnswerCard

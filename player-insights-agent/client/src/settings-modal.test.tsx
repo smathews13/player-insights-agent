@@ -8,6 +8,7 @@ import { SettingsPage, SettingsPaneBoundary } from './SettingsPage';
 import { roleFrom, type RoleResolution } from './role';
 
 const NORMAL_IDENTITY = { signedInAs: '<your-username>', role: 'admin' };
+const SUPER_ADMIN_ROLE: RoleResolution = { state: 'super_admin', addedAdminsReadable: true };
 const FEATURES = {
   aiGateway: false,
   benchmarkLab: false,
@@ -123,7 +124,7 @@ describe('Settings modal', () => {
   });
 
   it('keeps Settings tab titles and drops the grey captions under them', () => {
-    const identity = render('identity');
+    const identity = render('identity', SUPER_ADMIN_ROLE);
     const runtime = render('runtime');
     const appearance = render('appearance');
     const experimental = render('experimental');
@@ -286,13 +287,19 @@ describe('Settings modal', () => {
   });
 
   it('keeps SP Persona mappings on Identity and removes their Experimental pivot', () => {
-    const identity = render('identity');
+    const identity = render('identity', SUPER_ADMIN_ROLE);
     const experimental = render('experimental');
     expect(identity).toContain('data-testid="sp-identity-pane"');
     expect(identity).toContain('SP Personas');
     expect(identity).not.toContain('Turn SP identities on under Experimental');
     expect(identity).not.toContain('type="password"');
     expect(experimental).not.toMatch(/SP identities|sp-identity-settings-link/);
+  });
+
+  it('shows an admin who is not the super administrator no persona editor', () => {
+    const identity = render('identity');
+    expect(identity).toContain('data-testid="sp-identity-super-admin-only"');
+    expect(identity).not.toContain('data-testid="sp-identity-pane"');
   });
 
   it('adds Notebook agent sync with concise non-automatic copy', () => {

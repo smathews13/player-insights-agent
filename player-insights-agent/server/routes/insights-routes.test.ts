@@ -12,7 +12,9 @@ import {
   BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
   createServingTransport,
   DEVELOPMENT_IDENTITY,
+  assignedPersonaCaveat,
   discloseAnswerProvenance,
+  discloseExecutingIdentity,
   extractAnalysisPlan,
   extractAttachment,
   extractAttachmentText,
@@ -2518,6 +2520,19 @@ describe('the answer contract survives the round trip into the HTTP response', (
     } finally {
       await app.close();
     }
+  });
+
+  it('says so when the question ran with an assigned persona instead of the reader', () => {
+    const answer = { caveats: ['Existing caveat.'], trace: { id: 'tr-0123abcd' } };
+
+    const disclosed = discloseExecutingIdentity(answer, true, 'Northwind Analyst');
+
+    expect(disclosed.caveats[0]).toBe(assignedPersonaCaveat('Northwind Analyst'));
+    expect(disclosed.caveats[0]).toContain('Northwind Analyst');
+    expect(disclosed.caveats).toContain('Existing caveat.');
+    expect(disclosed.caveats).not.toContain(SERVICE_PRINCIPAL_FALLBACK_CAVEAT);
+    expect(discloseExecutingIdentity(disclosed, true, 'Northwind Analyst').caveats).toHaveLength(2);
+    expect(discloseExecutingIdentity(answer, true).caveats).toEqual(['Existing caveat.']);
   });
 
   it('answers only from the run, with no stored fixture mixed into it', async () => {

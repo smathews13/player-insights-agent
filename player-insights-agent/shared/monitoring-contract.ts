@@ -320,6 +320,11 @@ export interface AnswerConditioning {
   table: string;
   /** `SELECT`, or whichever privilege the check found missing. */
   permission: string;
+  /**
+   * `denied` when the check found the grant missing; `unverified` when the check
+   * could not answer for this table. Both withhold the body.
+   */
+  reason?: 'denied' | 'unverified';
 }
 
 /** What the drawer renders for one question. */

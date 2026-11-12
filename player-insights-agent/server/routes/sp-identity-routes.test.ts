@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { isAdminRoute } from '../lib/admin-roles';
+import { isAdminRoute, requiresSuperAdmin } from '../lib/admin-roles';
 import {
   SpPersonaConnectionWriteSchema,
   SpPersonaDefinitionWriteSchema,
@@ -19,6 +19,18 @@ describe('service-principal identity admin routes', () => {
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions/id/connection')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity/persona-definitions/id/status-check')).toBe(true);
     expect(isAdminRoute('/api/admin/sp-identity')).toBe(true);
+  });
+
+  it('lets only a super admin change personas, while admins can still read them', () => {
+    expect(requiresSuperAdmin('GET', '/api/admin/sp-identity')).toBe(false);
+    expect(requiresSuperAdmin('PUT', '/api/admin/sp-identity/assignments')).toBe(true);
+    expect(requiresSuperAdmin('POST', '/api/admin/sp-identity/personas')).toBe(true);
+    expect(requiresSuperAdmin('PATCH', '/api/admin/sp-identity/personas/id')).toBe(true);
+    expect(requiresSuperAdmin('DELETE', '/api/admin/sp-identity/personas/id')).toBe(true);
+    expect(requiresSuperAdmin('POST', '/api/admin/sp-identity/persona-definitions')).toBe(true);
+    expect(requiresSuperAdmin('PUT', '/api/admin/sp-identity/persona-definitions/id/connection')).toBe(true);
+    expect(requiresSuperAdmin('POST', '/api/admin/sp-identity/persona-definitions/id/status-check')).toBe(true);
+    expect(requiresSuperAdmin('DELETE', '/api/admin/sp-identity/persona-definitions/id')).toBe(true);
   });
 
   it('has no permission-suggestion route, model call, timeout, or cancellation surface', () => {
