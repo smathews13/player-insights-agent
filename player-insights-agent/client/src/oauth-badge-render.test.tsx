@@ -89,9 +89,7 @@ const ADMIN: RoleResolution = { state: 'admin', addedAdminsReadable: true };
 
 /** The cluster the badges and the name share, at either width. */
 function cluster(session?: SessionReport, className?: string): string {
-  return renderToStaticMarkup(
-    <IdentityChips identity={identity(session)} role={ADMIN} className={className} />
-  );
+  return renderToStaticMarkup(<IdentityChips identity={identity(session)} role={ADMIN} className={className} />);
 }
 
 function withoutComments(css: string) {
@@ -194,19 +192,14 @@ describe('the words, and whose they are', () => {
       expect(oauthBadgeLabel(state)).toBe('OAuth');
       expect(oauthBadgeAccessibleName(state)).toMatch(/OAuth sign-in/);
     }
-    const names = new Set(
-      (['working', 'not-working', 'unknown'] as const).map(oauthBadgeAccessibleName)
-    );
+    const names = new Set((['working', 'not-working', 'unknown'] as const).map(oauthBadgeAccessibleName));
     expect(names.size).toBe(3);
   });
 
   it('derives nothing of its own in the component', () => {
     // Same rule RoleBadge follows. A fetch or a second reading of the session
     // here would be a second answer to a question the server answers once.
-    const source = readFileSync(new URL('OAuthBadge.tsx', import.meta.url), 'utf8').replace(
-      /\/\*[\s\S]*?\*\//g,
-      ' '
-    );
+    const source = readFileSync(new URL('OAuthBadge.tsx', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ');
     expect(source).not.toMatch(/fetch\(|useIdentity|sessionFreshness/);
   });
 });
@@ -241,12 +234,7 @@ describe('where it sits, which is no longer the top bar', () => {
     // The release chip is no longer a member. It states which build is on screen
     // rather than anything about the reader, so it is seated beside the app's own
     // name; see the header brand tests in deployment-time-chip.test.tsx.
-    expect(HEADER_CLUSTER_ORDER).toEqual([
-      'role-badge',
-      'identity-chip',
-      'settings-gear',
-      'built-on-databricks',
-    ]);
+    expect(HEADER_CLUSTER_ORDER).toEqual(['role-badge', 'identity-chip', 'settings-gear', 'built-on-databricks']);
     expect(HEADER_CLUSTER_ORDER).not.toContain('deployment-time');
   });
 
@@ -254,9 +242,9 @@ describe('where it sits, which is no longer the top bar', () => {
     // The order comes from the markup, so an `order:` here would put what is
     // painted and what is read out into disagreement without touching a
     // component. `order:` and not `border:`, hence the anchor.
-    const bodies = [
-      ...withoutComments(partial('shell.css')).matchAll(/\.oauth-badge[^{]*\{([^}]*)\}/g),
-    ].map((match) => match[1]);
+    const bodies = [...withoutComments(partial('shell.css')).matchAll(/\.oauth-badge[^{]*\{([^}]*)\}/g)].map(
+      (match) => match[1]
+    );
     expect(bodies.length).toBeGreaterThan(0);
     for (const body of bodies) expect(body).not.toMatch(/(^|[;{\s])order\s*:/);
   });
@@ -268,12 +256,8 @@ describe('the three states are told apart by more than a hue', () => {
     // one status chip, and a second copy here was how this came to be the surface
     // that would not follow a repaint of the palette. The measured pairs are the
     // recipe's now, so the badge moves when they do.
-    expect(renderToStaticMarkup(<OAuthBadge identity={identity(report('current'))} />)).toContain(
-      'ast-pill--pos',
-    );
-    expect(renderToStaticMarkup(<OAuthBadge identity={identity(notForwarded())} />)).toContain(
-      'ast-pill--neg',
-    );
+    expect(renderToStaticMarkup(<OAuthBadge identity={identity(report('current'))} />)).toContain('ast-pill--pos');
+    expect(renderToStaticMarkup(<OAuthBadge identity={identity(notForwarded())} />)).toContain('ast-pill--neg');
     const tokens = partial('astrolabe-tokens.css');
     expect(rule('.ast-pill--pos', tokens)).toMatch(/background:\s*var\(--ast-pos-fill\)/);
     expect(rule('.ast-pill--neg', tokens)).toMatch(/background:\s*var\(--ast-neg-fill\)/);

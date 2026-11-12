@@ -54,11 +54,7 @@ export const NO_AGENT_MODEL: AgentModelReference = {
  * name is still carried, so the pane can show what it knows without offering to
  * open it.
  */
-export function agentModelReference(input: {
-  host: string;
-  model: string;
-  version: string;
-}): AgentModelReference {
+export function agentModelReference(input: { host: string; model: string; version: string }): AgentModelReference {
   const model = input.model.trim();
   const version = input.version.trim();
   if (!model) return NO_AGENT_MODEL;

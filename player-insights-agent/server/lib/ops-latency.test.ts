@@ -70,7 +70,19 @@ describe('reading the timings back', () => {
   /** Shaped as the warehouse returns them: eleven string columns, stacked. */
   const ROWS = [
     // kind, label, spans, p50, p95, p99, slowest, errors, last_at, prior_spans, prior_p50
-    ['route', 'POST /api/insights/ask', '8', '73743.9', '135600.2', '140000', '150000', '0', '2026-08-17 16:40:00', '0', ''],
+    [
+      'route',
+      'POST /api/insights/ask',
+      '8',
+      '73743.9',
+      '135600.2',
+      '140000',
+      '150000',
+      '0',
+      '2026-08-17 16:40:00',
+      '0',
+      '',
+    ],
     ['route', 'GET /api/storage', '818', '0.7', '1.0', '1.2', '2.0', '3', '2026-08-17 16:43:00', '400', '0.6'],
     ['route', 'GET /api/preflight', '26', '169.9', '430.9', '500', '600', '1', '2026-08-17 16:42:00', '22', '120'],
     ['covered', '', '2026-08-16 19:30:59', '2026-08-17 16:43:41', '', '', '', '', '', '', ''],

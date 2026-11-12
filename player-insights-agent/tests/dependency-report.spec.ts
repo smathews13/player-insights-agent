@@ -80,7 +80,8 @@ test('reports a healthy dependency set', async ({ page }) => {
 });
 
 test('shows the literal GRANT for an unreachable table', async ({ page }) => {
-  await servePreflight(page,
+  await servePreflight(
+    page,
     report({ status: 'failed', checks: [okCheck, blockedTable], counts: { ok: 1, failed: 1, unverified: 0 } })
   );
   await page.goto('/connections');
@@ -93,7 +94,8 @@ test('shows the literal GRANT for an unreachable table', async ({ page }) => {
 test('treats a 503 report as a report, not as a dead page', async ({ page }) => {
   // The route answers 503 with a real report when the agent never replied.
   // Rendering that as an error would hide the remedy it carries.
-  await servePreflight(page,
+  await servePreflight(
+    page,
     report({
       status: 'failed',
       source: 'app',
@@ -118,7 +120,8 @@ test('treats a 503 report as a report, not as a dead page', async ({ page }) => 
   // on, and most of what it carries belongs to table checks, which have no
   // connection row to be found inside.
   await expect(page.getByText('What to fix')).toBeVisible();
-  await expect(page.getByLabel('Fix for Agent endpoint · player-insights-agent')).toHaveText('uv run python log_model.py'
+  await expect(page.getByLabel('Fix for Agent endpoint · player-insights-agent')).toHaveText(
+    'uv run python log_model.py'
   );
 });
 
@@ -159,7 +162,8 @@ test('says it is checking before the route answers', async ({ page }) => {
  * check that only covers the store, while saying nothing about the files.
  */
 test('a blocked store does not read as reachable because a card was folded into it', async ({ page }) => {
-  await servePreflight(page,
+  await servePreflight(
+    page,
     report({
       status: 'failed',
       checks: [

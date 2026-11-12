@@ -60,7 +60,7 @@ export function tableFromStatementPayload(payload: unknown): ExecutedTable | nul
   const names = columnNames(root);
   const width = names.length || rows[0]?.length || 0;
   if (width <= 0 && rows.length === 0) return { rowCount: 0, columns: [] };
-  const columns = (names.length > 0 ? names : Array.from({ length: width }, (_, index) => `col_${index}`));
+  const columns = names.length > 0 ? names : Array.from({ length: width }, (_, index) => `col_${index}`);
   return executedTableFromMatrix(columns, rows);
 }
 

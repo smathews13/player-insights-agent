@@ -208,19 +208,22 @@ export function auditGuidance(name: string, guidance: string): string[] {
   // advice out: "If it persists, sign out of the workspace and back in" fits.
   const escalation = escalatesToAnotherAction(guidance);
   if (escalation) {
-    findings.push(`${name}: the remedy guidance hangs a second action off the statement ("${escalation}"). ` +
+    findings.push(
+      `${name}: the remedy guidance hangs a second action off the statement ("${escalation}"). ` +
         'This field says what a reader needs in order to do the statement correctly, not what to ' +
-        'do instead when it fails. The next verdict is the app\'s to reach from its own evidence.'
+        "do instead when it fails. The next verdict is the app's to reach from its own evidence."
     );
   }
   if (/\n/.test(guidance)) {
-    findings.push(`${name}: the remedy guidance contains a line break. This field is ONE line rendered ` +
+    findings.push(
+      `${name}: the remedy guidance contains a line break. This field is ONE line rendered ` +
         'under the statement, not the paragraph it replaced. If it needs a second line it is ' +
         'explanation, and the decision was to cut explanation rather than shorten it.'
     );
   }
   if (guidance.length > GUIDANCE_MAX_CHARS) {
-    findings.push(`${name}: the remedy guidance is ${guidance.length} characters, over ` +
+    findings.push(
+      `${name}: the remedy guidance is ${guidance.length} characters, over ` +
         `${GUIDANCE_MAX_CHARS}. Keep the one fact a reader cannot act correctly without and drop ` +
         'the rest; see the test in `DiagnosisRemedy.guidance`.'
     );
@@ -267,25 +270,29 @@ export function auditDiagnosis(name: string, diagnosis: Diagnosis): string[] {
   if (cause === UNDETERMINED) {
     const phrase = statesACause(explanation);
     if (phrase) {
-      findings.push(`${name}: the cause is undetermined, but the explanation a user reads asserts one ` +
+      findings.push(
+        `${name}: the cause is undetermined, but the explanation a user reads asserts one ` +
           `("${phrase}"). Either determine the cause from something the app read and name it in ` +
           '`cause` with the values in `evidence`, or take the claim out of the prose. This is the ' +
           'exact fault of 2026-08-16: a guess that reached a screen looking like a finding.'
       );
     }
     if (remedy) {
-      findings.push(`${name}: the cause is undetermined, but a remedy is offered. A remedy is a claim ` +
+      findings.push(
+        `${name}: the cause is undetermined, but a remedy is offered. A remedy is a claim ` +
           'about the cause. Offering one here sends somebody to do work that may already be done, ' +
           'which is what cost an afternoon on 2026-08-16.'
       );
     }
   } else {
     if (!evidence.trim()) {
-      findings.push(`${name}: claims the cause is "${cause}" and cites no evidence. Put what was read in ` +
+      findings.push(
+        `${name}: claims the cause is "${cause}" and cites no evidence. Put what was read in ` +
           '`evidence`, or set the cause to UNDETERMINED.'
       );
     } else if (!quotesSomething(evidence)) {
-      findings.push(`${name}: the evidence for "${cause}" quotes nothing that was read (no \`value\` and no ` +
+      findings.push(
+        `${name}: the evidence for "${cause}" quotes nothing that was read (no \`value\` and no ` +
           'number). Restating the verdict in longer words is not evidence for it.'
       );
     }
@@ -294,7 +301,8 @@ export function auditDiagnosis(name: string, diagnosis: Diagnosis): string[] {
   if (remedy) {
     const escalation = escalatesToAnotherAction(remedy.statement);
     if (escalation) {
-      findings.push(`${name}: the remedy statement hangs a second action off the first ("${escalation}"). ` +
+      findings.push(
+        `${name}: the remedy statement hangs a second action off the first ("${escalation}"). ` +
           'A reader carries out the statement; they should not have to judge which part of it ' +
           'applies to them. Keep one action in `statement` and drop the rest: what to conclude ' +
           'if it does not work is a further diagnosis, and this app states those from evidence ' +

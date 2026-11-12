@@ -4,11 +4,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { Client } from 'pg';
-import {
-  RUNS_QUERY,
-  RUN_TRACE_MESSAGE_QUERY,
-  RUN_TRACE_BENCHMARK_QUERY,
-} from '../server/routes/insights-routes.ts';
+import { RUNS_QUERY, RUN_TRACE_MESSAGE_QUERY, RUN_TRACE_BENCHMARK_QUERY } from '../server/routes/insights-routes.ts';
 
 const SOURCE = 'server/routes/insights-routes.ts';
 const text = readFileSync(new URL(`../${SOURCE}`, import.meta.url), 'utf8');

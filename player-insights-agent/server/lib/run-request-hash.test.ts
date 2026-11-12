@@ -86,7 +86,8 @@ describe('asks that differ in a way the reader would notice', () => {
   });
 
   it('separates a history whose speakers are swapped', () => {
-    expect(hash({
+    expect(
+      hash({
         history: base.history.map((turn) => ({
           ...turn,
           role: turn.role === 'user' ? 'assistant' : 'user',

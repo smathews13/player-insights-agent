@@ -27,11 +27,7 @@ export function derivedSemanticIndexName(catalog: string, schema: string): strin
  * `true` with no namespace, is returned unchanged so the existing "flag not a
  * name" follow-up can still explain it.
  */
-export function resolveSemanticIndexValue(
-  raw: string,
-  catalog: string,
-  schema: string
-): string {
+export function resolveSemanticIndexValue(raw: string, catalog: string, schema: string): string {
   const value = raw.trim();
   if (!value || value.toLowerCase() === 'false') return '';
   if (value.toLowerCase() === DERIVE_SEMANTIC_INDEX) {

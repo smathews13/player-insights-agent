@@ -169,7 +169,10 @@ async function invoke(caller: Caller, endpoint: string, body: unknown, timeoutMs
  * key-by-key so a change to the app's body fails this script rather than
  * silently evaluating a different contract.
  */
-function askBody(request: { prompt: string; conversationId: string; approvedPlanId?: string; executePlan?: boolean }, email: string) {
+function askBody(
+  request: { prompt: string; conversationId: string; approvedPlanId?: string; executePlan?: boolean },
+  email: string
+) {
   const custom_inputs: Record<string, unknown> = { conversation_id: request.conversationId };
   if (request.approvedPlanId) custom_inputs.approved_plan_id = request.approvedPlanId;
   if (request.executePlan !== undefined) custom_inputs.execute_plan = request.executePlan;
@@ -199,7 +202,8 @@ function readTurn(raw: unknown): AgentTurn {
 }
 
 async function main(): Promise<void> {
-  if (!AGENT_ENDPOINT) throw new Error('PLAYER_INSIGHTS_SERVING_ENDPOINT is not set, so there is no endpoint to evaluate.');
+  if (!AGENT_ENDPOINT)
+    throw new Error('PLAYER_INSIGHTS_SERVING_ENDPOINT is not set, so there is no endpoint to evaluate.');
   const caller = resolveCaller();
   console.log(`[eval] Running ${HELD_OUT_CASES.length} held-out case(s) against ${AGENT_ENDPOINT} as ${caller.email}.`);
 
@@ -229,7 +233,8 @@ async function main(): Promise<void> {
       judgeEndpoint: JUDGE_ENDPOINT,
       invoke: async (payload: Record<string, unknown>) => invoke(caller, JUDGE_ENDPOINT, payload, 120_000),
     },
-    askAgent: async (request) => readTurn(await invoke(caller, AGENT_ENDPOINT, askBody(request, caller.email), TURN_TIMEOUT_MS)),
+    askAgent: async (request) =>
+      readTurn(await invoke(caller, AGENT_ENDPOINT, askBody(request, caller.email), TURN_TIMEOUT_MS)),
     describeServedModel: async () => {
       const endpoint = JSON.parse(cli(['serving-endpoints', 'get', AGENT_ENDPOINT, '-o', 'json'])) as unknown;
       const { parseServedModel } = await import('../server/lib/benchmark-runner');

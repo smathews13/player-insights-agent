@@ -97,8 +97,7 @@ function declares(declared: readonly string[], scope: string): boolean {
  * had nowhere to look.
  */
 const WHERE_THE_LISTS_ARE =
-  'The Connected as section of the Connections page lists what your sign-in carries and what this ' +
-  'app asks for.';
+  'The Connected as section of the Connections page lists what your sign-in carries and what this ' + 'app asks for.';
 
 /**
  * One scope refusal, as a verdict with the evidence that reached it.
@@ -151,8 +150,7 @@ export function scopeRefusalDiagnosis(input: {
   // same permission under two vocabularies.
   const alias =
     namedByWorkspace && namedByWorkspace !== scope
-      ? ` The workspace calls it \`${namedByWorkspace}\`. The app declares the same permission as ` +
-        `\`${scope}\`.`
+      ? ` The workspace calls it \`${namedByWorkspace}\`. The app declares the same permission as ` + `\`${scope}\`.`
       : '';
 
   const carried = tokenScopes
@@ -287,8 +285,7 @@ export function scopeRefusalDiagnosis(input: {
       guidance:
         'Anyone already signed in keeps their old permissions after the restart, and needs a new ' +
         'sign-in to pick this up.',
-      run_by:
-        'Run by whoever deploys this app. A workspace admin cannot fix this and a GRANT will not',
+      run_by: 'Run by whoever deploys this app. A workspace admin cannot fix this and a GRANT will not',
     },
     grantIsMissing: false,
   };

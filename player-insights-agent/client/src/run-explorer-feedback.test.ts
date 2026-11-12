@@ -15,20 +15,30 @@ import type { TraceStage } from './answer-shape';
 const EXPLORER = readFileSync(new URL('./RunExplorer.tsx', import.meta.url), 'utf8');
 
 const stage = (id: string, kind: string, duration: number, name = id): TraceStage => ({
-  id, kind, duration, name, start: 0, status: 'complete', calls: 1, input: '', output: '',
+  id,
+  kind,
+  duration,
+  name,
+  start: 0,
+  status: 'complete',
+  calls: 1,
+  input: '',
+  output: '',
 });
 
 /** A stage as the agent actually records one: placed on the run's clock, and nested. */
-const span = (
-  id: string,
-  kind: string,
-  start: number,
-  duration: number,
-  parent_id: string,
-  name = id,
-): TraceStage => ({
-  id, kind, start, duration, parent_id, name,
-  status: 'complete', calls: 1, input: '', output: '', startMeasured: true,
+const span = (id: string, kind: string, start: number, duration: number, parent_id: string, name = id): TraceStage => ({
+  id,
+  kind,
+  start,
+  duration,
+  parent_id,
+  name,
+  status: 'complete',
+  calls: 1,
+  input: '',
+  output: '',
+  startMeasured: true,
 });
 
 /**
@@ -54,22 +64,24 @@ const NESTED: TraceStage[] = [
 
 describe('Run Explorer feedback', () => {
   it('sums tool, finder, and SQL durations instead of showing 0.0s', () => {
-    expect(toolStageDurationMs([
-      stage('orchestrator', 'agent', 10_000, 'Orchestrator'),
-      stage('data_source_finder', 'agent', 2_000, 'Data Source Finder'),
-      stage('step-1-1-data_genie', 'tool', 3_000),
-      stage('sql-validation', 'agent', 500, 'Validated SQL'),
-      stage('synthesis', 'agent', 1_000, 'Prepared the answer'),
-    ])).toBe(5_500);
+    expect(
+      toolStageDurationMs([
+        stage('orchestrator', 'agent', 10_000, 'Orchestrator'),
+        stage('data_source_finder', 'agent', 2_000, 'Data Source Finder'),
+        stage('step-1-1-data_genie', 'tool', 3_000),
+        stage('sql-validation', 'agent', 500, 'Validated SQL'),
+        stage('synthesis', 'agent', 1_000, 'Prepared the answer'),
+      ])
+    ).toBe(5_500);
   });
 
   it('counts a nested tool call once, not once per stage that contains it', () => {
     // The defect, as a number: adding every data stage charges the run for the
     // finder's whole span plus a second copy of the calls inside it, and lands
     // above the wall clock it is read against.
-    const naive = NESTED
-      .filter((item) => item.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${item.id} ${item.name}`))
-      .reduce((sum, item) => sum + item.duration, 0);
+    const naive = NESTED.filter(
+      (item) => item.kind === 'tool' || /data.source.finder|\bsql\b/i.test(`${item.id} ${item.name}`)
+    ).reduce((sum, item) => sum + item.duration, 0);
     expect(naive).toBeGreaterThan(WALL_MS);
 
     // The two calls of step 1 overlap: 30.0s and 28.0s in flight together cover
@@ -92,10 +104,7 @@ describe('Run Explorer feedback', () => {
     // And a trace whose stages carry no recorded start, where there is nothing
     // to union: parallel calls still cannot add up to a longer run than the one
     // that happened.
-    const unplaced = [
-      stage('step-1-1-data_genie', 'tool', 100_000),
-      stage('step-1-2-run_sql', 'tool', 100_000),
-    ];
+    const unplaced = [stage('step-1-1-data_genie', 'tool', 100_000), stage('step-1-2-run_sql', 'tool', 100_000)];
     expect(toolStageDurationMs(unplaced, 150_000)).toBe(150_000);
   });
 
@@ -107,8 +116,15 @@ describe('Run Explorer feedback', () => {
 
   it('names a conversation by its stable id and numbers only its runs', () => {
     const run = (id: string, conversation_id: string, created_at: string): Run => ({
-      id, conversation_id, created_at, kind: 'conversation', prompt: id,
-      stakeholder: 'sam@example.com', status: 'complete', duration_ms: 1, rating: null,
+      id,
+      conversation_id,
+      created_at,
+      kind: 'conversation',
+      prompt: id,
+      stakeholder: 'sam@example.com',
+      status: 'complete',
+      duration_ms: 1,
+      rating: null,
     });
     const runs = [
       run('c2-r1', 'c2', '2026-08-19T03:00:00Z'),
@@ -169,9 +185,7 @@ describe('Run Explorer feedback', () => {
       duration_ms: 1,
       rating: null,
     };
-    expect(conversationFilterOptions([], [run])).toEqual([
-      { id: 'conv-jay', label: 'How is VLH doing this week?' },
-    ]);
+    expect(conversationFilterOptions([], [run])).toEqual([{ id: 'conv-jay', label: 'How is VLH doing this week?' }]);
   });
 
   it('lists only usernames that have runs, and never invents one', () => {
@@ -219,9 +233,7 @@ describe('Run Explorer feedback', () => {
     ];
 
     expect(matchingRuns(rows, { username: 'jay.mehta' }).map((item) => item.id)).toEqual(['jay-vlh']);
-    expect(matchingRuns(rows, { username: '<your-username>', search: 'VLH' }).map((item) => item.id)).toEqual([
-      'sam-vlh',
-    ]);
+    expect(matchingRuns(rows, { username: '<your-username>', search: 'VLH' }).map((item) => item.id)).toEqual(['sam-vlh']);
     expect(matchingRuns(rows, { search: 'VLH' }).map((item) => item.id)).toEqual(['sam-vlh', 'jay-vlh']);
   });
 });

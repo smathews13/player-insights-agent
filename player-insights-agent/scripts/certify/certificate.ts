@@ -16,12 +16,7 @@
  * signed anywhere.
  */
 import { createHash } from 'node:crypto';
-import {
-  acceptsAttestation,
-  checkDefinition,
-  type CheckStatus,
-  CHECKS,
-} from './catalogue.ts';
+import { acceptsAttestation, checkDefinition, type CheckStatus, CHECKS } from './catalogue.ts';
 import { tupleDigest, type ReleaseTuple } from './release-identity.ts';
 
 export interface CheckResult {
@@ -146,11 +141,7 @@ export function admitAttestation(
  * skipped. Forgetting to run something and it being fine are the two states this
  * whole design exists to keep apart.
  */
-export function verdict(input: {
-  checks: CheckResult[];
-  attestations: Attestation[];
-  tupleDigest: string;
-}): Verdict {
+export function verdict(input: { checks: CheckResult[]; attestations: Attestation[]; tupleDigest: string }): Verdict {
   const byCode = new Map(input.checks.map((result) => [result.code, result]));
   const rejectedAttestations: Array<{ code: string; reason: string }> = [];
   const attested = new Set<string>();
@@ -180,8 +171,7 @@ export function verdict(input: {
     unresolved.push(definition.code);
   }
 
-  const status: CertificateStatus =
-    failed.length > 0 ? 'FAIL' : unresolved.length > 0 ? 'INCOMPLETE' : 'PASS';
+  const status: CertificateStatus = failed.length > 0 ? 'FAIL' : unresolved.length > 0 ? 'INCOMPLETE' : 'PASS';
   return { status, failed, unresolved, rejectedAttestations };
 }
 
@@ -235,11 +225,7 @@ export interface Acceptance {
  * operator reading this is about to decide whether to override it and needs the
  * whole picture rather than the first tripwire.
  */
-export function acceptCertificate(input: {
-  certificate: Certificate;
-  tuple: ReleaseTuple;
-  now?: Date;
-}): Acceptance {
+export function acceptCertificate(input: { certificate: Certificate; tuple: ReleaseTuple; now?: Date }): Acceptance {
   const now = input.now ?? new Date();
   const reasons: string[] = [];
   const { certificate } = input;

@@ -55,9 +55,7 @@ describe('the boot DDL proceeds in every legitimate case', () => {
   it('proceeds for local development against a branch of one’s own', () => {
     // The developer owns what they created. This is the arrangement the refusal
     // below tells people to adopt, so refusing it too would leave no way out.
-    expect(
-      schemaWriteRefusal(SCHEMA, state({ owner: DEVELOPER, connectedRole: DEVELOPER }))
-    ).toEqual('');
+    expect(schemaWriteRefusal(SCHEMA, state({ owner: DEVELOPER, connectedRole: DEVELOPER }))).toEqual('');
   });
 
   it('proceeds when the connected role is a member of the owner rather than the owner itself', () => {
@@ -71,10 +69,7 @@ describe('the boot DDL proceeds in every legitimate case', () => {
 });
 
 describe('the boot DDL is refused when the connected role could never maintain the schema', () => {
-  const refusal = schemaWriteRefusal(
-    SCHEMA,
-    state({ connectedRole: DEVELOPER, connectedRoleHoldsOwner: false })
-  );
+  const refusal = schemaWriteRefusal(SCHEMA, state({ connectedRole: DEVELOPER, connectedRoleHoldsOwner: false }));
 
   it('refuses, rather than creating tables the owner will not be able to maintain', () => {
     expect(refusal).not.toEqual('');

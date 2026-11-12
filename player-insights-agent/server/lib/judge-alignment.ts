@@ -20,10 +20,7 @@ import { extractJudgeContent, type JudgeInvoker } from './mlflow-judges';
  * Apps usually cannot call it.
  */
 
-export const JUDGE_ALIGN_PATHS = [
-  '/api/2.0/mlflow/genai/judges/align',
-  '/api/2.0/mlflow/judges/align',
-] as const;
+export const JUDGE_ALIGN_PATHS = ['/api/2.0/mlflow/genai/judges/align', '/api/2.0/mlflow/judges/align'] as const;
 
 export interface AlignApiClient {
   request(input: { method: string; path: string; payload?: Record<string, unknown> }): Promise<unknown>;
@@ -53,7 +50,7 @@ export async function loadCasesForAlignment(
       const raw = result?.rows?.[0]?.metrics_json;
       const metrics: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const listed = Array.isArray((metrics as { cases?: unknown } | null)?.cases)
-        ? ((metrics as { cases: JudgeCaseForAlignment[] }).cases)
+        ? (metrics as { cases: JudgeCaseForAlignment[] }).cases
         : [];
       cases.push(...listed);
     } catch {

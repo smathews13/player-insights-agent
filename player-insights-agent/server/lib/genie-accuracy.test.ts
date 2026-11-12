@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { extractGenieResultTable, extractGenieSql, MissingSqlGateError, runGenieAccuracy, type GenieAsker } from './genie-accuracy';
+import {
+  extractGenieResultTable,
+  extractGenieSql,
+  MissingSqlGateError,
+  runGenieAccuracy,
+  type GenieAsker,
+} from './genie-accuracy';
 import type { SqlExecutor } from './genie-result-execute';
 import type { ExecutedTable } from '../../shared/benchmark-lab-v3';
 
@@ -52,7 +58,14 @@ describe('Genie accuracy run', () => {
         spaceId: 'space-data',
         suiteKind: 'complete',
         rows: [
-          { id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+          {
+            id: '1',
+            question: 'How many?',
+            groundTruthSql: 'SELECT 1',
+            expectedAnswer: '',
+            sqlCorrect: '',
+            thumbs: '',
+          },
           { id: '2', question: 'Skipped', groundTruthSql: '', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
         ],
         asker: asker({}),
@@ -82,7 +95,13 @@ describe('Genie accuracy run', () => {
     expect(result.matchingPolicyId).toBe('executed-result-equivalence');
     expect(result.datasetVersion).toBe('ds_v001');
     expect(result.suiteKind).toBe('partial');
-    expect(result.score).toEqual({ passed: 1, total: 2, percent: 50, label: '1/2 = 50% · 1 not scored (warehouse or timeout)', excluded: 1 });
+    expect(result.score).toEqual({
+      passed: 1,
+      total: 2,
+      percent: 50,
+      label: '1/2 = 50% · 1 not scored (warehouse or timeout)',
+      excluded: 1,
+    });
     expect(result.cases.map((entry) => entry.outcome)).toEqual(['pass', 'excluded', 'fail']);
     expect(result.cases[2]?.note).toContain('values for `n` do not match');
   });
@@ -91,7 +110,9 @@ describe('Genie accuracy run', () => {
     const result = await runGenieAccuracy({
       spaceId: 'space-data',
       suiteKind: 'complete',
-      rows: [{ id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      rows: [
+        { id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+      ],
       asker: asker({ 'How many?': { error: 'Genie finished with status FAILED.' } }),
       executor: sqlExecutor,
     });
@@ -105,7 +126,9 @@ describe('Genie accuracy run', () => {
     const result = await runGenieAccuracy({
       spaceId: 'space-data',
       suiteKind: 'complete',
-      rows: [{ id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      rows: [
+        { id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+      ],
       asker: asker({ 'How many?': { error: 'Genie finished with status FAILED.' } }),
       executor: sqlExecutor,
       now: () => {
@@ -170,7 +193,9 @@ describe('Genie accuracy run', () => {
     const result = await runGenieAccuracy({
       spaceId: 'space-data',
       suiteKind: 'complete',
-      rows: [{ id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      rows: [
+        { id: '1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+      ],
       asker: asker({ 'How many?': { sql: 'select 1' } }),
     });
     expect(result.cases[0]?.outcome).toBe('excluded');
@@ -209,7 +234,8 @@ describe('Genie accuracy run', () => {
         Extra: { sql: 'SELECT extra', rows: extra },
         Under: { sql: 'SELECT under', rows: under },
       }),
-      executor: (sql) => Promise.resolve(sql.includes('ground') ? { ok: true, table: ground } : { ok: false, note: 'unused' }),
+      executor: (sql) =>
+        Promise.resolve(sql.includes('ground') ? { ok: true, table: ground } : { ok: false, note: 'unused' }),
     });
     expect(result.cases[0]?.outcome).toBe('pass');
     expect(result.cases[1]?.outcome).toBe('fail');

@@ -16,10 +16,7 @@ export type GenieMissKind = (typeof GENIE_MISS_KINDS)[number];
 
 export function classifyGenieMiss(note: string): GenieMissKind {
   const text = note.toLowerCase();
-  if (
-    /warehouse/.test(text) &&
-    /start|starting|pending|warming|not running|stopped|resuming/.test(text)
-  ) {
+  if (/warehouse/.test(text) && /start|starting|pending|warming|not running|stopped|resuming/.test(text)) {
     return 'warehouse';
   }
   if (/warehouse still starting|compute is starting|cluster is starting/.test(text)) {
@@ -103,9 +100,7 @@ export function formatJudgeRate(value: number | null | undefined): string {
 
 export function compareTileRates(side: SideScore): string {
   const base = `Groundedness ${formatJudgeRate(side.groundedness)} · Relevance ${formatJudgeRate(side.relevance)} · Guidelines ${formatJudgeRate(side.guidelines)}`;
-  const extras = (side.extraRates ?? [])
-    .map((entry) => `${entry.name} ${formatJudgeRate(entry.rate)}`)
-    .join(' · ');
+  const extras = (side.extraRates ?? []).map((entry) => `${entry.name} ${formatJudgeRate(entry.rate)}`).join(' · ');
   return extras ? `${base} · ${extras}` : base;
 }
 
@@ -140,7 +135,10 @@ export function sqlLooksRefused(sql: string, note: string): boolean {
   return /refused|sql refused|identity_required|restricted column|not read-only/.test(text);
 }
 
-export function latencyWithinBudget(durationMs: number | null | undefined, budgetMs: number = WAREHOUSE_BUDGET_MS): boolean | null {
+export function latencyWithinBudget(
+  durationMs: number | null | undefined,
+  budgetMs: number = WAREHOUSE_BUDGET_MS
+): boolean | null {
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs)) return null;
   return durationMs < budgetMs;
 }

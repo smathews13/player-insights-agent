@@ -27,8 +27,22 @@ describe('evaluation dataset', () => {
 
   it('counts questions, SQL-backed rows, and expected answers separately', () => {
     const counts = datasetCounts([
-      { id: '1', question: 'How many players?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
-      { id: '2', question: 'What is a session?', groundTruthSql: '', expectedAnswer: 'A play period', sqlCorrect: '', thumbs: '' },
+      {
+        id: '1',
+        question: 'How many players?',
+        groundTruthSql: 'SELECT 1',
+        expectedAnswer: '',
+        sqlCorrect: '',
+        thumbs: '',
+      },
+      {
+        id: '2',
+        question: 'What is a session?',
+        groundTruthSql: '',
+        expectedAnswer: 'A play period',
+        sqlCorrect: '',
+        thumbs: '',
+      },
       { id: '3', question: '', groundTruthSql: 'SELECT 2', expectedAnswer: 'ignored', sqlCorrect: '', thumbs: '' },
     ]);
     expect(counts.questions).toBe(2);
@@ -100,12 +114,7 @@ describe('evaluation dataset', () => {
 
 describe('Genie SQL accuracy math', () => {
   it('treats equivalent SQL as a pass after folding whitespace and case', () => {
-    expect(
-      sqlMatches(
-        'SELECT count(*) FROM cat.sch.players;',
-        'select   count(*)\nfrom cat.sch.players'
-      )
-    ).toBe(true);
+    expect(sqlMatches('SELECT count(*) FROM cat.sch.players;', 'select   count(*)\nfrom cat.sch.players')).toBe(true);
   });
 
   it('does not treat different statements as a pass', () => {
@@ -201,11 +210,14 @@ describe('free-form custom judge prompt', () => {
 
   it('does not wrap a prompt that already asks for result', () => {
     expect(
-      customJudgeRunPrompt({ prompt: 'Return {"result":"yes"} for {{question}}' }, {
-        question: 'Q',
-        response: 'A',
-        conversation: '',
-      })
+      customJudgeRunPrompt(
+        { prompt: 'Return {"result":"yes"} for {{question}}' },
+        {
+          question: 'Q',
+          response: 'A',
+          conversation: '',
+        }
+      )
     ).toBe('Return {"result":"yes"} for Q');
   });
 });

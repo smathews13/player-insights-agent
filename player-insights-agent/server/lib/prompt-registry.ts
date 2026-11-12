@@ -1,8 +1,4 @@
-import {
-  PRODUCTION_PROMPT_ALIAS,
-  promptRegistryUri,
-  type PromotedPrompt,
-} from '../../shared/eval-flywheel';
+import { PRODUCTION_PROMPT_ALIAS, promptRegistryUri, type PromotedPrompt } from '../../shared/eval-flywheel';
 
 /**
  * Databricks Prompt Registry over the workspace REST API.
@@ -12,10 +8,7 @@ import {
  * when the alias itself could not be moved.
  */
 
-export const PROMPT_REGISTER_PATHS = [
-  '/api/2.0/mlflow/unity-catalog/prompts',
-  '/api/2.0/mlflow/prompts',
-] as const;
+export const PROMPT_REGISTER_PATHS = ['/api/2.0/mlflow/unity-catalog/prompts', '/api/2.0/mlflow/prompts'] as const;
 
 export interface PromptRegistryClient {
   request(input: { method: string; path: string; payload?: Record<string, unknown> }): Promise<unknown>;
@@ -33,7 +26,8 @@ export function promptTemplateFromPromote(input: { side: string; endpoint: strin
 export function parsePromptVersion(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
   const record = body as Record<string, unknown>;
-  const version = record.version ?? record.prompt_version ?? (record.prompt as { version?: unknown } | undefined)?.version;
+  const version =
+    record.version ?? record.prompt_version ?? (record.prompt as { version?: unknown } | undefined)?.version;
   if (version === undefined || version === null) return '';
   if (typeof version === 'string') return version;
   if (typeof version === 'number' || typeof version === 'boolean' || typeof version === 'bigint') {
@@ -46,9 +40,7 @@ export function parsePromptTemplate(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
   const record = body as Record<string, unknown>;
   const template =
-    record.template ??
-    record.prompt_template ??
-    (record.prompt as { template?: unknown } | undefined)?.template;
+    record.template ?? record.prompt_template ?? (record.prompt as { template?: unknown } | undefined)?.template;
   return typeof template === 'string' ? template : '';
 }
 
@@ -86,11 +78,7 @@ export async function registerPromptVersion(
   };
 }
 
-export async function setProductionAlias(
-  client: PromptRegistryClient,
-  name: string,
-  version: string
-): Promise<void> {
+export async function setProductionAlias(client: PromptRegistryClient, name: string, version: string): Promise<void> {
   const encoded = encodeURIComponent(name);
   const alias = PRODUCTION_PROMPT_ALIAS;
   const paths = [

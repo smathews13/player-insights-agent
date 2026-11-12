@@ -75,7 +75,8 @@ describe('every resource can be acted on', () => {
     // pass over quietly. Lakebase schema used to be the one that qualified
     // (decorative var); it is now wired through PLAYER_INSIGHTS_APP_SCHEMA, so
     // the unconfigurable set is empty.
-    const unconfigurable = CONNECTED_RESOURCES.filter((resource) => !resource.bundleVariable && !resource.appEnvVar && !resource.agentKey
+    const unconfigurable = CONNECTED_RESOURCES.filter(
+      (resource) => !resource.bundleVariable && !resource.appEnvVar && !resource.agentKey
     );
     expect(unconfigurable.map((resource) => resource.id)).toEqual([]);
   });
@@ -138,8 +139,7 @@ describe('what may be written, and as what', () => {
 
 describe('tier descriptions', () => {
   it('says of each tier whether saving a value would do anything', () => {
-    const immediate = (Object.keys(CHANGED_BY) as ChangedBy[]).filter((tier) => CHANGED_BY[tier].appliesImmediately
-    );
+    const immediate = (Object.keys(CHANGED_BY) as ChangedBy[]).filter((tier) => CHANGED_BY[tier].appliesImmediately);
     expect(immediate).toEqual(['app-runtime']);
   });
 

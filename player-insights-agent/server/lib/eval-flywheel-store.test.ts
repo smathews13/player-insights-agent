@@ -62,7 +62,12 @@ describe('flywheel state persistence', () => {
       {
         state: {
           lastSuite: null,
-          promoted: { endpoint: 'candidate-agent', side: 'candidate', at: '2026-08-25T00:00:00.000Z', note: 'Won 9/10' },
+          promoted: {
+            endpoint: 'candidate-agent',
+            side: 'candidate',
+            at: '2026-08-25T00:00:00.000Z',
+            note: 'Won 9/10',
+          },
           lastAgentRunIds: [],
           lastAgentSides: [],
           history: [],

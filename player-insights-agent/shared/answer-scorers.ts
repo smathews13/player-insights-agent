@@ -148,7 +148,7 @@ function list(value: unknown): unknown[] {
 
 function answerOf(envelope: AnswerEnvelope): EnvelopeAnswer | null {
   if (envelope?.type !== ANSWER) return null;
-  return (envelope.answer ?? {});
+  return envelope.answer ?? {};
 }
 
 function sourcesOf(answer: EnvelopeAnswer): EnvelopeSource[] {
@@ -227,9 +227,7 @@ export function sqlValidity(envelope: AnswerEnvelope): ScorerVerdict {
   const problems: string[] = [];
   // Comments stripped first: a `--` line can carry any of the words below and a
   // match inside one would fail a statement for what it says rather than does.
-  const bare = sql
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const bare = sql.replace(/--[^\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
   const lowered = bare.toLowerCase();
 
   if (!/^\s*(with|select)\b/.test(lowered)) {
@@ -351,7 +349,9 @@ export function coverageCaveat(envelope: AnswerEnvelope, expectations: CaseExpec
   }
   const answer = answerOf(envelope);
   if (!answer) return abstain('No answer was produced, so there was nothing to attach a caveat to.');
-  const caveats = list(answer.caveats).map(text).filter((entry) => entry.trim());
+  const caveats = list(answer.caveats)
+    .map(text)
+    .filter((entry) => entry.trim());
   if (caveats.length === 0) {
     return scored(false, 'The case has a known coverage gap and the answer disclosed no caveat.');
   }
@@ -365,7 +365,10 @@ export function coverageCaveat(envelope: AnswerEnvelope, expectations: CaseExpec
   const haystack = caveats.join(' ').toLowerCase();
   const absent = required.filter((term) => !haystack.includes(term));
   if (absent.length > 0) {
-    return scored(false, `A caveat was present but did not mention ${absent.length} of ${required.length} required term(s).`);
+    return scored(
+      false,
+      `A caveat was present but did not mention ${absent.length} of ${required.length} required term(s).`
+    );
   }
   return scored(true, `${caveats.length} caveat(s) present, mentioning every required term.`);
 }
@@ -413,7 +416,11 @@ export function staleIndex(envelope: AnswerEnvelope): ScorerVerdict {
   if (sources.length === 0) {
     return abstain('The run named no source, so there is nothing to compare the index against.');
   }
-  const described = new Set(list(envelope.semantic_layer_tables).map((name) => text(name).trim().toLowerCase()).filter(Boolean));
+  const described = new Set(
+    list(envelope.semantic_layer_tables)
+      .map((name) => text(name).trim().toLowerCase())
+      .filter(Boolean)
+  );
   if (described.size === 0) {
     return abstain(
       'The run did not report which tables the semantic layer describes, so index freshness could not be ' +
@@ -451,7 +458,9 @@ export function identityExecutionMode(envelope: AnswerEnvelope): ScorerVerdict {
   const mode = text(identity.mode);
   const verified = Boolean(identity.verified);
   if (!mode) {
-    return abstain('The run recorded no execution identity, so the mode could not be established. Unmeasured, not compliant.');
+    return abstain(
+      'The run recorded no execution identity, so the mode could not be established. Unmeasured, not compliant.'
+    );
   }
   if (mode !== 'signed_in_user') {
     return scored(
@@ -461,7 +470,10 @@ export function identityExecutionMode(envelope: AnswerEnvelope): ScorerVerdict {
     );
   }
   if (!verified) {
-    return scored(false, 'The run executed as the signed-in caller but the forwarded credential was not proven to belong to them.');
+    return scored(
+      false,
+      'The run executed as the signed-in caller but the forwarded credential was not proven to belong to them.'
+    );
   }
   return scored(true, 'Executed as the signed-in caller, with the forwarded credential proven to belong to them.');
 }
@@ -540,7 +552,10 @@ export function warehouseCalls(envelope: AnswerEnvelope): ScorerVerdict {
   if (!answer) return abstain('No answer was produced, so no governed surface was read.');
   let calls = list(answer.trace?.genie_spaces).length;
   if (text(answer.sql).trim()) calls += 1;
-  return scored(calls, `${calls} governed-surface call(s): Genie spaces reached plus a published warehouse statement, if any.`);
+  return scored(
+    calls,
+    `${calls} governed-surface call(s): Genie spaces reached plus a published warehouse statement, if any.`
+  );
 }
 
 /**
@@ -560,10 +575,16 @@ export function errorRate(envelope: AnswerEnvelope): ScorerVerdict {
   const kind = text(envelope?.type);
   if (kind === ANSWER) return scored(0, 'The run produced an answer.');
   if (kind === 'clarification') {
-    return scored(0, 'The run asked a clarifying question, which is an outcome of a turn rather than a failure of one.');
+    return scored(
+      0,
+      'The run asked a clarifying question, which is an outcome of a turn rather than a failure of one.'
+    );
   }
   if (kind === 'refusal') {
-    return scored(0, 'The run declined to answer, which is a correct outcome on a question that asks for restricted data.');
+    return scored(
+      0,
+      'The run declined to answer, which is a correct outcome on a question that asks for restricted data.'
+    );
   }
   if (kind === 'unavailable') {
     return scored(1, `The run produced no answer: ${text(envelope.code) || 'unavailable'}.`);

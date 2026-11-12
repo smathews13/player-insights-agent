@@ -50,7 +50,10 @@ export function stripAppendedHumanLabels(text: string): string {
 
 export function firstGuidelineSentence(text: string): string {
   const stem = stripAppendedHumanLabels(text);
-  const line = stem.split(/\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
+  const line = stem
+    .split(/\n/)
+    .map((entry) => entry.trim())
+    .find((entry) => entry.length > 0);
   return line || '';
 }
 

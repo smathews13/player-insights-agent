@@ -31,13 +31,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ArchitecturePage } from './ArchitecturePage';
-import {
-  checkedAtOf,
-  forgetChecks,
-  recallChecks,
-  rememberChecks,
-  type CheckSession,
-} from './check-session';
+import { checkedAtOf, forgetChecks, recallChecks, rememberChecks, type CheckSession } from './check-session';
 import { connectedResource } from '../../shared/deployment-config';
 import type { SettingsPayload } from './connection-model';
 import type { PreflightCheck, PreflightReport } from './preflight';
@@ -109,7 +103,8 @@ function ranAt(checkedAt = WHEN): CheckSession {
 }
 
 function pageMarkup(): string {
-  return renderToStaticMarkup(<MemoryRouter>
+  return renderToStaticMarkup(
+    <MemoryRouter>
       <ArchitecturePage />
     </MemoryRouter>
   );
@@ -254,8 +249,10 @@ describe('the store outlives a route change and nothing else', () => {
     // Results that outlive the build they were taken against can describe a
     // deployment that no longer exists -- after a redeploy most of all, which is
     // exactly when somebody opens this page.
-    const source = readFileSync(fileURLToPath(new URL('./check-session.ts', import.meta.url)), 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const source = readFileSync(fileURLToPath(new URL('./check-session.ts', import.meta.url)), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      ' '
+    );
     expect(source).not.toMatch(/sessionStorage|localStorage|document\.cookie/);
   });
 

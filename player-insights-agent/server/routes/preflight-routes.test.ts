@@ -2,11 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  setupInsightsRoutes,
-  type InsightsAppKit,
-  type ServingTransport,
-} from './insights-routes';
+import { setupInsightsRoutes, type InsightsAppKit, type ServingTransport } from './insights-routes';
 import { resetLakebaseHealth } from '../lib/lakebase-store';
 
 /**
@@ -31,10 +27,8 @@ function attachmentStore(seed: { conversation_id: string; user_email: string; fi
       // apart by their predicate rather than by one of them lacking `RETURNING`.
       if (sql.startsWith('DELETE FROM player_insights.attachments')) {
         const doomed = sql.includes('WHERE id = $1')
-          ? rows.filter((row) =>
-                row.id === params[0] &&
-                row.conversation_id === params[1] &&
-                row.user_email === params[2]
+          ? rows.filter(
+              (row) => row.id === params[0] && row.conversation_id === params[1] && row.user_email === params[2]
             )
           : rows.filter((row) => row.conversation_id === params[0] && row.user_email === params[1]);
         for (const row of doomed) rows.splice(rows.indexOf(row), 1);
@@ -172,7 +166,13 @@ describe('GET /api/preflight', () => {
     expect(body.principal).toBe('');
     expect(body.error).toBe('preflight_metadata_only');
 
-    const checks = body.checks as { id: string; status: string; remedy: unknown; detail: string; checked_with: string }[];
+    const checks = body.checks as {
+      id: string;
+      status: string;
+      remedy: unknown;
+      detail: string;
+      checked_with: string;
+    }[];
     expect(checks[0]?.id).toBe('agent-endpoint');
     expect(checks[0]?.status).toBe('ok');
     expect(checks[0]?.checked_with).toContain('GET');
@@ -237,9 +237,7 @@ describe('GET /api/preflight', () => {
     // the operator to log and deploy again, advice that cannot work, because
     // the newest version is the one that retired the report. An operator who
     // follows it re-logs, sees no change, and re-logs again.
-    const app = await startApp(() => Promise.resolve({ output: [{ content: 'Here is your analysis.' }] }),
-      noLakebase
-    );
+    const app = await startApp(() => Promise.resolve({ output: [{ content: 'Here is your analysis.' }] }), noLakebase);
 
     let body: Record<string, unknown>;
     try {

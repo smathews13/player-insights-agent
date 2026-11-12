@@ -244,9 +244,7 @@ describe('a request the endpoint refuses is not asked again as the application',
     // A streamed invocation that fails mid-body carries no status field at all.
     // Reading the message is a guess, and it guesses in the direction that stops
     // a request rather than the one that lets it through.
-    const { calls, transport } = recordingTransport(() =>
-      Promise.reject(new Error('Invalid access token.'))
-    );
+    const { calls, transport } = recordingTransport(() => Promise.reject(new Error('Invalid access token.')));
     const app = await startApp(transport);
 
     try {
@@ -276,9 +274,7 @@ describe('a request the endpoint refuses is not asked again as the application',
       await app.ask(asUser(ALICE, 'opaque-token'));
 
       const assistantRows = statements().filter(
-        (entry) =>
-          entry.sql.startsWith('INSERT INTO player_insights.messages') &&
-          entry.params.includes('assistant')
+        (entry) => entry.sql.startsWith('INSERT INTO player_insights.messages') && entry.params.includes('assistant')
       );
       expect(assistantRows).toEqual([]);
     } finally {
@@ -313,8 +309,7 @@ describe('a request the endpoint refuses is not asked again as the application',
       };
 
       expect(body.request_id).toMatch(/^req-/);
-      expect(body.message).toBe('You do not have access to one or more data products required by this question.'
-      );
+      expect(body.message).toBe('You do not have access to one or more data products required by this question.');
       // Which table, which grant and which principal are the operator's to read
       // in `detail` and in the log, not the denied reader's.
       expect(body.message).not.toContain('SELECT');
@@ -353,9 +348,8 @@ describe('an identity that cannot be established never invokes the endpoint', ()
       // question must not move `updated_at` on a conversation it never joined,
       // and must not leave a user turn nothing will ever answer. The schema
       // seed's own INSERT is excluded by naming the two tables that matter.
-      expect(statements().filter((entry) =>
-          /^INSERT INTO player_insights\.(conversations|messages)/.test(entry.sql)
-        )
+      expect(
+        statements().filter((entry) => /^INSERT INTO player_insights\.(conversations|messages)/.test(entry.sql))
       ).toEqual([]);
     } finally {
       await app.close();
@@ -377,7 +371,10 @@ describe('an identity that cannot be established never invokes the endpoint', ()
    */
   it.each([
     ['ask', (app: Awaited<ReturnType<typeof startApp>>, headers: Record<string, string>) => app.ask(headers)],
-    ['benchmark', (app: Awaited<ReturnType<typeof startApp>>, headers: Record<string, string>) => app.benchmark(headers)],
+    [
+      'benchmark',
+      (app: Awaited<ReturnType<typeof startApp>>, headers: Record<string, string>) => app.benchmark(headers),
+    ],
   ])('refuses on %s without naming either identity in the body', async (_route, call) => {
     const { transport } = recordingTransport(() => Promise.resolve(structuredAnswer()));
     const app = await startApp(transport);
@@ -611,7 +608,12 @@ describe('the fallback cannot be restored by configuration', () => {
   });
 
   it('files every identity outcome under a layer that forbids re-identifying', () => {
-    for (const code of ['IDENTITY_REQUIRED', 'IDENTITY_MISMATCH', 'USER_AUTH_REJECTED', 'USER_NOT_AUTHORIZED'] as const) {
+    for (const code of [
+      'IDENTITY_REQUIRED',
+      'IDENTITY_MISMATCH',
+      'USER_AUTH_REJECTED',
+      'USER_NOT_AUTHORIZED',
+    ] as const) {
       expect(FAILURE_TAXONOMY[code].mayRerouteOrReidentify).toBe(false);
       expect(NEVER_REROUTE_LAYERS).toContain(FAILURE_TAXONOMY[code].layer);
     }
@@ -632,18 +634,14 @@ describe('the stored run agrees with the response about who it ran as', () => {
         execution_identity: { mode: string; verified: boolean };
       };
 
-      const insert = statements().find((entry) =>
-        entry.sql.startsWith('INSERT INTO player_insights.messages') &&
-        entry.sql.includes('execution_mode')
+      const insert = statements().find(
+        (entry) => entry.sql.startsWith('INSERT INTO player_insights.messages') && entry.sql.includes('execution_mode')
       );
       expect(insert).toBeDefined();
       // The last two parameters are the two identity columns, and they say the
       // same thing the response does. A record that disagreed with the answer
       // it belongs to would make the audit trail worth nothing.
-      expect(insert?.params.slice(-2)).toEqual([
-        body.execution_identity.mode,
-        body.execution_identity.verified,
-      ]);
+      expect(insert?.params.slice(-2)).toEqual([body.execution_identity.mode, body.execution_identity.verified]);
     } finally {
       await app.close();
     }

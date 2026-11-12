@@ -102,7 +102,10 @@ test('the signed-in chip shows a name rather than an ellipsis, and titles the fu
 
   // Enough of the local part to identify the person, not just the label.
   await expect(chip).toContainText('marguerite.vandenberg');
-  const clipped = await chip.locator('span').first().evaluate((el) => el.scrollWidth - el.clientWidth);
+  const clipped = await chip
+    .locator('span')
+    .first()
+    .evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(clipped).toBeLessThanOrEqual(1);
 });
 

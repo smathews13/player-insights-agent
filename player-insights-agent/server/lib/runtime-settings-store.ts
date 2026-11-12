@@ -20,6 +20,30 @@ export type ResolvedRuntimeSettings = VersionedSettings<RuntimeSettings> & {
   canReset: boolean;
 };
 
+/** The only keys a user may override. Everything else is the deployment's. */
+export const APPEARANCE_KEYS = [
+  'colorScheme',
+  'entityStyles',
+  'fontBodyColor',
+  'fontMutedColor',
+  'fontFamily',
+  'fontSize',
+  'mobileFontSize',
+  'backgroundGraphics',
+  'animations',
+  'density',
+] as const satisfies readonly (keyof RuntimeSettings)[];
+
+/**
+ * A user's row is a full snapshot taken at their first Appearance save, so its
+ * non-Appearance keys are stale copies of the defaults. Read those from the
+ * deployment row instead, or an admin change would never reach that user.
+ */
+function withDeploymentSettings(override: RuntimeSettings, defaults: RuntimeSettings): RuntimeSettings {
+  const appearance = Object.fromEntries(APPEARANCE_KEYS.map((key) => [key, override[key]]));
+  return { ...defaults, ...appearance };
+}
+
 function userKey(email: string): string {
   return `user:${email.trim().toLowerCase()}`;
 }
@@ -99,7 +123,12 @@ export async function readResolvedRuntimeSettings(
   }
   const override = await readVersionedSettings(client, storeFor(userKey(email), defaults.settings));
   return override.revision > 0
-    ? { ...override, source: 'override', canReset: true }
+    ? {
+        ...override,
+        settings: withDeploymentSettings(override.settings, defaults.settings),
+        source: 'override',
+        canReset: true,
+      }
     : { settings: defaults.settings, revision: 0, source: 'default', canReset: false };
 }
 
@@ -118,7 +147,12 @@ export async function writeUserRuntimeSettingsPatch(
     email
   );
   forgetRuntimeSettings();
-  return { ...document, source: 'override', canReset: true };
+  return {
+    ...document,
+    settings: withDeploymentSettings(document.settings, defaults.settings),
+    source: 'override',
+    canReset: true,
+  };
 }
 
 export async function deleteUserRuntimeSettings(

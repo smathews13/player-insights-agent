@@ -216,10 +216,7 @@ export function formatProviderError(evidence: FailureEvidence | undefined): stri
   if (code) parts.push(code);
   const message = evidence.providerMessage?.trim();
   if (message) {
-    parts.push(message.length > PROVIDER_MESSAGE_LIMIT
-        ? `${message.slice(0, PROVIDER_MESSAGE_LIMIT)}\u2026`
-        : message
-    );
+    parts.push(message.length > PROVIDER_MESSAGE_LIMIT ? `${message.slice(0, PROVIDER_MESSAGE_LIMIT)}\u2026` : message);
   }
   return parts.length > 0 ? parts.join(' \u00b7 ') : null;
 }

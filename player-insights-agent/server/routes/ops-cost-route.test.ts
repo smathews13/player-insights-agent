@@ -324,9 +324,7 @@ describe('the ranged cost route', () => {
         { name: 'from_instant', value: '2026-08-04T17:42:10.000Z', type: 'TIMESTAMP' },
       ])
     );
-    expect(statementBodies.some((body) => String(body.statement).includes('system.serving.endpoint_usage'))).toBe(
-      true
-    );
+    expect(statementBodies.some((body) => String(body.statement).includes('system.serving.endpoint_usage'))).toBe(true);
     expect(payload.perQuestion.runs[0].parts.map((part) => part.id)).toEqual(
       expect.arrayContaining(['serving-endpoint', 'foundation-model', 'sql-warehouse', 'genie'])
     );

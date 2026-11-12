@@ -69,8 +69,7 @@ const before = await client.query(`SELECT (SELECT count(*) FROM player_insights.
           (SELECT count(*) FROM player_insights.messages) messages,
           (SELECT count(*) FROM player_insights.attachments) attachments,
           (SELECT count(*) FROM player_insights.benchmark_runs) benchmark_runs,
-          (SELECT count(*) FROM player_insights.feedback) feedback`
-);
+          (SELECT count(*) FROM player_insights.feedback) feedback`);
 console.log('row counts before:', JSON.stringify(before.rows[0]));
 
 await client.query('BEGIN');
@@ -81,10 +80,13 @@ try {
     [ALICE, 'alice'],
     [BOB, 'bob'],
   ] as const) {
-    await client.query('INSERT INTO player_insights.conversations (id, user_email, title) VALUES ($1,$2,$3)',
-      [`probe-conv-${tag}`, who, `probe ${tag}`]
-    );
-    await client.query(`INSERT INTO player_insights.messages (id, conversation_id, role, content, response_json, trace_id)
+    await client.query('INSERT INTO player_insights.conversations (id, user_email, title) VALUES ($1,$2,$3)', [
+      `probe-conv-${tag}`,
+      who,
+      `probe ${tag}`,
+    ]);
+    await client.query(
+      `INSERT INTO player_insights.messages (id, conversation_id, role, content, response_json, trace_id)
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [
         `probe-msg-${tag}`,
@@ -101,11 +103,13 @@ try {
         `probe-trace-${tag}`,
       ]
     );
-    await client.query(`INSERT INTO player_insights.messages (id, conversation_id, role, content)
+    await client.query(
+      `INSERT INTO player_insights.messages (id, conversation_id, role, content)
        VALUES ($1,$2,$3,$4)`,
       [`probe-msg-${tag}-user`, `probe-conv-${tag}`, 'user', `${tag} private question`]
     );
-    await client.query(`INSERT INTO player_insights.attachments
+    await client.query(
+      `INSERT INTO player_insights.attachments
          (id, conversation_id, user_email, filename, mime_type, size_bytes, extracted_text)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [
@@ -118,11 +122,13 @@ try {
         `${tag} private document text`,
       ]
     );
-    await client.query(`INSERT INTO player_insights.benchmark_runs (id, suite_id, user_email, status, metrics_json)
+    await client.query(
+      `INSERT INTO player_insights.benchmark_runs (id, suite_id, user_email, status, metrics_json)
        VALUES ($1,$2,$3,$4,$5)`,
       [`probe-bench-${tag}`, 'probe-suite', who, 'complete', JSON.stringify({ score: 1 })]
     );
-    await client.query(`INSERT INTO player_insights.feedback (id, message_id, user_email, sentiment, usefulness)
+    await client.query(
+      `INSERT INTO player_insights.feedback (id, message_id, user_email, sentiment, usefulness)
        VALUES ($1,$2,$3,$4,$5)`,
       [
         `probe-fb-${tag}`,
@@ -137,7 +143,8 @@ try {
 
   // The hazard the rating predicate exists for: the feedback route accepts any
   // message id, so Bob can rate Alice's answer. Hers must still read as hers.
-  await client.query(`INSERT INTO player_insights.feedback (id, message_id, user_email, sentiment, usefulness)
+  await client.query(
+    `INSERT INTO player_insights.feedback (id, message_id, user_email, sentiment, usefulness)
      VALUES ($1,$2,$3,$4,$5)`,
     ['probe-fb-bob-on-alice', 'probe-msg-alice', BOB, 'down', 1]
   );
@@ -145,115 +152,121 @@ try {
   console.log('\nreading as Alice, who must not see Bob:\n');
 
   const bobsMessages = await client.query(MESSAGES_READ, ['probe-conv-bob', ALICE]);
-  check('GET /api/conversations/:id/messages',
+  check(
+    'GET /api/conversations/:id/messages',
     bobsMessages.rowCount === 0,
     `Bob's conversation read by Alice returned ${bobsMessages.rowCount} rows`
   );
   const ownMessages = await client.query(MESSAGES_READ, ['probe-conv-alice', ALICE]);
-  check('GET /api/conversations/:id/messages (own)',
+  check(
+    'GET /api/conversations/:id/messages (own)',
     (ownMessages.rowCount ?? 0) > 0,
     `Alice's own conversation returned ${ownMessages.rowCount} rows, so the join did not over-filter`
   );
 
   const bobsHistory = await client.query(HISTORY_READ, ['probe-conv-bob', ALICE]);
-  check('ask: conversation history',
+  check(
+    'ask: conversation history',
     bobsHistory.rowCount === 0,
     `Bob's history read by Alice returned ${bobsHistory.rowCount} rows`
   );
   const ownHistory = await client.query(HISTORY_READ, ['probe-conv-alice', ALICE]);
-  check('ask: conversation history (own)',
+  check(
+    'ask: conversation history (own)',
     (ownHistory.rowCount ?? 0) > 0,
     `Alice's own history returned ${ownHistory.rowCount} rows`
   );
 
   const bobsAttachments = await client.query(ATTACHMENT_TEXT_READ, ['probe-conv-bob', ALICE]);
-  check('ask: attachment text',
+  check(
+    'ask: attachment text',
     bobsAttachments.rowCount === 0,
     `Bob's document text read by Alice returned ${bobsAttachments.rowCount} rows`
   );
 
   const owner = await client.query(OWNERSHIP, ['probe-conv-bob']);
-  check('ask: ownership check before write',
+  check(
+    'ask: ownership check before write',
     owner.rows[0]?.user_email === BOB,
     `resolved Bob's conversation to ${owner.rows[0]?.user_email}, so the ask route refuses Alice`
   );
 
   const crossDelete = await client.query(SINGLE_DELETE, ['probe-att-bob', 'probe-conv-bob', ALICE]);
-  check('DELETE one attachment',
+  check(
+    'DELETE one attachment',
     crossDelete.rowCount === 0,
     `deleting Bob's attachment as Alice removed ${crossDelete.rowCount} rows, so the route answers 404`
   );
-  const ownDelete = await client.query(SINGLE_DELETE, [
-    'probe-att-alice',
-    'probe-conv-alice',
-    ALICE,
-  ]);
-  check('DELETE one attachment (own)',
+  const ownDelete = await client.query(SINGLE_DELETE, ['probe-att-alice', 'probe-conv-alice', ALICE]);
+  check(
+    'DELETE one attachment (own)',
     ownDelete.rowCount === 1,
     `deleting her own removed ${ownDelete.rowCount} row, so the route answers 204`
   );
 
   const conversations = await client.query(CONVERSATION_LIST, [ALICE]);
-  check('GET /api/conversations',
+  check(
+    'GET /api/conversations',
     !conversations.rows.some((row) => String(row.id).includes('bob')),
     `${conversations.rowCount} conversations, none of them Bob's`
   );
 
   const runsAsAlice = await client.query(RUNS_QUERY, [PLAN_APPROVAL_MESSAGE, ALICE]);
   const serialized = JSON.stringify(runsAsAlice.rows);
-  check('GET /api/runs: conversation runs are private',
+  check(
+    'GET /api/runs: conversation runs are private',
     !serialized.includes('bob private'),
     "no trace of Bob's prompt or answer in Alice's runs list"
   );
-  check('GET /api/runs: no other address is disclosed',
+  check(
+    'GET /api/runs: no other address is disclosed',
     !serialized.includes(BOB),
     `Bob's address absent; his shared benchmark run shows as "${SHARED_RUN_OWNER}"`
   );
   const bobsBenchmark = runsAsAlice.rows.find((row) => row.id === 'probe-bench-bob');
-  check('GET /api/runs: benchmark runs stay shared',
+  check(
+    'GET /api/runs: benchmark runs stay shared',
     bobsBenchmark !== undefined && bobsBenchmark.stakeholder === SHARED_RUN_OWNER,
     bobsBenchmark
       ? `Bob's benchmark run is visible, attributed to "${bobsBenchmark.stakeholder}"`
       : "Bob's benchmark run is missing, so the shared scope broke"
   );
   const ownBenchmark = runsAsAlice.rows.find((row) => row.id === 'probe-bench-alice');
-  check('GET /api/runs: your own benchmark run is still yours',
+  check(
+    'GET /api/runs: your own benchmark run is still yours',
     ownBenchmark?.stakeholder === ALICE,
     `Alice's own benchmark run is attributed to ${ownBenchmark?.stakeholder}`
   );
   const ownConversationRun = runsAsAlice.rows.find((row) => row.id === 'probe-msg-alice');
-  check('GET /api/runs: your own conversation runs are present',
+  check(
+    'GET /api/runs: your own conversation runs are present',
     ownConversationRun !== undefined,
     ownConversationRun
       ? 'Alice sees her own answer in the runs list'
-      : 'Alice cannot see her own answer, so the join over-filtered',
+      : 'Alice cannot see her own answer, so the join over-filtered'
   );
-  check('GET /api/runs: the rating shown is your own',
+  check(
+    'GET /api/runs: the rating shown is your own',
     ownConversationRun?.rating === 5,
     `Alice's answer carries her own score of ${ownConversationRun?.rating}, not the 1 Bob filed against it`
   );
 
-  const bobsTrace = await client.query(RUN_TRACE_MESSAGE_QUERY, [
-    'probe-msg-bob',
-    PLAN_APPROVAL_MESSAGE,
-    ALICE,
-  ]);
-  check('GET /api/runs/:id/trace (conversation run)',
+  const bobsTrace = await client.query(RUN_TRACE_MESSAGE_QUERY, ['probe-msg-bob', PLAN_APPROVAL_MESSAGE, ALICE]);
+  check(
+    'GET /api/runs/:id/trace (conversation run)',
     bobsTrace.rowCount === 0,
     `Bob's run trace read by Alice returned ${bobsTrace.rowCount} rows, so the route answers 404`
   );
-  const ownTrace = await client.query(RUN_TRACE_MESSAGE_QUERY, [
-    'probe-msg-alice',
-    PLAN_APPROVAL_MESSAGE,
-    ALICE,
-  ]);
-  check('GET /api/runs/:id/trace (own)',
+  const ownTrace = await client.query(RUN_TRACE_MESSAGE_QUERY, ['probe-msg-alice', PLAN_APPROVAL_MESSAGE, ALICE]);
+  check(
+    'GET /api/runs/:id/trace (own)',
     ownTrace.rowCount === 1,
     `Alice's own run trace returned ${ownTrace.rowCount} row`
   );
 
   const bobsBenchTrace = await client.query(RUN_TRACE_BENCHMARK_QUERY, ['probe-bench-bob', ALICE]);
-  check('GET /api/runs/:id/trace (benchmark run stays shared, address withheld)',
+  check(
+    'GET /api/runs/:id/trace (benchmark run stays shared, address withheld)',
     bobsBenchTrace.rowCount === 1 && bobsBenchTrace.rows[0]?.user_email === SHARED_RUN_OWNER,
     `readable, attributed to "${bobsBenchTrace.rows[0]?.user_email}"`
   );
@@ -265,8 +278,7 @@ const after = await client.query(`SELECT (SELECT count(*) FROM player_insights.c
           (SELECT count(*) FROM player_insights.messages) messages,
           (SELECT count(*) FROM player_insights.attachments) attachments,
           (SELECT count(*) FROM player_insights.benchmark_runs) benchmark_runs,
-          (SELECT count(*) FROM player_insights.feedback) feedback`
-);
+          (SELECT count(*) FROM player_insights.feedback) feedback`);
 console.log('\nrow counts after: ', JSON.stringify(after.rows[0]));
 const unchanged = JSON.stringify(before.rows[0]) === JSON.stringify(after.rows[0]);
 check('the database is exactly as it was', unchanged, unchanged ? 'rolled back, nothing committed' : 'COUNTS MOVED');

@@ -118,8 +118,7 @@ export const MATCHING_POLICY_FACT =
 
 export const MATCHING_POLICY_REFERENCE = '#lab-matching-policy';
 
-export const PARTIAL_RESULTS_FACT =
-  'Partial results save as the run goes; one failed case does not void the suite.';
+export const PARTIAL_RESULTS_FACT = 'Partial results save as the run goes; one failed case does not void the suite.';
 
 export const HELD_OUT_LOCK_FACT = 'held-out cases are frozen, edits create an audit entry';
 
@@ -231,7 +230,9 @@ export function caseHasSql(row: Pick<LabCase, 'groundTruthSql'>): boolean {
   return row.groundTruthSql.trim().length > 0;
 }
 
-export function caseHasAgentLabel(row: Pick<LabCase, 'expectedFacts' | 'expectedResponse' | 'perCaseGuidelines'>): boolean {
+export function caseHasAgentLabel(
+  row: Pick<LabCase, 'expectedFacts' | 'expectedResponse' | 'perCaseGuidelines'>
+): boolean {
   return Boolean(row.expectedFacts.trim() || row.expectedResponse.trim() || row.perCaseGuidelines.trim());
 }
 
@@ -239,7 +240,9 @@ export function genieLaneReady(row: Pick<LabCase, 'question' | 'groundTruthSql'>
   return Boolean(row.question.trim() && caseHasSql(row));
 }
 
-export function agentLaneReady(row: Pick<LabCase, 'question' | 'expectedFacts' | 'expectedResponse' | 'perCaseGuidelines'>): boolean {
+export function agentLaneReady(
+  row: Pick<LabCase, 'question' | 'expectedFacts' | 'expectedResponse' | 'perCaseGuidelines'>
+): boolean {
   return Boolean(row.question.trim() && caseHasAgentLabel(row));
 }
 
@@ -294,7 +297,10 @@ export function missingSqlGateCopy(missing: number, selected: number): string {
   return `${missing} of ${selected} selected cases are missing SQL. Fix them in 01 or run partial: the excluded cases and the denominator are shown on the result.`;
 }
 
-export function genieSuitePlan(cases: readonly LabCase[], selectedIds?: readonly string[]): {
+export function genieSuitePlan(
+  cases: readonly LabCase[],
+  selectedIds?: readonly string[]
+): {
   kind: SuiteKind;
   selected: LabCase[];
   sqlReady: LabCase[];
@@ -303,9 +309,7 @@ export function genieSuitePlan(cases: readonly LabCase[], selectedIds?: readonly
   gateCopy: string | null;
 } {
   const active = cases.filter((row) => !row.retired);
-  const selected = selectedIds?.length
-    ? active.filter((row) => selectedIds.includes(row.id))
-    : active;
+  const selected = selectedIds?.length ? active.filter((row) => selectedIds.includes(row.id)) : active;
   const sqlReady = selected.filter(genieLaneReady);
   const missingSql = selected.filter((row) => row.question.trim() && !caseHasSql(row));
   const canRunComplete = missingSql.length === 0 && sqlReady.length > 0;
@@ -356,7 +360,11 @@ export const DEFAULT_APPLY_TARGET: ApplyTarget = {
 };
 
 export const LabContractSchema = z.strictObject({
-  goalLanes: z.array(z.enum(['genie', 'agent', 'trace'])).min(1).max(3).default(['genie', 'agent']),
+  goalLanes: z
+    .array(z.enum(['genie', 'agent', 'trace']))
+    .min(1)
+    .max(3)
+    .default(['genie', 'agent']),
   baselineRunId: z.string().trim().max(80).default(''),
   candidateRunId: z.string().trim().max(80).default(''),
   gates: PassGatesSchema.default(DEFAULT_PASS_GATES),
@@ -569,11 +577,12 @@ export function lockHeldOut(row: LabCase, at: string): LabCase {
   return { ...row, heldOutLockedAt: row.heldOutLockedAt || at };
 }
 
-export function scorerSetSummary(input: {
+export function scorerSetSummary(input: { version: string; enabledJudges: readonly string[]; extraJudges?: number }): {
   version: string;
-  enabledJudges: readonly string[];
-  extraJudges?: number;
-}): { version: string; activeCount: number; nonApplicableCount: number; line: string } {
+  activeCount: number;
+  nonApplicableCount: number;
+  line: string;
+} {
   const activeCount = input.enabledJudges.length + (input.extraJudges ?? 0);
   const nonApplicableCount = SCORER_CATALOG.filter((entry) => entry.availability === 'unimplementable').length;
   return {
@@ -589,7 +598,11 @@ export function configurationSnapshotHref(snapshotId: string): string {
   return id ? `/benchmarking?snapshot=${encodeURIComponent(id)}#lab-snapshot` : '#lab-snapshot';
 }
 
-export function runPermalink(input: { datasetVersionId?: string; baselineRunId?: string; candidateRunId?: string }): string {
+export function runPermalink(input: {
+  datasetVersionId?: string;
+  baselineRunId?: string;
+  candidateRunId?: string;
+}): string {
   const params = new URLSearchParams();
   if (input.datasetVersionId) params.set('dataset', input.datasetVersionId);
   if (input.baselineRunId) params.set('baseline', input.baselineRunId);
@@ -706,7 +719,10 @@ export interface MetricDelta {
   gate?: string;
 }
 
-export function formatLabNumber(value: number | null | undefined, kind: 'percent' | 'count' | 'ms' | 'rate' = 'count'): string {
+export function formatLabNumber(
+  value: number | null | undefined,
+  kind: 'percent' | 'count' | 'ms' | 'rate' = 'count'
+): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
   if (kind === 'percent') return `${Math.round(value * 100)}%`;
   if (kind === 'rate') return value.toFixed(3).replace(/\.?0+$/, '');
@@ -714,11 +730,20 @@ export function formatLabNumber(value: number | null | undefined, kind: 'percent
   return String(value);
 }
 
-export function signedDelta(baseline: number | null | undefined, candidate: number | null | undefined, higherIsBetter = true): {
+export function signedDelta(
+  baseline: number | null | undefined,
+  candidate: number | null | undefined,
+  higherIsBetter = true
+): {
   delta: string;
   sign: DeltaSign;
 } {
-  if (typeof baseline !== 'number' || typeof candidate !== 'number' || !Number.isFinite(baseline) || !Number.isFinite(candidate)) {
+  if (
+    typeof baseline !== 'number' ||
+    typeof candidate !== 'number' ||
+    !Number.isFinite(baseline) ||
+    !Number.isFinite(candidate)
+  ) {
     return { delta: '-', sign: 'neutral' };
   }
   const diff = candidate - baseline;
@@ -751,7 +776,10 @@ export interface CaseOutcome {
   passed: boolean;
 }
 
-export function newlyFixedAndBroken(baseline: readonly CaseOutcome[], candidate: readonly CaseOutcome[]): {
+export function newlyFixedAndBroken(
+  baseline: readonly CaseOutcome[],
+  candidate: readonly CaseOutcome[]
+): {
   newlyFixed: string[];
   newlyBroken: string[];
 } {
@@ -916,7 +944,8 @@ export function liveRunProgressLine(run: NonNullable<LabContract['liveRun']>): s
 export const CANCEL_RUN_NOTE =
   'Cancel records the request on this tab. The in-flight serving call is not aborted. Partial results already saved stay saved.';
 
-export const RETRY_FAILED_NOTE = 'Retry failed cases starts a new partial suite on those case ids. It does not rewrite the finished run.';
+export const RETRY_FAILED_NOTE =
+  'Retry failed cases starts a new partial suite on those case ids. It does not rewrite the finished run.';
 
 export interface EvidencePack {
   datasetVersionId: string;
@@ -1010,7 +1039,8 @@ export function heldOutScorerRows(input: {
   let hiddenNonApplicable = 0;
   for (const definition of catalog) {
     const score = byId.get(definition.id) ?? null;
-    const applicable = definition.availability === 'reported' && score?.state !== 'not-applicable' && score?.state !== 'unimplementable';
+    const applicable =
+      definition.availability === 'reported' && score?.state !== 'not-applicable' && score?.state !== 'unimplementable';
     if (hide && !applicable) {
       hiddenNonApplicable += 1;
       continue;
@@ -1240,4 +1270,3 @@ export function labWorkspacePayload(input: {
     partialResultsFact: PARTIAL_RESULTS_FACT,
   };
 }
-

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  findLatestAnsweredConversation,
-  loadConversationTurns,
-  loadTurnsForQuestion,
-} from './eval-conversation';
+import { findLatestAnsweredConversation, loadConversationTurns, loadTurnsForQuestion } from './eval-conversation';
 
 function store(rows: { conversation_id?: string; role?: string; content?: string }[]) {
   return {

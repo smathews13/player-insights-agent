@@ -49,7 +49,11 @@ export const NOT_PUBLISHED_REASON =
  */
 export function evalScorecard(): ScorecardState {
   const scorecard = generated as unknown as Scorecard;
-  if (!scorecard?.provenance?.evaluatedAt || !Array.isArray(scorecard.aggregates) || scorecard.aggregates.length === 0) {
+  if (
+    !scorecard?.provenance?.evaluatedAt ||
+    !Array.isArray(scorecard.aggregates) ||
+    scorecard.aggregates.length === 0
+  ) {
     return { published: false, reason: NOT_PUBLISHED_REASON };
   }
   return { published: true, scorecard };

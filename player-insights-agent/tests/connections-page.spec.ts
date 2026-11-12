@@ -284,7 +284,8 @@ test('the verification detail is recorded here, with the id said once', async ({
 
   // The honest limit of what was checked. Keeping the grants and dropping this
   // would turn a partial check into a clean bill of health.
-  await expect(permissions).toContainText('Row-level filters and column masks were not checked and are not covered by this.'
+  await expect(permissions).toContainText(
+    'Row-level filters and column masks were not checked and are not covered by this.'
   );
 
   // Verification copy no longer claims who executes; that is the Questions line.

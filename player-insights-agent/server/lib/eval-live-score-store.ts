@@ -1,9 +1,5 @@
 import { appTable } from '../../shared/app-schema';
-import {
-  LIVE_SCORE_KEEP,
-  parseLiveTraceScore,
-  type LiveTraceScore,
-} from '../../shared/eval-live-scoring';
+import { LIVE_SCORE_KEEP, parseLiveTraceScore, type LiveTraceScore } from '../../shared/eval-live-scoring';
 import type { LakebaseReader } from './lakebase-store';
 
 export const EVAL_LIVE_SCORES_TABLE = appTable('eval_live_scores');
@@ -15,10 +11,7 @@ export const EVAL_LIVE_SCORES_DDL = `CREATE TABLE IF NOT EXISTS ${EVAL_LIVE_SCOR
   score JSONB NOT NULL
 )`;
 
-export async function appendLiveScore(
-  client: LakebaseReader,
-  score: LiveTraceScore
-): Promise<LiveTraceScore> {
+export async function appendLiveScore(client: LakebaseReader, score: LiveTraceScore): Promise<LiveTraceScore> {
   const parsed = parseLiveTraceScore(score);
   await client.lakebase.query(
     `INSERT INTO ${EVAL_LIVE_SCORES_TABLE} (id, conversation_id, message_id, score, scored_at)

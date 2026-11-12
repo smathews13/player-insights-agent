@@ -124,9 +124,7 @@ export const BENCHMARK_CASE_CATALOG: readonly BenchmarkCaseDefinition[] = [
     name: 'Visualization',
     question: 'Chart 30-day active players by label and title.',
     intent: 'The plotting tool has to fire and return a chart the browser can render.',
-    guidelines: [
-      'The answer presents active players broken down by both label and title.',
-    ],
+    guidelines: ['The answer presents active players broken down by both label and title.'],
     // Whether a chart came back is a fact, not a judgement.
     structuralChecks: ['has-charts', 'has-figures'],
     judges: ALL_JUDGES,
@@ -243,11 +241,7 @@ export function resolveSuiteCases(casesJson: unknown): ResolvedCase[] {
       // A row-supplied question for an id the catalog does not know has no
       // rubric-applicability declaration, so all three are attempted and the
       // guidelines judge is skipped only when there is genuinely no guideline.
-      const judges = definition
-        ? definition.judges
-        : effectiveGuidelines.length > 0
-          ? ALL_JUDGES
-          : ANSWER_ONLY_JUDGES;
+      const judges = definition ? definition.judges : effectiveGuidelines.length > 0 ? ALL_JUDGES : ANSWER_ONLY_JUDGES;
       return {
         caseId,
         definition,

@@ -75,7 +75,9 @@ function bearerToken(options: ObserveOptions): string {
     });
     return (JSON.parse(out) as { access_token?: string }).access_token ?? '';
   } catch (error) {
-    options.log?.(`  could not mint a token for profile '${options.profile}': ${(error as Error).message.split('\n')[0]}`);
+    options.log?.(
+      `  could not mint a token for profile '${options.profile}': ${(error as Error).message.split('\n')[0]}`
+    );
     return '';
   }
 }
@@ -88,12 +90,7 @@ function bearerToken(options: ObserveOptions): string {
  * a full payload, and reading that as "no answer" would turn the clearest
  * finding this tool can get into an unknown.
  */
-async function appJson<T>(
-  url: string,
-  route: string,
-  token: string,
-  options: ObserveOptions
-): Promise<T | null> {
+async function appJson<T>(url: string, route: string, token: string, options: ObserveOptions): Promise<T | null> {
   if (!url || !token) return null;
   try {
     const response = await fetch(`${url}${route}`, {
@@ -193,10 +190,7 @@ export async function observe(options: ObserveOptions): Promise<Observations> {
   const app = cliJson<AppRecord>(['apps', 'get', options.appName], options);
 
   log('Reading the serving endpoint');
-  const endpoint = cliJson<EndpointRecord>(
-    ['serving-endpoints', 'get', options.servingEndpoint],
-    options
-  );
+  const endpoint = cliJson<EndpointRecord>(['serving-endpoints', 'get', options.servingEndpoint], options);
 
   // Only the version taking traffic. Reading the newest registered version
   // instead would certify a manifest nobody is serving.
@@ -220,18 +214,18 @@ export async function observe(options: ObserveOptions): Promise<Observations> {
   let modelRun: ModelRunRecord | null = null;
   if (modelVersion?.run_id) {
     log('Reading the run that logged it');
-    modelRun = cliJson<{ run?: ModelRunRecord }>(
-      ['api', 'get', `/api/2.0/mlflow/runs/get?run_id=${modelVersion.run_id}`],
-      options
-    )?.run ?? null;
+    modelRun =
+      cliJson<{ run?: ModelRunRecord }>(
+        ['api', 'get', `/api/2.0/mlflow/runs/get?run_id=${modelVersion.run_id}`],
+        options
+      )?.run ?? null;
   } else if (modelVersion) {
     log('  the model version names no run, so its release decisions were not read');
   }
 
   const url = (app?.url ?? '').replace(/\/$/, '');
   const token = url ? bearerToken(options) : '';
-  const issuedBy =
-    cliJson<{ userName?: string }>(['current-user', 'me'], options)?.userName ?? '';
+  const issuedBy = cliJson<{ userName?: string }>(['current-user', 'me'], options)?.userName ?? '';
 
   log('Asking the app about itself, as you');
   const [settings, storage, preflight] = await Promise.all([

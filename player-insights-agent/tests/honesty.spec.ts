@@ -295,7 +295,15 @@ test('a suite whose numbers contradict each other is reported, not rendered', as
         trace: null,
         toolStages: [],
         mlflow: null,
-        benchmark: { suiteId: 'poc', passed: 12, total: 10, groundedness: 0.9, relevance: 0.9, guidelines: null, durationMs: 7_340 },
+        benchmark: {
+          suiteId: 'poc',
+          passed: 12,
+          total: 10,
+          groundedness: 0.9,
+          relevance: 0.9,
+          guidelines: null,
+          durationMs: 7_340,
+        },
         note: '',
         undeclaredKeys: [],
       },
@@ -493,9 +501,7 @@ test('an answer that was stored links to its own run', async ({ page }) => {
   await askWith(page, { type: 'answer', ...fullAnswer(), runStored: true });
 
   await expect(page.locator('.answer-card').first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('link', { name: /Explore full run/ })).toHaveAttribute('href',
-    '/runs?run=msg-probe'
-  );
+  await expect(page.getByRole('link', { name: /Explore full run/ })).toHaveAttribute('href', '/runs?run=msg-probe');
 });
 
 // ── The state a customer's first run is in ───────────────────────────────────
@@ -535,7 +541,8 @@ test('long unbroken strings do not push the layout sideways', async ({ page }) =
   const longSource = 'main_prod_catalog.player_engagement_gold.player_activity_daily_aggregated_by_title_and_region_v3';
   const longLabel = 'Titan_Fall_Weekly_Active_Players_North_America_Region_Segment_Console_And_PC_Combined';
 
-  await askWith(page,
+  await askWith(
+    page,
     fullAnswer({
       takeaway: longLabel,
       figures: [{ label: longLabel, value: 61, display: '61%', comparison: '+4pp' }],
@@ -547,7 +554,8 @@ test('long unbroken strings do not push the layout sideways', async ({ page }) =
 
   // A fully-qualified table name is the most ordinary thing this app displays, and
   // it used to give the whole page a horizontal scrollbar.
-  const scrolls = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  const scrolls = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
   );
   expect(scrolls).toBe(false);
 });

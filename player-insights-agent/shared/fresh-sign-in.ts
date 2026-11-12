@@ -69,8 +69,7 @@ export const PRIVATE_WINDOW_NAMES =
  * and this sentence is set in a footer under a nine-row list where every clause
  * costs a line. What is left is the part that stops the wrong action.
  */
-export const SIGN_OUT_DOES_NOT_CLEAR =
-  'Signing out of Databricks does not clear this app\u2019s sign-in.';
+export const SIGN_OUT_DOES_NOT_CLEAR = 'Signing out of Databricks does not clear this app\u2019s sign-in.';
 
 /**
  * Open the app again with nothing stored.

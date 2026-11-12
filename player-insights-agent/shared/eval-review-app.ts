@@ -41,7 +41,8 @@ export function parseLabelingSession(value: unknown): LabelingSession {
 export function reviewAppUrlFromBody(body: unknown): string {
   if (!body || typeof body !== 'object') return '';
   const record = body as Record<string, unknown>;
-  const nested = record.session && typeof record.session === 'object' ? (record.session as Record<string, unknown>) : record;
+  const nested =
+    record.session && typeof record.session === 'object' ? (record.session as Record<string, unknown>) : record;
   for (const key of ['url', 'review_app_url', 'reviewAppUrl']) {
     const value = nested[key] ?? record[key];
     if (typeof value === 'string' && /^https?:\/\//i.test(value.trim())) return value.trim();
@@ -52,7 +53,8 @@ export function reviewAppUrlFromBody(body: unknown): string {
 export function labelingIdsFromBody(body: unknown): { sessionId: string; runId: string; name: string } {
   if (!body || typeof body !== 'object') return { sessionId: '', runId: '', name: '' };
   const record = body as Record<string, unknown>;
-  const nested = record.session && typeof record.session === 'object' ? (record.session as Record<string, unknown>) : record;
+  const nested =
+    record.session && typeof record.session === 'object' ? (record.session as Record<string, unknown>) : record;
   const text = (value: unknown): string => {
     if (typeof value === 'string') return value.trim();
     if (value == null) return '';

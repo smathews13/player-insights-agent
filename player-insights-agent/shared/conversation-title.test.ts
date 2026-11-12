@@ -1,16 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import {
-  conversationTitle,
-  CONVERSATION_TITLE_LIMIT,
-  PLACEHOLDER_CONVERSATION_TITLE,
-} from './conversation-title';
+import { conversationTitle, CONVERSATION_TITLE_LIMIT, PLACEHOLDER_CONVERSATION_TITLE } from './conversation-title';
 
 describe('conversationTitle', () => {
   it('keeps a real question whole, which the old 80-character cut did not', () => {
     // The exact question that was found stored as a fragment in the rail on example,
     // ending "and how many" with nothing to say the rest had been deleted.
-    const asked =
-      'Which three titles had the most active players in the last 30 days, and how many did each have?';
+    const asked = 'Which three titles had the most active players in the last 30 days, and how many did each have?';
     expect(asked.length).toBeGreaterThan(80);
     expect(conversationTitle(asked)).toBe(asked);
   });
@@ -35,9 +30,7 @@ describe('conversationTitle', () => {
   });
 
   it('collapses newlines and runs of spaces, which clamp into ragged gaps', () => {
-    expect(conversationTitle('  Compare active\n\nplayers   by title.  ')).toBe(
-      'Compare active players by title.'
-    );
+    expect(conversationTitle('  Compare active\n\nplayers   by title.  ')).toBe('Compare active players by title.');
   });
 
   it('still returns a label for one unbroken token with no space to cut on', () => {
@@ -52,8 +45,6 @@ describe('conversationTitle', () => {
   it('never returns the placeholder for a real question, which would freeze the label', () => {
     // The ask upsert replaces a stored title only while it equals the placeholder.
     // A derived label that happened to equal it would be replaceable forever.
-    expect(conversationTitle(PLACEHOLDER_CONVERSATION_TITLE.toUpperCase())).not.toBe(
-      PLACEHOLDER_CONVERSATION_TITLE
-    );
+    expect(conversationTitle(PLACEHOLDER_CONVERSATION_TITLE.toUpperCase())).not.toBe(PLACEHOLDER_CONVERSATION_TITLE);
   });
 });

@@ -57,9 +57,7 @@ export function renderReport(certificate: Certificate): string {
   // down, and printing it here as well put "FAIL APP_MODEL_BUILD_MATCH" at the
   // top of a report whose verdict was not FAIL, above a note two screens later
   // explaining that it never gates. The reader believes the first one.
-  const failed = byStatus('fail').filter(
-    (outcome) => checkDefinition(outcome.code)?.severity !== 'advisory'
-  );
+  const failed = byStatus('fail').filter((outcome) => checkDefinition(outcome.code)?.severity !== 'advisory');
   if (failed.length > 0) {
     lines.push('', '==> Findings');
     for (const outcome of failed) {
@@ -70,16 +68,16 @@ export function renderReport(certificate: Certificate): string {
     }
   }
 
-  const unresolved = certificate.checks.filter(
-    (outcome) => decision.unresolved.includes(outcome.code)
-  );
+  const unresolved = certificate.checks.filter((outcome) => decision.unresolved.includes(outcome.code));
   if (unresolved.length > 0) {
     lines.push('', '==> Not established');
-    lines.push(...wrap(
-      'These are required and nothing answered them. They block a certificate exactly as a ' +
-        'failure does. The difference is that each one names a question rather than a repair.',
-      '  '
-    ));
+    lines.push(
+      ...wrap(
+        'These are required and nothing answered them. They block a certificate exactly as a ' +
+          'failure does. The difference is that each one names a question rather than a repair.',
+        '  '
+      )
+    );
     for (const outcome of unresolved) {
       const definition = checkDefinition(outcome.code);
       lines.push(`  ${MARK[outcome.status]}  ${outcome.code}  ${definition?.title ?? ''}`);
@@ -96,8 +94,7 @@ export function renderReport(certificate: Certificate): string {
   }
 
   const advisory = certificate.checks.filter(
-    (outcome) =>
-      outcome.status === 'fail' && checkDefinition(outcome.code)?.severity === 'advisory'
+    (outcome) => outcome.status === 'fail' && checkDefinition(outcome.code)?.severity === 'advisory'
   );
   if (advisory.length > 0) {
     lines.push('', '==> Advisory, and never a gate');
@@ -116,18 +113,13 @@ export function renderReport(certificate: Certificate): string {
   }
 
   lines.push('', '==> What this certificate does NOT cover');
-  const unobservable = certificate.checks.filter(
-    (outcome) => checkDefinition(outcome.code)?.observability !== 'api'
-  );
+  const unobservable = certificate.checks.filter((outcome) => checkDefinition(outcome.code)?.observability !== 'api');
   for (const outcome of unobservable) {
     const definition = checkDefinition(outcome.code);
     const attested = certificate.attestations.find(
-      (statement) =>
-        statement.code === outcome.code && statement.tupleDigest === certificate.tupleDigest
+      (statement) => statement.code === outcome.code && statement.tupleDigest === certificate.tupleDigest
     );
-    lines.push(
-      `  ${outcome.code}  ${attested ? `attested by ${attested.by} at ${attested.at}` : 'NOT ATTESTED'}`
-    );
+    lines.push(`  ${outcome.code}  ${attested ? `attested by ${attested.by} at ${attested.at}` : 'NOT ATTESTED'}`);
     if (definition?.notObservable) lines.push(...wrap(definition.notObservable, '      '));
     if (!attested && definition) lines.push(...wrap(`To resolve: ${definition.remedy}`, '      '));
   }

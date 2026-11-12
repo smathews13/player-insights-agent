@@ -48,7 +48,10 @@ describe('the preflight read the Ask pill waits on', () => {
     // Accepts the request and produces nothing, which is what a hung metadata
     // read looks like from the browser. Before the deadline this promise was
     // the pill's final state.
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => undefined)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined))
+    );
     const { agentReadinessFrom, readPreflightOnce } = await loadReadiness();
 
     const pending = readPreflightOnce();
@@ -80,7 +83,10 @@ describe('the preflight read the Ask pill waits on', () => {
   });
 
   it('settles when the route cannot be reached at all', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('the server is not answering'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('the server is not answering')))
+    );
     const { agentReadinessFrom, readPreflightOnce } = await loadReadiness();
 
     expect(agentReadinessFrom(await readPreflightOnce())).toBe('unchecked');

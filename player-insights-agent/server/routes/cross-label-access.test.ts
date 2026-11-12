@@ -70,9 +70,7 @@ function answerFrom(asset: string) {
         id: 'msg-1',
         takeaway: 'Revenue per player rose 6% in the North label.',
         narrative: 'Revenue per player rose 6%.',
-        figures: [
-          { label: 'Revenue per player', value: 6.1, display: '$6.10', comparison: 'up 6%' },
-        ],
+        figures: [{ label: 'Revenue per player', value: 6.1, display: '$6.10', comparison: 'up 6%' }],
         charts: [],
         sources: [{ name: asset, freshness: 'Read during this run' }],
         caveats: [],
@@ -199,9 +197,7 @@ describe('a reader denied a data product is refused rather than routed around', 
     try {
       const body = (await (await app.ask(CORPORATE, 'conv-denied')).json()) as Record<string, unknown>;
 
-      expect(body.message).toBe(
-        'You do not have access to one or more data products required by this question.'
-      );
+      expect(body.message).toBe('You do not have access to one or more data products required by this question.');
       // Which product, which privilege, and which administrator to ask are all
       // in the platform's message and none of them are in ours. A denial that
       // names the table it protects tells a reader what they have found, and
@@ -283,7 +279,6 @@ describe('one reader being granted access does not extend it to another', () => 
       const granted = (await (await app.ask(LABEL_NORTH, 'conv-north')).json()) as Record<string, unknown>;
       const denied = (await (await app.ask(LABEL_SOUTH, 'conv-south')).json()) as Record<string, unknown>;
 
-      
       expect(granted.kind).not.toBe('unavailable');
       expect(denied.kind).toBe('unavailable');
       // Both went to the endpoint under their own name. The denied reader's
@@ -338,23 +333,20 @@ describe('one reader being granted access does not extend it to another', () => 
       // token appearing twice would mean a request had been executed under
       // somebody else's identity while both were in flight.
       expect(new Set(calls.map((call) => call.token)).size).toBe(2);
-      expect(new Set(calls.map((call) => call.expectedUser))).toEqual(
-        new Set([LABEL_NORTH, LABEL_SOUTH])
-      );
+      expect(new Set(calls.map((call) => call.expectedUser))).toEqual(new Set([LABEL_NORTH, LABEL_SOUTH]));
     } finally {
       await app.close();
     }
   });
 
-  it("writes no assistant turn for the denied reader, so nothing carries into their next question", async () => {
+  it('writes no assistant turn for the denied reader, so nothing carries into their next question', async () => {
     const { transport } = transportFor(() => Promise.reject(permissionDenied(PRIVATE_PRODUCT)));
     const app = await startApp(transport);
 
     try {
       await app.ask(LABEL_SOUTH, 'conv-south');
       const assistantTurns = recorded.filter(
-        (entry) => entry.sql.startsWith('INSERT INTO player_insights.messages') &&
-          entry.params.includes('assistant')
+        (entry) => entry.sql.startsWith('INSERT INTO player_insights.messages') && entry.params.includes('assistant')
       );
       expect(assistantTurns).toEqual([]);
     } finally {

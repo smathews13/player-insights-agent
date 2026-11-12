@@ -159,7 +159,10 @@ export async function saveLabDataset(rows: readonly EvalRowLike[]): Promise<LabW
   return (await fetchLabBundle()).lab;
 }
 
-export async function importLabTraces(questions: readonly string[], filters: readonly ImportFilter[]): Promise<LabWorkspace> {
+export async function importLabTraces(
+  questions: readonly string[],
+  filters: readonly ImportFilter[]
+): Promise<LabWorkspace> {
   const response = await fetch('/api/admin/benchmarks/lab/import-traces', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -168,7 +171,10 @@ export async function importLabTraces(questions: readonly string[], filters: rea
   return labFromPayload(await readJson(response, 'import'));
 }
 
-export async function reviewLabCase(caseId: string, review: LabWorkspace['cases'][number]['review']): Promise<LabWorkspace> {
+export async function reviewLabCase(
+  caseId: string,
+  review: LabWorkspace['cases'][number]['review']
+): Promise<LabWorkspace> {
   const response = await fetch('/api/admin/benchmarks/lab/review', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,4 +252,3 @@ export async function rememberBakeOffHistory(entry: Record<string, unknown>): Pr
   });
   await readJson(response, 'bake-off history');
 }
-

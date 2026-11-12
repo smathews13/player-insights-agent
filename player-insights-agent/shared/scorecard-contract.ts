@@ -134,9 +134,7 @@ export interface Scorecard {
  * able to say "no evaluation has been published yet" rather than draw a row of
  * dashes that reads as a set of zeroes.
  */
-export type ScorecardState =
-  | { published: true; scorecard: Scorecard }
-  | { published: false; reason: string };
+export type ScorecardState = { published: true; scorecard: Scorecard } | { published: false; reason: string };
 
 /**
  * What the runner adds to a stored run, without widening the benchmark contract.

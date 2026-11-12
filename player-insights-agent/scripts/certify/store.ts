@@ -73,11 +73,7 @@ export function readCertificates(store: string, target: string): Certificate[] {
 /** The newest stored certificate issued for exactly this release. */
 export function latestFor(store: string, tuple: ReleaseTuple): Certificate | null {
   const wanted = tupleDigest(tuple);
-  return (
-    readCertificates(store, tuple.target).find(
-      (certificate) => certificate.tupleDigest === wanted
-    ) ?? null
-  );
+  return readCertificates(store, tuple.target).find((certificate) => certificate.tupleDigest === wanted) ?? null;
 }
 
 // --- Attestations -------------------------------------------------------------
@@ -113,8 +109,7 @@ export function addAttestation(store: string, target: string, attestation: Attes
   const directory = targetDir(store, target);
   mkdirSync(directory, { recursive: true });
   const kept = readAttestations(store, target).filter(
-    (existing) =>
-      !(existing.code === attestation.code && existing.tupleDigest === attestation.tupleDigest)
+    (existing) => !(existing.code === attestation.code && existing.tupleDigest === attestation.tupleDigest)
   );
   const file = attestationsFile(store, target);
   writeFileSync(file, `${JSON.stringify([...kept, attestation], null, 2)}\n`);

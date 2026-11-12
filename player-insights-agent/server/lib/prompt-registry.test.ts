@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { PRODUCTION_PROMPT_ALIAS, promptRegistryUri } from '../../shared/eval-flywheel';
-import {
-  parsePromptVersion,
-  promotePromptAlias,
-  promptTemplateFromPromote,
-} from './prompt-registry';
+import { parsePromptVersion, promotePromptAlias, promptTemplateFromPromote } from './prompt-registry';
 
 describe('Prompt Registry promote', () => {
   it('names the production alias the next Ask will load', () => {
     expect(PRODUCTION_PROMPT_ALIAS).toBe('production');
-    expect(promptRegistryUri('main.default.pia_guidance')).toBe(
-      'prompts:/main.default.pia_guidance@production'
-    );
+    expect(promptRegistryUri('main.default.pia_guidance')).toBe('prompts:/main.default.pia_guidance@production');
   });
 
   it('builds a template from the winner without inventing customer data', () => {
@@ -53,10 +47,7 @@ describe('Prompt Registry promote', () => {
   });
 
   it('skips the registry when no name is configured', async () => {
-    const result = await promotePromptAlias(
-      { request: () => Promise.resolve({}) },
-      { name: '', template: 'Cached.' }
-    );
+    const result = await promotePromptAlias({ request: () => Promise.resolve({}) }, { name: '', template: 'Cached.' });
     expect(result.status).toBe('skipped');
     expect(parsePromptVersion({ version: 2 })).toBe('2');
   });

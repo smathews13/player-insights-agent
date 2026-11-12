@@ -1,8 +1,4 @@
-import {
-  judgeProvenance,
-  MLFLOW_JUDGE_PROMPT_VERSION,
-  type BenchmarkJudgement,
-} from '../../shared/benchmark-contract';
+import { judgeProvenance, MLFLOW_JUDGE_PROMPT_VERSION, type BenchmarkJudgement } from '../../shared/benchmark-contract';
 import { withDeadline } from './deadline';
 
 /**
@@ -112,9 +108,7 @@ export function relevanceToQueryPrompt(request: string, response: string): strin
   return formatPrompt(RELEVANCE_TO_QUERY_PROMPT, { input: request, output: response });
 }
 
-export function guidelinesPrompt(guidelines: string[],
-  context: Record<string, string>
-): string {
+export function guidelinesPrompt(guidelines: string[], context: Record<string, string>): string {
   return formatPrompt(GUIDELINES_PROMPT, {
     guidelines: renderGuidelines(guidelines),
     guidelines_context: renderGuidelinesContext(context),
@@ -169,16 +163,17 @@ export function extractJudgeContent(result: unknown): string | null {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     const parts = content
-      .filter((block): block is { text: string } => Boolean(block) && typeof block === 'object' && typeof (block as { text?: unknown }).text === 'string')
+      .filter(
+        (block): block is { text: string } =>
+          Boolean(block) && typeof block === 'object' && typeof (block as { text?: unknown }).text === 'string'
+      )
       .map((block) => block.text);
     return parts.length > 0 ? parts.join('\n') : null;
   }
   return null;
 }
 
-export type ParsedJudgeResponse =
-  | { ok: true; value: 'yes' | 'no'; rationale: string }
-  | { ok: false; error: string };
+export type ParsedJudgeResponse = { ok: true; value: 'yes' | 'no'; rationale: string } | { ok: false; error: string };
 
 /**
  * `_parse_databricks_judge_response`, with one addition: MLflow accepts
@@ -266,17 +261,11 @@ export function judgeRequestPayload(prompt: string): Record<string, unknown> {
  * waiting", not "the call was stopped".
  */
 async function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
-  return withDeadline(work,
-    ms,
-    `${label} did not answer within ${ms} ms; the call was abandoned, not cancelled.`
-  );
+  return withDeadline(work, ms, `${label} did not answer within ${ms} ms; the call was abandoned, not cancelled.`);
 }
 
 /** A judgement that never ran, with the reason it did not. */
-export function notApplicable(name: JudgeName,
-  judgeEndpoint: string,
-  reason: string
-): BenchmarkJudgement {
+export function notApplicable(name: JudgeName, judgeEndpoint: string, reason: string): BenchmarkJudgement {
   return {
     name,
     state: 'not-applicable',
@@ -298,10 +287,7 @@ export function notApplicable(name: JudgeName,
  * `state: 'errored'` with the reason attached, which the aggregate counts as
  * unscored rather than as a no.
  */
-export async function runJudge(config: JudgeConfig,
-  name: JudgeName,
-  prompt: string
-): Promise<BenchmarkJudgement> {
+export async function runJudge(config: JudgeConfig, name: JudgeName, prompt: string): Promise<BenchmarkJudgement> {
   const judgeEndpoint = config.judgeEndpoint;
   const base = {
     name,
@@ -312,7 +298,8 @@ export async function runJudge(config: JudgeConfig,
   const started = Date.now();
   let raw: unknown;
   try {
-    raw = await withTimeout(config.invoke(judgeRequestPayload(prompt)),
+    raw = await withTimeout(
+      config.invoke(judgeRequestPayload(prompt)),
       config.timeoutMs ?? DEFAULT_JUDGE_TIMEOUT_MS,
       `The ${name} judge (${judgeEndpoint})`
     );

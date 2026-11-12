@@ -45,8 +45,7 @@ export const WHOLE_CATALOG_LABEL = 'every non-system schema';
 export const SINGLE_SCHEMA_LABEL = 'this schema only';
 
 /** Copy for an empty `data_catalogs`. Not "not set": empty is a real state. */
-export const EMPTY_DATA_CATALOGS =
-  'No declared read scope. The agent can query nothing.';
+export const EMPTY_DATA_CATALOGS = 'No declared read scope. The agent can query nothing.';
 
 /**
  * Copy for an empty `catalog_denylist`.

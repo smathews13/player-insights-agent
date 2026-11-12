@@ -240,13 +240,22 @@ describe('served traffic', () => {
   });
 
   it('ignores versions parked at 0%, which is the normal state after a switch', () => {
-    const record = endpoint([['model_19', 100], ['model_18', 0]], { model_19: '19', model_18: '18' });
+    const record = endpoint(
+      [
+        ['model_19', 100],
+        ['model_18', 0],
+      ],
+      { model_19: '19', model_18: '18' }
+    );
     expect(probeServedVersion(record).status).toBe('pass');
     expect(servedVersion(record)).toBe('19');
   });
 
   it('fails a split, because no answer can then be attributed to a version', () => {
-    const record = endpoint([['model_19', 50], ['model_18', 50]]);
+    const record = endpoint([
+      ['model_19', 50],
+      ['model_18', 50],
+    ]);
     expect(probeServedVersion(record).status).toBe('fail');
     expect(servedVersion(record)).toBe('');
   });
@@ -259,10 +268,7 @@ describe('served traffic', () => {
 describe('the manifest', () => {
   const version = {
     model_version_dependencies: {
-      dependencies: [
-        { table: { table_full_name: 'cat.sch.b' } },
-        { table: { table_full_name: 'cat.sch.a' } },
-      ],
+      dependencies: [{ table: { table_full_name: 'cat.sch.b' } }, { table: { table_full_name: 'cat.sch.a' } }],
     },
   };
 
@@ -413,7 +419,10 @@ describe('probeAgentEndpoint', () => {
     // that is the whole claim this check makes.
     const outcome = probeAgentEndpoint({
       error: 'preflight_retired',
-      checks: [{ id: 'agent-endpoint', status: 'ok' }, { id: 'lakebase-storage', status: 'ok' }],
+      checks: [
+        { id: 'agent-endpoint', status: 'ok' },
+        { id: 'lakebase-storage', status: 'ok' },
+      ],
     });
     expect(outcome.status).toBe('pass');
   });
@@ -428,7 +437,9 @@ describe('probeDrift', () => {
     const outcome = probeDrift({
       status: 'blocked',
       orchestratorReported: true,
-      drift: [{ id: 'mismatch-sql-warehouse', severity: 'blocking', headline: 'Warehouse in use is not the one configured' }],
+      drift: [
+        { id: 'mismatch-sql-warehouse', severity: 'blocking', headline: 'Warehouse in use is not the one configured' },
+      ],
     });
     expect(outcome.status).toBe('fail');
     expect(outcome.detail).toContain('Warehouse in use');

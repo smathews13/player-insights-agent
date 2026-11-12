@@ -38,11 +38,7 @@ import {
   formatProviderError,
   type FailureEvidence,
 } from '../../shared/failure-evidence';
-import {
-  failureDefinition,
-  NEVER_REROUTE_LAYERS,
-  type FailureCode,
-} from '../../shared/failure-taxonomy';
+import { failureDefinition, NEVER_REROUTE_LAYERS, type FailureCode } from '../../shared/failure-taxonomy';
 import type { ExecutionIdentityClaim, UnavailableResult } from '../../shared/terminal-response';
 
 export interface UnavailableNotice {
@@ -232,9 +228,7 @@ const RETRY_ADVICE = 'This may clear on its own, so it is worth trying again sho
  * would need editing every time that workstream adds a mode, and until somebody
  * did, an unmapped mode would print as a raw identifier or as nothing.
  */
-function describeIdentity(claim: ExecutionIdentityClaim | undefined,
-  principal: string | undefined
-): string | null {
+function describeIdentity(claim: ExecutionIdentityClaim | undefined, principal: string | undefined): string | null {
   const named = principal?.trim();
   const mode = claim?.mode.trim().replace(/_/g, ' ');
   // Stated either way rather than only when false. "Verified" is the claim a
@@ -280,9 +274,7 @@ export function unavailableNotice(input: UnavailableNoticeInput): UnavailableNot
   const subject = SUBJECT[input.surface];
   const dependency = describeDependency(input.evidence?.dependency);
   return {
-    heading: dependency
-      ? `${dependency} ${dependencyVerb(input.code)}`
-      : (input.message ?? subject.heading),
+    heading: dependency ? `${dependency} ${dependencyVerb(input.code)}` : (input.message ?? subject.heading),
     // The structured form when there is one, and the free-form string when there
     // is not. Falling back rather than preferring structure and showing nothing
     // otherwise: several call sites still have only a sentence, and a sentence
@@ -319,7 +311,8 @@ export function unavailableNotice(input: UnavailableNoticeInput): UnavailableNot
  * carries is now passed through, and `unavailable-copy.test.ts` asserts each
  * field arrives rather than asserting the ones somebody remembered.
  */
-export function unavailableNoticeFor(surface: UnavailableSurface,
+export function unavailableNoticeFor(
+  surface: UnavailableSurface,
   result: UnavailableResult,
   options: { interactive?: boolean } = {}
 ): UnavailableNotice {

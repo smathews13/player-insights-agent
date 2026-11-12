@@ -64,8 +64,15 @@ describe('the chart image download follows the deployment', () => {
 
 describe('gating the download did not take a reading control with it', () => {
   it('leaves zoom, pan, reset and both hover modes alone in either state', () => {
-    const reading = ['zoom2d', 'pan2d', 'resetScale2d', 'zoomIn2d', 'zoomOut2d',
-      'hoverClosestCartesian', 'hoverCompareCartesian'];
+    const reading = [
+      'zoom2d',
+      'pan2d',
+      'resetScale2d',
+      'zoomIn2d',
+      'zoomOut2d',
+      'hoverClosestCartesian',
+      'hoverCompareCartesian',
+    ];
     for (const allowed of [true, false]) {
       adoptEgressControls({ ...defaultEgressControls(), 'chart-image': allowed });
       for (const button of reading) {

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  parseScorerNames,
-  probeWorkspaceMonitoring,
-  workspaceMonitorFromError,
-} from './live-monitoring';
+import { parseScorerNames, probeWorkspaceMonitoring, workspaceMonitorFromError } from './live-monitoring';
 
 describe('workspace production monitoring probe', () => {
   it('reads scorer names from the list body without inventing any', () => {

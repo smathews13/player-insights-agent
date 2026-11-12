@@ -92,23 +92,25 @@ export async function repairTruncatedTitles(appkit: {
   let repaired = 0;
   for (const repair of repairs) {
     try {
-      await appkit.lakebase.query(
-        `UPDATE ${APP_SCHEMA}.conversations SET title = $2 WHERE id = $1`,
-        [repair.id, repair.title]
-      );
+      await appkit.lakebase.query(`UPDATE ${APP_SCHEMA}.conversations SET title = $2 WHERE id = $1`, [
+        repair.id,
+        repair.title,
+      ]);
       repaired += 1;
     } catch (error) {
       // Reported per row rather than abandoning the pass: the rows are independent,
       // and one refusal is usually ownership on a single row rather than a broken
       // store, in which case the rest still get their labels back.
-      console.warn(`[lakebase] Could not restore the label on conversation ${repair.id}: ` +
+      console.warn(
+        `[lakebase] Could not restore the label on conversation ${repair.id}: ` +
           `${(error as Error).message}. It keeps the shortened one.`
       );
     }
   }
 
   if (repaired > 0) {
-    console.log(`[lakebase] Restored ${repaired} conversation label(s) that an earlier version ` +
+    console.log(
+      `[lakebase] Restored ${repaired} conversation label(s) that an earlier version ` +
         `stored cut to ${OLD_CUT_LENGTH} characters. Read back from the question each one was asked with.`
     );
   }

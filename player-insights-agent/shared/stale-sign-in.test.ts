@@ -121,10 +121,7 @@ describe('a session short of a permission the app declares', () => {
     expect(
       staleSignInNotice({
         ...STALE,
-        missingScopes: [
-          'vectorsearch.vector-search-indexes:read',
-          'vectorsearch.vector-search-endpoints:read',
-        ],
+        missingScopes: ['vectorsearch.vector-search-indexes:read', 'vectorsearch.vector-search-endpoints:read'],
       })
     ).toBeNull();
   });
@@ -196,9 +193,7 @@ describe('the states that must not produce a sign-in prompt', () => {
    * it to readers whose sign-in was never compared against anything.
    */
   it('refuses to prompt on a stale verdict with nothing signed in behind it', () => {
-    expect(
-      staleSignInNotice({ ...CURRENT, state: 'stale', signedIn: false, missingScopes: ['sql'] })
-    ).toBeNull();
+    expect(staleSignInNotice({ ...CURRENT, state: 'stale', signedIn: false, missingScopes: ['sql'] })).toBeNull();
     expect(staleSignInNotice({ ...CURRENT, state: 'stale', missingScopes: [] })).toBeNull();
   });
 });

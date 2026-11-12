@@ -6,20 +6,8 @@
     "data": [
       {
         "type": "bar",
-        "x": [
-          52642,
-          32928,
-          14174,
-          10233,
-          9244
-        ],
-        "y": [
-          "VLH Online",
-          "Hoops 26",
-          "Dynasty VII",
-          "Velocity Heights V",
-          "Iron Frontier Reckoning"
-        ],
+        "x": [52642, 32928, 14174, 10233, 9244],
+        "y": ["VLH Online", "Hoops 26", "Dynasty VII", "Velocity Heights V", "Iron Frontier Reckoning"],
         "orientation": "h",
         "marker": {
           "color": "#e4002b"
@@ -58,16 +46,7 @@
           "size": 12
         }
       },
-      "colorway": [
-        "#e4002b",
-        "#111111",
-        "#fcaf17",
-        "#6c707b",
-        "#b20022",
-        "#f38ca0",
-        "#fdd78b",
-        "#aeb0b6"
-      ],
+      "colorway": ["#e4002b", "#111111", "#fcaf17", "#6c707b", "#b20022", "#f38ca0", "#fdd78b", "#aeb0b6"],
       "hovermode": "closest",
       "yaxis": {
         "gridcolor": "#e5e5e5",
@@ -106,20 +85,8 @@
       {
         "type": "bar",
         "name": "Active Players",
-        "x": [
-          "VLH Online",
-          "Hoops 26",
-          "Dynasty VII",
-          "Velocity Heights V",
-          "Iron Frontier Reckoning"
-        ],
-        "y": [
-          52642,
-          32928,
-          14174,
-          10233,
-          9244
-        ],
+        "x": ["VLH Online", "Hoops 26", "Dynasty VII", "Velocity Heights V", "Iron Frontier Reckoning"],
+        "y": [52642, 32928, 14174, 10233, 9244],
         "marker": {
           "color": "#e4002b"
         }
@@ -127,20 +94,8 @@
       {
         "type": "bar",
         "name": "Paying Players",
-        "x": [
-          "VLH Online",
-          "Hoops 26",
-          "Dynasty VII",
-          "Velocity Heights V",
-          "Iron Frontier Reckoning"
-        ],
-        "y": [
-          8346,
-          6543,
-          1011,
-          125,
-          188
-        ],
+        "x": ["VLH Online", "Hoops 26", "Dynasty VII", "Velocity Heights V", "Iron Frontier Reckoning"],
+        "y": [8346, 6543, 1011, 125, 188],
         "marker": {
           "color": "#111111"
         }
@@ -178,16 +133,7 @@
           "size": 12
         }
       },
-      "colorway": [
-        "#e4002b",
-        "#111111",
-        "#fcaf17",
-        "#6c707b",
-        "#b20022",
-        "#f38ca0",
-        "#fdd78b",
-        "#aeb0b6"
-      ],
+      "colorway": ["#e4002b", "#111111", "#fcaf17", "#6c707b", "#b20022", "#f38ca0", "#fdd78b", "#aeb0b6"],
       "hovermode": "x unified",
       "xaxis": {
         "gridcolor": "#e5e5e5",
@@ -224,21 +170,9 @@
     "kind": "line",
     "data": [
       {
-        "x": [
-          "2026-07-07",
-          "2026-07-22",
-          "2026-07-30",
-          "2026-08-02",
-          "2026-08-03"
-        ],
+        "x": ["2026-07-07", "2026-07-22", "2026-07-30", "2026-08-02", "2026-08-03"],
         "name": "Daily Active Players",
-        "y": [
-          1069,
-          1444,
-          1977,
-          2838,
-          4972
-        ],
+        "y": [1069, 1444, 1977, 2838, 4972],
         "mode": "lines",
         "type": "scatter",
         "line": {
@@ -283,16 +217,7 @@
           "size": 12
         }
       },
-      "colorway": [
-        "#e4002b",
-        "#111111",
-        "#fcaf17",
-        "#6c707b",
-        "#b20022",
-        "#f38ca0",
-        "#fdd78b",
-        "#aeb0b6"
-      ],
+      "colorway": ["#e4002b", "#111111", "#fcaf17", "#6c707b", "#b20022", "#f38ca0", "#fdd78b", "#aeb0b6"],
       "hovermode": "closest",
       "xaxis": {
         "gridcolor": "#e5e5e5",
@@ -336,28 +261,12 @@
           "Nintendo Switch 2",
           "Nintendo Switch"
         ],
-        "values": [
-          28.2,
-          20.2,
-          17.8,
-          15.2,
-          8.9,
-          6.6,
-          3.2
-        ],
+        "values": [28.2, 20.2, 17.8, 15.2, 8.9, 6.6, 3.2],
         "textinfo": "label+percent",
         "sort": false,
         "type": "pie",
         "marker": {
-          "colors": [
-            "#e4002b",
-            "#111111",
-            "#fcaf17",
-            "#6c707b",
-            "#b20022",
-            "#f38ca0",
-            "#fdd78b"
-          ],
+          "colors": ["#e4002b", "#111111", "#fcaf17", "#6c707b", "#b20022", "#f38ca0", "#fdd78b"],
           "line": {
             "color": "#ffffff",
             "width": 1
@@ -398,16 +307,7 @@
           "size": 12
         }
       },
-      "colorway": [
-        "#e4002b",
-        "#111111",
-        "#fcaf17",
-        "#6c707b",
-        "#b20022",
-        "#f38ca0",
-        "#fdd78b",
-        "#aeb0b6"
-      ]
+      "colorway": ["#e4002b", "#111111", "#fcaf17", "#6c707b", "#b20022", "#f38ca0", "#fdd78b", "#aeb0b6"]
     }
   }
 }

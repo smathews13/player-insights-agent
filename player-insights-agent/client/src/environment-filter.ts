@@ -9,7 +9,5 @@ function searchableValues(row: EnvironmentRow): string[] {
 export function filterEnvironmentItems<T extends EnvironmentRow>(items: readonly T[], query: string): T[] {
   const needle = query.trim().toLocaleLowerCase();
   if (!needle) return [...items];
-  return items.filter((item) =>
-    searchableValues(item).some((value) => value.toLocaleLowerCase().includes(needle))
-  );
+  return items.filter((item) => searchableValues(item).some((value) => value.toLocaleLowerCase().includes(needle)));
 }

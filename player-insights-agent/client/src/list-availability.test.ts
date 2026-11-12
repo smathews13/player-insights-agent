@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  countsAreMeasured,
-  listAvailability,
-  listUnreachable,
-  type ResponseHeaders,
-} from './list-availability';
+import { countsAreMeasured, listAvailability, listUnreachable, type ResponseHeaders } from './list-availability';
 
 /**
  * Telling an empty store from an unreadable one, which look identical.

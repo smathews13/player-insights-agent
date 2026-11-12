@@ -4,14 +4,8 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.client.tsbuildinfo",
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "types": [
-      "vite/client"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
@@ -21,14 +15,8 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": "./client",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "client/src",
-    "shared",
-    "shared/appkit-types"
-  ]
+  "include": ["client/src", "shared", "shared/appkit-types"]
 }

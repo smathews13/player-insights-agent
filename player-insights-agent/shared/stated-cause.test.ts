@@ -54,7 +54,9 @@ describe('statesACause', () => {
    * written for and the narrowing is the bug.
    */
   it('catches the sentence that caused this module', () => {
-    expect(statesACause('This is happening because the app is missing an OAuth scope that it needs to read ' +
+    expect(
+      statesACause(
+        'This is happening because the app is missing an OAuth scope that it needs to read ' +
           'Unity Catalog objects on your behalf.'
       )
     ).toBe('because');
@@ -64,8 +66,7 @@ describe('statesACause', () => {
     expect(statesACause('The app is missing a scope it needs.')).toBe('The app is missing');
     expect(statesACause('Your token was minted before the scope was declared.')).toBe('was minted before');
     expect(statesACause('The session predates the declaration.')).toBe('predates');
-    expect(statesACause('The app has not been stopped and started since the change.')).toBe('has not been stopped'
-    );
+    expect(statesACause('The app has not been stopped and started since the change.')).toBe('has not been stopped');
   });
 
   it('catches an accusation aimed at the reader', () => {
@@ -102,8 +103,10 @@ describe('escalatesToAnotherAction', () => {
    * the other.
    */
   it('catches the remedy list that sent a reader round a loop', () => {
-    expect(escalatesToAnotherAction('Reload this page to pick up a fresh token. If it persists, sign out of the\n' +
-        'workspace and back in, then open the app again.'
+    expect(
+      escalatesToAnotherAction(
+        'Reload this page to pick up a fresh token. If it persists, sign out of the\n' +
+          'workspace and back in, then open the app again.'
       )
     ).toMatch(/if it persists/i);
   });
@@ -120,8 +123,7 @@ describe('escalatesToAnotherAction', () => {
    */
   it('leaves a condition that is not an escalation alone', () => {
     expect(escalatesToAnotherAction('Run this as an account admin, if you are one.')).toBeNull();
-    expect(escalatesToAnotherAction('Open this app again in a private browsing window, and sign in there.')
-    ).toBeNull();
+    expect(escalatesToAnotherAction('Open this app again in a private browsing window, and sign in there.')).toBeNull();
     expect(escalatesToAnotherAction('Reload this page.')).toBeNull();
   });
 });
@@ -196,7 +198,8 @@ describe('auditDiagnosis', () => {
 
   /** `''` is the commonest correct value, and must not read as a fault. */
   it('passes a remedy whose statement stands on its own', () => {
-    expect(auditDiagnosis('bare', {
+    expect(
+      auditDiagnosis('bare', {
         ...CLEAN_DETERMINED,
         remedy: { kind: 'sql', statement: 'GRANT SELECT ON TABLE a.b.c TO `p`;', guidance: '' },
       })
@@ -214,8 +217,7 @@ describe('auditDiagnosis', () => {
   it('fails an undetermined cause whose prose asserts one', () => {
     const findings = auditDiagnosis('probe', {
       ...CLEAN_UNDETERMINED,
-      explanation:
-        'The workspace refused this call. This is because the app is missing an OAuth scope.',
+      explanation: 'The workspace refused this call. This is because the app is missing an OAuth scope.',
     });
     expect(findings).toHaveLength(1);
     expect(findings[0]).toContain('the explanation a user reads asserts one');

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 // Read rather than imported: Playwright's loader wants an import attribute for JSON, and
 // a plain read keeps this file working whichever module resolution it runs under.
-const liveCharts = JSON.parse(readFileSync(join(import.meta.dirname, '__fixtures__', 'live-charts.json'), 'utf-8')
+const liveCharts = JSON.parse(
+  readFileSync(join(import.meta.dirname, '__fixtures__', 'live-charts.json'), 'utf-8')
 ) as Record<string, Record<string, unknown>>;
 
 /**
@@ -160,7 +161,8 @@ test('hover, zoom, and legend toggling all work', async ({ page }) => {
   // Read off the live plot object: the rendered axis range is the thing a zoom actually
   // changes, and asserting on it means a mode bar that looks right but does nothing fails.
   const readRange = () =>
-    grouped.evaluate((node) => JSON.stringify((node as unknown as { layout?: { yaxis?: { range?: number[] } } }).layout?.yaxis?.range)
+    grouped.evaluate((node) =>
+      JSON.stringify((node as unknown as { layout?: { yaxis?: { range?: number[] } } }).layout?.yaxis?.range)
     );
   const before = await readRange();
   expect(before).not.toBe('undefined');

@@ -155,10 +155,7 @@ export interface TokenRejection extends Diagnosis {
  * one, because Databricks occasionally says why, and when it does that sentence
  * outranks anything inferred here.
  */
-export function tokenRejection(input: {
-  age: PresentedTokenAge;
-  apiMessage?: string;
-}): TokenRejection {
+export function tokenRejection(input: { age: PresentedTokenAge; apiMessage?: string }): TokenRejection {
   const said = input.apiMessage?.trim()
     ? ` Databricks said: ${input.apiMessage.trim()}`
     : ' Databricks gave no reason with it.';

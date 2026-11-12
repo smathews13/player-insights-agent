@@ -30,11 +30,7 @@ import { createSqlExecutor } from '../lib/genie-result-execute';
 import { probeWorkspaceMonitoring } from '../lib/live-monitoring';
 import { executionToken } from '../lib/execution-credential';
 import { requestString, servingInvocationPath, userEmail, type InsightsAppKit } from './insights-routes';
-import {
-  auditHeldOutEdits,
-  labCaseFromRow,
-  SUITE_KINDS,
-} from '../../shared/benchmark-lab-v3';
+import { auditHeldOutEdits, labCaseFromRow, SUITE_KINDS } from '../../shared/benchmark-lab-v3';
 import { readLabState, snapshotWorkingCopy } from '../lib/benchmark-lab-store';
 
 const GenieAccuracyBody = z.object({

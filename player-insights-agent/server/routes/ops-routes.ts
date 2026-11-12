@@ -161,11 +161,7 @@ import type {
 } from '../../shared/ops-contract';
 import { opsCurrentMonthRange, opsDayRange } from '../../shared/ops-contract';
 import { checkVerdict } from '../../shared/check-verdict';
-import {
-  cachedLifetimeSpend,
-  deploymentClippedSpendRange,
-  lifetimeSpendRange,
-} from '../lib/ops-lifetime-spend';
+import { cachedLifetimeSpend, deploymentClippedSpendRange, lifetimeSpendRange } from '../lib/ops-lifetime-spend';
 import {
   cachedRecentMonthlySpend,
   readRecentMonthlySpend,

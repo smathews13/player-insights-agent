@@ -46,7 +46,8 @@ import { adminPageName, roleLostNotice } from './gate-panel-state';
  * being read, and a guess sends people to the wrong person.
  */
 export function GatePanel({ page }: { page: string }) {
-  return (<div className="page-shell">
+  return (
+    <div className="page-shell">
       {/*
         `status` rather than `alert`. Being told a page is not yours is not an
         error condition and does not deserve an assertive interruption; it is
@@ -170,7 +171,8 @@ export function RoleLostNotice() {
   const location = useLocation();
   const said = roleLostNotice(location.state);
   if (!said) return null;
-  return (<div className="role-lost-notice" role="alert">
+  return (
+    <div className="role-lost-notice" role="alert">
       <p>{said}</p>
     </div>
   );

@@ -90,9 +90,7 @@ export interface Observations {
  * the release somebody meant to make.
  */
 export function observedTuple(observations: Observations): ReleaseTuple {
-  const endpointResource = (observations.app?.resources ?? []).find(
-    (resource) => resource.name === 'serving-endpoint'
-  );
+  const endpointResource = (observations.app?.resources ?? []).find((resource) => resource.name === 'serving-endpoint');
   return {
     ...emptyTuple(),
     target: observations.target,
@@ -106,8 +104,7 @@ export function observedTuple(observations: Observations): ReleaseTuple {
     // answer, and the served version stopped doing that, which is why the first
     // live run of this left the field empty and failed RELEASE_IDENTITY_COMPLETE
     // against a deployment that was in fact stamped.
-    modelBuildSha:
-      runParam(observations.modelRun, 'build_sha') ?? observations.settings?.modelBuildSha ?? '',
+    modelBuildSha: runParam(observations.modelRun, 'build_sha') ?? observations.settings?.modelBuildSha ?? '',
     declaredScopes: [...(observations.app?.user_api_scopes ?? [])].sort(),
     manifestTables: manifestTables(observations.modelVersion),
     userAuthPolicy: loggedAuthPolicy(observations.modelRun),

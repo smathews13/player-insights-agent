@@ -80,10 +80,7 @@ export function browserPollHost(): PollHost {
  * matter: a listener left behind on an unmounted component would restart a
  * timer nothing is left to clear.
  */
-export function pollWhileVisible(read: () => void,
-  intervalMs: number,
-  host: PollHost
-): () => void {
+export function pollWhileVisible(read: () => void, intervalMs: number, host: PollHost): () => void {
   let handle: number | null = null;
 
   const stop = () => {

@@ -17,7 +17,13 @@ import {
   RETRY_FAILED_NOTE,
   type LabCase,
 } from '../../shared/benchmark-lab-v3';
-import { EvalRowSchema, extraJudgesFromSettings, labeledRowCount, newEvalRowId, uniqueQuestionsToAdd } from '../../shared/eval-dataset';
+import {
+  EvalRowSchema,
+  extraJudgesFromSettings,
+  labeledRowCount,
+  newEvalRowId,
+  uniqueQuestionsToAdd,
+} from '../../shared/eval-dataset';
 import { recordAdminAction } from '../lib/admin-roles';
 import {
   readBenchmarkSettings,
@@ -122,7 +128,9 @@ function workspaceApiRequest(
   });
 }
 
-function flywheelTargetKind(kind: 'prompt_registry' | 'genie_space' | 'rag_config'): 'prompt-registry' | 'genie-space' | 'rag-config' {
+function flywheelTargetKind(
+  kind: 'prompt_registry' | 'genie_space' | 'rag_config'
+): 'prompt-registry' | 'genie-space' | 'rag-config' {
   if (kind === 'genie_space') return 'genie-space';
   if (kind === 'rag_config') return 'rag-config';
   return 'prompt-registry';
@@ -153,12 +161,7 @@ async function workspace(appkit: InsightsAppKit) {
   });
 }
 
-async function writeCases(
-  appkit: InsightsAppKit,
-  next: LabCase[],
-  actor: string,
-  options: { audit?: boolean } = {}
-) {
+async function writeCases(appkit: InsightsAppKit, next: LabCase[], actor: string, options: { audit?: boolean } = {}) {
   const current = await readEvalDataset(appkit, { maxAgeMs: 0 });
   const state = await readLabState(appkit, { maxAgeMs: 0 });
   const prior = current.rows.map(labCaseFromRow);
@@ -188,14 +191,17 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
 
     app.get('/api/benchmarks/lab/permalink', async (_req, res) => {
       const lab = await workspace(appkit);
-      res.json({ permalink: lab.permalink, evidencePack: {
-        datasetVersionId: lab.currentVersionId,
-        configurationSnapshotId: lab.contract.target.snapshotId,
-        metrics: {},
-        failedCases: [],
-        traceLinks: [],
-        reviewerStatus: lab.reviewerQueue,
-      } });
+      res.json({
+        permalink: lab.permalink,
+        evidencePack: {
+          datasetVersionId: lab.currentVersionId,
+          configurationSnapshotId: lab.contract.target.snapshotId,
+          metrics: {},
+          failedCases: [],
+          traceLinks: [],
+          reviewerStatus: lab.reviewerQueue,
+        },
+      });
     });
 
     app.post('/api/admin/benchmarks/lab/version', async (req, res) => {
@@ -204,17 +210,24 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
         const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
         const state = await readLabState(appkit, { maxAgeMs: 0 });
         const committed = commitDatasetVersion({ state, rows: dataset.rows, actor });
-        const saved = await patchLabState(appkit, {
-          currentVersionId: committed.state.currentVersionId,
-          versions: committed.state.versions,
-        }, actor);
+        const saved = await patchLabState(
+          appkit,
+          {
+            currentVersionId: committed.state.currentVersionId,
+            versions: committed.state.versions,
+          },
+          actor
+        );
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-dataset-versioned',
           subject: committed.version.id,
           detail: `Committed ${committed.version.caseCount} case(s), ${committed.version.heldOutCount} held out.`,
         });
-        res.json({ version: { ...committed.version, rows: undefined }, lab: { ...(await workspace(appkit)), currentVersionId: saved.currentVersionId } });
+        res.json({
+          version: { ...committed.version, rows: undefined },
+          lab: { ...(await workspace(appkit)), currentVersionId: saved.currentVersionId },
+        });
       } catch (error) {
         res.status(503).json({
           error: 'lab_version_unavailable',
@@ -263,9 +276,9 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
       const actor = userEmail(req);
       try {
         const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
-        const next = dataset.rows.map(labCaseFromRow).map((row) =>
-          row.id === parsed.data.caseId ? { ...row, review: parsed.data.review } : row
-        );
+        const next = dataset.rows
+          .map(labCaseFromRow)
+          .map((row) => (row.id === parsed.data.caseId ? { ...row, review: parsed.data.review } : row));
         await writeCases(appkit, next, actor);
         res.json({ lab: await workspace(appkit) });
       } catch (error) {
@@ -285,9 +298,9 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
       const actor = userEmail(req);
       try {
         const dataset = await readEvalDataset(appkit, { maxAgeMs: 0 });
-        const next = dataset.rows.map(labCaseFromRow).map((row) =>
-          row.id === parsed.data.caseId ? { ...row, retired: parsed.data.retired } : row
-        );
+        const next = dataset.rows
+          .map(labCaseFromRow)
+          .map((row) => (row.id === parsed.data.caseId ? { ...row, retired: parsed.data.retired } : row));
         await writeCases(appkit, next, actor);
         res.json({ lab: await workspace(appkit) });
       } catch (error) {
@@ -415,7 +428,9 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
       try {
         const state = await readLabState(appkit, { maxAgeMs: 0 });
         const liveRun = {
-          runId: parsed.success ? parsed.data.runId || state.contract.liveRun?.runId || '' : state.contract.liveRun?.runId || '',
+          runId: parsed.success
+            ? parsed.data.runId || state.contract.liveRun?.runId || ''
+            : state.contract.liveRun?.runId || '',
           side: (parsed.success ? parsed.data.side : undefined) || state.contract.liveRun?.side || 'candidate',
           caseIndex: state.contract.liveRun?.caseIndex ?? 0,
           caseTotal: state.contract.liveRun?.caseTotal ?? 0,
@@ -497,9 +512,15 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
         }
         const settings = await readBenchmarkSettingsDocument(appkit, { maxAgeMs: 0 });
         const saved = await writeBenchmarkSettingsPatch(appkit, { guidelinesText: preview }, settings.revision, actor);
-        await patchLabState(appkit, {
-          alignPreview: state.alignPreview ? { ...state.alignPreview, saved: false, note: 'Saved after review.' } : null,
-        }, actor);
+        await patchLabState(
+          appkit,
+          {
+            alignPreview: state.alignPreview
+              ? { ...state.alignPreview, saved: false, note: 'Saved after review.' }
+              : null,
+          },
+          actor
+        );
         await recordAdminAction(appkit.lakebase, {
           actor,
           action: 'eval-guidelines-aligned',
@@ -580,8 +601,7 @@ export function setupBenchmarkLabRoutes(appkit: InsightsAppKit): void {
           const client = new WorkspaceClient({});
           promotedPrompt = await promotePromptAlias(
             {
-              request: ({ method, path, payload }) =>
-                workspaceApiRequest(client, { method, path, payload }),
+              request: ({ method, path, payload }) => workspaceApiRequest(client, { method, path, payload }),
             },
             { name: identifier, template }
           );

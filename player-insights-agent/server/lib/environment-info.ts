@@ -1,10 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type {
-  EnvironmentInfo,
-  EnvironmentPackage,
-  EnvironmentVariable,
-} from '../../shared/environment-info';
+import type { EnvironmentInfo, EnvironmentPackage, EnvironmentVariable } from '../../shared/environment-info';
 
 const execFileAsync = promisify(execFile);
 const MASK = '***';
@@ -28,9 +24,7 @@ function looksLikeSecretValue(value: string): boolean {
   }
 }
 
-export function maskedEnvironment(
-  environment: NodeJS.ProcessEnv = process.env
-): EnvironmentVariable[] {
+export function maskedEnvironment(environment: NodeJS.ProcessEnv = process.env): EnvironmentVariable[] {
   return Object.entries(environment)
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .map(([key, value]) => ({
@@ -76,9 +70,7 @@ async function firstPython(arguments_: string[], includeStderr = false): Promise
   return '';
 }
 
-export async function readEnvironmentInfo(
-  environment: NodeJS.ProcessEnv = process.env
-): Promise<EnvironmentInfo> {
+export async function readEnvironmentInfo(environment: NodeJS.ProcessEnv = process.env): Promise<EnvironmentInfo> {
   const [pythonVersion, packagesJson] = await Promise.all([
     firstPython(['--version'], true),
     firstPython(['-m', 'pip', 'list', '--format=json', '--disable-pip-version-check']),

@@ -40,7 +40,12 @@ describe('cutting a caveat into runs', () => {
     // renderer that lost a character to an off-by-one in the slicing would lose
     // it silently in the middle of a governance sentence.
     for (const caveat of CAVEATS) {
-      expect(emphasiseFigures(caveat).map((run) => run.text).join(''), caveat).toBe(caveat);
+      expect(
+        emphasiseFigures(caveat)
+          .map((run) => run.text)
+          .join(''),
+        caveat
+      ).toBe(caveat);
     }
   });
 
@@ -117,22 +122,22 @@ describe('the table a caveat is about', () => {
     // The short name, because the catalog and schema are the same on every row
     // and the module has already said them in full directly above.
     expect(caveatScope('gold_title_daily_summary counts a player once per day.', [SUMMARY, SPEND])).toBe(
-      'gold_title_daily_summary',
+      'gold_title_daily_summary'
     );
   });
 
   it('recognises the fully qualified spelling as the same table', () => {
     expect(caveatScope('Rows in main.player_insights.gold_spend_daily are pre-refund.', [SUMMARY, SPEND])).toBe(
-      'gold_spend_daily',
+      'gold_spend_daily'
     );
   });
 
   it('refuses to tag a caveat that names two of them', () => {
     // A comparison is not scoped to either side, and tagging it with whichever
     // was named first would be this surface deciding which half mattered.
-    expect(
-      caveatScope('gold_title_daily_summary and gold_spend_daily disagree on the window.', [SUMMARY, SPEND]),
-    ).toBe('');
+    expect(caveatScope('gold_title_daily_summary and gold_spend_daily disagree on the window.', [SUMMARY, SPEND])).toBe(
+      ''
+    );
   });
 
   it('leaves a run-level caveat untagged', () => {

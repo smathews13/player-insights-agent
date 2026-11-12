@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isSensitiveEnvironmentKey,
-  maskedEnvironment,
-  parsePipPackages,
-} from './environment-info';
+import { isSensitiveEnvironmentKey, maskedEnvironment, parsePipPackages } from './environment-info';
 
 describe('environment details', () => {
   it('masks credentials before environment values leave the server', () => {

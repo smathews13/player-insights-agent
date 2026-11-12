@@ -17,12 +17,7 @@ import {
   type GenieAccuracyOutcome,
   type GenieAccuracyRunView,
 } from '../../shared/eval-genie-run';
-import {
-  classifyGenieMiss,
-  isExcludedGenieMiss,
-  scoredAccuracy,
-  type GenieMissKind,
-} from '../../shared/eval-flywheel';
+import { classifyGenieMiss, isExcludedGenieMiss, scoredAccuracy, type GenieMissKind } from '../../shared/eval-flywheel';
 import { executeMissKind, type SqlExecuteResult, type SqlExecutor } from './genie-result-execute';
 
 /**
@@ -40,7 +35,11 @@ type FetchLike = typeof fetch;
 export const GENIE_ACCURACY_POLL_MS = 2_000;
 export const GENIE_ACCURACY_TIMEOUT_MS = 90_000;
 
-export type { GenieAccuracyOutcome, GenieAccuracyCaseView as GenieAccuracyCase, GenieAccuracyRunView as GenieAccuracyRun };
+export type {
+  GenieAccuracyOutcome,
+  GenieAccuracyCaseView as GenieAccuracyCase,
+  GenieAccuracyRunView as GenieAccuracyRun,
+};
 
 export class MissingSqlGateError extends Error {
   readonly missing: number;

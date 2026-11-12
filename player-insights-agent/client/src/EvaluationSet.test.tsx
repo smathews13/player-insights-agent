@@ -71,13 +71,23 @@ function model(lab: ReturnType<typeof workspace>, extra: Partial<EvaluationLabMo
 }
 
 function readable(markup: string): string {
-  return markup.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ');
+  return markup
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ');
 }
 
 describe('Evaluation set', () => {
   it('states counts, lane readiness, and the spec columns', () => {
     const lab = workspace([
-      row({ id: 'case_001', question: 'How many active players?', groundTruthSql: 'SELECT 1', expectedFacts: '10', review: 'reviewed' }),
+      row({
+        id: 'case_001',
+        question: 'How many active players?',
+        groundTruthSql: 'SELECT 1',
+        expectedFacts: '10',
+        review: 'reviewed',
+      }),
       row({ id: 'case_002', question: 'Held out', split: 'held_out', review: 'draft' }),
       row({ id: 'case_003', question: 'Retired', retired: true, review: 'approved', groundTruthSql: 'SELECT 2' }),
     ]);
@@ -160,7 +170,11 @@ describe('Evaluation set', () => {
 
   it('renders tags as capsules and per-case guidelines in the editor', () => {
     const markup = renderToStaticMarkup(
-      <EvaluationSet lab={model(workspace([row({ id: 'case_001', question: 'How many active players?' })]), { expandedId: 'case_001' })} />
+      <EvaluationSet
+        lab={model(workspace([row({ id: 'case_001', question: 'How many active players?' })]), {
+          expandedId: 'case_001',
+        })}
+      />
     );
     expect(markup).toContain('bench-tag-capsule');
     expect(readable(markup)).toContain('Per-case guidelines');

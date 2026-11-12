@@ -62,11 +62,7 @@ describe('benchmark lab persistence', () => {
   it('patches apply history onto the stored state', async () => {
     forgetLabState();
     const reader = client([{ state: EMPTY_LAB_STATE }]);
-    const patched = await patchLabState(
-      reader as never,
-      { currentVersionId: 'ds_v001' },
-      'admin@example.com'
-    );
+    const patched = await patchLabState(reader as never, { currentVersionId: 'ds_v001' }, 'admin@example.com');
     expect(patched.currentVersionId).toBe('ds_v001');
   });
 
@@ -75,7 +71,16 @@ describe('benchmark lab persistence', () => {
     const writer = client([{ state: EMPTY_LAB_STATE }]);
     const saved = await snapshotWorkingCopy(
       writer as never,
-      [{ id: 'c-1', question: 'How many?', groundTruthSql: 'SELECT 1', expectedAnswer: '', sqlCorrect: '', thumbs: '' }],
+      [
+        {
+          id: 'c-1',
+          question: 'How many?',
+          groundTruthSql: 'SELECT 1',
+          expectedAnswer: '',
+          sqlCorrect: '',
+          thumbs: '',
+        },
+      ],
       'admin@example.com'
     );
     expect(saved.currentVersionId).toMatch(/^ds_v/);

@@ -20,11 +20,7 @@
  * `shared/notebook-declaration.ts`, which drops anything malformed, and no value
  * it carries is applied to the running deployment. It is compared and displayed.
  */
-import {
-  MAX_DECLARATION_BYTES,
-  parseDeclaration,
-  type NotebookDeclaration,
-} from '../../shared/notebook-declaration';
+import { MAX_DECLARATION_BYTES, parseDeclaration, type NotebookDeclaration } from '../../shared/notebook-declaration';
 import { sqlQueryTags } from './sql-query-tags';
 
 /**
@@ -86,11 +82,9 @@ export interface DeclarationRead {
 /** The sentence each failure owes the person looking at the row. */
 const FAILURE_DETAIL: Record<DeclarationFailure, string> = {
   'not-configured': 'No notebook is connected. Add the table a notebook publishes to.',
-  'bad-location':
-    'The configured location is not a three-part Unity Catalog name, so nothing was read.',
+  'bad-location': 'The configured location is not a three-part Unity Catalog name, so nothing was read.',
   'no-token': 'Sign in again to read this as yourself.',
-  refused:
-    'You do not have access to the table the notebook publishes to. Ask for SELECT on it.',
+  refused: 'You do not have access to the table the notebook publishes to. Ask for SELECT on it.',
   empty: 'The table is there and nothing has been published to it yet.',
   unreadable: 'The published row is not a declaration this app can read.',
   unavailable: 'The published declaration could not be read just now.',

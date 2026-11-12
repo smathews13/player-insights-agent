@@ -34,3 +34,6 @@ pnpm-lock.yaml
 
 # Vendor
 vendor
+
+# Recorded with the backend repo; kept byte-identical to its copies
+server/routes/__fixtures__/backend-app-handoff/

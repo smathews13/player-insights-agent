@@ -83,9 +83,7 @@ describe('asking the catalog', () => {
       [TABLE]
     );
     expect(classifications[0].state).toBe('classified');
-    expect(classifications[0].columns).toEqual([
-      { column: 'player_ref', tags: ['sensitivity'], masked: false },
-    ]);
+    expect(classifications[0].columns).toEqual([{ column: 'player_ref', tags: ['sensitivity'], masked: false }]);
   });
 
   /**
@@ -142,10 +140,7 @@ describe('the failures, which must not read as findings', () => {
    */
   it('does not let one answered read speak for a refused one', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { classifications } = await classifyTables(
-      runner({ tags: 'refused', masks: [], filters: [] }),
-      [TABLE]
-    );
+    const { classifications } = await classifyTables(runner({ tags: 'refused', masks: [], filters: [] }), [TABLE]);
     expect(classifications[0].state).toBe('not-checked');
   });
 

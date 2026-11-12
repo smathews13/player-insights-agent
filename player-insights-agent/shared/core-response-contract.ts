@@ -8,7 +8,4 @@ export type CoreResponseSchemaVersion =
   | typeof PLAN_SCHEMA_VERSION
   | typeof CLARIFICATION_SCHEMA_VERSION;
 
-export {
-  ANSWER_CONTRACT_FIELDS,
-  type AnswerContractField,
-} from './generated/answer-contract';
+export { ANSWER_CONTRACT_FIELDS, type AnswerContractField } from './generated/answer-contract';

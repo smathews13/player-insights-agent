@@ -103,8 +103,16 @@ describe('nothing a reader sees in a chart accepts a keystroke', () => {
     // charts from divs and Monitoring and Benchmark Lab draw none, so Plotly reaches
     // the screen through this module alone. If a second surface ever imports it, this
     // fails and that surface needs the same treatment.
-    const importers = ['AnswerCharts.tsx', 'AnswerCard.tsx', 'OpsPage.tsx', 'MonitoringPage.tsx',
-      'BenchmarkLab.tsx', 'ArchitecturePage.tsx', 'RunExplorer.tsx', 'HomePage.tsx', 'App.tsx',
+    const importers = [
+      'AnswerCharts.tsx',
+      'AnswerCard.tsx',
+      'OpsPage.tsx',
+      'MonitoringPage.tsx',
+      'BenchmarkLab.tsx',
+      'ArchitecturePage.tsx',
+      'RunExplorer.tsx',
+      'HomePage.tsx',
+      'App.tsx',
     ].map((name) => [name, readFileSync(new URL(`./${name}`, import.meta.url), 'utf8')] as const);
 
     for (const [name, source] of importers) {
@@ -140,8 +148,15 @@ describe('the reading interactions the design asks for are untouched', () => {
     // screen, and that one writes a file. Its own coverage is in
     // `egress-chart-gate.test.ts`, which asserts both states of the switch.
     const removed = FIGURE_CONFIG.modeBarButtonsToRemove ?? [];
-    for (const button of ['zoom2d', 'pan2d', 'resetScale2d', 'zoomIn2d', 'zoomOut2d',
-      'hoverClosestCartesian', 'hoverCompareCartesian']) {
+    for (const button of [
+      'zoom2d',
+      'pan2d',
+      'resetScale2d',
+      'zoomIn2d',
+      'zoomOut2d',
+      'hoverClosestCartesian',
+      'hoverCompareCartesian',
+    ]) {
       expect(removed).not.toContain(button);
     }
   });

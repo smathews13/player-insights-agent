@@ -167,7 +167,8 @@ describe('the surfaces that state it', () => {
   });
 
   it('gives a Genie row the same answer, so one refusal is not two stories', () => {
-    const verdict = classifyGenieProbe({ ok: false, status: 401, message: 'no' },
+    const verdict = classifyGenieProbe(
+      { ok: false, status: 401, message: 'no' },
       { id: 'space-1', label: 'Player Insights' },
       'reviewer@example.com',
       LIVE

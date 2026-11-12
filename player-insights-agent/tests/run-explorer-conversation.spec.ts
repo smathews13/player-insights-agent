@@ -76,9 +76,7 @@ function noTrace(runId: string) {
 test('opens on the carried-over conversation, not the newest run overall', async ({ page }) => {
   // Newest-first, exactly as the server orders them, so the first match for the
   // conversation is its latest turn.
-  await page.route('**/api/runs', (route) =>
-    route.fulfill({ json: [NEWEST_OVERALL, TARGET_LATEST, TARGET_EARLIER] })
-  );
+  await page.route('**/api/runs', (route) => route.fulfill({ json: [NEWEST_OVERALL, TARGET_LATEST, TARGET_EARLIER] }));
   await page.route('**/api/runs/*/trace', (route) => {
     const runId = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
     return route.fulfill({ json: noTrace(runId) });
@@ -96,9 +94,7 @@ test('opens on the carried-over conversation, not the newest run overall', async
 });
 
 test('a hand-picked run still wins over the carried-over conversation', async ({ page }) => {
-  await page.route('**/api/runs', (route) =>
-    route.fulfill({ json: [NEWEST_OVERALL, TARGET_LATEST, TARGET_EARLIER] })
-  );
+  await page.route('**/api/runs', (route) => route.fulfill({ json: [NEWEST_OVERALL, TARGET_LATEST, TARGET_EARLIER] }));
   await page.route('**/api/runs/*/trace', (route) => {
     const runId = new URL(route.request().url()).pathname.split('/').at(-2) ?? '';
     return route.fulfill({ json: noTrace(runId) });

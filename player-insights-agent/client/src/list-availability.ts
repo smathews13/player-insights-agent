@@ -62,10 +62,7 @@ export interface ResponseHeaders {
  * never produce `unavailable`, which is the ordering that matters: an outage is
  * something the server states, not something a client infers from a short list.
  */
-export function listAvailability(input: {
-  headers: ResponseHeaders;
-  rowCount: number;
-}): ListAvailability {
+export function listAvailability(input: { headers: ResponseHeaders; rowCount: number }): ListAvailability {
   const { headers, rowCount } = input;
   const reason = reasonOf(headers);
   // Before the row count, because an unreadable store answers with an empty

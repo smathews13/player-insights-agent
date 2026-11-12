@@ -60,10 +60,7 @@ export function tokenScopeVerdict(held: readonly string[], scope: string): boole
   if (tokenCarriesScope(held, scope)) return true;
   if (!scope) return null;
 
-  const known = new Set<string>([
-    ...Object.keys(OAUTH_FAMILY_BY_SCOPE),
-    ...Object.values(OAUTH_FAMILY_BY_SCOPE),
-  ]);
+  const known = new Set<string>([...Object.keys(OAUTH_FAMILY_BY_SCOPE), ...Object.values(OAUTH_FAMILY_BY_SCOPE)]);
   const stems = scopeStems(scope);
   const familyStems = scopeStems(OAUTH_FAMILY_BY_SCOPE[scope] ?? '');
   for (const stem of familyStems) stems.add(stem);

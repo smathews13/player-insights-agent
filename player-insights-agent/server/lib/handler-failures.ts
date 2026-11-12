@@ -44,8 +44,9 @@ function guarded(handler: RequestHandler): RequestHandler {
     }
     if (outcome instanceof Promise) {
       outcome.catch((error: unknown) => {
-        console.error(`[request] ${req.method} ${req.originalUrl} failed in its handler and is being answered 500: ` +
-            `${error instanceof Error ? error.stack ?? error.message : String(error)}`
+        console.error(
+          `[request] ${req.method} ${req.originalUrl} failed in its handler and is being answered 500: ` +
+            `${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
         );
         next(error);
       });
@@ -70,8 +71,9 @@ export function respondToHandlerFailures(app: Application): void {
       next(error);
       return;
     }
-    console.error(`[request] ${req.method} ${req.originalUrl} is being answered 500: ` +
-        `${error instanceof Error ? error.stack ?? error.message : String(error)}`
+    console.error(
+      `[request] ${req.method} ${req.originalUrl} is being answered 500: ` +
+        `${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
     );
     res.status(500).json({
       error: 'request_failed',

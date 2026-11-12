@@ -51,7 +51,9 @@ import { badgeAccessibleName, badgeAnnouncement, badgeLabel, badgeTitle, type Ro
  * a smudge rather than as a figure. A plus is two strokes and survives the
  * reduction, which is the only thing that matters for a mark this small.
  */
-const BADGE_ICON: Partial<Record<RoleState, ComponentType<{ size?: number; strokeWidth?: number; 'aria-hidden'?: 'true' }>>> = {
+const BADGE_ICON: Partial<
+  Record<RoleState, ComponentType<{ size?: number; strokeWidth?: number; 'aria-hidden'?: 'true' }>>
+> = {
   super_admin: ShieldPlus,
   admin: Shield,
 };

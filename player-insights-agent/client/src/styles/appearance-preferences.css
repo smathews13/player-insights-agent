@@ -107,8 +107,7 @@ html[data-density='compact'] .composer {
   padding: var(--density-card-padding-block) var(--density-inline-padding);
 }
 
-html[data-density='compact']
-  :is(.attachment-list, .composer-actions, .answer-card-content, .run-process-body) {
+html[data-density='compact'] :is(.attachment-list, .composer-actions, .answer-card-content, .run-process-body) {
   gap: var(--density-card-gap);
 }
 

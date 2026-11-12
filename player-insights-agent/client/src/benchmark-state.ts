@@ -27,7 +27,7 @@ export function labelSourceSummary(scorecard: Scorecard): string {
   return (
     `Of ${total} labelled cases, ${byQuery} are settled by a query anyone can re-run against the data, and ` +
     `${byPolicy} rest on a reading of policy alone -- those are the ones no query can check and the first ` +
-    'worth an expert\'s time. The rest mix the two: which table an answer had to reach is checkable, what it ' +
+    "worth an expert's time. The rest mix the two: which table an answer had to reach is checkable, what it " +
     'had to say about it is not.'
   );
 }

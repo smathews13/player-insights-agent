@@ -10,7 +10,9 @@ export function useTrackedTables(): string[] {
   const [tables, setTables] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
-    trackedRequest ??= readPreflightOnce().then(trackedTables).catch(() => []);
+    trackedRequest ??= readPreflightOnce()
+      .then(trackedTables)
+      .catch(() => []);
     void trackedRequest.then((names) => {
       if (live) setTables(names);
     });

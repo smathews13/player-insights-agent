@@ -42,9 +42,7 @@ describe('live score store', () => {
     await appendLiveScore(writer as never, score('live-1'));
     expect(writer.calls[0]?.values?.[0]).toBe('live-1');
 
-    const listed = await listLiveScores(
-      client([{ score: score('live-1') }]) as never
-    );
+    const listed = await listLiveScores(client([{ score: score('live-1') }]) as never);
     expect(listed).toHaveLength(1);
     expect(listed[0]?.id).toBe('live-1');
   });

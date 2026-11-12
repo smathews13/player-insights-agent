@@ -57,9 +57,7 @@ describe('the alert description is laid out by the library, not by the app', () 
     const offenders = partialNames()
       .map((name) => [name, partial(name)] as const)
       .filter(([, source]) =>
-        [...source.matchAll(/([^{}]*alert-description[^{}]*)\{([^}]*)\}/g)].some(([, , body]) =>
-          /display:/.test(body),
-        ),
+        [...source.matchAll(/([^{}]*alert-description[^{}]*)\{([^}]*)\}/g)].some(([, , body]) => /display:/.test(body))
       )
       .map(([name]) => name);
     expect(offenders).toEqual([]);

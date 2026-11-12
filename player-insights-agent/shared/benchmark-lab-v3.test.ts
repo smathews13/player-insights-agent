@@ -215,16 +215,18 @@ describe('run comparison', () => {
     expect(signedDelta(0.8, 0.9).sign).toBe('positive');
     expect(signedDelta(0.9, 0.8).sign).toBe('regression');
     expect(formatLabNumber(null)).toBe('-');
-    expect(newlyFixedAndBroken(
-      [
-        { caseId: 'a', passed: false },
-        { caseId: 'b', passed: true },
-      ],
-      [
-        { caseId: 'a', passed: true },
-        { caseId: 'b', passed: false },
-      ]
-    )).toEqual({ newlyFixed: ['a'], newlyBroken: ['b'] });
+    expect(
+      newlyFixedAndBroken(
+        [
+          { caseId: 'a', passed: false },
+          { caseId: 'b', passed: true },
+        ],
+        [
+          { caseId: 'a', passed: true },
+          { caseId: 'b', passed: false },
+        ]
+      )
+    ).toEqual({ newlyFixed: ['a'], newlyBroken: ['b'] });
   });
 
   it('builds an in-app permalink, not a fabricated workspace URL', () => {
@@ -315,7 +317,15 @@ describe('held-out scorers', () => {
       provenance: { labelsReviewed: false },
       aggregates: [
         { scorerId: 'sql_validity', state: 'scored', value: 1, scored: 4, notApplicable: 0, errored: 0, reason: '' },
-        { scorerId: 'identity_mismatch', state: 'unimplementable', value: null, scored: 0, notApplicable: 0, errored: 0, reason: 'no persona' },
+        {
+          scorerId: 'identity_mismatch',
+          state: 'unimplementable',
+          value: null,
+          scored: 0,
+          notApplicable: 0,
+          errored: 0,
+          reason: 'no persona',
+        },
       ],
     } as Scorecard;
     const view = heldOutScorerRows({ scorecard, labelsReviewed: false });
@@ -390,7 +400,15 @@ describe('apply preview and tuning cells', () => {
         {
           caseId: 't-1',
           scores: [
-            { scorerId: 'sql_validity', state: 'scored', value: 1, scored: 1, notApplicable: 0, errored: 0, reason: '' },
+            {
+              scorerId: 'sql_validity',
+              state: 'scored',
+              value: 1,
+              scored: 1,
+              notApplicable: 0,
+              errored: 0,
+              reason: '',
+            },
           ],
         },
       ],

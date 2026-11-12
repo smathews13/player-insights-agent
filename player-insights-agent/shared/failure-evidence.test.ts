@@ -24,8 +24,7 @@ import { FAILURE_TAXONOMY } from './failure-taxonomy';
 
 describe('naming the dependency', () => {
   it('uses the label a reader can search for', () => {
-    expect(describeDependency({ kind: 'sql-warehouse', name: 'pia-serverless' })).toBe('SQL warehouse pia-serverless'
-    );
+    expect(describeDependency({ kind: 'sql-warehouse', name: 'pia-serverless' })).toBe('SQL warehouse pia-serverless');
     expect(describeDependency({ kind: 'genie-space', name: '01f0abc' })).toBe('Genie space 01f0abc');
   });
 
@@ -64,7 +63,8 @@ describe('naming the dependency', () => {
 
 describe('the error line', () => {
   it('joins the status, the code and the message in the order they are scanned', () => {
-    expect(formatProviderError({
+    expect(
+      formatProviderError({
         status: 403,
         providerCode: 'PERMISSION_DENIED',
         providerMessage: 'User has no SELECT on the table.',
@@ -102,8 +102,7 @@ describe('how far the run got', () => {
     // stage that failed is one nobody heard about. Wording this as the stage it
     // died in would send a reader to read a query that ran.
     const line = describeStage({ title: 'Query gold_title_daily_summary', completed: 4 });
-    expect(line).toBe('Stopped after 4 completed steps; the last to finish was "Query gold_title_daily_summary".'
-    );
+    expect(line).toBe('Stopped after 4 completed steps; the last to finish was "Query gold_title_daily_summary".');
   });
 
   it('agrees with itself about one step', () => {
@@ -115,7 +114,8 @@ describe('how far the run got', () => {
     expect(describeStage({ title: '' })).toBeNull();
     // Zero completed steps is not a step, and naming step 0 names one that does
     // not exist.
-    expect(describeStage({ title: 'Planned the analysis', completed: 0 })).toBe('Stopped after "Planned the analysis".'
+    expect(describeStage({ title: 'Planned the analysis', completed: 0 })).toBe(
+      'Stopped after "Planned the analysis".'
     );
   });
 });
@@ -145,9 +145,11 @@ describe('reading a rejection', () => {
   });
 
   it('finds a provider error code under any of the names the SDKs use', () => {
-    expect(carriedProviderCode(Object.assign(new Error('x'), { error_code: 'PERMISSION_DENIED' }))).toBe('PERMISSION_DENIED'
+    expect(carriedProviderCode(Object.assign(new Error('x'), { error_code: 'PERMISSION_DENIED' }))).toBe(
+      'PERMISSION_DENIED'
     );
-    expect(carriedProviderCode(Object.assign(new Error('x'), { errorCode: 'RESOURCE_EXHAUSTED' }))).toBe('RESOURCE_EXHAUSTED'
+    expect(carriedProviderCode(Object.assign(new Error('x'), { errorCode: 'RESOURCE_EXHAUSTED' }))).toBe(
+      'RESOURCE_EXHAUSTED'
     );
     expect(carriedProviderCode(Object.assign(new Error('x'), { code: 'ECONNREFUSED' }))).toBe('ECONNREFUSED');
   });

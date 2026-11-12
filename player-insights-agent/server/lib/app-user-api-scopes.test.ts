@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  MANAGER_GRANT_USER_API_SCOPES,
-  allowAstrolabeUserApiScopes,
-} from './app-user-api-scopes';
+import { MANAGER_GRANT_USER_API_SCOPES, allowAstrolabeUserApiScopes } from './app-user-api-scopes';
 
 const options = {
   host: 'https://workspace.example.com',
@@ -32,13 +29,9 @@ describe('allowAstrolabeUserApiScopes', () => {
     });
     expect(call).toHaveBeenCalledTimes(2);
     expect(call.mock.calls[0][1]?.method).toBe('GET');
-    expect(new Headers(call.mock.calls[0][1]?.headers).get('authorization')).toBe(
-      'Bearer forwarded-user-token',
-    );
+    expect(new Headers(call.mock.calls[0][1]?.headers).get('authorization')).toBe('Bearer forwarded-user-token');
     expect(call.mock.calls[1][1]?.method).toBe('PATCH');
-    expect(new Headers(call.mock.calls[1][1]?.headers).get('authorization')).toBe(
-      'Bearer forwarded-user-token',
-    );
+    expect(new Headers(call.mock.calls[1][1]?.headers).get('authorization')).toBe('Bearer forwarded-user-token');
     const patchBody = call.mock.calls[1][1]?.body;
     if (typeof patchBody !== 'string') throw new Error('PATCH carried no JSON body');
     const sent: unknown = JSON.parse(patchBody);
@@ -51,9 +44,10 @@ describe('allowAstrolabeUserApiScopes', () => {
     const current = [...MANAGER_GRANT_USER_API_SCOPES];
     const call = vi.fn<typeof fetch>().mockResolvedValue(answer({ user_api_scopes: current }));
 
-    await expect(
-      allowAstrolabeUserApiScopes({ ...options, fetchImpl: call }),
-    ).resolves.toEqual({ kind: 'unchanged', scopes: current });
+    await expect(allowAstrolabeUserApiScopes({ ...options, fetchImpl: call })).resolves.toEqual({
+      kind: 'unchanged',
+      scopes: current,
+    });
     expect(call).toHaveBeenCalledTimes(1);
   });
 
@@ -73,22 +67,18 @@ describe('allowAstrolabeUserApiScopes', () => {
     const patchBody = call.mock.calls[1][1]?.body;
     if (typeof patchBody !== 'string') throw new Error('PATCH carried no JSON body');
     expect(JSON.parse(patchBody)).toEqual({
-      user_api_scopes: [
-        'serving.serving-endpoints',
-        'model-serving',
-        'sql',
-        'dashboards.genie',
-        'postgres',
-      ],
+      user_api_scopes: ['serving.serving-endpoints', 'model-serving', 'sql', 'dashboards.genie', 'postgres'],
     });
   });
 
   it('drops hostile non-string values returned by the Apps API', async () => {
     const call = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(answer({
-        user_api_scopes: ['catalog.tables:read', { scope: 'postgres' }, null, 42],
-      }))
+      .mockResolvedValueOnce(
+        answer({
+          user_api_scopes: ['catalog.tables:read', { scope: 'postgres' }, null, 42],
+        })
+      )
       .mockResolvedValueOnce(answer({}));
 
     await allowAstrolabeUserApiScopes({ ...options, additionalScopes: ['postgres'], fetchImpl: call });
@@ -131,4 +121,3 @@ describe('allowAstrolabeUserApiScopes', () => {
     }
   });
 });
-

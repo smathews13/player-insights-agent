@@ -33,10 +33,7 @@ export async function findLatestAnsweredConversation(client: LakebaseReader): Pr
   return typeof id === 'string' ? id : '';
 }
 
-export async function findConversationIdByQuestion(
-  client: LakebaseReader,
-  question: string
-): Promise<string> {
+export async function findConversationIdByQuestion(client: LakebaseReader, question: string): Promise<string> {
   const asked = question.trim();
   if (!asked) return '';
   const result = await client.lakebase.query(
@@ -50,10 +47,7 @@ export async function findConversationIdByQuestion(
   return typeof id === 'string' ? id : '';
 }
 
-export async function loadTurnsForQuestion(
-  client: LakebaseReader,
-  question: string
-): Promise<ConversationTurn[]> {
+export async function loadTurnsForQuestion(client: LakebaseReader, question: string): Promise<ConversationTurn[]> {
   const conversationId = await findConversationIdByQuestion(client, question);
   if (!conversationId) return [];
   return loadConversationTurns(client, conversationId);

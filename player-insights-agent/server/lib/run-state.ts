@@ -163,14 +163,7 @@ export const TRANSITIONS: Record<RunState, readonly RunState[]> = {
   // Assembling the typed answer from evidence already accepted. REFUSED is
   // reachable and load-bearing: this is where a run with no valid evidence
   // stops rather than narrating around the gap.
-  SYNTHESIZING: [
-    'SUCCEEDED',
-    'REFUSED',
-    'FAILED',
-    'DEADLINE_EXCEEDED',
-    'CANCELLED',
-    'PERSISTENCE_FAILED',
-  ],
+  SYNTHESIZING: ['SUCCEEDED', 'REFUSED', 'FAILED', 'DEADLINE_EXCEEDED', 'CANCELLED', 'PERSISTENCE_FAILED'],
   SUCCEEDED: [],
   CLARIFICATION_REQUIRED: [],
   REFUSED: [],
@@ -334,9 +327,7 @@ export const TERMINAL_CODES: Record<TerminalRunState, readonly FailureCode[]> = 
 export function terminalRefusal(state: TerminalRunState, code: FailureCode | null): string | null {
   const allowed = TERMINAL_CODES[state];
   if (allowed.length === 0) {
-    return code === null
-      ? null
-      : `A run in ${state} did not fail, so it cannot carry the failure code ${code}.`;
+    return code === null ? null : `A run in ${state} did not fail, so it cannot carry the failure code ${code}.`;
   }
   if (code === null) {
     return `A run in ${state} must carry a failure code, and this one carries none.`;

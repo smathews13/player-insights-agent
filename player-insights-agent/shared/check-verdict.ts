@@ -101,7 +101,9 @@ export function checkVerdict(check: {
  * and the rows under it were counted from two readings of one status and said
  * different things about the same twelve tables.
  */
-export function countCheckVerdicts(checks: readonly Parameters<typeof checkVerdict>[0][]): Record<CheckVerdict, number> {
+export function countCheckVerdicts(
+  checks: readonly Parameters<typeof checkVerdict>[0][]
+): Record<CheckVerdict, number> {
   const counts: Record<CheckVerdict, number> = {
     reachable: 0,
     blocked: 0,

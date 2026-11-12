@@ -168,8 +168,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            "MemberExpression[object.property.name='servingEndpoints'][property.name='query']",
+          selector: "MemberExpression[object.property.name='servingEndpoints'][property.name='query']",
           message:
             'servingEndpoints.query() rebuilds the request body from a fixed field ' +
             'allowlist that omits custom_inputs. POST to the endpoint /invocations ' +

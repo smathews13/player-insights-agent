@@ -44,11 +44,7 @@ export async function readLabState(
   }
 }
 
-export async function writeLabState(
-  client: LakebaseReader,
-  state: LabState,
-  updatedBy: string
-): Promise<LabState> {
+export async function writeLabState(client: LakebaseReader, state: LabState, updatedBy: string): Promise<LabState> {
   const parsed = LabStateSchema.parse(state);
   await client.lakebase.query(
     `INSERT INTO ${BENCHMARK_LAB_TABLE} (id, state, updated_by, updated_at)

@@ -29,8 +29,7 @@ export interface BadgeRun {
  * read as three. Only ISO dates count: the agent writes the window in that
  * form, and a looser pattern would start chipping figures inside sentences.
  */
-const DATE_WINDOW =
-  /\d{4}-\d{2}-\d{2}(?:(?:\s*[–—]\s*|\s+-\s+|\s+to\s+)\d{4}-\d{2}-\d{2})?(?:\s*\(\d+\s+dates?\))?/g;
+const DATE_WINDOW = /\d{4}-\d{2}-\d{2}(?:(?:\s*[–—]\s*|\s+-\s+|\s+to\s+)\d{4}-\d{2}-\d{2})?(?:\s*\(\d+\s+dates?\))?/g;
 
 /** Lead-ins whose value is a list of labels rather than a sentence. */
 const LABEL_LEAD_IN = /\b(?:labels?|tags?)\s*:\s*$/i;

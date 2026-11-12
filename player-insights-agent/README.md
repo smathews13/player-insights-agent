@@ -3,11 +3,12 @@
 A Databricks App powered by [AppKit](https://www.databricks.com/devhub/docs/appkit/v0/), built with React, TypeScript and Tailwind CSS.
 
 **Enabled plugins:**
+
 - **Lakebase**: managed Postgres for transactional workloads on Databricks
 - **Server**: Express HTTP server with static file serving and Vite dev mode
 
 > **Do not add a `databricks.yml` to this directory.** The CLI resolves a bundle
-> by walking *up* from your working directory, so a file here shadows the root
+> by walking _up_ from your working directory, so a file here shadows the root
 > bundle for anyone working in the app directory, and a `bundle destroy` typed
 > here would delete the running app along with the service principal that holds
 > the Postgres grants. `databricks bundle` commands typed here resolve to the

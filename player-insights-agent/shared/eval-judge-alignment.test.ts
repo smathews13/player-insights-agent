@@ -40,9 +40,7 @@ describe('judge alignment to human labels', () => {
         },
       ]
     );
-    expect(pairs).toEqual([
-      { question: 'How many players?', human: 'no', judge: 'yes', agree: false },
-    ]);
+    expect(pairs).toEqual([{ question: 'How many players?', human: 'no', judge: 'yes', agree: false }]);
     expect(agreementFromPairs(pairs).label).toContain('0/1');
   });
 

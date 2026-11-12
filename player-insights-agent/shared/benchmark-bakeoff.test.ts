@@ -105,30 +105,25 @@ describe('judge needs and live progress', () => {
   });
 
   it('always names the session-id tag, even when multi-turn judges are off', () => {
-    expect(judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: [], customCount: 0 }).map((tag) => tag.id)).toEqual([
-      'response',
-      'trace',
-      'session',
-    ]);
+    expect(
+      judgeNeedTags({ enabledJudges: ['groundedness'], multiTurn: [], customCount: 0 }).map((tag) => tag.id)
+    ).toEqual(['response', 'trace', 'session']);
   });
 });
 
 describe('bake-off history', () => {
   it('keeps the latest bake-off first and readable', () => {
-    const next = rememberBakeOff(
-      [],
-      {
-        at: '2026-08-26T12:00:00.000Z',
-        datasetSuiteId: 'operator-eval',
-        baselineRunId: 'run-a',
-        candidateRunId: 'run-b',
-        changed: changedVariable('current', 'other-agent'),
-        winner: 'candidate',
-        gatesPassed: 1,
-        gatesTotal: 1,
-        note: '',
-      }
-    );
+    const next = rememberBakeOff([], {
+      at: '2026-08-26T12:00:00.000Z',
+      datasetSuiteId: 'operator-eval',
+      baselineRunId: 'run-a',
+      candidateRunId: 'run-b',
+      changed: changedVariable('current', 'other-agent'),
+      winner: 'candidate',
+      gatesPassed: 1,
+      gatesTotal: 1,
+      note: '',
+    });
     expect(bakeOffHistoryLine(next[0])).toBe('2026-08-26: candidate · run-a vs run-b · 1 of 1 gates');
   });
 });

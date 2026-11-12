@@ -55,7 +55,9 @@ export async function readReplay(store: LakebaseReader, run: LedgerRun): Promise
     };
   }
 
-  const read = await ledgerQuery(store, 'run replay',
+  const read = await ledgerQuery(
+    store,
+    'run replay',
     `SELECT m.response_json FROM ${APP_SCHEMA}.messages m
        JOIN ${APP_SCHEMA}.conversations c ON c.id = m.conversation_id
       WHERE m.id = $1 AND c.user_email = $2`,

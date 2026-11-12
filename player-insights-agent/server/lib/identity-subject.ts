@@ -149,11 +149,7 @@ export interface BindOptions {
  * value in the same namespace as the thing it is being compared with, and that
  * address is somebody else's.
  */
-export function bindTokenToUser(
-  token: string | null,
-  email: string,
-  options: BindOptions = {}
-): SubjectBinding {
+export function bindTokenToUser(token: string | null, email: string, options: BindOptions = {}): SubjectBinding {
   if (!token || !token.trim()) return { kind: 'absent' };
   if (!email || !email.trim()) {
     return {

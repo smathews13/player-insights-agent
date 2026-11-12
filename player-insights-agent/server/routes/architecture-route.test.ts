@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  ARCHITECTURE_EXPERIMENT_TIMEOUT_MS,
-  architecturePayload,
-  semanticIndexReport,
-} from './architecture-routes';
+import { ARCHITECTURE_EXPERIMENT_TIMEOUT_MS, architecturePayload, semanticIndexReport } from './architecture-routes';
 import type { InsightsAppKit } from './insights-routes';
 
 /**
@@ -86,8 +82,16 @@ describe('architecturePayload', () => {
 
   it('prefers a saved experiment override to the variable, as the trace links do', async () => {
     process.env.PLAYER_INSIGHTS_EXPERIMENT_ID = 'from-the-variable';
-    const payload = await architecturePayload(appkitWith([
-        { resource_id: 'experiment-id', value: 'saved-here', intent: 'active', note: '', updated_at: '', updated_by: '' },
+    const payload = await architecturePayload(
+      appkitWith([
+        {
+          resource_id: 'experiment-id',
+          value: 'saved-here',
+          intent: 'active',
+          note: '',
+          updated_at: '',
+          updated_by: '',
+        },
       ])
     );
     expect(payload.experimentId).toBe('saved-here');

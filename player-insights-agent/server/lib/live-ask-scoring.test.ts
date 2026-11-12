@@ -23,9 +23,7 @@ describe('sampled Ask scoring', () => {
     } else {
       expect(scored).toBeNull();
     }
-    expect(
-      scoreLiveDeterministic(turn, { ...DEFAULT_BENCHMARK_SETTINGS, alwaysOnTraces: false })
-    ).toBeNull();
+    expect(scoreLiveDeterministic(turn, { ...DEFAULT_BENCHMARK_SETTINGS, alwaysOnTraces: false })).toBeNull();
   });
 
   it('does not fail Ask when the store write is lost', async () => {

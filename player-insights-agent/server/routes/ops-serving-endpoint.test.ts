@@ -35,9 +35,7 @@ const EVERY_ENDPOINT = {
 };
 
 function endpointSubjects(configured: Record<string, string>) {
-  return connectionSubjects({ configured, tables: [] }).filter(
-    (subject) => subject.kind === SERVING_ENDPOINT_KIND
-  );
+  return connectionSubjects({ configured, tables: [] }).filter((subject) => subject.kind === SERVING_ENDPOINT_KIND);
 }
 
 /**
@@ -128,9 +126,10 @@ describe('what the pill then reports', () => {
   it('lets one endpoint that did not answer outrank another that did', () => {
     // A question travels through all of them, so any one of them failing is a
     // question that could not be served whatever the others say.
-    const mixed = ANSWER_PATH_ENDPOINT_IDS.length > 1
-      ? rows([ANSWER_PATH_ENDPOINT_IDS[0], 'answered'], [ANSWER_PATH_ENDPOINT_IDS[1], 'did-not-answer'])
-      : rows([answerPath, 'did-not-answer']);
+    const mixed =
+      ANSWER_PATH_ENDPOINT_IDS.length > 1
+        ? rows([ANSWER_PATH_ENDPOINT_IDS[0], 'answered'], [ANSWER_PATH_ENDPOINT_IDS[1], 'did-not-answer'])
+        : rows([answerPath, 'did-not-answer']);
     expect(pill(mixed).state).toBe('Did not answer');
   });
 

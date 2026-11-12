@@ -130,7 +130,9 @@ export function customJudgeAssessmentName(name: string): string {
 export function parseEnabledMultiTurnJudges(value: unknown): MultiTurnJudgeId[] {
   if (!Array.isArray(value)) return [];
   const allowed = new Set<string>(MULTI_TURN_JUDGE_IDS);
-  return [...new Set(value.filter((entry): entry is MultiTurnJudgeId => typeof entry === 'string' && allowed.has(entry)))];
+  return [
+    ...new Set(value.filter((entry): entry is MultiTurnJudgeId => typeof entry === 'string' && allowed.has(entry))),
+  ];
 }
 
 export function parseCustomJudges(value: unknown): CustomJudge[] {
@@ -285,8 +287,7 @@ export interface DatasetCounts {
 
 export function datasetCounts(rows: readonly EvalRow[]): DatasetCounts {
   const questions = questionRows(rows).length;
-  const milestone =
-    questions >= 30 ? 30 : questions >= 20 ? 20 : questions >= 10 ? 10 : 0;
+  const milestone = questions >= 30 ? 30 : questions >= 20 ? 20 : questions >= 10 ? 10 : 0;
   return {
     total: rows.length,
     questions,
@@ -392,6 +393,8 @@ export function uniqueQuestionsToAdd(existing: readonly EvalRow[], incoming: rea
 export function parseEnabledJudges(value: unknown): AgentJudgeId[] {
   if (!Array.isArray(value)) return [...AGENT_JUDGE_IDS];
   const allowed = new Set<string>(AGENT_JUDGE_IDS);
-  const unique = [...new Set(value.filter((entry): entry is AgentJudgeId => typeof entry === 'string' && allowed.has(entry)))];
+  const unique = [
+    ...new Set(value.filter((entry): entry is AgentJudgeId => typeof entry === 'string' && allowed.has(entry))),
+  ];
   return unique.length > 0 ? unique : [...AGENT_JUDGE_IDS];
 }

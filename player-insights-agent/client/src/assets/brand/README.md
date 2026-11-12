@@ -12,17 +12,17 @@ corporate slide template ships. They are not on npm, they are not in Lucide, and
 they are NOT the DuBois interface glyphs. See the note at the bottom, because
 that mistake has already been made once in this repository.
 
-| File | Product |
-| --- | --- |
-| `mosaic-ai-icon-full-color.svg` | Mosaic AI |
-| `databricks-sql-icon-full-color.svg` | Databricks SQL |
-| `genie-icon-full-color.svg` | Genie |
-| `unity-catalog-icon-full-color.svg` | Unity Catalog |
-| `lakebase-icon-full-color.svg` | Lakebase |
-| `mlflow-logo-black-rgb.svg` | MLflow (a wordmark, 954x408, not a square icon) |
-| `apps-icon-full-color.svg` | Databricks Apps |
-| `databricks-symbol-color.svg` | The bricks symbol, for "Built on Databricks" |
-| `databricks-logo-full-color.svg` | The horizontal Databricks logo, for the login gate |
+| File                                 | Product                                            |
+| ------------------------------------ | -------------------------------------------------- |
+| `mosaic-ai-icon-full-color.svg`      | Mosaic AI                                          |
+| `databricks-sql-icon-full-color.svg` | Databricks SQL                                     |
+| `genie-icon-full-color.svg`          | Genie                                              |
+| `unity-catalog-icon-full-color.svg`  | Unity Catalog                                      |
+| `lakebase-icon-full-color.svg`       | Lakebase                                           |
+| `mlflow-logo-black-rgb.svg`          | MLflow (a wordmark, 954x408, not a square icon)    |
+| `apps-icon-full-color.svg`           | Databricks Apps                                    |
+| `databricks-symbol-color.svg`        | The bricks symbol, for "Built on Databricks"       |
+| `databricks-logo-full-color.svg`     | The horizontal Databricks logo, for the login gate |
 
 Six are 512x512 full-colour icons in the brand's two-colour pair, `#FF5F46` and
 `#FABFBA`. MLflow is a black wordmark and behaves differently everywhere.

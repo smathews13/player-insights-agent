@@ -42,8 +42,6 @@ export function qualifyDataContractTables(
   const nsSchema = schema.trim();
   if (!nsCatalog || !nsSchema) return [];
   return [
-    ...new Set(
-      tables.map((table) => (table.split('.').length === 3 ? table : `${nsCatalog}.${nsSchema}.${table}`))
-    ),
+    ...new Set(tables.map((table) => (table.split('.').length === 3 ? table : `${nsCatalog}.${nsSchema}.${table}`))),
   ].sort();
 }

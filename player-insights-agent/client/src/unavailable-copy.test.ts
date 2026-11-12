@@ -39,7 +39,8 @@ describe('what the heading says first', () => {
     // The heading is as far as most people read, and "This question was not
     // answered" tells a reader watching a spinner nothing they did not just see.
     // A named endpoint and a verb is something they can act on.
-    expect(unavailableNoticeFor('ask', DENIAL).heading).toBe('Agent serving endpoint player-insights-agent refused this request'
+    expect(unavailableNoticeFor('ask', DENIAL).heading).toBe(
+      'Agent serving endpoint player-insights-agent refused this request'
     );
   });
 
@@ -60,14 +61,17 @@ describe('what the heading says first', () => {
     // Not every failure has a downstream provider to name: a malformed
     // idempotency key never reached one. The per-surface heading is still the
     // most specific thing available, so nothing regresses for those.
-    expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).heading).toBe('Runs could not be read'
+    expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).heading).toBe(
+      'Runs could not be read'
     );
-    expect(unavailableNotice({ surface: 'ask', code: 'DEPENDENCY_UNAVAILABLE' }).heading).toBe('This question was not answered'
+    expect(unavailableNotice({ surface: 'ask', code: 'DEPENDENCY_UNAVAILABLE' }).heading).toBe(
+      'This question was not answered'
     );
   });
 
   it('names the label a reader can search for, not the identifier the code uses', () => {
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'DEPENDENCY_UNAVAILABLE',
         requestId: 'req-2',
@@ -82,7 +86,8 @@ describe('what the heading says first', () => {
     // An endpoint whose name is unset is a misconfigured deployment. Printing
     // "unknown" beside the label reads as a component called unknown and sends
     // somebody looking for it.
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'DEPENDENCY_UNAVAILABLE',
         requestId: 'req-3',
@@ -113,7 +118,8 @@ describe('the error the provider actually returned', () => {
 
   it('does not paraphrase, because a paraphrased error is a second error to debug', () => {
     const raw = 'RESOURCE_DOES_NOT_EXIST: Endpoint player-insights-agent does not exist.';
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'DEPENDENCY_UNAVAILABLE',
         requestId: 'req-4',
@@ -131,7 +137,8 @@ describe('the error the provider actually returned', () => {
     // Several sites still hold a sentence and nothing else. Showing it is
     // strictly better than the alternative this replaces, which was showing
     // nothing while the sentence sat in the response body.
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'OUTPUT_SCHEMA_VIOLATION',
         requestId: 'req-5',
@@ -206,7 +213,8 @@ describe('the identity, on the failures where it is the answer', () => {
   it('says so when it was not verified, rather than leaving the word out', () => {
     // An absent word reads as an unimportant one, and this is the claim a reader
     // relies on to conclude a denial is really about their own grants.
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'USER_AUTH_REJECTED',
         requestId: 'req-6',
@@ -220,7 +228,8 @@ describe('the identity, on the failures where it is the answer', () => {
     // A reader debugging an endpoint that did not answer does not need to be
     // told which of their identities was used, and a line per fact regardless of
     // relevance is how a panel becomes something people skim past.
-    const notice = unavailableNoticeFor('ask',
+    const notice = unavailableNoticeFor(
+      'ask',
       unavailableResult({
         code: 'DEPENDENCY_UNAVAILABLE',
         requestId: 'req-8',
@@ -235,13 +244,17 @@ describe('the one sentence of consequence', () => {
   it('names the wrong reading that surface invites, not a generic one', () => {
     // The wrong reading differs per surface: on Run Explorer it is "my history
     // was deleted", on the Benchmark Lab it is "we scored zero".
-    expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain('not because there are no runs'
+    expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain(
+      'not because there are no runs'
     );
-    expect(unavailableNotice({ surface: 'conversations', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain('not because you have no history'
+    expect(unavailableNotice({ surface: 'conversations', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain(
+      'not because you have no history'
     );
-    expect(unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain('not a score of zero'
+    expect(unavailableNotice({ surface: 'benchmarks', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain(
+      'not a score of zero'
     );
-    expect(unavailableNotice({ surface: 'run-trace', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain('not because the run did nothing'
+    expect(unavailableNotice({ surface: 'run-trace', code: 'DEPENDENCY_UNAVAILABLE' }).consequence).toContain(
+      'not because the run did nothing'
     );
   });
 
@@ -306,7 +319,8 @@ describe('the facts a panel must not guess', () => {
   });
 
   it('shows a correlation id when there is one and omits the label when there is not', () => {
-    expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE', correlationId: 'req-9' }).correlation
+    expect(
+      unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE', correlationId: 'req-9' }).correlation
     ).toBe('Correlation ID: req-9');
     expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).correlation).toBeNull();
   });
@@ -318,7 +332,8 @@ describe('what a screen reader is told', () => {
     // the page loaded does not, or a page with three of them announces three
     // interruptions before the reader hears the first heading, and the setting
     // gets turned off.
-    expect(unavailableNotice({ surface: 'ask', code: 'DEPENDENCY_UNAVAILABLE', interactive: true }).liveRegion).toBe('alert'
+    expect(unavailableNotice({ surface: 'ask', code: 'DEPENDENCY_UNAVAILABLE', interactive: true }).liveRegion).toBe(
+      'alert'
     );
     expect(unavailableNotice({ surface: 'runs', code: 'DEPENDENCY_UNAVAILABLE' }).liveRegion).toBe('status');
   });

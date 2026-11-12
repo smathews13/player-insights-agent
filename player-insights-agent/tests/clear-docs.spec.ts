@@ -55,7 +55,8 @@ async function openConversationWithDocs(page: Page, onDelete: (route: import('@p
 }
 
 test('clears every document without touching the conversation', async ({ page }) => {
-  await openConversationWithDocs(page,
+  await openConversationWithDocs(
+    page,
     (route) =>
       void route.fulfill({
         status: 200,
@@ -74,7 +75,8 @@ test('clears every document without touching the conversation', async ({ page })
 });
 
 test('keeps the documents visible when the server refuses to clear them', async ({ page }) => {
-  await openConversationWithDocs(page,
+  await openConversationWithDocs(
+    page,
     (route) =>
       void route.fulfill({
         status: 503,

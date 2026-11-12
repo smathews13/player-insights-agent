@@ -4,6 +4,7 @@ import { RuntimeSettingsPatchSchema } from '../../shared/runtime-settings';
 import { ownsPreferenceDefaults } from '../lib/preference-default-owner';
 import { recordAdminAction } from '../lib/admin-roles';
 import {
+  APPEARANCE_KEYS,
   deleteUserRuntimeSettings,
   readResolvedRuntimeSettings,
   readRuntimeSettingsDocument,
@@ -18,21 +19,10 @@ const RuntimeSettingsWrite = z.strictObject({
   patch: RuntimeSettingsPatchSchema,
 });
 
-const APPEARANCE_KEYS = new Set([
-  'colorScheme',
-  'entityStyles',
-  'fontBodyColor',
-  'fontMutedColor',
-  'fontFamily',
-  'fontSize',
-  'mobileFontSize',
-  'backgroundGraphics',
-  'animations',
-  'density',
-]);
+const APPEARANCE_KEY_SET = new Set<string>(APPEARANCE_KEYS);
 
 export function isAppearancePatch(patch: Record<string, unknown>): boolean {
-  return Object.keys(patch).every((key) => APPEARANCE_KEYS.has(key));
+  return Object.keys(patch).every((key) => APPEARANCE_KEY_SET.has(key));
 }
 
 export function setupRuntimeSettingsRoutes(appkit: InsightsAppKit): void {

@@ -38,17 +38,16 @@ function messageFrom(body: unknown, fallback: string): string {
 }
 
 function scopesFrom(body: unknown): string[] {
-  const raw =
-    body && typeof body === 'object'
-      ? (body as Record<string, unknown>).user_api_scopes
-      : undefined;
+  const raw = body && typeof body === 'object' ? (body as Record<string, unknown>).user_api_scopes : undefined;
   if (!Array.isArray(raw)) return [];
-  return [...new Set(
-    raw
-      .filter((scope): scope is string => typeof scope === 'string')
-      .map((scope) => scope.trim())
-      .filter(Boolean),
-  )];
+  return [
+    ...new Set(
+      raw
+        .filter((scope): scope is string => typeof scope === 'string')
+        .map((scope) => scope.trim())
+        .filter(Boolean)
+    ),
+  ];
 }
 
 function appUrl(host: string, appName: string): string {
@@ -79,14 +78,9 @@ function failed(response: Response, body: unknown): ScopeUpdateResult {
  * browse scopes are optional to asks but included here because a Git deploy
  * otherwise cannot obtain the token scopes used by Connections browsing.
  */
-export const MANAGER_GRANT_USER_API_SCOPES = [
-  ...REQUIRED_USER_API_SCOPES,
-  ...OPTIONAL_USER_API_SCOPES,
-] as const;
+export const MANAGER_GRANT_USER_API_SCOPES = [...REQUIRED_USER_API_SCOPES, ...OPTIONAL_USER_API_SCOPES] as const;
 
-export async function allowAstrolabeUserApiScopes(
-  options: ScopeUpdaterOptions,
-): Promise<ScopeUpdateResult> {
+export async function allowAstrolabeUserApiScopes(options: ScopeUpdaterOptions): Promise<ScopeUpdateResult> {
   const call = options.fetchImpl ?? fetch;
   const url = appUrl(options.host, options.appName);
   const headers = {
@@ -124,4 +118,3 @@ export async function allowAstrolabeUserApiScopes(
   if (!update.ok) return failed(update, updatedBody);
   return { kind: 'updated', scopes: merged };
 }
-

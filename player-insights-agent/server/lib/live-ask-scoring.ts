@@ -79,11 +79,7 @@ export async function scoreLiveJudges(
   const conversation = conversationFromTurnsOrPair(turn.turns, question, response);
 
   const run = async (name: string, prompt: string): Promise<LiveJudgeVerdict> => {
-    const judgement = await runJudge(
-      { invoke, judgeEndpoint: settings.judgeEndpoint },
-      name,
-      prompt
-    );
+    const judgement = await runJudge({ invoke, judgeEndpoint: settings.judgeEndpoint }, name, prompt);
     return {
       name,
       value: judgement.state === 'scored' ? judgement.value : null,

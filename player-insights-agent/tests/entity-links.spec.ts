@@ -119,7 +119,10 @@ test('a table the answer declared becomes a link; nothing else does', async ({ p
   // worth trusting.
   await expect(page.getByRole('link', { name: /^Sessions$/i })).toHaveCount(0);
 
-  await page.locator('.answer-card').first().screenshot({ path: join(SHOTS, 'answer-with-links.png') });
+  await page
+    .locator('.answer-card')
+    .first()
+    .screenshot({ path: join(SHOTS, 'answer-with-links.png') });
 });
 
 test('following a link lands on that entry, highlighted', async ({ page }) => {
@@ -171,7 +174,9 @@ test('a link to an entry the report no longer has says so', async ({ page }) => 
   // preflight that has since failed. Landing on an unhighlighted page with no
   // explanation would read as the reader having misremembered the answer.
   await page.route('**/api/preflight', (route) =>
-    route.fulfill({ json: { ...PREFLIGHT, checks: [tableCheck(PURCHASES)], counts: { ok: 1, failed: 0, unverified: 0 } } })
+    route.fulfill({
+      json: { ...PREFLIGHT, checks: [tableCheck(PURCHASES)], counts: { ok: 1, failed: 0, unverified: 0 } },
+    })
   );
 
   await page.goto(`/sources?entity=${encodeURIComponent(DAILY)}`);

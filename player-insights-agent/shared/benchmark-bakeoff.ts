@@ -29,8 +29,7 @@ export function rememberBakeOff(history: BakeOffHistory[], next: BakeOffHistory)
 
 export function bakeOffHistoryLine(entry: BakeOffHistory): string {
   const when = entry.at.slice(0, 10) || entry.at;
-  const gates =
-    entry.gatesTotal > 0 ? ` · ${entry.gatesPassed} of ${entry.gatesTotal} gates` : '';
+  const gates = entry.gatesTotal > 0 ? ` · ${entry.gatesPassed} of ${entry.gatesTotal} gates` : '';
   const ids = [entry.baselineRunId, entry.candidateRunId].filter(Boolean).join(' vs ');
   return `${when}: ${entry.winner}${ids ? ` · ${ids}` : ''}${gates}${entry.note ? `. ${entry.note}` : ''}`;
 }
@@ -161,7 +160,15 @@ export function compareBakeOff(input: {
   cases?: CaseOutcomePair[];
 }): BakeOffComparison {
   const agent: LaneMetric[] = [
-    metric('groundedness', 'Groundedness', 'agent', input.baseline.groundedness, input.candidate.groundedness, 'rate', true),
+    metric(
+      'groundedness',
+      'Groundedness',
+      'agent',
+      input.baseline.groundedness,
+      input.candidate.groundedness,
+      'rate',
+      true
+    ),
     metric('relevance', 'Relevance', 'agent', input.baseline.relevance, input.candidate.relevance, 'rate'),
     metric('guidelines', 'Guidelines', 'agent', input.baseline.guidelines, input.candidate.guidelines, 'rate'),
     metric(
@@ -176,7 +183,15 @@ export function compareBakeOff(input: {
   const geniePair = input.genie;
   const genie: LaneMetric[] = geniePair
     ? [
-        metric('accuracy', 'Accuracy', 'genie', geniePair.baseline.accuracy, geniePair.candidate.accuracy, 'rate', true),
+        metric(
+          'accuracy',
+          'Accuracy',
+          'genie',
+          geniePair.baseline.accuracy,
+          geniePair.candidate.accuracy,
+          'rate',
+          true
+        ),
         metric('genie-passed', 'Cases passed', 'genie', geniePair.baseline.passed, geniePair.candidate.passed, 'count'),
         metric(
           'execution-errors',
@@ -186,7 +201,14 @@ export function compareBakeOff(input: {
           geniePair.candidate.executionErrors,
           'count'
         ),
-        metric('genie-duration', 'Suite duration', 'genie', geniePair.baseline.durationMs, geniePair.candidate.durationMs, 'ms'),
+        metric(
+          'genie-duration',
+          'Suite duration',
+          'genie',
+          geniePair.baseline.durationMs,
+          geniePair.candidate.durationMs,
+          'ms'
+        ),
       ]
     : [
         metric('accuracy', 'Accuracy', 'genie', null, null, 'rate', true),
@@ -199,7 +221,14 @@ export function compareBakeOff(input: {
     ? [
         metric('p50', 'p50 latency', 'trace', tracePair.baseline.medianCaseMs, tracePair.candidate.medianCaseMs, 'ms'),
         metric('tokens', 'Tokens', 'trace', tracePair.baseline.tokens, tracePair.candidate.tokens, 'tokens'),
-        metric('cost', 'Estimated cost', 'trace', tracePair.baseline.estimatedCost, tracePair.candidate.estimatedCost, 'currency'),
+        metric(
+          'cost',
+          'Estimated cost',
+          'trace',
+          tracePair.baseline.estimatedCost,
+          tracePair.candidate.estimatedCost,
+          'currency'
+        ),
         metric(
           'tool-error',
           'Tool-error rate',
@@ -217,9 +246,7 @@ export function compareBakeOff(input: {
       ];
 
   const cases = input.cases ?? [];
-  const newlyFixed = cases.filter(
-    (entry) => entry.baseline !== 'passed' && entry.candidate === 'passed'
-  );
+  const newlyFixed = cases.filter((entry) => entry.baseline !== 'passed' && entry.candidate === 'passed');
   const newlyBroken = cases.filter(
     (entry) => entry.baseline === 'passed' && entry.candidate !== 'passed' && entry.candidate !== null
   );
@@ -238,9 +265,7 @@ export function compareBakeOff(input: {
       id: 'accuracy',
       label: 'Genie accuracy did not regress',
       applicable: Boolean(
-        geniePair &&
-          typeof geniePair.baseline.accuracy === 'number' &&
-          typeof geniePair.candidate.accuracy === 'number'
+        geniePair && typeof geniePair.baseline.accuracy === 'number' && typeof geniePair.candidate.accuracy === 'number'
       ),
       passed: Boolean(
         geniePair &&

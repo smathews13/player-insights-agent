@@ -209,13 +209,24 @@ describe('what a report puts on the wire', () => {
     const calls = stubFetch({ ok: true, body: {} });
     reportEgress({ channel: 'generated-sql', surface: 'run-details' });
     const body = calls[0].body;
-    for (const forbidden of ['payload', 'value', 'content', 'rows', 'sql', 'text',
-      'filename', 'bytes', 'sample', 'preview', 'data']) {
+    for (const forbidden of [
+      'payload',
+      'value',
+      'content',
+      'rows',
+      'sql',
+      'text',
+      'filename',
+      'bytes',
+      'sample',
+      'preview',
+      'data',
+    ]) {
       expect(body).not.toHaveProperty(forbidden);
     }
   });
 
-  it('names neither the actor nor the outcome, which are the server\'s to decide', () => {
+  it("names neither the actor nor the outcome, which are the server's to decide", () => {
     // An actor field would make this a way to write rows against somebody else's
     // name into the app's own audit record.
     const calls = stubFetch({ ok: true, body: {} });

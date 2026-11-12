@@ -22,10 +22,7 @@ export function UsedThisRun({ used }: { used: RunRuntimeUsed | null | undefined 
         <span className="run-runtime-used-absent">{RUN_RUNTIME_USED_ABSENT}</span>
       ) : (
         chips.map((chip) => (
-          <span
-            key={chip.key}
-            className={chip.on === false ? 'run-runtime-used-chip is-off' : 'run-runtime-used-chip'}
-          >
+          <span key={chip.key} className={chip.on === false ? 'run-runtime-used-chip is-off' : 'run-runtime-used-chip'}>
             {chip.label} <span className="ast-num">{chip.value}</span>
           </span>
         ))

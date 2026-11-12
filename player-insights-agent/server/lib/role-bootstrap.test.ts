@@ -62,10 +62,7 @@ describe('deployment role bootstrap', () => {
     const fixture = fakeRoster([stored(EXISTING, 'super_admin'), stored('reader@example.com', 'consumer')]);
 
     expect(await bootstrapSeedRoles(fixture.store, config)).toBe('existing-roster');
-    expect(fixture.rows).toEqual([
-      stored(EXISTING, 'super_admin'),
-      stored('reader@example.com', 'consumer'),
-    ]);
+    expect(fixture.rows).toEqual([stored(EXISTING, 'super_admin'), stored('reader@example.com', 'consumer')]);
   });
 
   it('bootstraps the configured administrator when the roster is genuinely empty', async () => {
@@ -93,10 +90,7 @@ describe('deployment role bootstrap', () => {
     });
 
     expect(await bootstrapSeedRoles(fixture.store, `super:${STALE}`)).toBe('existing-roster');
-    expect(fixture.rows).toEqual([
-      stored(DEPLOYER, 'admin'),
-      stored(EXISTING, 'super_admin', DEPLOYER),
-    ]);
+    expect(fixture.rows).toEqual([stored(DEPLOYER, 'admin'), stored(EXISTING, 'super_admin', DEPLOYER)]);
   });
 
   it('preserves explicit consumer rows across a code deploy', async () => {

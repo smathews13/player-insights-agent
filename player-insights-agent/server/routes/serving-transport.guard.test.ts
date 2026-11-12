@@ -64,7 +64,8 @@ vi.mock('@databricks/sdk-experimental', () => ({
     apiClient = {
       request: (options: RecordedRequest) => {
         recorded.push(options);
-        return Promise.resolve(options.raw ? { contents: eventStream([STAGE_BLOCK, ANSWER_BLOCK]) } : { custom_outputs: {} }
+        return Promise.resolve(
+          options.raw ? { contents: eventStream([STAGE_BLOCK, ANSWER_BLOCK]) } : { custom_outputs: {} }
         );
       },
     };
@@ -73,8 +74,7 @@ vi.mock('@databricks/sdk-experimental', () => ({
 
 describe('the production serving transport, exercised as shipped', () => {
   it('posts custom_inputs to /invocations without reshaping the body', async () => {
-    const { buildAskServingBody, servingInvocationPath, workspaceServingTransport } = await import('./insights-routes'
-    );
+    const { buildAskServingBody, servingInvocationPath, workspaceServingTransport } = await import('./insights-routes');
 
     const payload = buildAskServingBody({
       history: [{ role: 'user', content: 'Which titles lost the most active players?' }],
@@ -98,13 +98,15 @@ describe('the production serving transport, exercised as shipped', () => {
     // Identity, not deep equality. Any allowlist rebuild: the SDK's or AppKit's,
     // hands over a freshly constructed object, so this is the assertion that
     // distinguishes "sent verbatim" from "sent something equivalent today".
-    expect(sent?.payload,
+    expect(
+      sent?.payload,
       'the production transport no longer sends the body verbatim. Something is ' +
         'rebuilding the payload between the route and the endpoint, which is how ' +
         'custom_inputs gets dropped.'
     ).toBe(payload);
 
-    expect(sent?.payload.custom_inputs,
+    expect(
+      sent?.payload.custom_inputs,
       'custom_inputs did not reach the endpoint. Plan approval, attachments and ' +
         'conversation history are all carried in this field and all fail silently ' +
         'without it.'
@@ -143,8 +145,7 @@ describe('the production serving transport, exercised as shipped', () => {
 describe('the streaming transport, exercised as shipped', () => {
   it('sends the same body, by identity, with custom_inputs intact', async () => {
     recorded.length = 0;
-    const { buildAskServingBody, servingInvocationPath, workspaceServingTransport } = await import('./insights-routes'
-    );
+    const { buildAskServingBody, servingInvocationPath, workspaceServingTransport } = await import('./insights-routes');
 
     const payload = buildAskServingBody({
       history: [{ role: 'user', content: 'Which titles lost the most active players?' }],
@@ -164,7 +165,8 @@ describe('the streaming transport, exercised as shipped', () => {
     });
 
     const sent = recorded[0];
-    expect(sent?.payload,
+    expect(
+      sent?.payload,
       'the streaming transport rebuilt the body. custom_inputs is dropped by every ' +
         'allowlist that does this, and on the streaming path that means plan approval ' +
         'silently stops working for exactly the users who see the new UI.'
@@ -197,7 +199,8 @@ describe('the bypass is not quietly replaced by the typed call', () => {
   const code = withoutComments(source);
 
   it('still reaches the endpoint through the low-level API client', () => {
-    expect(code,
+    expect(
+      code,
       'insights-routes.ts no longer calls apiClient.request(). If the transport was ' +
         'replaced, confirm the replacement sends custom_inputs: the SDK typed query ' +
         'and AppKit serving() both do not.'
@@ -206,7 +209,8 @@ describe('the bypass is not quietly replaced by the typed call', () => {
   });
 
   it('does not call servingEndpoints.query(), which drops custom_inputs', () => {
-    expect(code,
+    expect(
+      code,
       'servingEndpoints.query() rebuilds the request from a fixed field allowlist ' +
         'that omits custom_inputs, so plan approval silently returns a new plan ' +
         'instead of executing the approved one. Post to /invocations instead.'
@@ -216,7 +220,8 @@ describe('the bypass is not quietly replaced by the typed call', () => {
   it('does not import AppKit serving() into the route', () => {
     const appkitImports = [...code.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@databricks\/appkit'/g)];
     for (const match of appkitImports) {
-      expect(match[1].split(',').map((name) => name.trim()),
+      expect(
+        match[1].split(',').map((name) => name.trim()),
         'the serving plugin filters custom_inputs out of the request body twice over.'
       ).not.toContain('serving');
     }
@@ -253,7 +258,8 @@ describe('the serving plugin stays unregistered everywhere on the server', () =>
       }
     }
 
-    expect(offenders,
+    expect(
+      offenders,
       'serving() is registered again. It republishes POST /api/serving/invoke and ' +
         '/api/serving/:alias/invoke, both of which strip custom_inputs at two ' +
         'allowlists. Use the insights route transport instead.'
@@ -272,9 +278,7 @@ describe('the serving plugin stays unregistered everywhere on the server', () =>
  * merely unregistered rather than patched.
  */
 describe('the generated request allowlist that would arm the filter', () => {
-  const cachePath = path.resolve(serverDir,
-    '../node_modules/.databricks/appkit/.appkit-serving-types-cache.json'
-  );
+  const cachePath = path.resolve(serverDir, '../node_modules/.databricks/appkit/.appkit-serving-types-cache.json');
 
   it('is still empty, which is why the schema filter is a no-op', () => {
     let cache: { endpoints?: Record<string, { requestKeys?: string[] }> };
@@ -289,8 +293,9 @@ describe('the generated request allowlist that would arm the filter', () => {
       .filter(([, endpoint]) => (endpoint.requestKeys?.length ?? 0) > 0)
       .map(([alias, endpoint]) => `${alias}: ${endpoint.requestKeys?.join(', ')}`);
 
-    expect(populated,
-      'typegen now emits a non-empty requestKeys allowlist. AppKit\'s schema filter ' +
+    expect(
+      populated,
+      "typegen now emits a non-empty requestKeys allowlist. AppKit's schema filter " +
         'is no longer a no-op, so re-read the reasoning in server.test.ts before ' +
         'trusting that the serving plugin is only unregistered out of caution.'
     ).toEqual([]);

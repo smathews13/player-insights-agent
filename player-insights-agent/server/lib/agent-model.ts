@@ -44,12 +44,14 @@ async function describeEndpoint(name: string): Promise<unknown> {
  * at all, which is a bundle deployment that set the variable and an endpoint
  * this app cannot see.
  */
-export async function readAgentModel(input: {
-  endpointName?: string;
-  workspaceHost?: string;
-  configuredModel?: string;
-  read?: ServingEndpointReader;
-} = {}): Promise<AgentModelReference> {
+export async function readAgentModel(
+  input: {
+    endpointName?: string;
+    workspaceHost?: string;
+    configuredModel?: string;
+    read?: ServingEndpointReader;
+  } = {}
+): Promise<AgentModelReference> {
   const endpointName = (input.endpointName ?? process.env.DATABRICKS_SERVING_ENDPOINT_NAME ?? '').trim();
   const host = input.workspaceHost ?? process.env.DATABRICKS_HOST ?? '';
   const configuredModel = (input.configuredModel ?? process.env.PLAYER_INSIGHTS_MODEL_NAME ?? '').trim();

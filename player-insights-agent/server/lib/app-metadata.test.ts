@@ -62,7 +62,9 @@ describe('what one read establishes', () => {
     const facts = appFacts({ read: ANSWERED });
     expect(facts.deployedAt).not.toBe('2026-07-01T00:00:00Z');
 
-    const noDeployment = appFacts({ read: { kind: 'ok', body: { update_time: '2026-07-01T00:00:00Z', updater: 'a@b.c' } } });
+    const noDeployment = appFacts({
+      read: { kind: 'ok', body: { update_time: '2026-07-01T00:00:00Z', updater: 'a@b.c' } },
+    });
     expect(noDeployment.deployedAt).toBe('2026-07-01T00:00:00Z');
     expect(noDeployment.deployedBy).toBe('a@b.c');
   });
@@ -141,7 +143,9 @@ describe('the active deployment source', () => {
           body: {
             name: 'astrolabe',
             url: 'https://astrolabe-<workspace-id>.aws.databricksapps.com',
-            active_deployment: { git_source: { branch: 'main', source_code_path: 'player-insights-agent/build/deploy' } },
+            active_deployment: {
+              git_source: { branch: 'main', source_code_path: 'player-insights-agent/build/deploy' },
+            },
           },
         },
       }).source.workspaceUrl
@@ -205,9 +209,7 @@ describe('the active deployment source', () => {
       },
     });
 
-    expect(facts.source.workspaceUrl).toBe(
-      'https://workspace.example.com/apps/astrolabe?o=<workspace-id>'
-    );
+    expect(facts.source.workspaceUrl).toBe('https://workspace.example.com/apps/astrolabe?o=<workspace-id>');
     expect(facts.source.workspaceUrl).not.toContain('/browse/folders');
   });
 
@@ -480,9 +482,11 @@ describe('what the workspace says about the app serving', () => {
   });
 
   it('falls back to the compute message when only the compute explained itself', () => {
-    expect(appServing({
-      app_status: { state: 'UNAVAILABLE' },
-      compute_status: { state: 'STOPPED', message: 'App compute is stopped.' },
-    }).message).toBe('App compute is stopped.');
+    expect(
+      appServing({
+        app_status: { state: 'UNAVAILABLE' },
+        compute_status: { state: 'STOPPED', message: 'App compute is stopped.' },
+      }).message
+    ).toBe('App compute is stopped.');
   });
 });

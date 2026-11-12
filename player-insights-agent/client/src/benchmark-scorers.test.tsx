@@ -51,7 +51,8 @@ const PUBLISHED: Scorecard = {
     labelProvenance: 'Labels were written by a coding agent. No domain expert reviewed them.',
     labelsReviewed: false,
     labelReviewHeadline: 'These labels have not been reviewed by anyone who knows this data.',
-    labelReviewConsequence: 'A high correctness rate means the answers agree with the repository, not that they are right.',
+    labelReviewConsequence:
+      'A high correctness rate means the answers agree with the repository, not that they are right.',
     labelSourceCounts: { 'data-query': 3, 'data-and-contract': 6, 'policy-document': 3 },
     heldOutFrom: 'The six cases of the POC benchmark suite.',
     producedBy: 'benchmark-runner',
@@ -73,9 +74,7 @@ const PUBLISHED: Scorecard = {
 };
 
 function markup(state: ScorecardState, revealNonApplicable = false) {
-  return renderToStaticMarkup(
-    <HeldOutEvaluation state={state} revealNonApplicable={revealNonApplicable} />,
-  );
+  return renderToStaticMarkup(<HeldOutEvaluation state={state} revealNonApplicable={revealNonApplicable} />);
 }
 
 describe('the copy above the scorers', () => {
@@ -116,7 +115,7 @@ describe('the copy above the scorers', () => {
             note: 'Held-out case h-1 was edited after the split.',
           },
         ]}
-      />,
+      />
     );
     expect(html).toContain('bench-audit-banner');
     expect(html).toContain('1 held-out case was edited after the split');
@@ -155,7 +154,7 @@ describe('scorers that cannot report', () => {
         published: true,
         scorecard: { ...PUBLISHED, aggregates: [...PUBLISHED.aggregates, score(blocked.id, { value: 1 })] },
       },
-      true,
+      true
     );
     expect(withInjectedValue).toBe(markup({ published: true, scorecard: PUBLISHED }, true));
   });
@@ -169,11 +168,11 @@ describe('scorers that cannot report', () => {
   it('are the three governed-access scorers and nothing else', () => {
     // Pinned so that a later change cannot quietly widen the set of things
     // this deployment declines to measure.
-    expect(unimplementableScorers().map((entry) => entry.id).sort()).toEqual([
-      'identity_mismatch',
-      'persona_column_mask',
-      'persona_row_filter',
-    ]);
+    expect(
+      unimplementableScorers()
+        .map((entry) => entry.id)
+        .sort()
+    ).toEqual(['identity_mismatch', 'persona_column_mask', 'persona_row_filter']);
   });
 });
 

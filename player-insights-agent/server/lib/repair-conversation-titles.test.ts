@@ -2,8 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { repairTruncatedTitles } from './repair-conversation-titles';
 
 /** The question found stored as a fragment on example, and the fragment itself. */
-const ASKED =
-  'Which three titles had the most active players in the last 30 days, and how many did each have?';
+const ASKED = 'Which three titles had the most active players in the last 30 days, and how many did each have?';
 const CUT = ASKED.slice(0, 80);
 
 interface Row {

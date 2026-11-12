@@ -99,8 +99,7 @@ export function credentialLifetime(token: string): CredentialLifetime {
   if (!token || !token.trim()) {
     return {
       expiresAtMs: null,
-      unknownReason:
-        'there is no forwarded token, so this run has no credential lifetime to reason about',
+      unknownReason: 'there is no forwarded token, so this run has no credential lifetime to reason about',
     };
   }
   const claims = readTokenClaims(token);
@@ -140,11 +139,7 @@ export type SuiteCoverage =
  * of starting one that cannot finish is several minutes of endpoint time spent
  * producing a run whose second half does not exist.
  */
-export function coverage(
-  lifetime: CredentialLifetime,
-  nowMs: number,
-  budgetMs: number
-): SuiteCoverage {
+export function coverage(lifetime: CredentialLifetime, nowMs: number, budgetMs: number): SuiteCoverage {
   if (lifetime.expiresAtMs === null) {
     return {
       covered: true,

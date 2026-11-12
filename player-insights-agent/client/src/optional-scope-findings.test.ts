@@ -125,11 +125,7 @@ describe('the split the panel is drawn from', () => {
   });
 
   it('names each optional permission once, in the order it was met', () => {
-    expect(split.optional.scopes).toEqual([
-      'catalog.catalogs:read',
-      'catalog.schemas:read',
-      'catalog.tables:read',
-    ]);
+    expect(split.optional.scopes).toEqual(['catalog.catalogs:read', 'catalog.schemas:read', 'catalog.tables:read']);
     expect(split.optional.checks).toHaveLength(14);
   });
 

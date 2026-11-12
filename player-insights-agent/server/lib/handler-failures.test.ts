@@ -36,8 +36,7 @@ async function serve(register: (app: Application) => void) {
   const { port } = server.address() as AddressInfo;
   return {
     /** Bounded, because the failure being tested for is no answer rather than a wrong one. */
-    fetch: (path: string) =>
-      fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2_000) }),
+    fetch: (path: string) => fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2_000) }),
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }

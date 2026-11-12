@@ -29,14 +29,12 @@ describe('the ported prompts', () => {
   it('carries MLflow 3.14.0 groundedness instructions verbatim', () => {
     // Anchored on the sentences a reader could check against the Python source
     // rather than a hash, so a failure says which sentence moved.
-    expect(GROUNDEDNESS_PROMPT).toContain(
-      'You must determine whether claim is supported by the document.'
-    );
-    expect(GROUNDEDNESS_PROMPT).toContain(
-      'Do not focus on the correctness or completeness of the claim.'
-    );
+    expect(GROUNDEDNESS_PROMPT).toContain('You must determine whether claim is supported by the document.');
+    expect(GROUNDEDNESS_PROMPT).toContain('Do not focus on the correctness or completeness of the claim.');
     expect(GROUNDEDNESS_PROMPT).toContain('Do not make assumptions, approximations, or bring in external knowledge.');
-    expect(GROUNDEDNESS_PROMPT).toContain('<claim>\n  <question>{{input}}</question>\n  <answer>{{output}}</answer>\n</claim>');
+    expect(GROUNDEDNESS_PROMPT).toContain(
+      '<claim>\n  <question>{{input}}</question>\n  <answer>{{output}}</answer>\n</claim>'
+    );
     expect(GROUNDEDNESS_PROMPT).toContain('<document>{{retrieval_context}}</document>');
     expect(GROUNDEDNESS_PROMPT).toContain("Start each rationale with `Let's think step by step`");
     expect(GROUNDEDNESS_PROMPT).toContain('"result": "yes|no"');
@@ -58,8 +56,10 @@ describe('the ported prompts', () => {
     );
     expect(GUIDELINES_PROMPT).toContain('If any of the guidelines are not satisfied, the result must be "no".');
     // This sentence is why a guideline that does not bite yields yes rather
-        // than no, which matters for the refusal case.
-    expect(GUIDELINES_PROMPT).toContain('If none of the guidelines apply to the given inputs, the result must be "yes".');
+    // than no, which matters for the refusal case.
+    expect(GUIDELINES_PROMPT).toContain(
+      'If none of the guidelines apply to the given inputs, the result must be "yes".'
+    );
   });
 
   it('substitutes placeholders in one pass and does not re-expand substituted text', () => {
@@ -122,7 +122,16 @@ describe('response parsing, ported from MLflow', () => {
 
   it('reads the block-list content shape a reasoning model returns', () => {
     const content = extractJudgeContent({
-      choices: [{ message: { content: [{ type: 'reasoning', summary: [] }, { type: 'text', text: '{"result":"yes"}' }] } }],
+      choices: [
+        {
+          message: {
+            content: [
+              { type: 'reasoning', summary: [] },
+              { type: 'text', text: '{"result":"yes"}' },
+            ],
+          },
+        },
+      ],
     });
     expect(content).toBe('{"result":"yes"}');
   });
@@ -171,7 +180,11 @@ describe('invoking a judge', () => {
   });
 
   it('records the exact prompt version and provenance on every judgement', async () => {
-    const judgement = await runJudge(config(() => Promise.resolve(reply('yes'))), GROUNDEDNESS_FEEDBACK_NAME, 'p');
+    const judgement = await runJudge(
+      config(() => Promise.resolve(reply('yes'))),
+      GROUNDEDNESS_FEEDBACK_NAME,
+      'p'
+    );
     expect(judgement.state).toBe('scored');
     expect(judgement.value).toBe('yes');
     expect(judgement.promptVersion).toBe(MLFLOW_JUDGE_PROMPT_VERSION);
@@ -184,7 +197,11 @@ describe('invoking a judge', () => {
   });
 
   it('never describes itself as the managed Databricks judge', async () => {
-    const judgement = await runJudge(config(() => Promise.resolve(reply('yes'))), GROUNDEDNESS_FEEDBACK_NAME, 'p');
+    const judgement = await runJudge(
+      config(() => Promise.resolve(reply('yes'))),
+      GROUNDEDNESS_FEEDBACK_NAME,
+      'p'
+    );
     const wording = JSON.stringify(judgement).toLowerCase();
     expect(wording).not.toContain('managed judge');
     expect(wording).not.toContain('managed mlflow');

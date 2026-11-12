@@ -83,7 +83,8 @@ export function sessionFreshness(input: {
   declared: readonly string[] | null;
 }): SessionReport {
   if (!input.token) {
-    return undetermined('This request carried no forwarded sign-in, so there is nothing to compare against the ' +
+    return undetermined(
+      'This request carried no forwarded sign-in, so there is nothing to compare against the ' +
         'permissions this app asks for. Nothing about your sign-in was established either way.',
       false
     );
@@ -91,7 +92,8 @@ export function sessionFreshness(input: {
 
   const tokenScopes = scopesFromToken(input.token);
   if (!tokenScopes) {
-    return undetermined('The sign-in this request carried does not list its own permissions, so it cannot be ' +
+    return undetermined(
+      'The sign-in this request carried does not list its own permissions, so it cannot be ' +
         'compared against the ones this app asks for. Nothing about your sign-in was established.',
       // A sign-in DID reach this app. What could not be read is what it
       // carries, which is the next question down and not this one.
@@ -102,7 +104,8 @@ export function sessionFreshness(input: {
   const declared = input.declared?.filter(Boolean) ?? null;
   if (!declared || declared.length === 0) {
     return {
-      ...undetermined('This deployment was not told which permissions it asks for, so no sign-in can be ' +
+      ...undetermined(
+        'This deployment was not told which permissions it asks for, so no sign-in can be ' +
           'compared against them. Nothing about your sign-in was established.',
         true,
         `The token lists ${quoted(tokenScopes)}. ${DECLARED_SCOPES_VAR} is unset in this container.`

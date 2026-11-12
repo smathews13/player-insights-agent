@@ -25,9 +25,7 @@ describe('connected Genie spaces for accuracy', () => {
 
 describe('Benchmarking flywheel copy', () => {
   it('tells the eight-step story and starts from an empty add-row dataset', () => {
-    const markup = renderToStaticMarkup(
-      <EvalFlywheel onAgentRun={() => {}} agentRunning={false} agentError={null} />
-    );
+    const markup = renderToStaticMarkup(<EvalFlywheel onAgentRun={() => {}} agentRunning={false} agentError={null} />);
     expect(markup).toContain('Evaluation dataset');
     expect(markup).toContain('10 / 20 / 30');
     expect(markup).toContain('Phase A · Genie accuracy');

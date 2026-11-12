@@ -32,10 +32,7 @@ export interface Namespace {
  * again yields a five-part identifier, which is unusable rather than merely
  * wrong.
  */
-export function expectedManifestTables(
-  preflightSource: string,
-  namespace: Namespace
-): string[] | null {
+export function expectedManifestTables(preflightSource: string, namespace: Namespace): string[] | null {
   const data = literalTuple(preflightSource, 'DATA_GENIE_TABLES');
   const dictionary = literalTuple(preflightSource, 'DICTIONARY_GENIE_TABLES');
   if (data === null && dictionary === null) return null;

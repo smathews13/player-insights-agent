@@ -11,10 +11,7 @@
  * never reached. That decision is worth testing, and a decision buried in a
  * component's render is not testable without a browser.
  */
-import {
-  GIT_GRANT_COMMAND,
-  GRANT_SCRIPT_WHY,
-} from '../../shared/setup-remedies';
+import { GIT_GRANT_COMMAND, GRANT_SCRIPT_WHY } from '../../shared/setup-remedies';
 
 /** What `GET /api/storage` reports about the app's own Postgres store. */
 export interface StorageHealth {

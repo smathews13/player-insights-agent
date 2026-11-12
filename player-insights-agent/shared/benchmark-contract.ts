@@ -42,7 +42,8 @@ export function judgeBadgeLabel(judgeEndpoint: string): string {
  * would be heard as the managed service.
  */
 export function judgeDisclosure(judgeEndpoint: string): string {
-  return (`Scored by MLflow ${MLFLOW_JUDGE_PROMPT_VERSION.replace('mlflow-', '')}'s published judge ` +
+  return (
+    `Scored by MLflow ${MLFLOW_JUDGE_PROMPT_VERSION.replace('mlflow-', '')}'s published judge ` +
     `prompts, run against the ${judgeEndpoint} serving endpoint through the same transport the ` +
     `app uses to call the agent. This is not the Databricks managed judge service: the prompts ` +
     `and the yes/no parsing are MLflow's, the model answering them is ${judgeEndpoint}.`
@@ -66,7 +67,8 @@ export const GROUNDEDNESS_BASIS =
  * the data carries its own attribution.
  */
 export function judgeProvenance(judgeName: string, judgeEndpoint: string): string {
-  return (`MLflow ${MLFLOW_JUDGE_PROMPT_VERSION.replace('mlflow-', '')} ${judgeName} prompt, ` +
+  return (
+    `MLflow ${MLFLOW_JUDGE_PROMPT_VERSION.replace('mlflow-', '')} ${judgeName} prompt, ` +
     `run against databricks:/${judgeEndpoint}`
   );
 }

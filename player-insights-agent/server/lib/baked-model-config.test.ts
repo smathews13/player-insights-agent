@@ -127,11 +127,7 @@ describe('reading model_config out of an MLmodel document', () => {
   });
 
   it('reads the exact user-auth scopes that determine managed Genie compatibility', () => {
-    expect(userAuthScopesFromModelDocument(MLMODEL + MCP_AUTH_POLICY)).toEqual([
-      'dashboards.genie',
-      'genie',
-      'sql',
-    ]);
+    expect(userAuthScopesFromModelDocument(MLMODEL + MCP_AUTH_POLICY)).toEqual(['dashboards.genie', 'genie', 'sql']);
     expect(userAuthScopesFromModelDocument(MLMODEL)).toEqual([]);
   });
 

@@ -91,9 +91,7 @@ describe('the trailing-31-day cost brief route', () => {
     const fetchImpl = vi.fn((input: string | URL | globalThis.Request, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       if (url.endsWith('/preview/scim/v2/Me')) {
-        return Promise.resolve(
-          new Response('{}', { status: 200, headers: { 'x-databricks-org-id': 'workspace-1' } })
-        );
+        return Promise.resolve(new Response('{}', { status: 200, headers: { 'x-databricks-org-id': 'workspace-1' } }));
       }
       statementBodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>);
       return Promise.resolve(

@@ -16,12 +16,7 @@ import {
  * layers has to be done deliberately in two places instead of quietly
  * reclassifying a denial as an outage in one.
  */
-const REFUSALS: FailureCode[] = [
-  'IDENTITY_REQUIRED',
-  'IDENTITY_MISMATCH',
-  'USER_AUTH_REJECTED',
-  'USER_NOT_AUTHORIZED',
-];
+const REFUSALS: FailureCode[] = ['IDENTITY_REQUIRED', 'IDENTITY_MISMATCH', 'USER_AUTH_REJECTED', 'USER_NOT_AUTHORIZED'];
 
 describe('the taxonomy is complete', () => {
   it('defines every code it declares, under its own name', () => {
@@ -102,9 +97,7 @@ describe('what a refused reader is told', () => {
   });
 
   it('names the thing a denied reader can act on, without naming what they could not reach', () => {
-    expect(FAILURE_TAXONOMY.USER_NOT_AUTHORIZED.uiMessage).toContain(
-      'data products required by this question'
-    );
+    expect(FAILURE_TAXONOMY.USER_NOT_AUTHORIZED.uiMessage).toContain('data products required by this question');
   });
 
   /**

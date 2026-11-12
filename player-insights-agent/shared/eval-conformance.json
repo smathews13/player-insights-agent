@@ -39,7 +39,13 @@
           "figures": [{ "label": "Revenue", "display": "$1", "comparison": "up" }],
           "sources": [{ "name": "cat.sch.silver_purchases", "freshness": "today", "role": "measure" }],
           "caveats": [],
-          "trace": { "totalMs": 4200, "toolCalls": 3, "stages": [], "genie_spaces": [{ "id": "s1" }], "total_tokens": 900 }
+          "trace": {
+            "totalMs": 4200,
+            "toolCalls": 3,
+            "stages": [],
+            "genie_spaces": [{ "id": "s1" }],
+            "total_tokens": 900
+          }
         },
         "execution_identity": { "mode": "signed_in_user", "verified": true },
         "semantic_layer_tables": ["cat.sch.silver_purchases"]

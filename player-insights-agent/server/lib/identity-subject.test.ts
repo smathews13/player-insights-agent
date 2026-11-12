@@ -22,11 +22,7 @@ const NOW = 1_800_000_000;
  */
 function jwt(claims: Record<string, unknown>): string {
   const encode = (value: unknown) =>
-    Buffer.from(JSON.stringify(value))
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    Buffer.from(JSON.stringify(value)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode(claims)}.not-a-signature`;
 }
 
@@ -63,9 +59,7 @@ describe('reading a token', () => {
   });
 
   it('ignores a subject claim that is present and empty', () => {
-    expect(tokenSubjects(jwt({ sub: '   ', email: 'alice@acme.example' }))).toEqual([
-      'alice@acme.example',
-    ]);
+    expect(tokenSubjects(jwt({ sub: '   ', email: 'alice@acme.example' }))).toEqual(['alice@acme.example']);
   });
 });
 
@@ -106,11 +100,7 @@ describe('binding a token to the signed-in user', () => {
    * credential belongs to another. Refused rather than run as either.
    */
   it('refuses a token issued to somebody else', () => {
-    const binding = bindTokenToUser(
-      userToken({ sub: 'bob@acme.example' }),
-      'alice@acme.example',
-      { now: NOW }
-    );
+    const binding = bindTokenToUser(userToken({ sub: 'bob@acme.example' }), 'alice@acme.example', { now: NOW });
     expect(binding).toEqual({ kind: 'mismatch', subject: 'bob@acme.example' });
     expect(isVerified(binding)).toBe(false);
     expect(bindingFailure(binding)).toBe('IDENTITY_MISMATCH');
@@ -191,11 +181,7 @@ describe('a subject that cannot be compared is unproven, not wrong', () => {
 
 describe('what gets written down', () => {
   it('names both addresses on a mismatch, which is the whole finding', () => {
-    const binding = bindTokenToUser(
-      userToken({ sub: 'bob@acme.example' }),
-      'alice@acme.example',
-      { now: NOW }
-    );
+    const binding = bindTokenToUser(userToken({ sub: 'bob@acme.example' }), 'alice@acme.example', { now: NOW });
     const line = describeBinding(binding, 'alice@acme.example');
     expect(line).toContain('alice@acme.example');
     expect(line).toContain('bob@acme.example');

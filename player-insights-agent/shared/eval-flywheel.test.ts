@@ -41,8 +41,24 @@ describe('warehouse and timeout misses', () => {
 
 describe('baseline vs candidate', () => {
   it('picks the higher pass rate and says so in one line', () => {
-    const baseline = { side: 'current', runId: 'a', passed: 6, total: 10, groundedness: 0.6, relevance: 0.6, guidelines: 0.6 };
-    const candidate = { side: 'other-agent', runId: 'b', passed: 9, total: 10, groundedness: 0.9, relevance: 0.9, guidelines: 0.9 };
+    const baseline = {
+      side: 'current',
+      runId: 'a',
+      passed: 6,
+      total: 10,
+      groundedness: 0.6,
+      relevance: 0.6,
+      guidelines: 0.6,
+    };
+    const candidate = {
+      side: 'other-agent',
+      runId: 'b',
+      passed: 9,
+      total: 10,
+      groundedness: 0.9,
+      relevance: 0.9,
+      guidelines: 0.9,
+    };
     expect(pickWinner(baseline, candidate)).toBe('candidate');
     expect(compareSidesSummary(baseline, candidate)).toContain('6/10');
     expect(compareSidesSummary(baseline, candidate)).toContain('9/10');

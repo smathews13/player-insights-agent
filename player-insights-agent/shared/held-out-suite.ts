@@ -107,8 +107,7 @@ export const HELD_OUT_FROM =
  * strength: the failure mode being guarded against is a good-looking correctness
  * rate read as evidence.
  */
-export const LABELS_UNREVIEWED_HEADLINE =
-  'These labels have not been reviewed by anyone who knows this data.';
+export const LABELS_UNREVIEWED_HEADLINE = 'These labels have not been reviewed by anyone who knows this data.';
 
 export const LABELS_UNREVIEWED_CONSEQUENCE =
   'An agent wrote them by reading this repository. A high correctness rate here means the answers agree with ' +
@@ -233,7 +232,7 @@ export const HELD_OUT_CASES: readonly HeldOutCase[] = [
     },
     labelSource: 'data-query',
     verification:
-      "SELECT column_name, business_definition, usage_guardrail FROM data_dictionary WHERE table_name = " +
+      'SELECT column_name, business_definition, usage_guardrail FROM data_dictionary WHERE table_name = ' +
       "'silver_purchases' AND column_name IN ('list_price_usd','net_bookings_usd') -- the dictionary settles it: " +
       'list_price_usd is gross and is explicitly "not revenue", net_bookings_usd is the net measure.',
   },

@@ -32,7 +32,8 @@ export interface UnavailablePanelProps {
 }
 
 export function UnavailablePanel({ notice, onRetry }: UnavailablePanelProps) {
-  return (<Alert
+  return (
+    <Alert
       variant="destructive"
       /*
        * A card rather than a strip, which is what `alerts.css` does with this class.
@@ -68,7 +69,8 @@ export function UnavailablePanel({ notice, onRetry }: UnavailablePanelProps) {
             still recognisably an error string with stylesheets off, which is how
             it will be read if this panel is ever copied into an email. */}
         {notice.error ? <code className="unavailable-error">{notice.error}</code> : null}
-        {notice.stage || notice.identity ? (<span className="unavailable-context">
+        {notice.stage || notice.identity ? (
+          <span className="unavailable-context">
             {notice.stage ? <span>{notice.stage}</span> : null}
             {notice.identity ? <span>{notice.identity}</span> : null}
           </span>
@@ -76,7 +78,8 @@ export function UnavailablePanel({ notice, onRetry }: UnavailablePanelProps) {
         <span className="unavailable-detail">
           {notice.retryAdvice ? `${notice.consequence} ${notice.retryAdvice}` : notice.consequence}
         </span>
-        {notice.lastVerified || notice.correlation ? (<span className="unavailable-meta">
+        {notice.lastVerified || notice.correlation ? (
+          <span className="unavailable-meta">
             {notice.lastVerified ? <span>{notice.lastVerified}</span> : null}
             {/* Monospace and selectable, because its only job is to be read aloud
                 down a phone or pasted into a ticket. */}

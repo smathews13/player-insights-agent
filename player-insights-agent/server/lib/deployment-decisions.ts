@@ -83,7 +83,7 @@ export function deploymentDecisionsDdl(table: string): string {
 export async function readDeploymentDecision(
   store: DecisionStore,
   table: string,
-  decision: string,
+  decision: string
 ): Promise<string | null> {
   try {
     const result = await store.query(`SELECT value FROM ${table} WHERE decision = $1`, [decision]);
@@ -163,7 +163,7 @@ export async function recordDeploymentDecision(
   table: string,
   decision: string,
   value: string,
-  recordedBy: string,
+  recordedBy: string
 ): Promise<boolean> {
   try {
     await store.query(
@@ -171,7 +171,7 @@ export async function recordDeploymentDecision(
        VALUES ($1, $2, $3, now())
        ON CONFLICT (decision) DO UPDATE SET
          value = EXCLUDED.value, recorded_by = EXCLUDED.recorded_by, recorded_at = now()`,
-      [decision, value, recordedBy],
+      [decision, value, recordedBy]
     );
     return true;
   } catch {

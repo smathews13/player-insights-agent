@@ -61,7 +61,10 @@ const options: ObserveOptions = {
   servingEndpoint: arg('endpoint'),
   catalog: arg('catalog'),
   schema: arg('schema'),
-  authoredScopes: arg('scopes').split(',').map((scope) => scope.trim()).filter(Boolean),
+  authoredScopes: arg('scopes')
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean),
   declaredIdentity: arg('declared-identity'),
   repoRoot: REPO_ROOT,
   appDir: APP_DIR,

@@ -249,7 +249,8 @@ describe('declaredColumns', () => {
 describe('mentionedIdentifiers', () => {
   it('takes the identifiers a caveat names in passing', () => {
     expect(mentionedIdentifiers(['active_players is not additive across labels.'])).toEqual(['active_players']);
-    expect(mentionedIdentifiers(['The field launch_campaign_sessions is not documented in the data dictionary.'])
+    expect(
+      mentionedIdentifiers(['The field launch_campaign_sessions is not documented in the data dictionary.'])
     ).toEqual(['launch_campaign_sessions']);
   });
 
@@ -315,7 +316,8 @@ describe('an identifier with nowhere to send the reader', () => {
   });
 
   it('marks no ordinary word, in prose that is mostly ordinary words', () => {
-    const prose = 'Aggregate the daily summary by title over the window, then compare the active players to last month.';
+    const prose =
+      'Aggregate the daily summary by title over the window, then compare the active players to last month.';
     const segments = linkifyEntities(prose, [DAILY], tracked, ['active_players', 'event_date']);
     expect(links(segments)).toEqual([]);
     expect(bolded(segments)).toEqual([]);

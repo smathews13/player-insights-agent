@@ -279,8 +279,7 @@ export async function classifyTables(
       return notChecked(table, 'Not checked. The catalog did not answer about this table.');
     }
     const columns = columnsFrom(entry);
-    const state: ClassificationState =
-      columns.length > 0 || entry.rowFilter ? 'classified' : 'not-classified';
+    const state: ClassificationState = columns.length > 0 || entry.rowFilter ? 'classified' : 'not-classified';
     return { table, state, columns, rowFilter: entry.rowFilter, notChecked: '' };
   });
 

@@ -49,14 +49,12 @@ describe('reading a refusal the endpoint returned inside a 200', () => {
     });
   });
 
-  it.each([
-    'IDENTITY_REQUIRED',
-    'IDENTITY_MISMATCH',
-    'USER_AUTH_REJECTED',
-    'USER_NOT_AUTHORIZED',
-  ] as const)('reads %s, which are the codes the identity gate emits', (code) => {
-    expect(readAgentRefusal(refusal({ code }), CONTEXT)?.code).toBe(code);
-  });
+  it.each(['IDENTITY_REQUIRED', 'IDENTITY_MISMATCH', 'USER_AUTH_REJECTED', 'USER_NOT_AUTHORIZED'] as const)(
+    'reads %s, which are the codes the identity gate emits',
+    (code) => {
+      expect(readAgentRefusal(refusal({ code }), CONTEXT)?.code).toBe(code);
+    }
+  );
 
   it('keeps the sentence the agent wrote, which is the layer that knows what fired', () => {
     const result = readAgentRefusal(
@@ -123,18 +121,13 @@ describe('what the refusal claims about who was executing', () => {
     ['a missing field', undefined],
     ['null', null],
   ])('does not let %s count as a verified identity', (_label, verified) => {
-    const result = readAgentRefusal(
-      refusal({ execution_identity: { mode: 'signed_in_user', verified } }),
-      CONTEXT
-    );
+    const result = readAgentRefusal(refusal({ execution_identity: { mode: 'signed_in_user', verified } }), CONTEXT);
     expect(result?.execution_identity?.verified).toBe(false);
   });
 
   it('claims no identity at all when the agent named none', () => {
-    expect(readAgentRefusal(refusal({ execution_identity: undefined }), CONTEXT)?.execution_identity)
-      .toBeUndefined();
-    expect(readAgentRefusal(refusal({ execution_identity: 'nope' }), CONTEXT)?.execution_identity)
-      .toBeUndefined();
+    expect(readAgentRefusal(refusal({ execution_identity: undefined }), CONTEXT)?.execution_identity).toBeUndefined();
+    expect(readAgentRefusal(refusal({ execution_identity: 'nope' }), CONTEXT)?.execution_identity).toBeUndefined();
   });
 
   /**
@@ -208,10 +201,7 @@ describe('telling a refusal apart from an answer', () => {
   it('reads the machine-readable half, not the sentence that fooled the prose branch', () => {
     const withProse = readAgentRefusal(refusal(), CONTEXT);
     expect(withProse?.code).toBe('IDENTITY_MISMATCH');
-    const withoutProse = readAgentRefusal(
-      { custom_outputs: refusal().custom_outputs },
-      CONTEXT
-    );
+    const withoutProse = readAgentRefusal({ custom_outputs: refusal().custom_outputs }, CONTEXT);
     expect(withoutProse?.code).toBe('IDENTITY_MISMATCH');
   });
 

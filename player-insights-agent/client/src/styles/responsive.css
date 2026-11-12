@@ -104,15 +104,11 @@
   .page-shell {
     gap: 20px;
     padding-block: 32px calc(48px + env(safe-area-inset-bottom, 0px));
-    padding-inline:
-      max(16px, env(safe-area-inset-left, 0px))
-      max(16px, env(safe-area-inset-right, 0px));
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
   }
   .storage-banner,
   .role-lost-notice {
-    padding-inline:
-      max(16px, env(safe-area-inset-left, 0px))
-      max(16px, env(safe-area-inset-right, 0px));
+    padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
   }
   .ask-layout {
     display: block;
@@ -121,10 +117,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 16px
-      max(16px, env(safe-area-inset-right, 0px))
-      0
-      max(16px, env(safe-area-inset-left, 0px));
+    padding: 16px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
   }
   /*
    * The rail goes, and the button that opens it as a sheet appears in its place.
@@ -243,10 +236,7 @@
     height: auto;
     min-height: 0;
     max-height: none;
-    padding: 24px
-      max(16px, env(safe-area-inset-right, 0px))
-      0
-      max(16px, env(safe-area-inset-left, 0px));
+    padding: 24px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
     overflow: visible;
     scrollbar-gutter: auto;
   }

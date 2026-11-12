@@ -34,7 +34,9 @@ describe('benchmark settings contract', () => {
   });
 
   it('refuses an invented eval set', () => {
-    expect(() => BenchmarkSettingsSchema.parse({ ...DEFAULT_BENCHMARK_SETTINGS, evalSetId: 'customer-data' })).toThrow();
+    expect(() =>
+      BenchmarkSettingsSchema.parse({ ...DEFAULT_BENCHMARK_SETTINGS, evalSetId: 'customer-data' })
+    ).toThrow();
   });
 
   it('treats a blank or matching side B as a single run', () => {

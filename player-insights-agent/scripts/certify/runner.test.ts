@@ -117,9 +117,7 @@ function passthroughRelease(): Observations {
 describe('the identity contract, end to end', () => {
   it('accepts a whole passthrough release, which is what every target does today', () => {
     const observations = passthroughRelease();
-    const results = new Map(
-      runChecks(observations, observedTuple(observations)).map((r) => [r.code, r])
-    );
+    const results = new Map(runChecks(observations, observedTuple(observations)).map((r) => [r.code, r]));
     expect(results.get('EXECUTION_IDENTITY_AS_DECLARED')?.status).toBe('pass');
     expect(results.get('IDENTITY_CONTRACT_PAIRED')?.status).toBe('pass');
   });
@@ -141,9 +139,7 @@ describe('the identity contract, end to end', () => {
     half.appIdentityMode = false;
     const certificate = certify({ observations: half, attestations: [], mode: 'shadow' });
     expect(certificate.status).toBe('FAIL');
-    expect(certificate.checks.find((c) => c.code === 'IDENTITY_CONTRACT_PAIRED')?.status).toBe(
-      'fail'
-    );
+    expect(certificate.checks.find((c) => c.code === 'IDENTITY_CONTRACT_PAIRED')?.status).toBe('fail');
   });
 });
 
@@ -156,9 +152,7 @@ describe('runChecks', () => {
 
   it('reports the checks with no probe honestly rather than omitting them', () => {
     const observations = healthy();
-    const byCode = new Map(
-      runChecks(observations, observedTuple(observations)).map((r) => [r.code, r])
-    );
+    const byCode = new Map(runChecks(observations, observedTuple(observations)).map((r) => [r.code, r]));
     expect(byCode.get('OAUTH_SCOPE_CONSENT_PROVEN')?.status).toBe('unverifiable');
     expect(byCode.get('CLIENT_RENDERS_UNAVAILABLE')?.status).toBe('unverifiable');
     expect(byCode.get('SIGNED_USER_ASK_CANARY')?.status).toBe('unknown');
@@ -236,9 +230,7 @@ describe('renderReport', () => {
   it('keeps an advisory failure out of the findings that decide the verdict', () => {
     const drifted = healthy();
     drifted.settings!.appBuildSha = 'b'.repeat(40);
-    const report = renderReport(
-      certify({ observations: drifted, attestations: [], mode: 'shadow' })
-    );
+    const report = renderReport(certify({ observations: drifted, attestations: [], mode: 'shadow' }));
     expect(report).not.toContain('==> Findings');
     expect(report).toContain('Advisory, and never a gate');
     expect(report).toContain('APP_MODEL_BUILD_MATCH');
@@ -267,9 +259,7 @@ describe('expectedManifestTables', () => {
 
   it('leaves an already-qualified name alone rather than making a five-part name', () => {
     const qualified = 'DATA_GENIE_TABLES = (\n    "other.place.t",\n)';
-    expect(expectedManifestTables(qualified, { catalog: 'cat', schema: 'sch' })).toEqual([
-      'other.place.t',
-    ]);
+    expect(expectedManifestTables(qualified, { catalog: 'cat', schema: 'sch' })).toEqual(['other.place.t']);
   });
 
   it('returns null when neither tuple is there, rather than an empty expectation', () => {

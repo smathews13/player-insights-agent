@@ -55,6 +55,46 @@ describe('versioned runtime and Appearance settings persistence', () => {
     ).resolves.toMatchObject({ settings: userOverride, revision: 2, source: 'override', canReset: true });
   });
 
+  it('takes only Appearance from a user override, and everything else from the deployment row', async () => {
+    const deploymentDefault = {
+      ...DEFAULT_RUNTIME_SETTINGS,
+      colorScheme: 'dark' as const,
+      loop: { ...DEFAULT_RUNTIME_SETTINGS.loop, maxSteps: 12 },
+      answer: { ...DEFAULT_RUNTIME_SETTINGS.answer, caveatsFirst: false, maxCaveats: 7 },
+    };
+    // Snapshot from before the admin turned "Above charts" off: no caveatsFirst key at all.
+    const { caveatsFirst: _caveatsFirst, ...staleAnswer } = DEFAULT_RUNTIME_SETTINGS.answer;
+    const userOverride = { ...DEFAULT_RUNTIME_SETTINGS, answer: staleAnswer, colorScheme: 'light' as const };
+    const rows = (key: unknown) =>
+      key === 'effective'
+        ? [{ settings: deploymentDefault, revision: 3 }]
+        : key === 'user:reader@example.com'
+          ? [{ settings: userOverride, revision: 2 }]
+          : [];
+    const query = vi.fn((sql: string, values: unknown[] = []) => {
+      if (sql.trim().startsWith('SELECT')) return Promise.resolve({ rows: rows(values[0]) });
+      if (sql.trim().startsWith('UPDATE')) {
+        return Promise.resolve({ rows: [{ settings: JSON.parse(String(values[1])) as unknown, revision: 3 }] });
+      }
+      return Promise.reject(new Error(`Unexpected SQL: ${sql}`));
+    });
+
+    const read = await readResolvedRuntimeSettings({ lakebase: { query } } as never, 'reader@example.com');
+    expect(read.settings.colorScheme).toBe('light');
+    expect(read.settings.answer).toEqual(deploymentDefault.answer);
+    expect(read.settings.loop).toEqual(deploymentDefault.loop);
+
+    const saved = await writeUserRuntimeSettingsPatch(
+      { lakebase: { query } } as never,
+      'reader@example.com',
+      { density: 'comfortable' },
+      2
+    );
+    expect(saved.settings.density).toBe('comfortable');
+    expect(saved.settings.colorScheme).toBe('light');
+    expect(saved.settings.answer.caveatsFirst).toBe(false);
+  });
+
   it('gives The owner the deployment default and never reads a user override', async () => {
     const query = vi.fn((_sql: string, values: unknown[] = []) =>
       Promise.resolve({

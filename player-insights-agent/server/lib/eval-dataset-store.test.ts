@@ -3,12 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { APP_SCHEMA } from '../../shared/app-schema';
 import { EMPTY_EVAL_DATASET } from '../../shared/eval-dataset';
-import {
-  EVAL_DATASET_TABLE,
-  forgetEvalDataset,
-  readEvalDataset,
-  writeEvalDataset,
-} from './eval-dataset-store';
+import { EVAL_DATASET_TABLE, forgetEvalDataset, readEvalDataset, writeEvalDataset } from './eval-dataset-store';
 
 function client(rows: Record<string, unknown>[] = []) {
   const calls: { sql: string; values?: unknown[] }[] = [];
@@ -66,7 +61,13 @@ describe('evaluation dataset persistence', () => {
   it('reads a legacy JSON array and an envelope with a last Genie run', async () => {
     forgetEvalDataset();
     const legacy = await readEvalDataset(
-      client([{ rows: [{ id: 'q-1', question: 'How many?', groundTruthSql: '', expectedAnswer: '', sqlCorrect: '', thumbs: '' }] }]) as never,
+      client([
+        {
+          rows: [
+            { id: 'q-1', question: 'How many?', groundTruthSql: '', expectedAnswer: '', sqlCorrect: '', thumbs: '' },
+          ],
+        },
+      ]) as never,
       { maxAgeMs: 0 }
     );
     expect(legacy.rows[0]?.question).toBe('How many?');

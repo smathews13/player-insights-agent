@@ -12,7 +12,7 @@ export function notebookPathView(panel: NotebookPanel): {
 
 export async function persistNotebookPath(
   path: string,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: typeof fetch = fetch
 ): Promise<{ ok: true; path: string } | { ok: false; detail: string }> {
   try {
     const response = await fetchImpl('/api/settings/notebook-path', {

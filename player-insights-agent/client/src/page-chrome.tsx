@@ -35,7 +35,8 @@ export function Disclosure({
   className?: string;
   children: React.ReactNode;
 }) {
-  return (<details className={`copy-disclosure ${className ?? ''}`}>
+  return (
+    <details className={`copy-disclosure ${className ?? ''}`}>
       <summary>{summary}</summary>
       {children}
     </details>
@@ -52,7 +53,8 @@ export function Disclosure({
  * a chip or a timestamp, which is data and survives being read twice.
  */
 export function PageHeading({ title, actions }: { title: string; actions?: React.ReactNode }) {
-  return (<div className="page-heading">
+  return (
+    <div className="page-heading">
       <div>
         <h2>{title}</h2>
       </div>

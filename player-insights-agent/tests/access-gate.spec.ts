@@ -124,18 +124,15 @@ test('offers all three ways in before letting anyone in', async ({ page }) => {
  * what a person actually reads first: a screen whose recommended action is the
  * one that establishes nothing is the thing this inversion exists to stop.
  */
-test('leads with checking your own access, and offers the service principal as the fallback', async ({
-  page,
-}) => {
+test('leads with checking your own access, and offers the service principal as the fallback', async ({ page }) => {
   await identity(page);
   await page.goto('/');
 
-  await expect(page.getByRole('button', { name: /Verify my access first/ })).toHaveClass(/access-gate-primary/
+  await expect(page.getByRole('button', { name: /Verify my access first/ })).toHaveClass(/access-gate-primary/);
+  await expect(page.getByRole('button', { name: /^Proceed as the service principal/ })).not.toHaveClass(
+    /access-gate-primary/
   );
-  await expect(page.getByRole('button', { name: /^Proceed as the service principal/ })).not.toHaveClass(/access-gate-primary/
-  );
-  await expect(page.getByRole('button', { name: /^Proceed as the service principal/ })).toContainText('The fallback'
-  );
+  await expect(page.getByRole('button', { name: /^Proceed as the service principal/ })).toContainText('The fallback');
 });
 
 /**
@@ -169,7 +166,8 @@ test('proceeding records the mode and lets them straight in', async ({ page }) =
         decision: {
           mode: 'service-principal',
           decidedAt: '2026-08-05T21:46:15.146Z',
-          detail: 'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
+          detail:
+            'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
         },
         servingPrincipal: SERVING,
       },
@@ -197,7 +195,8 @@ test('a decision made in this session leaves no standing strip behind it', async
     accessDecision: {
       mode: 'service-principal',
       decidedAt: '2026-08-05T21:46:15.146Z',
-      detail: 'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
+      detail:
+        'The user chose service-principal mode at the gate: own access was not verified. Who runs questions is set by the deployment, not by this choice.',
     },
   });
 
@@ -219,7 +218,8 @@ test('a user-verified decision does not leave a standing status badge', async ({
     accessDecision: {
       mode: 'user-verified',
       decidedAt: '2026-08-05T21:46:15.146Z',
-      detail: 'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
+      detail:
+        'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
     },
   });
 
@@ -281,7 +281,8 @@ test('a passing verification admits them with the boundary spelled out, not hidd
         decision: {
           mode: 'user-verified',
           decidedAt: '2026-08-05T21:46:15.146Z',
-          detail: 'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
+          detail:
+            'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
         },
         servingPrincipal: SERVING,
       },
@@ -304,7 +305,8 @@ test('a decision already on the server does not ask again', async ({ page }) => 
     accessDecision: {
       mode: 'user-verified',
       decidedAt: '2026-08-05T21:46:15.146Z',
-      detail: 'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
+      detail:
+        'Verified you hold SELECT on 10 tables under your own token. CAN RUN confirmed on 2 of 2 Genie spaces under the same token. Row-level filters and column masks were not checked and are not covered by this.',
     },
   });
 
@@ -505,8 +507,7 @@ test('a failed check promotes the working alternative instead of dead-ending', a
   // failed for a missing grant is not what this reader should be pushed towards.
   const fallback = page.getByRole('button', { name: /^Proceed as the service principal/ });
   await expect(fallback).toHaveClass(/access-gate-primary/);
-  await expect(page.getByRole('button', { name: /Check my access again/ })).not.toHaveClass(/access-gate-primary/
-  );
+  await expect(page.getByRole('button', { name: /Check my access again/ })).not.toHaveClass(/access-gate-primary/);
 
   await page.screenshot({ path: 'test-results/access-gate-fallback.png', fullPage: true });
 });
@@ -555,9 +556,7 @@ test('a rejected token is not reported as a missing grant', async ({ page }) => 
  * permission and not an outage. Reported as either, somebody restarts a
  * healthy warehouse or grants a permission on an object that cannot hold one.
  */
-test('a warehouse id that does not resolve is reported as configuration, not as an outage', async ({
-  page,
-}) => {
+test('a warehouse id that does not resolve is reported as configuration, not as an outage', async ({ page }) => {
   await identity(page);
   await verification(page, 403, {
     verified: false,

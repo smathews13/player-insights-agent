@@ -8,10 +8,7 @@ import type { WorkspaceMonitor } from '../../shared/eval-live-scoring';
  * them. A missing scope or empty list is reported, not dressed up as "on".
  */
 
-export const MLFLOW_SCORER_LIST_PATHS = [
-  '/api/2.0/mlflow/genai/scorers/list',
-  '/api/2.0/mlflow/scorers/list',
-] as const;
+export const MLFLOW_SCORER_LIST_PATHS = ['/api/2.0/mlflow/genai/scorers/list', '/api/2.0/mlflow/scorers/list'] as const;
 
 export interface MonitorWorkspaceClient {
   apiClient: {
@@ -41,10 +38,7 @@ export function parseScorerNames(body: unknown): string[] {
 
 export function workspaceMonitorFromError(error: unknown): WorkspaceMonitor {
   const message = error instanceof Error ? error.message : String(error);
-  const blocked =
-    /403|401|PERMISSION|scope|UNAUTHORIZED|not found|404|does not exist|INVALID_PARAMETER/i.test(
-      message
-    );
+  const blocked = /403|401|PERMISSION|scope|UNAUTHORIZED|not found|404|does not exist|INVALID_PARAMETER/i.test(message);
   return {
     status: blocked ? 'blocked' : 'unknown',
     note: blocked
