@@ -2551,8 +2551,8 @@ def genie_access_denial(error: Exception, space_id: str, identity: str = "") -> 
         f"here came from another surface. Under user authorization Genie runs as the caller: share "
         f"the space at CAN RUN with {whose} (the people who use the app), NOT the serving endpoint "
         f"principal. Use the CLI: `databricks permissions update genie {space_id} --json`. "
-        "Redeploying will not fix it. Callers also need CAN USE on the warehouse "
-        "and SELECT on the tables."
+        "Redeploying will not fix it. Callers also need CAN USE on the warehouse, "
+        "and SELECT on the tables with USE CATALOG and USE SCHEMA on their parents."
     )[:600]
 
 

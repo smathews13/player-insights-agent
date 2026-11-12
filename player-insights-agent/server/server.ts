@@ -3,7 +3,6 @@ import { lakebasePoolSettings } from './lib/lakebase-pool';
 import { preserveOwnedAppSchema } from './lib/app-schema-bootstrap';
 import { recordReleaseEnvironment, restoreReleaseEnvironment } from './lib/release-environment';
 import { recordIdentityCarryover, restoreIdentityCarryover } from './lib/identity-carryover';
-import { applyLegacyPreferenceDefaultOwner } from './lib/preference-default-owner';
 import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
 import { readMlflowTokenEvidence } from './lib/mlflow-token-evidence';
@@ -63,7 +62,6 @@ createApp({
         `[identity-config] Deploy from Git restored ${restoredIdentityValues} identity values from the app-owned store.`
       );
     }
-    applyLegacyPreferenceDefaultOwner();
     const [
       { setupInsightsRoutes, MIGRATIONS },
       { setupSettingsRoutes },

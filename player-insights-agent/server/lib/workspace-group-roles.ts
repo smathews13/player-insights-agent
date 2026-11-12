@@ -1,6 +1,8 @@
 import type { Role } from '../../shared/user-roster-contract';
 import type { AdminStore } from './admin-identity';
 import { SCIM_USERS_PATH, workspaceControlPlaneReader, type ControlPlaneReader } from './control-plane-identity';
+
+const SCIM_SERVICE_PRINCIPALS_PATH = '/api/2.0/preview/scim/v2/ServicePrincipals';
 import { readGroupRoleMappings } from './group-role-mappings';
 import { ExpiringLruCache } from './expiring-lru';
 
@@ -101,13 +103,21 @@ export function forgetWorkspaceGroupMemberships(): void {
   memberships.clear();
 }
 
+// A service principal signs in as its application ID and is listed under
+// ServicePrincipals, not Users.
+const APPLICATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 async function workspaceGroupsFor(caller: string, reader: ControlPlaneReader): Promise<ReadonlySet<string>> {
   const cached = memberships.get(caller);
   if (cached) return cached;
-  const body = await reader(SCIM_USERS_PATH, { filter: `userName eq ${scimFilterLiteral(caller)}` });
+  const servicePrincipal = APPLICATION_ID_PATTERN.test(caller);
+  const body = servicePrincipal
+    ? await reader(SCIM_SERVICE_PRINCIPALS_PATH, { filter: `applicationId eq ${scimFilterLiteral(caller)}` })
+    : await reader(SCIM_USERS_PATH, { filter: `userName eq ${scimFilterLiteral(caller)}` });
   const resources = record(body).Resources;
+  const key = servicePrincipal ? 'applicationId' : 'userName';
   const user = Array.isArray(resources)
-    ? resources.map(record).find((candidate) => normalized(candidate.userName) === caller)
+    ? resources.map(record).find((candidate) => normalized(candidate[key]) === caller)
     : null;
   const groups = Array.isArray(user?.groups)
     ? new Set(

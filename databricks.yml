@@ -208,16 +208,19 @@ variables:
   # sign in as Consumers; app-release.sh makes the admin group the in-app Admin
   # floor (PLAYER_INSIGHTS_ADMIN_GROUP). Keep their case: SCIM names are exact.
   # Super Admin and Executive stay explicit in-app assignments. An empty value
-  # drops that group everywhere.
+  # drops that group everywhere. The defaults are empty because this file is
+  # published: set your own groups in .databricks/bundle/<target>/
+  # variable-overrides.json. bundle/deploy.sh refuses a deploy that would drop a
+  # group the live App already grants.
   app_engineer_group:
     description: Workspace group granted App CAN_USE and the in-app Consumer role.
-    default: <engineer-group>
+    default: ""
   app_exec_group:
     description: Workspace group granted App CAN_USE and the in-app Consumer role.
-    default: <exec-group>
+    default: ""
   app_admin_group:
     description: Workspace group granted App CAN_USE and the in-app Admin role floor.
-    default: <admin-group>
+    default: ""
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to

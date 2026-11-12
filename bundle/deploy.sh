@@ -171,6 +171,35 @@ step "Ensuring the app-to-model signing key exists"
 TARGET="$TARGET" PROFILE="$PROFILE" PIA_BUNDLE_JSON_CACHE="$PIA_BUNDLE_JSON_CACHE" \
   bash "$SIGNING_KEY_HELPER" >/dev/null
 
+# The App's permissions block is authoritative, and the published access-group
+# defaults are empty. A deploy whose overrides do not name a group the live App
+# already grants would remove that group's sign-in, so refuse it before the CLI
+# gets the chance.
+load_access_groups
+APP_NAME="$(bundle_var app_name)"
+if LIVE_APP_ACL="$(databricks permissions get apps "$APP_NAME" --profile "$PROFILE" -o json 2>/dev/null)"; then
+  DROPPED_GROUPS="$(LIVE_APP_ACL="$LIVE_APP_ACL" python3 - ${ACCESS_GROUPS[@]+"${ACCESS_GROUPS[@]}"} <<'PY'
+import json, os, sys
+
+declared = {name.strip().lower() for name in sys.argv[1:]}
+dropped = []
+for entry in json.loads(os.environ["LIVE_APP_ACL"] or "{}").get("access_control_list") or []:
+    name = entry.get("group_name") or ""
+    direct = [p for p in entry.get("all_permissions") or [] if not p.get("inherited")]
+    if name and name.lower() not in declared and name != "admins" and direct:
+        dropped.append(name)
+print("\n".join(sorted(dropped)))
+PY
+  )"
+  if [[ -n "$DROPPED_GROUPS" && "${PLAYER_INSIGHTS_ALLOW_APP_GROUP_REMOVAL:-}" != true ]]; then
+    die "App '$APP_NAME' grants these groups today, and this deploy would remove them:
+$(printf '%s\n' "$DROPPED_GROUPS" | sed 's/^/  /')
+Name each in app_engineer_group, app_exec_group or app_admin_group in
+.databricks/bundle/$TARGET/variable-overrides.json and rerun. To remove them on
+purpose, set PLAYER_INSIGHTS_ALLOW_APP_GROUP_REMOVAL=true."
+  fi
+fi
+
 VECTOR_ENDPOINT="$(bundle_var_or_empty semantic_index_endpoint)"
 
 ARGS=(bundle deploy -t "$TARGET" --profile "$PROFILE")

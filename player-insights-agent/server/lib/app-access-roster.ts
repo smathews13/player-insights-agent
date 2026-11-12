@@ -113,7 +113,19 @@ export function alignRosterWithAppAccess(
     .map((email) => storedByEmail.get(email))
     .filter((entry): entry is RosterEntry => Boolean(entry))
     .map((entry) => ({ ...entry, appAccess: undefined, appAccessDetail: undefined }));
-  const entries = [...aclEntries, ...pinnedEntries];
+  // A stored administrator who is not on the App ACL still holds that role the
+  // moment they reach the app through a group, so the row must stay visible and
+  // removable. Stored Consumer rows grant nothing a group member lacks.
+  const shown = new Set([...listed, ...pinnedEntries.map((entry) => entry.email.toLowerCase())]);
+  const storedAdminEntries = payload.entries
+    .filter((entry) => entry.role !== 'consumer' && !shown.has(entry.email.toLowerCase()))
+    .map((entry) => ({
+      ...entry,
+      appAccess: 'missing' as const,
+      appAccessDetail:
+        'No direct grant on the Databricks App. This role still applies whenever they reach the app through a group.',
+    }));
+  const entries = [...aclEntries, ...pinnedEntries, ...storedAdminEntries];
   return {
     ...payload,
     entries,

@@ -430,7 +430,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('shows the deployment admin group as a locked admin row and refuses to remap it', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'Example_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
     try {
       const store = fakeLakebase();
@@ -474,9 +474,9 @@ describe('the super admin reads the roster', () => {
   });
 
   it('lists the deployment groups apart from the people, keeps the people, and locks the groups', async () => {
-    const admin = '<admin-group>';
-    const engineer = '<engineer-group>';
-    const exec = '<exec-group>';
+    const admin = 'Example_PIA_Admin';
+    const engineer = 'Example_PIA_Engineer';
+    const exec = 'Example_PIA_Exec';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = admin;
     process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = `${engineer},${exec}`;
     try {
@@ -512,7 +512,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('hides the workspace admins group, files the deployment groups under the customer, and expands them', async () => {
-    const engineer = '<engineer-group>';
+    const engineer = 'Example_PIA_Engineer';
     process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = engineer;
     process.env.PLAYER_INSIGHTS_SUPER_ADMINS = 'owner@customer.example';
     try {
@@ -579,7 +579,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('shows the deployment admin group even when it is not on the App ACL', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'Example_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;
     try {
       const app = await startApp(fakeLakebase());
@@ -593,7 +593,7 @@ describe('the super admin reads the roster', () => {
   });
 
   it('keeps a stale stored row for the deployment admin group visible and clearable', async () => {
-    const adminGroup = '<admin-group>';
+    const adminGroup = 'Example_PIA_Admin';
     const store = fakeLakebase();
     const principals = [
       ...[LEAD, DEPUTY].map((name) => ({

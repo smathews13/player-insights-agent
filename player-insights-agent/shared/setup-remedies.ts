@@ -67,7 +67,8 @@ export const GENIE_SHARE_REMEDY =
   'Share each Genie space with the people or groups who use the app, at CAN RUN. Under ' +
   'user authorization Genie runs as the signed-in caller, not the serving endpoint principal. ' +
   'Do it in the Databricks UI, or with `databricks permissions update genie <space_id> --json`. ' +
-  'The same callers also need CAN USE on the warehouse and SELECT on the curated tables. ' +
+  'The same callers also need CAN USE on the warehouse, and SELECT on the curated tables with ' +
+  'USE CATALOG and USE SCHEMA on their catalog and schema. ' +
   'A redeploy will not fix it.';
 
 /**

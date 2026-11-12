@@ -14,9 +14,9 @@ FAIL=0
 ok() { printf '  ok    %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL  %s\n' "$1"; FAIL=$((FAIL + 1)); }
 
-ENGINEER=<engineer-group>
-EXEC=<exec-group>
-ADMIN=<admin-group>
+ENGINEER=Example_PIA_Engineer
+EXEC=Example_PIA_Exec
+ADMIN=Example_PIA_Admin
 
 mkdir -p "$WORK/bin"
 cat > "$WORK/bin/databricks" <<'SH'

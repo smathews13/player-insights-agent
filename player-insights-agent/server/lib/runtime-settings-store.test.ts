@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { DEFAULT_RUNTIME_SETTINGS } from '../../shared/runtime-settings';
 import {
   deleteUserRuntimeSettings,
@@ -37,7 +37,7 @@ class MemorySettingsDb {
 }
 
 describe('versioned runtime and Appearance settings persistence', () => {
-  it('resolves a normalized user override ahead of The owner’s deployment default', async () => {
+  it('resolves a normalized user override ahead of the owner’s deployment default', async () => {
     const deploymentDefault = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'dark' as const };
     const userOverride = { ...DEFAULT_RUNTIME_SETTINGS, colorScheme: 'light' as const };
     const query = vi.fn((_sql: string, values: unknown[] = []) =>
@@ -95,19 +95,25 @@ describe('versioned runtime and Appearance settings persistence', () => {
     expect(saved.settings.answer.caveatsFirst).toBe(false);
   });
 
-  it('gives The owner the deployment default and never reads a user override', async () => {
+  it('gives the preferences owner the deployment default and never reads a user override', async () => {
+    const previous = process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER;
+    process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER = 'owner.person@example.test';
+    onTestFinished(() => {
+      if (previous === undefined) delete process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER;
+      else process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER = previous;
+    });
     const query = vi.fn((_sql: string, values: unknown[] = []) =>
       Promise.resolve({
         rows: values[0] === 'effective' ? [{ settings: DEFAULT_RUNTIME_SETTINGS, revision: 4 }] : [],
       })
     );
     await expect(
-      readResolvedRuntimeSettings({ lakebase: { query } } as never, 'owner@example.com')
+      readResolvedRuntimeSettings({ lakebase: { query } } as never, 'OWNER.PERSON@EXAMPLE.TEST')
     ).resolves.toMatchObject({ revision: 4, source: 'default', canReset: false });
-    expect(query).not.toHaveBeenCalledWith(expect.anything(), ['user:owner@example.com']);
+    expect(query).not.toHaveBeenCalledWith(expect.anything(), ['user:owner.person@example.test']);
   });
 
-  it('stores non-The owner saves under only the normalized caller key', async () => {
+  it('stores other people’s saves under only the normalized caller key', async () => {
     const query = vi.fn((sql: string, values: unknown[] = []) => {
       if (sql.trim().startsWith('SELECT')) {
         return Promise.resolve({

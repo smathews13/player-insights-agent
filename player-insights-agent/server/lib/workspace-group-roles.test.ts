@@ -86,7 +86,7 @@ describe('stored workspace group roles', () => {
 });
 
 describe('the deployment admin group', () => {
-  const ADMIN_GROUP = '<admin-group>';
+  const ADMIN_GROUP = 'Example_PIA_Admin';
   const previous = process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
 
   beforeEach(() => {
@@ -160,8 +160,36 @@ describe('the deployment admin group', () => {
     await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBeNull();
   });
 
+  it('counts membership through a nested group, which SCIM reports as indirect', async () => {
+    const reader = vi.fn(() =>
+      Promise.resolve({
+        Resources: [
+          {
+            userName: EMAIL,
+            groups: [
+              { display: 'Studio Leads', type: 'direct' },
+              { display: ADMIN_GROUP, type: 'indirect' },
+            ],
+          },
+        ],
+      })
+    );
+    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('reads a service principal from ServicePrincipals by its application ID', async () => {
+    const applicationId = '719c79e8-0bff-4676-be78-e6648cd27794';
+    const reader = vi.fn(() =>
+      Promise.resolve({ Resources: [{ applicationId, groups: [{ display: ADMIN_GROUP, type: 'direct' }] }] })
+    );
+    await expect(deploymentGroupRoleLookup(reader)(applicationId.toUpperCase())).resolves.toBe('admin');
+    expect(reader).toHaveBeenCalledWith('/api/2.0/preview/scim/v2/ServicePrincipals', {
+      filter: `applicationId eq "${applicationId}"`,
+    });
+  });
+
   it('gives non-members no group role', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim(['<engineer-group>'])));
+    const reader = vi.fn(() => Promise.resolve(scim(['Example_PIA_Engineer'])));
     await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
   });
 
@@ -174,8 +202,8 @@ describe('the deployment admin group', () => {
 });
 
 describe('the deployment consumer groups', () => {
-  const ENGINEER = '<engineer-group>';
-  const EXEC = '<exec-group>';
+  const ENGINEER = 'Example_PIA_Engineer';
+  const EXEC = 'Example_PIA_Exec';
   const previous = process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS;
 
   beforeEach(() => {

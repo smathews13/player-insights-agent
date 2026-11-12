@@ -12,7 +12,7 @@ trap 'rm -rf "$TMP" "$ROOT/.databricks/bundle/wrapper-test"' EXIT
 cat >"$TMP/databricks" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1 $2" == "bundle validate" ]]; then
-  cat <<'JSON'
+  cat <<JSON
 {"workspace":{"profile":"test-profile"},"variables":{
   "app_name":{"default":"player-insights-agent"},
   "bundle_root_path":{"default":"/Workspace/Users/test@example.com/.bundle/player-insights-agent-dab/wrapper-test"},
@@ -21,9 +21,17 @@ if [[ "$1 $2" == "bundle validate" ]]; then
   "genie_mcp_signing_public_path":{"default":"/Workspace/Users/test@example.com/.bundle/player-insights-agent-dab/shared/security/genie-mcp-ed25519-public-v1.pem"},
   "lakebase_project_id":{"value":"project-one"},
   "warehouse_id":{"value":"warehouse-one"},
-  "semantic_index_endpoint":{"default":""}
+  "semantic_index_endpoint":{"default":""},
+  "app_engineer_group":{"value":"${DECLARED_ENGINEER:-}"},
+  "app_exec_group":{"default":""},
+  "app_admin_group":{"value":"${DECLARED_ADMIN:-}"}
 }}
 JSON
+  exit 0
+fi
+if [[ "$1 $2" == "permissions get" ]]; then
+  [[ -n "${LIVE_APP_ACL:-}" ]] || exit 1
+  printf '%s\n' "$LIVE_APP_ACL"
   exit 0
 fi
 if [[ "$1 $2" == "secrets list-scopes" ]]; then
@@ -151,5 +159,23 @@ assert 'did not become RUNNING/ACTIVE/SUCCEEDED' in text
 terminal = text[text.index('[[ "$APP_STATE" == "CRASHED"'):text.index('if (( $(date +%s) >= APP_HEALTH_DEADLINE ))')]
 assert "UNAVAILABLE" not in terminal
 PY
+
+rm -f "$STATE"
+LIVE='{"access_control_list":[{"group_name":"Example_PIA_Admin","all_permissions":[{"permission_level":"CAN_USE","inherited":false}]},{"group_name":"admins","all_permissions":[{"permission_level":"CAN_MANAGE","inherited":true}]},{"user_name":"owner@example.com","all_permissions":[{"permission_level":"CAN_MANAGE","inherited":false}]}]}'
+: >"$TMP/calls"
+set +e
+OUTPUT="$(LIVE_APP_ACL="$LIVE" run_wrapper 2>&1)"
+STATUS=$?
+set -e
+[[ "$STATUS" -ne 0 && "$OUTPUT" == *"would remove them"* && "$OUTPUT" == *"  Example_PIA_Admin"* ]]
+[[ ! -s "$TMP/calls" ]]
+
+: >"$TMP/calls"
+LIVE_APP_ACL="$LIVE" DECLARED_ADMIN=example_pia_admin run_wrapper >/dev/null
+[[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
+
+: >"$TMP/calls"
+LIVE_APP_ACL="$LIVE" PLAYER_INSIGHTS_ALLOW_APP_GROUP_REMOVAL=true run_wrapper >/dev/null
+[[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
 
 printf 'PASS  bundle deploy wrapper blocks unsafe state and flags.\n'

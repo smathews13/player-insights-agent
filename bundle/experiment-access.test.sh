@@ -14,7 +14,7 @@ FAIL=0
 ok() { printf '  ok    %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL  %s\n' "$1"; FAIL=$((FAIL + 1)); }
 
-ADMIN=<admin-group>
+ADMIN=Example_PIA_Admin
 APP_SP=7f3c1a20-2222-3333-4444-555555555555
 
 mkdir -p "$WORK/bin"

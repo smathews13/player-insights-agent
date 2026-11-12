@@ -100,7 +100,16 @@ describe('Databricks App access roster', () => {
         }),
       ])
     );
-    expect(aligned.entries.map((entry) => entry.email)).toEqual(['owner@example.com', 'reader@example.com']);
+    expect(aligned.entries.map((entry) => entry.email)).toEqual([
+      'owner@example.com',
+      'reader@example.com',
+      'pia-only@example.com',
+    ]);
+    expect(aligned.entries.find((entry) => entry.email === 'pia-only@example.com')).toMatchObject({
+      role: 'admin',
+      appAccess: 'missing',
+      canRemove: true,
+    });
     expect(aligned.appAccessPrincipals).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'group', name: 'Executives' }),

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { DecisionStore } from './deployment-decisions';
 import { IDENTITY_CARRYOVER_DECISION, recordIdentityCarryover, restoreIdentityCarryover } from './identity-carryover';
-import { applyLegacyPreferenceDefaultOwner, ownsPreferenceDefaults } from './preference-default-owner';
+import { ownsPreferenceDefaults } from './preference-default-owner';
 
 const GIT_DEPLOY = { LAKEBASE_ENDPOINT: 'projects/example/branches/production' };
 
@@ -82,25 +82,18 @@ describe('identity configuration carryover', () => {
 });
 
 describe('preference default owner', () => {
-  it('follows the configured owner and fills the legacy owner only when none is named', () => {
-    const env: Record<string, string | undefined> = {
-      PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER: 'Designer@Example.test',
-    };
-    applyLegacyPreferenceDefaultOwner(env);
-    expect(env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER).toBe('Designer@Example.test');
-
+  it('follows the configured owner and names nobody when none is configured', () => {
     const previous = process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER;
     process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER = 'designer@example.test';
     try {
       expect(ownsPreferenceDefaults(' DESIGNER@example.test ')).toBe(true);
       expect(ownsPreferenceDefaults('someone@example.test')).toBe(false);
+      delete process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER;
+      expect(ownsPreferenceDefaults('designer@example.test')).toBe(false);
+      expect(ownsPreferenceDefaults('')).toBe(false);
     } finally {
       if (previous === undefined) delete process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER;
       else process.env.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER = previous;
     }
-
-    const empty: Record<string, string | undefined> = {};
-    applyLegacyPreferenceDefaultOwner(empty);
-    expect(empty.PLAYER_INSIGHTS_PREFERENCE_DEFAULT_OWNER).toMatch(/@/);
   });
 });
