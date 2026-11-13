@@ -120,8 +120,8 @@ def test_a_query_with_no_predicates_has_no_window_and_no_filter():
 
 
 def test_the_filter_is_what_narrowed_the_rows():
-    entry = one(f"SELECT count(*) AS c FROM {ACTIVITY} WHERE title_name = 'IFR2'")
-    assert entry["filter"] == "title_name = 'rdr2'"
+    entry = one(f"SELECT count(*) AS c FROM {ACTIVITY} WHERE title_name = 'NWH2'")
+    assert entry["filter"] == "title_name = 'nwh2'"
 
 
 def test_the_window_and_the_filter_are_separated():
@@ -166,10 +166,10 @@ def test_a_withheld_predicate_is_still_reported_rather_than_dropped():
     """A filter that vanished would report a narrowed population as the whole one."""
 
     entry = one(
-        f"SELECT count(*) AS c FROM {ACTIVITY} WHERE player_id = 'p-1' AND title_name = 'IFR2'"
+        f"SELECT count(*) AS c FROM {ACTIVITY} WHERE player_id = 'p-1' AND title_name = 'NWH2'"
     )
     assert entry["filter"].count(provenance.WITHHELD) == 1
-    assert "title_name = 'rdr2'" in entry["filter"]
+    assert "title_name = 'nwh2'" in entry["filter"]
 
 
 def test_an_identifying_column_may_still_be_counted_by_name():
@@ -212,9 +212,9 @@ def test_an_unqualified_table_leaves_the_source_empty_rather_than_guessing():
     failure this whole area of the codebase exists to have stopped making.
     """
 
-    entry = one("SELECT count(*) AS c FROM activity WHERE title_name = 'IFR2'")
+    entry = one("SELECT count(*) AS c FROM activity WHERE title_name = 'NWH2'")
     assert entry["source"] == ""
-    assert entry["filter"] == "title_name = 'rdr2'"
+    assert entry["filter"] == "title_name = 'nwh2'"
 
 
 def test_nothing_is_returned_for_a_statement_with_nothing_to_say():
@@ -224,7 +224,7 @@ def test_nothing_is_returned_for_a_statement_with_nothing_to_say():
 
 
 def test_the_same_query_run_twice_is_reported_once():
-    sql = f"SELECT count(*) AS c FROM {ACTIVITY} WHERE title_name = 'IFR2'"
+    sql = f"SELECT count(*) AS c FROM {ACTIVITY} WHERE title_name = 'NWH2'"
     assert len(provenance.derivations([sql, sql])) == 1
 
 
@@ -254,7 +254,7 @@ def test_no_field_can_grow_without_bound():
 
 QUERY = (
     f"SELECT count(DISTINCT platformid_accountid) AS active_players FROM {ACTIVITY} "
-    "WHERE activity_date >= '2025-06-01' AND title_name = 'IFR2'"
+    "WHERE activity_date >= '2025-06-01' AND title_name = 'NWH2'"
 )
 
 
@@ -276,7 +276,7 @@ def test_the_answer_carries_the_derivation_of_the_query_that_ran():
             "source": ACTIVITY,
             "metric": "active_players \u00b7 counted by platformid_accountid (one row per account)",
             "window": "≥ '2025-06-01'",
-            "filter": "title_name = 'rdr2'",
+            "filter": "title_name = 'nwh2'",
         }
     ]
 

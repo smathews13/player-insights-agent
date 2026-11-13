@@ -197,7 +197,7 @@ class TestScopeTokens:
         this estate, and a token each would make the corpus look far more
         visible than it is while matching no caller."""
 
-        application_id = "<app-service-principal-client-id>"
+        application_id = "00000000-0000-4000-8000-0000000000aa"
         workspace = FakeWorkspace(effective={"c.s.t": grants((application_id, "SELECT"))})
         tokens, _ = build.scope_tokens(workspace, "c.s.t")
         assert tokens == ()

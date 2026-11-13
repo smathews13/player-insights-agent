@@ -41,9 +41,7 @@ manifest from the private repository.
 Point the agent's data scope (`data_catalogs`) at a schema that holds only the
 curated tables and views the release answers from, and build the Genie spaces on
 those. Raw tables, inference logs and working tables then sit outside the scope,
-and the drift check has nothing to report. On the test workspace it reports
-raw player tables, the serving inference logs and two working tables that every
-reader of the demo schema can query.
+and the drift check has nothing to report.
 
 ## Done when
 

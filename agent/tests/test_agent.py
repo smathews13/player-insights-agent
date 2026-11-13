@@ -5694,9 +5694,9 @@ def test_pending_request_ignores_answers_and_walks_back_through_two_clarificatio
         ("assistant", "Which metric?"),
         ("user", "players"),
         ("assistant", "Which title?"),
-        ("user", "VLH"),
+        ("user", "Northwind"),
     )
-    assert agent._pending_request(twice, "VLH") == "make a chart\n\nplayers\n\nGTA"
+    assert agent._pending_request(twice, "Northwind") == "make a chart\n\nplayers\n\nNorthwind"
     typed = [
         {"role": "user", "content": "build a dashboard"},
         {"role": "assistant", "content": "Done.", "type": "clarification"},

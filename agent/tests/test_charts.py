@@ -791,17 +791,17 @@ class TestLongCategoryNames:
     #: no bottom axis left to wrap. Wrapping is what serves the charts BELOW that threshold,
     #: which is what these tests are about.
     FEW_TITLES = [
-        "VLH Online",
-        "Hoops 26",
-        "Dynasty VII",
-        "Outfit: Old Harbor",
-        "Scrapline 4",
+        "Harbor Online",
+        "Court 26",
+        "Max Weber's Encyclopedia VII",
+        "Ferry: The Old Country",
+        "Scrapyard 4",
     ]
 
     def test_a_long_name_is_broken_over_lines_rather_than_left_as_one_string(self):
         chart = new_plot([{"type": "bar", "x": self.FEW_TITLES, "y": [5, 4, 3, 2, 1]}])
-        assert chart.data[0]["x"][2] == "Sid Meier's<br>Dynasty<br>VII"
-        assert chart.data[0]["x"][3] == "Outfit: The Old<br>Country"
+        assert chart.data[0]["x"][2] == "Max Weber's<br>Encyclopedia<br>VII"
+        assert chart.data[0]["x"][3] == "Ferry: The Old<br>Country"
 
     def test_a_short_name_is_left_exactly_as_it_arrived(self):
         chart = new_plot([{"type": "bar", "x": ["north", "south"], "y": [2, 1]}])

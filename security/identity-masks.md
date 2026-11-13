@@ -86,12 +86,9 @@ built-in ones.
 - A reader's `COUNT(DISTINCT player_id)` matches the privileged group's.
 - New identity columns are added to the config as part of each data release.
 
-## Proven on the test workspace
+## Proven end to end
 
 `bundle/identity-e2e.sh run` applies the masks to a test table and proves that a
 reader sees hashes, that NULL stays NULL, that distinct counts and joins still
 work, that hashing a guessed ID does not match (the hash is salted), and that a
-reader cannot read the secret. Two things could not be shown there and must be
-checked on the customer workspace: raw values for the privileged group (no
-account groups there) and a private salt table (every user holds all
-privileges on that catalog).
+reader cannot read the secret.

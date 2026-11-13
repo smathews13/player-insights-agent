@@ -50,6 +50,12 @@ The agent logs traces to one MLflow experiment.
   The asker's email is kept, because an audit needs to know who asked.
   `agent/tests/test_trace_redaction.py` writes a real span and reads the
   exported trace back.
+- **Accepted risk: question and answer text stays in traces.** Debugging a
+  wrong answer and running evaluations both need it. The same text is already
+  stored with the conversation in Lakebase. Traces sit behind the locked
+  experiment ACL above, with identity values and credentials removed. Erasure
+  and retention apply to Lakebase, not to traces; the experiment's own
+  retention governs them.
 
 ## Retention
 
