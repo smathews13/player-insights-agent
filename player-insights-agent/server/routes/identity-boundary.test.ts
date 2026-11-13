@@ -249,7 +249,7 @@ describe('a deployed app with a forwarded identity', () => {
     try {
       const response = await app.fetch('/api/activity/heartbeat', {
         method: 'POST',
-        headers: { 'x-forwarded-email': 'Analyst@the demo workspace.Example', 'content-type': 'application/json' },
+        headers: { 'x-forwarded-email': 'Analyst@Example.Test', 'content-type': 'application/json' },
         body: JSON.stringify({ email: 'spoofed.person@example.test' }),
       });
       expect(response.status).toBe(204);
@@ -258,7 +258,7 @@ describe('a deployed app with a forwarded identity', () => {
     }
 
     const write = store.queries.find((entry) => entry.sql.includes('app_activity_minutes'));
-    expect(write?.params).toEqual(['analyst@example.example']);
+    expect(write?.params).toEqual(['analyst@example.test']);
     expect(write?.params).not.toContain('spoofed.person@example.test');
     expect(write?.sql).toContain("date_trunc('minute', now())");
     expect(write?.sql).not.toMatch(/content|question|token|session/i);
@@ -309,7 +309,7 @@ describe('a deployed app with a forwarded identity', () => {
 
     try {
       const response = await app.fetch('/api/conversations', {
-        headers: { 'x-forwarded-email': 'analyst@example.example' },
+        headers: { 'x-forwarded-email': 'analyst@example.test' },
       });
       expect(response.status).toBe(200);
     } finally {
@@ -322,7 +322,7 @@ describe('a deployed app with a forwarded identity', () => {
     // on the conversations table; the join's own predicates are about which
     // message row describes the conversation and say nothing about tenancy.
     expect(read?.sql).toContain('WHERE c.user_email = $1');
-    expect(read?.params).toEqual(['analyst@example.example']);
+    expect(read?.params).toEqual(['analyst@example.test']);
   });
 
   it('gives two people two different tenancy keys', async () => {
@@ -331,8 +331,8 @@ describe('a deployed app with a forwarded identity', () => {
     store.queries.length = 0;
 
     try {
-      await app.fetch('/api/conversations', { headers: { 'x-forwarded-email': 'first@example.example' } });
-      await app.fetch('/api/conversations', { headers: { 'x-forwarded-email': 'second@example.example' } });
+      await app.fetch('/api/conversations', { headers: { 'x-forwarded-email': 'first@example.test' } });
+      await app.fetch('/api/conversations', { headers: { 'x-forwarded-email': 'second@example.test' } });
     } finally {
       await app.close();
     }
@@ -344,18 +344,18 @@ describe('a deployed app with a forwarded identity', () => {
       tenancyQueries(store.queries)
         .map((entry) => entry.params[0])
         .filter(Boolean)
-    ).toEqual(['first@example.example', 'second@example.example']);
+    ).toEqual(['first@example.test', 'second@example.test']);
   });
 
   it('reports the caller as signed in, not the app owner', async () => {
     const app = await startApp(recordingStore().lakebase);
     try {
       const response = await app.fetch('/api/identity', {
-        headers: { 'x-forwarded-email': 'analyst@example.example' },
+        headers: { 'x-forwarded-email': 'analyst@example.test' },
       });
       const body = (await response.json()) as { signedInAs: string; identitySource: string };
 
-      expect(body.signedInAs).toBe('analyst@example.example');
+      expect(body.signedInAs).toBe('analyst@example.test');
       expect(body.identitySource).toBe('databricks-apps');
     } finally {
       await app.close();
@@ -421,15 +421,15 @@ describe('a deployed app with a forwarded identity', () => {
     };
     process.env.DATABRICKS_HOST = 'https://dbc-example.cloud.databricks.com';
     process.env.DATABRICKS_APP_NAME = 'player-insights-agent';
-    process.env.DATABRICKS_CLIENT_ID = '071769f1-5623-45b6-a172-c8b0060adf31';
+    process.env.DATABRICKS_CLIENT_ID = '5b1f0c2e-8d47-4a9b-9e63-2c7a1f04d8b5';
     const reader: ControlPlaneReader = (path) => {
       if (path === SCIM_USERS_PATH) {
         return Promise.resolve({
-          Resources: [{ id: '1122334455667788', userName: 'analyst@example.example', displayName: 'the demo workspace Analyst' }],
+          Resources: [{ id: '1122334455667788', userName: 'analyst@example.test', displayName: 'Example Analyst' }],
         });
       }
       return Promise.resolve({
-        url: 'https://player-insights-agent-<workspace-id>.<region>.databricksapps.com',
+        url: 'https://player-insights-agent-1234567890123456.aws.databricksapps.com',
         service_principal_name: 'Astrolabe application',
         service_principal_client_id: process.env.DATABRICKS_CLIENT_ID,
         service_principal_id: '9988776655443322',
@@ -456,16 +456,16 @@ describe('a deployed app with a forwarded identity', () => {
     const app = await startApp(recordingStore().lakebase, undefined, reader);
     try {
       const response = await app.fetch('/api/identity', {
-        headers: { 'x-forwarded-email': 'analyst@example.example' },
+        headers: { 'x-forwarded-email': 'analyst@example.test' },
       });
       const body = (await response.json()) as Record<string, unknown>;
       expect(body.identityMetadata).toMatchObject({
-        user: { displayName: 'the demo workspace Analyst', objectId: '1122334455667788', state: 'verified' },
+        user: { displayName: 'Example Analyst', objectId: '1122334455667788', state: 'verified' },
         app: {
           displayName: 'Player Insights Agent',
           resourceName: 'player-insights-agent',
           workspaceHost: process.env.DATABRICKS_HOST,
-          workspaceId: '<workspace-id>',
+          workspaceId: '1234567890123456',
         },
         servicePrincipal: {
           displayName: 'Astrolabe application',
@@ -565,8 +565,8 @@ describe('a developer running the app locally', () => {
   });
 });
 
-const ALICE = 'alice@example.example';
-const BOB = 'bob@example.example';
+const ALICE = 'alice@example.test';
+const BOB = 'bob@example.test';
 /**
  * Both headers, because Databricks Apps sets both on authenticated traffic and
  * the ask route now refuses a deployed request that carries only one.
