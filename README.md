@@ -39,7 +39,9 @@ Player Insights Agent surfaces are supported today.
   dependencies.
 - Administrator views for monitoring, endpoint operations, runtime settings,
   and application roles.
-- Optional semantic metadata search using Databricks Vector Search.
+- An Identity screen that lists groups, people, and service principals, with
+  persona assignments and their history.
+- Conversation deletion, erasure on request, and optional retention.
 
 ## Architecture
 
@@ -48,20 +50,54 @@ User
   │
   ▼
 Databricks App ───────────────▶ Lakebase
-  │                            conversations, settings, roles
+  │                            conversations, settings, roles, persona history
   ▼
 Model Serving endpoint ───────▶ MLflow experiment
-  │                            traces and run metadata
-  ├──▶ Foundation model
+  │                            redacted traces and run metadata
+  ├──▶ AI Gateway ────────────▶ Foundation model
   ├──▶ Genie spaces
-  ├──▶ SQL warehouse ─────────▶ Unity Catalog data
-  └──▶ Vector Search (optional metadata index)
+  └──▶ SQL warehouse ─────────▶ Unity Catalog data
 ```
+
+Every question runs with the signed-in person's own token, from the app through
+the endpoint to Genie and the warehouse.
 
 The Databricks Declarative Automation Bundle creates the application-owned Unity Catalog
 objects, App resources, and supporting job definitions. It adopts the existing
 MLflow experiment for Dev and attaches to, rather than creates or owns, the SQL
 warehouse, Lakebase database, Genie spaces, and registered model.
+
+## Access model
+
+Three independent gates decide what a person can do. Passing one never opens
+the next.
+
+| Gate            | Decides                                                  | Set by                                                                                                                            |
+| --------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Open the app | `CAN_USE` on the Databricks App                          | Membership of the Engineer, Exec, or Admin access group                                                                           |
+| 2. In-app role  | Screens and admin tools: Consumer, Admin, or Super admin | The access groups and the Super admin group                                                                                       |
+| 3. Data         | Which rows and columns a question can read               | The person's own Unity Catalog grants, row filters, and masks, plus `CAN_USE` on the warehouse and `CAN_RUN` on both Genie spaces |
+
+- **Roles come from groups.** Engineer and Exec group members are Consumers,
+  Admin group members are at least Admins, and Super admin group members are
+  Super admins. The app reads each person's groups from their own directory
+  record with their own token; if that read fails, no group role applies. Use
+  account-level groups, and keep the Super admin group small (at least two
+  people).
+- **Roles never widen data.** Every question runs as the signed-in person, so
+  an Admin sees no more data than they would in a notebook.
+- **Personas are the one exception, and they are recorded.** Only a Super admin
+  can assign a person a service-principal persona, whose grants that person's
+  questions then use. Every assignment change and every question asked under a
+  persona is logged in Lakebase, and each such answer carries a persona banner.
+  Super admins always run as themselves.
+- **The release grants the groups what a question needs.**
+  `bundle/app-release.sh` grants the access groups `CAN_USE` on the app and the
+  warehouse and `CAN_RUN` on both Genie spaces. It only adds: a group that
+  already holds more is left as it is. The optional `app_manager_group` holds
+  `CAN_MANAGE` on the app.
+- **`admin_emails` names the first administrators** (prefix `super:` to pin a
+  Super admin), so the app has an owner before any group is configured.
 
 ## Prerequisites
 
@@ -80,13 +116,14 @@ You need:
   definitions;
 - an existing registered model with at least two consecutive READY versions,
   plus the existing MLflow experiment those versions use;
-- one or more initial application administrator email addresses; and
+- account-level groups for Engineer, Exec, and Admin access, a Super admin group
+  of at least two people, and one initial administrator email address; and
 - permissions to deploy bundles, apps, models, and serving endpoints and to
   grant the required data access.
 
-Users need workspace access, Databricks SQL access, `CAN USE` on the warehouse,
-`CAN RUN` on both Genie spaces, and `SELECT` on the data they are expected to
-query.
+Users get app, warehouse, and Genie access through their access group. Each
+person also needs workspace access, Databricks SQL access, and `SELECT` on the
+data they are expected to query.
 
 ## Install and deploy
 
@@ -123,9 +160,19 @@ Each resulting `variable-overrides.json` contains:
   "lakebase_database_owner_role": "projects/<project-id>/branches/production/roles/<owner-role-id>",
   "genie_data_space_id": "<data_genie_space_id>",
   "genie_dictionary_space_id": "<dictionary_genie_space_id>",
-  "admin_emails": "super:<initial_admin@example.com>"
+  "admin_emails": "super:<initial_admin@example.com>",
+  "app_engineer_group": "<engineer_access_group>",
+  "app_exec_group": "<executive_access_group>",
+  "app_admin_group": "<admin_access_group>",
+  "app_manager_group": "<platform_admin_group>",
+  "app_super_admin_group": "<super_admin_group>"
 }
 ```
+
+Before a model release, also set `cross_label_key_columns` to the column that
+links one player across labels, and `identity_columns` to any other columns
+that identify a person. Both add to the built-in names the SQL guard and trace
+redaction already cover.
 
 Use the same existing `experiment_path` in both files. Dev and Prod have
 separate Apps and endpoints but intentionally share one MLflow experiment.
@@ -191,11 +238,12 @@ subsequent Dev model logs do the same automatically.
 
 ## Use Player Insights Agent
 
-1. Share the Databricks App with its users.
-2. Grant those users access to the warehouse, both Genie spaces, and the
-   governed source tables.
-3. Open **Connections** and confirm the running model, warehouse, storage,
-   Genie spaces, and optional semantic index match the intended configuration.
+1. Add people to the access groups. The app release has already granted those
+   groups the app, the warehouse, and both Genie spaces.
+2. Grant `SELECT` on the governed source tables, by label, to the groups or
+   people who should read them.
+3. Open **Connections** and confirm the running model, warehouse, storage, and
+   Genie spaces match the intended configuration.
 4. Ask a question on **Ask**. Review the Sources, SQL, Derivation, Caveats, and
    Trace sections before using the result in a decision.
 5. Use **Run Explorer** for detailed timing and tool-call inspection.
@@ -228,7 +276,9 @@ customer-controlled OIDC/gateway architecture.
 
 > **November 2026 security release:** after the Deploy from Git below, import
 > and run the one-time upgrade notebook described in [UPGRADE.md](UPGRADE.md).
-> It applies the new access settings without a bundle deploy.
+> It applies the new access settings without a bundle deploy: preview first,
+> then apply. The new app works with your current model; the agent-side
+> protections arrive with your next model release.
 
 For app-code-only updates, use **Deploy from Git** on the existing Databricks
 App:
@@ -291,6 +341,25 @@ file, because ignored local state is never transferred by Git.
   identifiers require a model release.
 - **Traceability.** Executed SQL, source roles, timings, and tool calls are
   retained in the answer contract and MLflow trace where configured.
+- **Protected columns.** The SQL guard refuses to return identity columns or to
+  join players across labels through the cross-label key.
+- **Untrusted tool results.** Data returned by tools is fenced as untrusted, so
+  instructions planted in it are not followed, and result size is capped.
+- **Restricted traces.** Traces are redacted, and the MLflow experiment is
+  readable only by the app, the endpoint's owner, and the admin group.
+- **AI Gateway.** On by default: model calls go through an AI Gateway model
+  service with per-person rate limits and usage tracking. It can be switched
+  off in **Settings**.
+- **One copy of conversations.** The endpoint's request log is off, so
+  questions and answers stay in Lakebase, where deletion and erasure reach
+  them. People can delete their conversations with their runs, Admin reads of
+  other people's conversations are audited, and automatic retention
+  (`PLAYER_INSIGHTS_CONVERSATION_RETENTION_DAYS`) is off by default.
+- **Secrets.** The signing key supports two-key rotation, and
+  `bundle/secret_scan.py` checks tracked files for credentials.
+- **Posture checks.** `bundle/security-posture.sh` reports workspace-wide or
+  individual grants, Super admin group size, the experiment ACL, and the
+  endpoint's settings.
 
 Deployers remain responsible for data classification, grants, Genie curation,
 warehouse policy, retention, model endpoint selection, network controls, and
@@ -313,8 +382,6 @@ headers.
   outside the declared manifest can produce a partial answer or clarification.
 - Lakebase and Genie spaces must already exist and are not lifecycle-managed by
   this bundle.
-- The optional semantic layer indexes metadata, not measures. It creates billed
-  Vector Search resources and is off until explicitly configured and released.
 - App-code, model, resource, and OAuth-scope changes have separate release
   paths.
 - Native App sign-out cannot invalidate or detect a separate workspace/IdP
