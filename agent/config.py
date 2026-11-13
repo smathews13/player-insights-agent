@@ -60,6 +60,8 @@ ENV_VARS = {
     "declared_manifest": "PLAYER_INSIGHTS_DECLARED_MANIFEST",
     "manifest_source": "PLAYER_INSIGHTS_MANIFEST_SOURCE",
     "franchise_tags": "PLAYER_INSIGHTS_FRANCHISE_TAGS",
+    "cross_label_keys": "PLAYER_INSIGHTS_CROSS_LABEL_KEYS",
+    "identity_columns": "PLAYER_INSIGHTS_IDENTITY_COLUMNS",
     "build_sha": BUILD_SHA_VAR,
 }
 
@@ -93,6 +95,8 @@ BAKED_KEYS = (
     # holding a manifest that was enumerated, or the reverse.
     "manifest_source",
     "franchise_tags",
+    "cross_label_keys",
+    "identity_columns",
     "build_sha",
 )
 
@@ -218,6 +222,32 @@ def _tag_pairs(value: Any) -> tuple[tuple[str, str], ...]:
             if name:
                 pairs.append((name, tag))
     return tuple(pairs)
+
+
+def _column_names(value: Any) -> tuple[str, ...]:
+    """Column names as `sql_policy` compares them: lower case, unqualified."""
+
+    return tuple(sorted({name.rsplit(".", 1)[-1].lower() for name in _tuple(value or ())}))
+
+
+def protected_columns(
+    env: Mapping[str, str] | None = None,
+    baked: Mapping[str, Any] | None = None,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The deployment's extra cross-label keys and identity columns.
+
+    Read without the rest of `Settings`, because `sql_policy` needs them at
+    import and must not fail there for want of a warehouse id. Same precedence:
+    the artifact, then the environment.
+    """
+
+    environment = os.environ if env is None else env
+    artifact = dict(baked_config() if baked is None else baked)
+
+    def names(key: str) -> tuple[str, ...]:
+        return _column_names(artifact.get(key) or environment.get(ENV_VARS[key], ""))
+
+    return names("cross_label_keys"), names("identity_columns")
 
 
 def baked_config() -> dict[str, Any]:
@@ -389,6 +419,12 @@ class Settings:
     #: changes when somebody edits the catalog. Empty on versions logged before
     #: this field existed; `list_data_assets` then labels every table untagged.
     franchise_tags: tuple[tuple[str, str], ...] = ()
+    #: The deployment's own column names for the key that spans labels, and for
+    #: other columns that identify a person. Both only ADD to the names
+    #: `sql_policy` protects, so an empty or mistyped value cannot weaken it.
+    #: They are settings because the public source uses neutral column names.
+    cross_label_keys: tuple[str, ...] = ()
+    identity_columns: tuple[str, ...] = ()
     # THERE IS NO FIELD HERE DESCRIBING THE NATURE OF THE DATA, deliberately.
     # `synthetic_data` used to sit at this position and gate a sentence stating
     # that the figures were generated. It is gone rather than defaulted off: no
@@ -556,6 +592,8 @@ class Settings:
             declared_manifest=_tuple(resolved["declared_manifest"] or ()),
             manifest_source=manifest_source,
             franchise_tags=_tag_pairs(resolved.get("franchise_tags") or ()),
+            cross_label_keys=_column_names(resolved.get("cross_label_keys")),
+            identity_columns=_column_names(resolved.get("identity_columns")),
             build_sha=str(resolved["build_sha"] or ""),
             sources=tuple(sorted(origins.items())),
         )

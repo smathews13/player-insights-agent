@@ -116,6 +116,10 @@ fi
 # selects is which tables become DatabricksTable resources. See MANIFEST_SOURCES
 # in agent/preflight.py, including what `genie` costs in enforced governance.
 MANIFEST_SOURCE="$(bundle_var_or_empty manifest_source)"
+# Optional. They only add to the columns the SQL guard and trace redaction
+# protect, so empty keeps the built-in names and nothing else.
+CROSS_LABEL_KEYS="$(bundle_var_or_empty cross_label_key_columns)"
+IDENTITY_COLUMNS="$(bundle_var_or_empty identity_columns)"
 APP_STORE_SCHEMA="$(bundle_var lakebase_app_schema)"
 # NOTHING IS READ HERE ABOUT THE NATURE OF THE DATA. `synthetic_data` was read
 # at this position, printed in the readout below, and exported into the log so
@@ -392,6 +396,9 @@ export PLAYER_INSIGHTS_MAX_OUTPUT_TOKENS="$MAX_TOKENS"
 # a model whose contract-bound governance behaviours are not in force, against a
 # bundle that says nothing of the kind. Empty resolves to `schema` in Settings.
 export PLAYER_INSIGHTS_MANIFEST_SOURCE="$MANIFEST_SOURCE"
+# Exported empty too, so a value left in the operator's shell is not baked.
+export PLAYER_INSIGHTS_CROSS_LABEL_KEYS="$CROSS_LABEL_KEYS"
+export PLAYER_INSIGHTS_IDENTITY_COLUMNS="$IDENTITY_COLUMNS"
 # Always "true", and exported rather than assumed downstream, so a stale value in
 # the operator's shell cannot decide which principal every data call runs as.
 export PLAYER_INSIGHTS_USER_AUTHORIZATION="$USER_AUTHORIZATION"

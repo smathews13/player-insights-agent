@@ -35,6 +35,16 @@ can select the table; under the row filter it fails if the filter is missing.
 The identity end-to-end test asks the same cross-label question as each test
 identity and checks that a label sees only its own label and central sees all.
 
+## The agent's cross-label key guard
+
+The agent also refuses SQL that self-joins on, or returns, the key that links
+one player across labels. Name that column in the bundle variable
+`cross_label_key_columns` (comma-separated, in the deployment's private target
+or `.databricks/bundle/<target>/variable-overrides.json`). The public
+repository ships it empty, so a model built from the public tree guards only the
+built-in name until the deployment sets its own. The value is baked into the
+model: set it before the model release (`bundle/agent-release.sh --apply`).
+
 ## The access matrix
 
 `bash bundle/label-access.sh` (no flag) prints the intended matrix from the

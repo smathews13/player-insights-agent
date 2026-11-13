@@ -57,6 +57,21 @@ variables:
       BUNDLE_VAR_catalog_denylist, not `--var`, which splits comma-separated
       values. Changing it requires a model re-log and redeploy.
     default: ""
+  cross_label_key_columns:
+    description: >-
+      Comma-separated column names of the key that links one player across
+      labels, as your tables name it. The agent refuses any query that uses
+      them and never returns or traces their values. Adds to the built-in
+      names, never replaces them. Set it in variable-overrides.json when your
+      tables use a different name. Changing it requires a model release.
+    default: ""
+  identity_columns:
+    description: >-
+      Comma-separated column names that identify a person in your tables
+      (player, account or device ids). The agent may count them but never
+      returns or traces their values. Adds to the built-in names. Changing it
+      requires a model release.
+    default: ""
 
   # Compute
   warehouse_id:

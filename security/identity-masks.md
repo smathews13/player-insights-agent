@@ -69,6 +69,17 @@ IDs stops matching; agree a rotation date with the teams that keep such lists.
 7. **Check as people.** A reader runs `SELECT player_id FROM <table> LIMIT 5`
    and sees 64-character hashes; a member of the privileged group sees raw IDs.
 
+## The agent's own guard
+
+Separately from the masks, the agent refuses SQL that returns an identity
+column, and redacts those columns from its traces. It knows the built-in names;
+list any others in the bundle variable `identity_columns` (comma-separated
+column names, in the deployment's private target or
+`.databricks/bundle/<target>/variable-overrides.json`). The value is baked into
+the model, so a change takes effect at the next model release
+(`bundle/agent-release.sh --apply`). It only adds names; it cannot remove the
+built-in ones.
+
 ## Done when
 
 - `--verify` exits 0 for every masked table.

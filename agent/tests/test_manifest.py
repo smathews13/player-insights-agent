@@ -1618,6 +1618,8 @@ def test_the_release_script_writes_the_denylist_down_and_clears_what_it_cannot()
         "catalog_denylist",
         "max_output_tokens",
         "manifest_source",
+        "cross_label_keys",
+        "identity_columns",
     }
     #: THE CODE OWNS IT AND NO OPERATOR SHOULD SET IT. The release `unset`s it, so
     #: a value left in a shell cannot reach a logged model at all. `tables` is the

@@ -22,6 +22,7 @@ from contextvars import ContextVar
 import sqlglot
 from sqlglot import exp
 
+from config import protected_columns
 from failures import (
     ASSET_NOT_IN_MANIFEST,
     ASSET_UNRESOLVED,
@@ -71,7 +72,11 @@ _READ_ONLY_ROOTS = (exp.Select, exp.Subquery, exp.Union, exp.Except, exp.Interse
 #: `crm_customer_ref` is the only key that spans the two labels. A self-join on it
 #: needs no second table, so NO TABLE-LEVEL CHECK CAN SEE IT and this is the only
 #: thing standing between a prompt sentence and a bridged identity.
-BLOCKED_COLUMNS = frozenset({"crm_customer_ref"})
+#:
+#: A deployment whose tables name these columns differently adds its own names
+#: through `cross_label_keys` and `identity_columns`; the built-in names stay.
+_DEPLOYMENT_KEYS, _DEPLOYMENT_IDENTITIES = protected_columns()
+BLOCKED_COLUMNS = frozenset({"crm_customer_ref", *_DEPLOYMENT_KEYS})
 
 #: Columns that may be counted, filtered on, or grouped by, but never RETURNED.
 #: display_name and email are never returned, and the player-level keys identify
@@ -86,6 +91,8 @@ UNRETURNABLE_COLUMNS = frozenset(
         "player_id",
         "platformid_accountid",
         "partner_player_ref",
+        *_DEPLOYMENT_KEYS,
+        *_DEPLOYMENT_IDENTITIES,
     }
 )
 
