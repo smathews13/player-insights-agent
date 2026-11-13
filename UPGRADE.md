@@ -25,6 +25,7 @@ workspace. No bundle deploy, and nothing to install on a laptop.
    ```
 
    Or download that file and import it.
+
 2. Attach it to serverless compute.
 3. Fill in the widgets: the app name, your Player Insights Agent engineer, executive and admin
    groups, and the IDs of the app's Genie spaces (from each space's URL).
@@ -49,7 +50,9 @@ admin. Every step is safe to repeat.
   each person's questions.
 - The serving endpoint stops writing its request log; questions and answers
   stay in Lakebase. Usage tracking and rate limits are added where the
-  workspace supports them on this endpoint type.
+  workspace supports them on this endpoint type. If the endpoint also uses the
+  older inference table setting, the notebook says so; turn that off on the
+  endpoint's page, because changing it redeploys the endpoint.
 
 It finishes with a read-only report of who can reach each object. Review any
 line marked `CHECK` with your admins.

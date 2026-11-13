@@ -32,15 +32,16 @@ case "$1 $2" in
     printf '%s\n' '{"id":"endpoint-id"}'
     ;;
   "permissions update")
-    : > "$UPDATED_MARKER"
+    : > "$UPDATED_MARKER.$3"
     printf '%s\n' '{}'
     ;;
   "permissions get")
-    # The ACL before any write, then the ACL the write produced.
-    if [[ -e "$UPDATED_MARKER" ]]; then
+    # Per object: the ACL before any write to it, then the ACL the write produced.
+    if [[ -e "$UPDATED_MARKER.$3" ]]; then
       printf '%s\n' "$PERMISSIONS_FIXTURE"
     else
-      printf '%s\n' "${PERMISSIONS_BEFORE:-$EMPTY_ACL}"
+      before_var="PERMISSIONS_BEFORE_${3//-/_}"
+      printf '%s\n' "${!before_var:-${PERMISSIONS_BEFORE:-$EMPTY_ACL}}"
     fi
     ;;
   *)
@@ -72,7 +73,7 @@ granted() {
 run_grant() {
   local script="$1" permissions="$2"
   : > "$WORK/calls"
-  rm -f "$WORK/updated"
+  rm -f "$WORK"/updated.*
   env -u PIA_BUNDLE_JSON_CACHE PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" UPDATED_MARKER="$WORK/updated" \
     BUNDLE_FIXTURE="$WORK/bundle.json" PERMISSIONS_FIXTURE="$permissions" \
     TARGET=test PROFILE=test-profile \
@@ -174,7 +175,7 @@ check_script gate3-access.sh CAN_USE "warehouses wh-1"
 
 echo "gate3-access.sh (Genie)"
 GENIE_SPACE=space-1 bundle_fixture "$ENGINEER" "$EXEC" "$ADMIN" > "$WORK/bundle.json"
-PERMISSIONS_BEFORE="$(granted CAN_USE "$ENGINEER" "$EXEC" "$ADMIN")" \
+PERMISSIONS_BEFORE_warehouses="$(granted CAN_USE "$ENGINEER" "$EXEC" "$ADMIN")" \
   run_grant gate3-access.sh "$(granted CAN_RUN "$ENGINEER" "$EXEC" "$ADMIN")"
 update="$(grep "^permissions update genie space-1" "$WORK/calls" || true)"
 if [[ "$update" == *"\"group_name\": \"$EXEC\", \"permission_level\": \"CAN_RUN\""* ]] \
@@ -182,6 +183,22 @@ if [[ "$update" == *"\"group_name\": \"$EXEC\", \"permission_level\": \"CAN_RUN\
   ok "grants CAN_RUN on the Genie space and leaves a warehouse already granted alone"
 else
   bad "Genie CAN_RUN grant is wrong: $(cat "$WORK/calls")"
+fi
+PERMISSIONS_BEFORE="$(granted CAN_MONITOR "$ENGINEER" "$EXEC" "$ADMIN")" \
+  run_grant gate3-access.sh "$(granted CAN_EDIT "$ENGINEER" "$EXEC" "$ADMIN")"
+if ! grep -q "^permissions update warehouses" "$WORK/calls"; then
+  ok "leaves a group holding CAN_MONITOR on the warehouse out of the CAN_USE write"
+else
+  bad "a CAN_MONITOR group was re-sent CAN_USE: $(cat "$WORK/calls")"
+fi
+genie_before='{"access_control_list":[{"group_name":"'"$ADMIN"'","all_permissions":[{"permission_level":"CAN_EDIT","inherited":false}]}]}'
+PERMISSIONS_BEFORE_genie="$genie_before" \
+  run_grant gate3-access.sh "$(granted CAN_EDIT "$ENGINEER" "$EXEC" "$ADMIN")"
+update="$(grep "^permissions update genie space-1" "$WORK/calls" || true)"
+if [[ "$update" == *"$ENGINEER"* && "$update" != *"$ADMIN"* ]]; then
+  ok "leaves a group holding CAN_EDIT on the Genie space out of the CAN_RUN write"
+else
+  bad "a CAN_EDIT group was re-sent CAN_RUN: $update"
 fi
 if grep -q '^run_gate3_access$' "$HERE/app-release.sh" \
   && grep -q 'if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$GATE3_ACCESS" --apply; then' "$HERE/app-release.sh"; then

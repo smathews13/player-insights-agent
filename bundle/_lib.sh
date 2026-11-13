@@ -320,12 +320,16 @@ load_access_groups() {
   return 0
 }
 
+PERMISSION_RANKS='{"CAN_VIEW": 1, "CAN_READ": 1, "CAN_USE": 2, "CAN_RUN": 2, "CAN_QUERY": 2,
+  "CAN_EDIT": 3, "CAN_MONITOR": 3, "CAN_MANAGE": 4, "IS_OWNER": 5}'
+
 # grant_group_acl <object-type> <object-id> <level> <group>... -> give each
 # group at least <level> on the object, then verify every group holds it.
 #
-# Groups that already hold <level> or CAN_MANAGE directly are left out of the
-# write, so a release never re-sends a lower level over a higher grant someone
-# made by hand. The rest go in one PATCH, not a PUT: `databricks permissions
+# Groups that already hold <level> or a higher level directly (CAN_EDIT on a
+# Genie space, CAN_MONITOR on a warehouse, CAN_MANAGE anywhere) are left out of
+# the write, so a release never re-sends a lower level over a higher grant
+# someone made by hand. The rest go in one PATCH, not a PUT: `databricks permissions
 # update` merges these entries and leaves every other user, group, service
 # principal, and inherited entry untouched. Names match case-insensitively, as
 # the server matches SCIM groups.
@@ -335,12 +339,13 @@ grant_group_acl() {
   local before after acl_json
   before="$(databricks permissions get "$object_type" "$object_id" --profile "$PROFILE" -o json)" \
     || die "Could not read the $object_type $object_id ACL. The profile identity needs CAN_MANAGE on it."
-  acl_json="$(PERMISSIONS_JSON="$before" python3 - "$level" "$@" <<'PY'
+  acl_json="$(PERMISSIONS_JSON="$before" PERMISSION_RANKS="$PERMISSION_RANKS" python3 - "$level" "$@" <<'PY'
 import json
 import os
 import sys
 
 level, groups = sys.argv[1], list(dict.fromkeys(sys.argv[2:]))
+ranks = json.loads(os.environ["PERMISSION_RANKS"])
 held = set()
 for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list") or []:
     levels = {
@@ -348,7 +353,7 @@ for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list
         for permission in entry.get("all_permissions") or []
         if permission.get("inherited") is not True
     }
-    if level in levels or "CAN_MANAGE" in levels:
+    if level in levels or max((ranks.get(held_level, 0) for held_level in levels), default=0) >= ranks[level]:
         held.add(str(entry.get("group_name") or "").strip().lower())
 missing = [name for name in groups if name.lower() not in held]
 print(json.dumps({"access_control_list": [
@@ -367,12 +372,14 @@ The profile identity needs CAN_MANAGE on it, and every group must exist in the w
   after="$(databricks permissions get "$object_type" "$object_id" \
     --profile "$PROFILE" -o json)" \
     || die "Could not read the $object_type $object_id ACL back to verify the grant."
-  PERMISSIONS_JSON="$after" python3 - "$level" "$@" <<'PY' || die "Verifying $level on $object_type $object_id failed."
+  PERMISSIONS_JSON="$after" PERMISSION_RANKS="$PERMISSION_RANKS" python3 - "$level" "$@" <<'PY' \
+    || die "Verifying $level on $object_type $object_id failed."
 import json
 import os
 import sys
 
 level, required = sys.argv[1], {name.lower(): name for name in sys.argv[2:]}
+ranks = json.loads(os.environ["PERMISSION_RANKS"])
 granted = set()
 for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list") or []:
     levels = {
@@ -380,7 +387,7 @@ for entry in json.loads(os.environ["PERMISSIONS_JSON"]).get("access_control_list
         for permission in entry.get("all_permissions") or []
         if permission.get("inherited") is not True
     }
-    if level in levels or "CAN_MANAGE" in levels:
+    if level in levels or max((ranks.get(held_level, 0) for held_level in levels), default=0) >= ranks[level]:
         granted.add(str(entry.get("group_name") or "").strip().lower())
 missing = sorted(name for key, name in required.items() if key not in granted)
 if missing:

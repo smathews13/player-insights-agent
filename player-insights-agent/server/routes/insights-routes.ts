@@ -4139,9 +4139,9 @@ export function setupInsightsRoutes(
       identity: userEmail,
       config: idleConfig,
     });
-    app.use(executionCredentialMiddleware(appkit));
-    // Before any role is resolved. Group roles need the caller's membership, and
-    // only their own token can read it unless the app is a workspace admin.
+    // Before any role is resolved, including the execution credential's Super
+    // admin check. Group roles need the caller's membership, and only their own
+    // token can read it.
     app.use((req, _res, next) => {
       if (!req.path.toLowerCase().startsWith('/api/')) {
         next();
@@ -4156,6 +4156,7 @@ export function setupInsightsRoutes(
       }
       void rememberOwnGroups(caller, forwardedUserToken(req), options.selfGroupReader).finally(() => next());
     });
+    app.use(executionCredentialMiddleware(appkit));
     if (options.rolesReady) {
       app.use((req, _res, next) => {
         if (!isAdminRoute(req.path)) {

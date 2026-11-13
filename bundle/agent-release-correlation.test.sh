@@ -102,6 +102,8 @@ case "$1 $2" in
     "llm_gateway":              { "value": "" },
     "data_catalogs":            { "value": ["test_catalog"] },
     "catalog_denylist":         { "value": "baseline.blocked" },
+    "cross_label_key_columns":  { "value": "" },
+    "identity_columns":         { "value": "" },
     "max_output_tokens":        { "value": "4096" },
     "genie_data_space_id":      { "value": "" },
     "genie_dictionary_space_id":{ "value": "" },

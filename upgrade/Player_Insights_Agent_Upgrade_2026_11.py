@@ -2,22 +2,26 @@
 # MAGIC %md
 # MAGIC # Player Insights Agent: one-time upgrade (November 2026 security release)
 # MAGIC
-# MAGIC Run this once, after the app has taken the new code with **Deploy from Git**. It applies the access settings a
-# MAGIC Git deploy cannot, then reports what it finds. No bundle deploy is needed, and every step is safe to repeat.
+# MAGIC Run this once, after the app has taken the new code with **Deploy from Git**. It
+# MAGIC applies the access settings a Git deploy cannot, then reports what it finds. No bundle
+# MAGIC deploy is needed, and every step is safe to repeat.
 # MAGIC
-# MAGIC 1. The app's own service principal gets `CAN_MANAGE` on the app, so the Identity screen can read the live member list.
-# MAGIC 2. Your app groups get `CAN_USE` on the app and on its SQL warehouse, and `CAN_RUN` on its Genie spaces.
-# MAGIC 3. The agent's MLflow experiment is limited to the app, the endpoint's owner and the admin group. Traces hold each
-# MAGIC    person's questions, so the workspace-wide `users` grant is removed.
-# MAGIC 4. The agent endpoint stops writing its request log (questions and answers stay in Lakebase), and gets usage
-# MAGIC    tracking and rate limits where the workspace supports them.
+# MAGIC 1. The app's own service principal gets `CAN_MANAGE` on the app, so the Identity screen
+# MAGIC    can read the live member list.
+# MAGIC 2. Your app groups get `CAN_USE` on the app and on its SQL warehouse, and `CAN_RUN` on
+# MAGIC    its Genie spaces.
+# MAGIC 3. The agent's MLflow experiment is limited to the app, the endpoint's owner and the
+# MAGIC    admin group. Traces hold each person's questions, so the workspace-wide `users`
+# MAGIC    grant is removed.
+# MAGIC 4. The agent endpoint stops writing its request log (questions and answers stay in
+# MAGIC    Lakebase), and gets usage tracking and rate limits where the workspace supports them.
 # MAGIC 5. A read-only report of who can reach each object.
 # MAGIC
-# MAGIC **Who runs it:** someone with `CAN_MANAGE` on the app, the SQL warehouse, the Genie spaces, the MLflow experiment and
-# MAGIC the serving endpoint, typically a workspace admin.
+# MAGIC **Who runs it:** someone with `CAN_MANAGE` on the app, the SQL warehouse, the Genie
+# MAGIC spaces, the MLflow experiment and the serving endpoint, typically a workspace admin.
 # MAGIC
-# MAGIC **How:** fill in the widgets above, run all with **Apply changes** set to `no` to preview, then set it to `yes` and run
-# MAGIC all again.
+# MAGIC **How:** fill in the widgets above, run all with **Apply changes** set to `no` to
+# MAGIC preview, then set it to `yes` and run all again.
 
 # COMMAND ----------
 
@@ -85,7 +89,9 @@ endpoint = api("GET", f"/api/2.0/serving-endpoints/{ENDPOINT}") if ENDPOINT else
 ENDPOINT_CREATOR = endpoint.get("creator") or ""
 EXPERIMENT = ""
 for entity in (endpoint.get("config") or {}).get("served_entities") or []:
-    EXPERIMENT = EXPERIMENT or (entity.get("environment_vars") or {}).get("MLFLOW_EXPERIMENT_ID", "")
+    EXPERIMENT = EXPERIMENT or (entity.get("environment_vars") or {}).get(
+        "MLFLOW_EXPERIMENT_ID", ""
+    )
 
 step("What this upgrade will touch")
 print(f"  app               {APP_NAME} (service principal {APP_SP or 'not found'})")
@@ -96,7 +102,9 @@ print(f"  Genie spaces      {', '.join(SPACES) or 'none given'}")
 print(f"  app groups        {', '.join(GROUPS) or 'none given'}")
 print(f"  mode              {'APPLY' if APPLY else 'preview only, nothing will change'}")
 if not APP_SP or not ENDPOINT:
-    raise SystemExit(f"App '{APP_NAME}' has no service principal or serving endpoint. Check the app name.")
+    raise SystemExit(
+        f"App '{APP_NAME}' has no service principal or serving endpoint. Check the app name."
+    )
 if not GROUPS:
     print("  NOTE: no groups given, so no group grants will be made.")
 
@@ -106,12 +114,25 @@ if not GROUPS:
 
 # COMMAND ----------
 
-RANK = {"CAN_VIEW": 1, "CAN_READ": 1, "CAN_USE": 2, "CAN_RUN": 2, "CAN_QUERY": 2, "CAN_EDIT": 3, "CAN_MANAGE": 4}
+RANK = {
+    "CAN_VIEW": 1,
+    "CAN_READ": 1,
+    "CAN_USE": 2,
+    "CAN_RUN": 2,
+    "CAN_QUERY": 2,
+    "CAN_EDIT": 3,
+    "CAN_MONITOR": 3,
+    "CAN_MANAGE": 4,
+    "IS_OWNER": 5,
+}
 KINDS = ("user_name", "group_name", "service_principal_name")
 
 
 def acl(object_type: str, object_id: str) -> list[dict]:
-    return api("GET", f"/api/2.0/permissions/{object_type}/{object_id}").get("access_control_list") or []
+    return (
+        api("GET", f"/api/2.0/permissions/{object_type}/{object_id}").get("access_control_list")
+        or []
+    )
 
 
 def held(entries: list[dict]) -> dict[tuple[str, str], int]:
@@ -120,26 +141,40 @@ def held(entries: list[dict]) -> dict[tuple[str, str], int]:
         for kind in KINDS:
             name = str(entry.get(kind) or "").strip().lower()
             if name:
-                rank = max((RANK.get(p.get("permission_level", ""), 0) for p in entry.get("all_permissions") or []), default=0)
+                rank = max(
+                    (
+                        RANK.get(p.get("permission_level", ""), 0)
+                        for p in entry.get("all_permissions") or []
+                    ),
+                    default=0,
+                )
                 best[(kind, name)] = max(best.get((kind, name), 0), rank)
     return best
 
 
-def ensure(object_type: str, object_id: str, wanted: list[tuple[str, str, str]], title: str) -> None:
+def ensure(
+    object_type: str, object_id: str, wanted: list[tuple[str, str, str]], title: str
+) -> None:
     """Grant each (kind, name, level) at least that level. Merges; never removes anyone."""
 
     step(title)
     try:
         current = held(acl(object_type, object_id))
-        missing = [(k, n, lvl) for k, n, lvl in wanted if current.get((k, n.lower()), 0) < RANK[lvl]]
+        missing = [
+            (k, n, lvl) for k, n, lvl in wanted if current.get((k, n.lower()), 0) < RANK[lvl]
+        ]
         if not missing:
             print("  already in place")
             return
-        for kind, name, level in missing:
+        for _kind, name, level in missing:
             print(f"  {'granting' if APPLY else 'would grant'} {level} to {name}")
         if not APPLY:
             return
-        body = {"access_control_list": [{kind: name, "permission_level": level} for kind, name, level in missing]}
+        body = {
+            "access_control_list": [
+                {kind: name, "permission_level": level} for kind, name, level in missing
+            ]
+        }
         api("PATCH", f"/api/2.0/permissions/{object_type}/{object_id}", body)
         after = held(acl(object_type, object_id))
         still = [n for k, n, lvl in wanted if after.get((k, n.lower()), 0) < RANK[lvl]]
@@ -151,12 +186,27 @@ def ensure(object_type: str, object_id: str, wanted: list[tuple[str, str, str]],
         print(f"  WARNING: {error}")
 
 
-ensure("apps", APP_NAME, [("service_principal_name", APP_SP, "CAN_MANAGE")], "The app's own service principal")
+ensure(
+    "apps",
+    APP_NAME,
+    [("service_principal_name", APP_SP, "CAN_MANAGE")],
+    "The app's own service principal",
+)
 ensure("apps", APP_NAME, [("group_name", g, "CAN_USE") for g in GROUPS], "App groups on the app")
 if WAREHOUSE:
-    ensure("warehouses", WAREHOUSE, [("group_name", g, "CAN_USE") for g in GROUPS], "App groups on the SQL warehouse")
+    ensure(
+        "warehouses",
+        WAREHOUSE,
+        [("group_name", g, "CAN_USE") for g in GROUPS],
+        "App groups on the SQL warehouse",
+    )
 for space in SPACES:
-    ensure("genie", space, [("group_name", g, "CAN_RUN") for g in GROUPS], f"App groups on Genie space {space}")
+    ensure(
+        "genie",
+        space,
+        [("group_name", g, "CAN_RUN") for g in GROUPS],
+        f"App groups on Genie space {space}",
+    )
 
 # COMMAND ----------
 
@@ -177,8 +227,10 @@ if EXPERIMENT:
     try:
         entries = acl("experiments", EXPERIMENT)
         direct = [
-            e for e in entries
-            if e.get("group_name") == "users" and any(not p.get("inherited") for p in e.get("all_permissions") or [])
+            e
+            for e in entries
+            if e.get("group_name") == "users"
+            and any(not p.get("inherited") for p in e.get("all_permissions") or [])
         ]
         if not direct:
             print("  no direct 'users' grant")
@@ -197,15 +249,22 @@ if EXPERIMENT:
                     for p in entry.get("all_permissions") or []
                     if not p.get("inherited")
                 ]
-            api("PUT", f"/api/2.0/permissions/experiments/{EXPERIMENT}", {"access_control_list": kept})
+            api(
+                "PUT",
+                f"/api/2.0/permissions/experiments/{EXPERIMENT}",
+                {"access_control_list": kept},
+            )
             print("  removed; every other entry kept")
         inherited = [
-            e for e in acl("experiments", EXPERIMENT)
-            if e.get("group_name") == "users" and any(p.get("inherited") for p in e.get("all_permissions") or [])
+            e
+            for e in acl("experiments", EXPERIMENT)
+            if e.get("group_name") == "users"
+            and any(p.get("inherited") for p in e.get("all_permissions") or [])
         ]
         if inherited:
-            print("  NOTE: 'users' still reaches the experiment through its parent folder. Move the experiment to a")
-            print("  folder that is not shared with everyone, or remove the grant on the folder.")
+            print("  NOTE: 'users' still reaches the experiment through its parent folder.")
+            print("  Move the experiment to a folder that is not shared with everyone, or remove")
+            print("  the grant on the folder.")
     except Exception as error:  # noqa: BLE001
         PROBLEMS.append(f"Experiment 'users' grant: {error}")
         print(f"  WARNING: {error}")
@@ -223,7 +282,9 @@ def policy_view(config: dict) -> dict:
     return {
         "request_log": bool((config.get("inference_table_config") or {}).get("enabled")),
         "usage_tracking": bool((config.get("usage_tracking_config") or {}).get("enabled")),
-        "rate_limits": sorted((r.get("key"), int(r.get("calls") or 0)) for r in config.get("rate_limits") or []),
+        "rate_limits": sorted(
+            (r.get("key"), int(r.get("calls") or 0)) for r in config.get("rate_limits") or []
+        ),
     }
 
 
@@ -236,7 +297,11 @@ try:
     target["rate_limits"] = [
         {"calls": USER_CALLS_PER_MINUTE, "key": "user", "renewal_period": "minute"},
         {"calls": ENDPOINT_CALLS_PER_MINUTE, "key": "endpoint", "renewal_period": "minute"},
-        *[r for r in current.get("rate_limits") or [] if str(r.get("key", "")).lower() not in {"user", "endpoint"}],
+        *[
+            r
+            for r in current.get("rate_limits") or []
+            if str(r.get("key", "")).lower() not in {"user", "endpoint"}
+        ],
     ]
     print(f"  now:    {policy_view(current)}")
     print(f"  target: {policy_view(target)}")
@@ -250,7 +315,11 @@ try:
                 break
             except Exception as error:  # noqa: BLE001
                 text = str(error).lower()
-                feature = next((f for f in OPTIONAL if f in text), None) if "not currently supported" in text else None
+                feature = (
+                    next((f for f in OPTIONAL if f in text), None)
+                    if "not currently supported" in text
+                    else None
+                )
                 if feature is None or feature in refused:
                     raise
                 refused.append(feature)
@@ -261,8 +330,8 @@ try:
                     target.pop(key, None)
         print("  applied")
         if refused:
-            print(f"  This workspace does not support {' and '.join(refused)} on this endpoint type; set them on the")
-            print("  AI Gateway model service the agent calls instead.")
+            print(f"  This workspace does not support {' and '.join(refused)} on this endpoint")
+            print("  type; set them on the AI Gateway model service the agent calls instead.")
 except Exception as error:  # noqa: BLE001
     PROBLEMS.append(f"Endpoint policy: {error}")
     print(f"  WARNING: {error}")
@@ -282,14 +351,22 @@ def report(label: str, object_type: str, object_id: str) -> None:
         return
     everyone = sorted({e.get("group_name") for e in entries if e.get("group_name") in EVERYONE})
     people = sorted({e["user_name"] for e in entries if e.get("user_name")})
-    groups = sorted({e["group_name"] for e in entries if e.get("group_name") and e.get("group_name") not in EVERYONE | {"admins"}})
+    groups = sorted(
+        {
+            e["group_name"]
+            for e in entries
+            if e.get("group_name") and e.get("group_name") not in EVERYONE | {"admins"}
+        }
+    )
     status = "CHECK" if everyone else "ok"
     print(f"  {status:5} {label}")
     print(f"        groups: {', '.join(groups) or 'none'}")
     if everyone:
         print(f"        open to everyone through: {', '.join(everyone)}")
     if people:
-        print(f"        people granted directly: {len(people)} (grant groups instead where you can)")
+        print(
+            f"        people granted directly: {len(people)} (grant groups instead where you can)"
+        )
 
 
 step("Access report")
@@ -301,8 +378,17 @@ for space in SPACES:
 if EXPERIMENT:
     report(f"MLflow experiment {EXPERIMENT}", "experiments", EXPERIMENT)
 report(f"serving endpoint {ENDPOINT}", "serving-endpoints", endpoint.get("id", ENDPOINT))
-final = policy_view(api("GET", f"/api/2.0/serving-endpoints/{ENDPOINT}").get("ai_gateway") or {})
-print(f"  {'ok' if not final['request_log'] else 'CHECK':5} endpoint request log {'off' if not final['request_log'] else 'ON'}")
+latest = api("GET", f"/api/2.0/serving-endpoints/{ENDPOINT}")
+gateway_log = policy_view(latest.get("ai_gateway") or {})["request_log"]
+legacy_log = bool(((latest.get("config") or {}).get("auto_capture_config") or {}).get("enabled"))
+request_log_on = gateway_log or legacy_log
+request_log_status = "CHECK" if request_log_on else "ok"
+print(f"  {request_log_status:5} endpoint request log {'ON' if request_log_on else 'off'}")
+if legacy_log:
+    print("        the endpoint still writes an inference table through its older capture")
+    print("        setting. Turn it off on the endpoint's page (Edit endpoint, Inference tables);")
+    print("        changing it redeploys the endpoint.")
+    PROBLEMS.append("Endpoint request log: the older inference table capture is still on")
 
 step("Result")
 if not APPLY:

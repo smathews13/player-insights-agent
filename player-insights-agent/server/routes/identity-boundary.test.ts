@@ -264,6 +264,44 @@ describe('a deployed app with a forwarded identity', () => {
     expect(write?.sql).not.toMatch(/content|question|token|session/i);
   });
 
+  it("reads the caller's own groups before deciding whether a persona replaces their token", async () => {
+    // A Super admin by group always runs as themselves. The persona check asks
+    // for the caller's role, so their groups must already be known by then.
+    const events: string[] = [];
+    const lakebase: InsightsAppKit['lakebase'] = {
+      query(sql: string) {
+        if (sql.includes('admin_emails')) events.push('roster');
+        return Promise.resolve({ rows: [] as Record<string, unknown>[] });
+      },
+    };
+    const app = express();
+    app.use(express.json());
+    await setupInsightsRoutes(
+      { lakebase, server: { extend: (fn) => fn(app) }, servingTransport: () => Promise.reject(new Error('not used')) },
+      {
+        selfGroupReader: () => {
+          events.push('groups');
+          return Promise.resolve({ userName: 'group.super@example.test', groups: [{ display: 'Example Super' }] });
+        },
+      }
+    );
+    const server: Server = app.listen(0, '127.0.0.1');
+    await new Promise((resolve) => server.once('listening', resolve));
+    const { port } = server.address() as AddressInfo;
+    events.length = 0;
+
+    try {
+      await fetch(`http://127.0.0.1:${port}/api/identity`, {
+        headers: { 'x-forwarded-email': 'group.super@example.test', 'x-forwarded-access-token': 'user-token' },
+      });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+
+    expect(events[0]).toBe('groups');
+    expect(events).toContain('roster');
+  });
+
   it('scopes the read to the caller, and to nobody else', async () => {
     const store = recordingStore();
     const app = await startApp(store.lakebase);
