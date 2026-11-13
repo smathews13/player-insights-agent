@@ -265,18 +265,22 @@ verify_plan() {
     read -r table readers fn < <(PLAN_JSON="$PLAN_JSON" python3 -c 'import json,os,sys;m=json.loads(os.environ["PLAN_JSON"])["masters"][int(sys.argv[1])];print(m["table"],m["readers"],m["function"])' "$i")
     filter="$(databricks tables get "$table" --profile "$PROFILE" -o json 2>/dev/null \
       | python3 -c 'import json,sys;print((json.load(sys.stdin).get("row_filter") or {}).get("function_name",""))' 2>/dev/null || true)"
-    local k label_group
-    for ((k = 0; k < labels_count; k++)); do
-      label_group="$(label_field "$k" group)"
-      held="$(effective_privileges table "$table" "$label_group")"
-      if [[ "$readers" == central ]] && has "$held" SELECT; then
-        fail "$label_group can read $table, which only central groups should read"
-      fi
-    done
-    if [[ "$readers" == all_labels ]]; then
-      if [[ "$(lower "$filter")" == "$(lower "$fn")" ]]; then pass "$table is filtered by $fn"; else fail "$table has no label row filter (found: ${filter:-none})"; fi
+    local k label_group before=$failures
+    if [[ "$readers" == central ]]; then
+      for ((k = 0; k < labels_count; k++)); do
+        label_group="$(label_field "$k" group)"
+        held="$(effective_privileges table "$table" "$label_group")"
+        if [[ "$held" == UNREADABLE ]]; then
+          fail "$label_group on $table could not be read"
+        elif has "$held" SELECT; then
+          fail "$label_group can read $table, which only central groups should read"
+        fi
+      done
+      [[ $failures -eq $before ]] && pass "$table: no label group reads it"
+    elif [[ "$(lower "$filter")" == "$(lower "$fn")" ]]; then
+      pass "$table is filtered by $fn"
     else
-      pass "$table: no label group reads it"
+      fail "$table has no label row filter (found: ${filter:-none})"
     fi
   done
 

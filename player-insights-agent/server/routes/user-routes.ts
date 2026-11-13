@@ -502,7 +502,9 @@ export function setupUserRoutes(
           .filter((principal) => principal.kind === 'user' && principal.effectivePermission !== null)
           .map((principal) => principal.name)
       );
-      rows = rows.filter((row) => admitted.has(row.email));
+      // Identity lists a stored administrator who reaches the app only through a
+      // group, and their role applies whenever they sign in, so it must be removable.
+      rows = rows.filter((row) => admitted.has(row.email) || (row.email === email && row.role !== 'consumer'));
       const seed = {
         superAdmins: configuredSeed.superAdmins.filter((candidate) => admitted.has(candidate)),
         admins: configuredSeed.admins.filter((candidate) => admitted.has(candidate)),

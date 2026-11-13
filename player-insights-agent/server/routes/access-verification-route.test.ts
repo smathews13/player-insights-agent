@@ -465,7 +465,7 @@ describe('POST /api/app-user-api-scopes', () => {
     }
 
     expect(response.status).toBe(400);
-    expect(call).toHaveBeenCalledTimes(1);
+    expect(call.mock.calls.filter(([input]) => requestedUrl(input) === APP)).toEqual([]);
   });
 
   it('returns a clear refusal when the user cannot manage the app', async () => {

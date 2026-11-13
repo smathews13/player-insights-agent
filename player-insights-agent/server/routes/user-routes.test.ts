@@ -897,6 +897,30 @@ describe('changing and removing', () => {
     expect(store.rows.roster[0].role).toBe('admin');
   });
 
+  it('removes a stored administrator who reaches the app only through a group', async () => {
+    stubStatements(() => SUCCEEDED);
+    const groupOnly = 'group-only@example.invalid';
+    const store = fakeLakebase([{ email: groupOnly, role: 'admin', added_by: LEAD, added_at: '' }]);
+    const appAccess: AppAccessService = {
+      read: () =>
+        Promise.resolve({
+          available: true,
+          principals: [LEAD, DEPUTY, ANALYST].map((name) => ({
+            kind: 'user' as const,
+            name,
+            displayName: name,
+            directPermission: 'CAN_USE' as const,
+            effectivePermission: 'CAN_USE' as const,
+            inherited: false,
+          })),
+          message: '',
+        }),
+    };
+    const app = await startApp(store, appAccess);
+    expect((await app.remove(LEAD, groupOnly)).status).toBe(200);
+    expect(store.rows.roster).toEqual([]);
+  });
+
   it('answers 404 for an address the roster does not name', async () => {
     const app = await startApp(fakeLakebase());
     expect((await app.remove(LEAD, STRANGER)).status).toBe(404);

@@ -2,7 +2,8 @@
 # Offline proof that label-access.sh grants each label group only its own
 # schemas plus the shared ones, attaches the master-table row filter, and that
 # --verify catches a cross-label read, a missing row filter, a central-only
-# table a label can read, and a label outside the agent's read scope.
+# table a label can read or whose privileges cannot be read, and a label outside
+# the agent's read scope.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +33,7 @@ json.dump(state, open(path, "w"))
 PY
     printf '{}\n' ;;
   "grants get-effective")
+    [[ "${UNREADABLE_TABLES:-}" == 1 && "$3" == table ]] && { printf 'permission denied\n' >&2; exit 1; }
     python3 - "$GRANTS" "$3" "$4" "$6" <<'PY'
 import json, os, sys
 path, kind, name, principal = sys.argv[1:]
@@ -88,6 +90,7 @@ run_tool() {
   env -u PIA_BUNDLE_JSON_CACHE PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" GRANTS="$WORK/grants.json" \
     FILTERED="$WORK/filtered" STATEMENTS="$WORK/statements" BUNDLE_FIXTURE="$WORK/bundle.json" \
     LABEL_ACCESS_CONFIG="$WORK/config.json" TARGET=test PROFILE=test-profile OPEN_CATALOG="${OPEN_CATALOG:-}" \
+    UNREADABLE_TABLES="${UNREADABLE_TABLES:-}" \
     bash "$HERE/label-access.sh" "$@" > "$WORK/output" 2>&1
 }
 
@@ -150,6 +153,14 @@ s=json.load(open(sys.argv[1])); s["table prod.xlabel.master Label_B_Readers"]=["
 if run_tool --verify; then bad "verify passed although a label reads a central-only table"; else
   grep -q "Label_B_Readers can read prod.xlabel.master, which only central groups should read" "$WORK/output" \
     && ok "verify reports a label reading a central-only table" || bad "unexpected: $(cat "$WORK/output")"
+fi
+
+reset
+run_tool --apply >/dev/null
+if UNREADABLE_TABLES=1 run_tool --verify; then bad "verify passed although no label group's table privileges could be read"; else
+  grep -q "Label_A_Readers on prod.xlabel.master could not be read" "$WORK/output" \
+    && ! grep -q "prod.xlabel.master: no label group reads it" "$WORK/output" \
+    && ok "verify fails a central-only table whose privileges cannot be read" || bad "unexpected: $(cat "$WORK/output")"
 fi
 
 bundle_fixture '["prod.label_a_production","prod.global_production"]'

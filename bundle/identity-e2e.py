@@ -374,7 +374,10 @@ def not_provable(name: str, reason: str) -> None:
 
 ADMIN_ROUTES = ["/api/monitoring/questions", "/api/admin/runtime-settings", "/api/ops/cost"]
 # Identity and SP personas: SUPER_ADMIN_ROUTE_PREFIXES in server/lib/admin-roles.ts.
-SUPER_ADMIN_ROUTES = ["/api/users", "/api/admin/sp-identity"]
+SUPER_ADMIN_ROUTES = {
+    "/api/users": "/api/users/groups/pia-e2e-no-such-group",
+    "/api/admin/sp-identity": "/api/admin/sp-identity/persona-definitions/pia-e2e-no-such-persona",
+}
 DATA_QUESTION = "How many rows are in the player profiles table? Answer with one number."
 
 
@@ -413,15 +416,21 @@ def run() -> int:
                   str(me.get("signedInAs")))
 
         print("==> Route guards")
-        for route in ADMIN_ROUTES + SUPER_ADMIN_ROUTES:
+        for route in ADMIN_ROUTES + list(SUPER_ADMIN_ROUTES):
             status, _ = sessions["consumer"].get(route)
             check(status == 403, f"a Consumer is refused {route}", str(status))
         for route in ADMIN_ROUTES:
             status, _ = sessions["admin"].get(route)
             check(status == 200, f"an Admin may open {route}", str(status))
-        for route in SUPER_ADMIN_ROUTES:
+        # Admins may read Identity and the personas; only changes are the super
+        # admin's (requiresSuperAdmin in server/lib/admin-roles.ts). Each write
+        # names something that does not exist, so a guard that failed open would
+        # still change nothing.
+        for route, write in SUPER_ADMIN_ROUTES.items():
             status, _ = sessions["admin"].get(route)
-            check(status == 403, f"an Admin who is not the super admin is refused {route}", str(status))
+            check(status == 200, f"an Admin may read {route}", str(status))
+            status, _ = sessions["admin"].delete(write)
+            check(status == 403, f"an Admin who is not the super admin is refused DELETE {write}", str(status))
             status, _ = operator.get(route)
             check(status == 200, f"the super admin may open {route}", str(status))
 
