@@ -140,6 +140,7 @@ export const FAILURE_CODES = [
   'IDEMPOTENCY_CONFLICT',
   'IDEMPOTENCY_KEY_MALFORMED',
   'BUDGET_APPROVAL_REQUIRED',
+  'MODEL_RATE_LIMITED',
   'DEPENDENCY_UNAVAILABLE',
   'GENIE_UNATTRIBUTABLE',
   'ASSET_NOT_IN_MANIFEST',
@@ -295,6 +296,21 @@ export const FAILURE_TAXONOMY: Record<FailureCode, FailureDefinition> = {
     mayRerouteOrReidentify: false,
     uiMessage:
       'Measured month-to-date spend reached the monthly app budget. An administrator must approve continued usage before a new question can start.',
+    trace: 'may_have_no_trace',
+    alert: 'info',
+    mayGenerateAnswer: false,
+  },
+  MODEL_RATE_LIMITED: {
+    code: 'MODEL_RATE_LIMITED',
+    layer: 'governance',
+    httpStatus: 429,
+    retryable: true,
+    mayRerouteOrReidentify: false,
+    // The AI Gateway's per-user or per-endpoint limit. Retryable after the
+    // window renews; never rerouted, because the direct route is not a way
+    // around a limit an administrator set.
+    uiMessage:
+      'You have asked more questions in the last minute than this deployment allows. Wait a minute, then ask again.',
     trace: 'may_have_no_trace',
     alert: 'info',
     mayGenerateAnswer: false,

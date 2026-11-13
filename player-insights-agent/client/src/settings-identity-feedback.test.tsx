@@ -159,7 +159,7 @@ describe('the demo workspace Identity feedback', () => {
     expect(markup).toContain('Direct CAN MANAGE on the Databricks App.');
   });
 
-  it('renders a service principal as a member row with a robot mark, not a pill or an org logo', () => {
+  it('renders a service principal in its own table with a robot mark, not a pill or an org logo', () => {
     const withServicePrincipal: RosterPayload = {
       ...humanRoles,
       appAccessPrincipals: [
@@ -184,10 +184,17 @@ describe('the demo workspace Identity feedback', () => {
         onPersonaChange={() => {}}
       />
     );
-    // It is a row in the members table, identified by the SP-row class and its
-    // robot-marked organization cell -- not the old "Service principals" pill.
-    expect(markup).toContain('service-principal-row');
-    expect(markup).toContain('roster-organization-mark--service-principal');
+    // Its own table after the people, with no role, persona or organization
+    // control -- not the old "Service principals" pill line.
+    const tables = markup.split('<table').slice(1);
+    expect(tables).toHaveLength(2);
+    expect(tables[0]).not.toContain('service-principal-row');
+    expect(tables[1]).toContain('service-principal-table');
+    expect(tables[1]).toContain('service-principal-row');
+    expect(tables[1]).toContain('lucide-bot');
+    expect(tables[1]).not.toContain('Persona');
+    expect(tables[1]).not.toContain('roster-organization');
+    expect(markup.indexOf('Individual users')).toBeLessThan(markup.indexOf('Service principals'));
     expect(markup).toContain('app-2s4y82 player-insights-agent');
     expect(markup).toContain('Can manage app');
     expect(markup).not.toContain('roster-app-principals-title');

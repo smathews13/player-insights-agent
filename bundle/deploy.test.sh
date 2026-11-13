@@ -24,7 +24,8 @@ if [[ "$1 $2" == "bundle validate" ]]; then
   "semantic_index_endpoint":{"default":""},
   "app_engineer_group":{"value":"${DECLARED_ENGINEER:-}"},
   "app_exec_group":{"default":""},
-  "app_admin_group":{"value":"${DECLARED_ADMIN:-}"}
+  "app_admin_group":{"value":"${DECLARED_ADMIN:-}"},
+  "app_manager_group":{"value":"${DECLARED_MANAGER:-}"}
 }}
 JSON
   exit 0
@@ -176,6 +177,11 @@ LIVE_APP_ACL="$LIVE" DECLARED_ADMIN=example_pia_admin run_wrapper >/dev/null
 
 : >"$TMP/calls"
 LIVE_APP_ACL="$LIVE" PLAYER_INSIGHTS_ALLOW_APP_GROUP_REMOVAL=true run_wrapper >/dev/null
+[[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
+
+MANAGED='{"access_control_list":[{"group_name":"Example_PIA_Platform","all_permissions":[{"permission_level":"CAN_MANAGE","inherited":false}]}]}'
+: >"$TMP/calls"
+LIVE_APP_ACL="$MANAGED" DECLARED_MANAGER=Example_PIA_Platform run_wrapper >/dev/null
 [[ "$(cat "$TMP/calls")" == "bundle deploy -t wrapper-test --profile test-profile" ]]
 
 printf 'PASS  bundle deploy wrapper blocks unsafe state and flags.\n'

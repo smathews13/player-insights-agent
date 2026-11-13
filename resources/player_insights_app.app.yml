@@ -57,6 +57,9 @@ resources:
           level: CAN_USE
         - group_name: ${var.app_admin_group}
           level: CAN_USE
+        # The only CAN_MANAGE grant the bundle makes; keep the group small.
+        - group_name: ${var.app_manager_group}
+          level: CAN_MANAGE
 
       # These bindings grant the app service principal access to its state
       # store, serving endpoint, and SQL warehouse. Do not bind governed tables

@@ -728,6 +728,21 @@
   background: var(--card);
 }
 
+.roster-section + .roster-section {
+  margin-top: 1.25rem;
+}
+
+.roster-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.service-principal-table .roster-role-column {
+  width: 200px;
+}
+
 .roster-frame {
   --roster-panel-surface: var(--background);
   --roster-header-surface: var(--muted);

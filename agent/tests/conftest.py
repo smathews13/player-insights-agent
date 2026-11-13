@@ -56,3 +56,12 @@ def _fresh_described_columns():
     sql_policy.begin_described_columns()
     yield
     sql_policy.begin_described_columns()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_capability_record():
+    import genie_routing
+
+    genie_routing.forget_spent()
+    yield
+    genie_routing.forget_spent()

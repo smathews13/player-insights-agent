@@ -15,7 +15,7 @@
 import './styles/answer-body.css';
 import './styles/answer-charts.css';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { dataAccessDisclosure } from './analytical-execution';
+import { dataAccessDisclosure, personaAnswerBanner } from './analytical-execution';
 import type { TraceStage } from './answer-shape';
 import { answerBadge, answerFallbackNotice, DEGRADED_ANSWER_MARKER, splitCaveats } from './degraded-answer';
 import { answerHonesty, readerFacingNarrative, readerFacingTakeaway } from './reader-facing-answer';
@@ -234,6 +234,7 @@ export function AnswerCard({
   // Null on a run that did not record which identity read the data, and the
   // footer then simply ends earlier. See analytical-execution.ts.
   const dataAccess = dataAccessDisclosure(readerAnswer.executionIdentity);
+  const personaBanner = personaAnswerBanner(readerAnswer.executionIdentity);
   const generatedId = useId();
   const keyFiguresId = `${id || generatedId}-key-figures`;
   const figureOccurrences = new Map<string, number>();
@@ -278,6 +279,12 @@ export function AnswerCard({
         {/* First in the card, above the supporting context and evidence, because it
             governs how every number below it should be read. Below them it was
             a footnote to a conclusion the reader had already drawn. */}
+        {personaBanner && (
+          <Alert className="answer-persona-banner" data-testid="answer-persona-banner">
+            <CircleAlert />
+            <AlertDescription>{personaBanner}</AlertDescription>
+          </Alert>
+        )}
         {degradedCaveats.length > 0 && (
           <Alert variant="destructive" className="answer-source-degradation">
             <CircleAlert />

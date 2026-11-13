@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { dataAccessDisclosure, executionSummary } from './analytical-execution';
+import { dataAccessDisclosure, executionSummary, personaAnswerBanner } from './analytical-execution';
+import { normalizeAnswer } from './answer-shape';
 
 /**
  * The panel these lines appear on is where somebody goes to answer "could this
@@ -133,5 +134,37 @@ describe('dataAccessDisclosure', () => {
       expect(line).not.toMatch(/unconfirmed|unverified|unknown|cannot confirm|not confirmed/i);
     }
     expect(dataAccessDisclosure(null)).toBeNull();
+  });
+});
+
+describe('personaAnswerBanner', () => {
+  it('names the persona an answer ran as', () => {
+    const banner = personaAnswerBanner({
+      mode: 'assigned_service_principal',
+      verified: true,
+      persona: 'Regional analyst',
+    });
+    expect(banner).toBe(
+      'Answered as the “Regional analyst” persona. The data was read with that persona’s Unity Catalog grants, not yours.'
+    );
+  });
+
+  it('still marks a reopened persona answer that kept only the mode', () => {
+    expect(personaAnswerBanner({ mode: 'assigned_service_principal', verified: true })).toMatch(
+      /^Answered as an assigned persona\./
+    );
+  });
+
+  it('says nothing on an answer that ran as the reader or recorded no identity', () => {
+    expect(personaAnswerBanner({ mode: 'signed_in_user', verified: true })).toBeNull();
+    expect(personaAnswerBanner(undefined)).toBeNull();
+  });
+
+  it('keeps the persona name through answer normalization, twice', () => {
+    const once = normalizeAnswer({
+      execution_identity: { mode: 'assigned_service_principal', verified: true, persona: 'Regional analyst' },
+    });
+    expect(once.executionIdentity?.persona).toBe('Regional analyst');
+    expect(normalizeAnswer(once as never).executionIdentity?.persona).toBe('Regional analyst');
   });
 });

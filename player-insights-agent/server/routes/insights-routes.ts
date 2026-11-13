@@ -24,6 +24,7 @@ import {
   type IdleTimeoutConfig,
 } from '../lib/app-session';
 import { startTelemetryHousekeeping } from '../lib/telemetry-retention';
+import { deleteConversationContents, startConversationRetention } from '../lib/conversation-erasure';
 import { TRACE_SESSION_BASES, turnTraceSession } from '../lib/trace-session';
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import { normalizeReaderAnswer } from '../../shared/answer-content-policy';
@@ -91,6 +92,7 @@ import { rememberOwnGroups, type SelfReader } from '../lib/workspace-group-roles
 import { readRosterForRequest } from '../lib/user-roster';
 import { resolveCanonicalUserIdentity } from '../lib/canonical-user-identity';
 import { opensAdminSurfaces } from '../../shared/user-roster-contract';
+import { recordPersonaUse } from '../lib/persona-history';
 import {
   admitRun,
   executorName,
@@ -1047,6 +1049,33 @@ async function callerReadsSharedConversations(
  * therefore follows the Run Explorer's rule, while LISTING everyone's threads in
  * the rail still needs the flag, and every write stays owner-only.
  */
+/**
+ * One admin audit row each time an administrator opens somebody else's
+ * conversation. Best effort and after the reply: a failed audit write is
+ * logged by recordAdminAction and never withholds the read.
+ */
+async function auditForeignConversationRead(
+  store: InsightsAppKit['lakebase'],
+  conversationId: string,
+  reader: string
+): Promise<void> {
+  try {
+    const owner = await store.query(`SELECT user_email FROM ${APP_SCHEMA}.conversations WHERE id = $1`, [
+      conversationId,
+    ]);
+    const ownerEmail = owner.rows[0]?.user_email;
+    if (typeof ownerEmail !== 'string' || ownerEmail.toLowerCase() === reader.toLowerCase()) return;
+    await recordAdminAction(store, {
+      actor: reader,
+      action: 'conversation-read',
+      subject: conversationId,
+      detail: `${reader} opened a conversation belonging to ${ownerEmail}.`,
+    });
+  } catch (error) {
+    console.error(`[admin] Could not audit a read of conversation ${conversationId}:`, (error as Error).message);
+  }
+}
+
 async function callerReadsNamedConversation(
   store: InsightsAppKit['lakebase'],
   email: string,
@@ -3406,6 +3435,9 @@ export function buildAskServingBody({
   if (deadlineAt) custom_inputs.deadline_at = deadlineAt;
   if (runtimeSettings) custom_inputs.runtime_settings = agentRuntimeSettings(runtimeSettings);
   if (llmRoute) custom_inputs.llm_route = llmRoute;
+  // AI Gateway is on by default but not mandatory: a model released without a
+  // Gateway service answers on the direct route instead of failing the ask.
+  if (llmRoute === 'ai_gateway') custom_inputs.llm_gateway_optional = true;
   if (genieMcpCapability) {
     custom_inputs.genie_transport = 'mcp';
     custom_inputs.genie_mcp_capability = genieMcpCapability;
@@ -4620,8 +4652,9 @@ export function setupInsightsRoutes(
      * Remove one conversation, by primary key, and everything that hangs off it.
      *
      * There are no foreign keys on this schema, so nothing cascades on the
-     * database's side and each table is named explicitly here. The order is
-     * load-bearing rather than incidental, see the comments on each statement.
+     * database's side and each table is named explicitly, in
+     * deleteConversationContents and below. The order is load-bearing rather
+     * than incidental, see the comments on each statement.
      */
     app.delete('/api/conversations/:id', async (req, res) => {
       const conversationId = req.params.id;
@@ -4664,33 +4697,11 @@ export function setupInsightsRoutes(
       }
 
       try {
-        // Feedback first, while the messages it is keyed on still exist.
-        // `feedback` carries no conversation id (only `message_id`), so once
-        // the messages are gone there is nothing left to identify these rows
-        // by, and they would stay in the table pointing at ids that no longer
-        // resolve. Not filtered by the caller's address: the rows are being
-        // removed because their target is being removed, and one left behind
-        // because somebody else wrote it is an orphan nothing can reach.
-        const feedback = await appkit.lakebase.query(
-          `DELETE FROM ${APP_SCHEMA}.feedback
-           WHERE message_id IN (SELECT id FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1
-           )
-           RETURNING id`,
-          [conversationId]
-        );
-        // Scoped by conversation rather than by owner, on purpose. An
-        // attachment holds text extracted from an uploaded document, and one
-        // left behind here would be unreachable (every read of it is scoped
-        // through a conversation that no longer exists), while the document's
-        // contents stayed in the store indefinitely.
-        const attachments = await appkit.lakebase.query(
-          `DELETE FROM ${APP_SCHEMA}.attachments WHERE conversation_id = $1 RETURNING id`,
-          [conversationId]
-        );
-        const messages = await appkit.lakebase.query(
-          `DELETE FROM ${APP_SCHEMA}.messages WHERE conversation_id = $1 RETURNING id`,
-          [conversationId]
-        );
+        // Runs, feedback, attachments and messages, keyed on the conversation
+        // id alone and not on the owner: a row left behind because somebody
+        // else wrote it would be an orphan nothing can reach. See
+        // deleteConversationContents for the order and why it matters.
+        const removed = await deleteConversationContents(appkit.lakebase, conversationId);
         // The conversation row last, so that a failure part-way through leaves
         // the conversation listed and the delete retryable rather than leaving
         // orphaned children under an id the rail can no longer name. Every
@@ -4705,9 +4716,10 @@ export function setupInsightsRoutes(
           conversationId,
           deleted: {
             conversations: conversation.rows.length,
-            messages: messages.rows.length,
-            attachments: attachments.rows.length,
-            feedback: feedback.rows.length,
+            messages: removed.messages,
+            attachments: removed.attachments,
+            feedback: removed.feedback,
+            runs: removed.runs,
           },
         });
       } catch (error) {
@@ -4774,6 +4786,9 @@ export function setupInsightsRoutes(
       // Keep the original array envelope for clients that have not opted into
       // cursors, while still enforcing the server's bounded default.
       res.json(paged ? { messages, nextCursor, hasMore } : messages);
+      if (readsShared && !cursor && messages.length > 0) {
+        void auditForeignConversationRead(appkit.lakebase, req.params.id, email);
+      }
     });
 
     /**
@@ -5553,6 +5568,20 @@ export function setupInsightsRoutes(
         return;
       }
 
+      if (identity.persona) {
+        // Recorded before the run, so a persona question that fails still has
+        // its row. Best effort: a write failure is logged, not a refusal.
+        await recordPersonaUse(appkit, {
+          runId: identity.requestId,
+          conversationId,
+          userEmail: email,
+          persona: identity.persona,
+          question: prompt,
+        }).catch((error: Error) =>
+          console.error(`[sp-identity] Persona use for ${identity.requestId} was not recorded: ${error.message}`)
+        );
+      }
+
       const cancellationController = new AbortController();
       const unregisterCancellation = admission.run
         ? registerRunController(admission.run.runId, cancellationController)
@@ -6304,14 +6333,15 @@ export function setupInsightsRoutes(
             return;
           }
           const detail = error instanceof Error ? error.message : String(error);
-          console.error(`[serving] The agent endpoint call failed and nothing ran. Cause: ${detail}`);
+          const failureCode = carriedStatus(error) === 429 ? 'MODEL_RATE_LIMITED' : 'DEPENDENCY_UNAVAILABLE';
+          console.error(`[serving] The agent endpoint call failed and nothing ran (${failureCode}). Cause: ${detail}`);
           await settleRun(appkit, admission, {
-            to: terminalStateFor('DEPENDENCY_UNAVAILABLE'),
-            code: 'DEPENDENCY_UNAVAILABLE',
+            to: terminalStateFor(failureCode),
+            code: failureCode,
           });
-          reply.status(unavailableHttpStatus('DEPENDENCY_UNAVAILABLE')).json(
+          reply.status(unavailableHttpStatus(failureCode)).json(
             unavailableResult({
-              code: 'DEPENDENCY_UNAVAILABLE',
+              code: failureCode,
               requestId: identity.correlationId,
               runId: null,
               persistence: 'not_stored',
@@ -7008,6 +7038,10 @@ export function setupInsightsRoutes(
   }
   void storeReady.then(
     () => void startTelemetryHousekeeping(appkit.lakebase),
+    () => undefined
+  );
+  void storeReady.then(
+    () => void startConversationRetention(appkit.lakebase),
     () => undefined
   );
 

@@ -53,6 +53,8 @@ chmod +x "$WORK/bin/databricks"
 
 bundle_fixture() {
   printf '{"variables":{"serving_endpoint_name":{"value":"test-endpoint"},"app_name":{"value":"test-app"},'
+  printf '"warehouse_id":{"value":"wh-1"},"genie_data_space_id":{"value":"%s"},"genie_dictionary_space_id":{"value":""},' \
+    "${GENIE_SPACE:-}"
   printf '"app_engineer_group":{"value":"%s"},"app_exec_group":{"value":"%s"},"app_admin_group":{"value":"%s"}}}' \
     "$1" "$2" "$3"
 }
@@ -168,6 +170,25 @@ check_script() {
 
 check_script endpoint-user-access.sh CAN_QUERY "serving-endpoints endpoint-id"
 check_script app-user-access.sh CAN_USE "apps test-app"
+check_script gate3-access.sh CAN_USE "warehouses wh-1"
+
+echo "gate3-access.sh (Genie)"
+GENIE_SPACE=space-1 bundle_fixture "$ENGINEER" "$EXEC" "$ADMIN" > "$WORK/bundle.json"
+PERMISSIONS_BEFORE="$(granted CAN_USE "$ENGINEER" "$EXEC" "$ADMIN")" \
+  run_grant gate3-access.sh "$(granted CAN_RUN "$ENGINEER" "$EXEC" "$ADMIN")"
+update="$(grep "^permissions update genie space-1" "$WORK/calls" || true)"
+if [[ "$update" == *"\"group_name\": \"$EXEC\", \"permission_level\": \"CAN_RUN\""* ]] \
+  && ! grep -q "^permissions update warehouses" "$WORK/calls"; then
+  ok "grants CAN_RUN on the Genie space and leaves a warehouse already granted alone"
+else
+  bad "Genie CAN_RUN grant is wrong: $(cat "$WORK/calls")"
+fi
+if grep -q '^run_gate3_access$' "$HERE/app-release.sh" \
+  && grep -q 'if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$GATE3_ACCESS" --apply; then' "$HERE/app-release.sh"; then
+  ok "app-release.sh runs the warehouse and Genie grant and only warns when it fails"
+else
+  bad "app-release.sh does not run gate3-access.sh --apply as a non-fatal step"
+fi
 
 if grep -q 'endpoint-user-access.sh" --apply; then' "$HERE/agent-release.sh"; then
   ok "agent-release.sh runs the endpoint grant and only warns when it fails"

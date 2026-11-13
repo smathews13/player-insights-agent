@@ -14,6 +14,8 @@
 export interface AnalyticalExecution {
   mode: string;
   verified: boolean;
+  /** The persona's display name, when the question ran as an assigned persona. */
+  persona?: string;
 }
 
 export interface ExecutionSummary {
@@ -32,6 +34,7 @@ export interface ExecutionSummary {
 
 const SIGNED_IN_USER = 'signed_in_user';
 const APP_SERVICE_PRINCIPAL = 'app_service_principal';
+const ASSIGNED_SERVICE_PRINCIPAL = 'assigned_service_principal';
 
 /**
  * How to describe an execution mode to whoever administers this deployment.
@@ -136,4 +139,16 @@ export function dataAccessDisclosure(execution: AnalyticalExecution | null | und
   // an answer would be asking them to interpret an internal identifier, and
   // guessing which of the two it resembles is how a footer comes to reassure.
   return null;
+}
+
+/**
+ * The banner on an answer that ran as an assigned persona, or null.
+ *
+ * A reopened turn records the mode but not the persona's name, so it still
+ * gets the banner, without the name.
+ */
+export function personaAnswerBanner(execution: AnalyticalExecution | null | undefined): string | null {
+  if (execution?.mode !== ASSIGNED_SERVICE_PRINCIPAL) return null;
+  const who = execution.persona ? `the “${execution.persona}” persona` : 'an assigned persona';
+  return `Answered as ${who}. The data was read with that persona’s Unity Catalog grants, not yours.`;
 }

@@ -385,7 +385,10 @@ function normalizeExecutionIdentity(raw: unknown): AnalyticalExecution | undefin
   const claim = raw as Record<string, unknown>;
   if (typeof claim.mode !== 'string' || !claim.mode.trim()) return undefined;
   if (typeof claim.verified !== 'boolean') return undefined;
-  return { mode: claim.mode, verified: claim.verified };
+  const persona = typeof claim.persona === 'string' ? claim.persona.trim().slice(0, 200) : '';
+  return persona
+    ? { mode: claim.mode, verified: claim.verified, persona }
+    : { mode: claim.mode, verified: claim.verified };
 }
 
 /**

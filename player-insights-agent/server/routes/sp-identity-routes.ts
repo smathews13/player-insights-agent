@@ -23,6 +23,7 @@ import { describeSpTokenMinting, forgetSpTokens } from '../lib/sp-token';
 import { boundedSpGrantResources, discoverSpGrantResources } from '../lib/sp-grant-resources';
 import { checkSpPersonaDefinitionStatus, statusForSpPersonaDefinition } from '../lib/sp-persona-status';
 import { configuredSpPersonaTemplates } from '../lib/sp-persona-templates';
+import { listAssignmentEvents, listPersonaUse, normalizeReason } from '../lib/persona-history';
 import {
   deleteSpPersonaDefinition,
   deleteSpPersonaStatus,
@@ -359,7 +360,7 @@ export function setupSpIdentityRoutes(
       }
       const actor = userEmail(req);
       try {
-        const removed = await deleteSpPersona(appkit, id.data);
+        const removed = await deleteSpPersona(appkit, id.data, userEmail(req));
         if (!removed) {
           res.status(404).json({ error: 'sp_persona_missing', detail: 'That persona is not defined.' });
           return;
@@ -375,6 +376,24 @@ export function setupSpIdentityRoutes(
         res.status(503).json({
           error: 'sp_identity_store_unavailable',
           detail: `The persona was not removed: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    // Who held which persona and why, and every question a persona ran. Both
+    // come from append-only tables; `email` narrows both to one person.
+    app.get('/api/admin/sp-identity/history', async (req, res) => {
+      const email = typeof req.query.email === 'string' && req.query.email.trim() ? req.query.email : null;
+      try {
+        const [assignments, use] = await Promise.all([
+          listAssignmentEvents(appkit, email),
+          listPersonaUse(appkit, email),
+        ]);
+        res.json({ assignments, use });
+      } catch (error) {
+        res.status(503).json({
+          error: 'sp_identity_history_unreadable',
+          detail: `The persona history could not be read: ${(error as Error).message}`,
         });
       }
     });
@@ -403,7 +422,8 @@ export function setupSpIdentityRoutes(
           });
           return;
         }
-        const assignment = await writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor);
+        const reason = normalizeReason(parsed.data.reason);
+        const assignment = await writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor, reason);
         if (parsed.data.personaId && !assignment) {
           res.status(404).json({ error: 'sp_persona_missing', detail: 'That persona is not defined.' });
           return;
@@ -412,9 +432,10 @@ export function setupSpIdentityRoutes(
           actor,
           action: parsed.data.personaId ? 'sp-persona-assigned' : 'sp-persona-unassigned',
           subject: parsed.data.email,
-          detail: parsed.data.personaId
-            ? 'Assigned a service-principal persona to this person.'
-            : 'This person again runs as themselves over OAuth.',
+          detail:
+            (parsed.data.personaId
+              ? 'Assigned a service-principal persona to this person.'
+              : 'This person again runs as themselves over OAuth.') + (reason ? ` Reason: ${reason}` : ''),
         });
         res.json({ assignment, payload: await adminPayload(appkit, readDeploymentOwner) });
       } catch (error) {

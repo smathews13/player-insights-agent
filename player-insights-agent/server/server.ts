@@ -7,6 +7,7 @@ import { requestLatencyShutdown } from './lib/request-latency-shutdown';
 import { registerStaticDelivery } from './lib/static-delivery';
 import { readMlflowTokenEvidence } from './lib/mlflow-token-evidence';
 import { guardCancelledStreamCrashes } from './lib/stream-crash-guard';
+import { describeUserApiScopes } from './lib/scope-announcement';
 
 // Static ESM imports have completed before this guard runs, so the production
 // artifact has already evaluated AppKit, Lakebase, and pg. Stop here during the
@@ -62,6 +63,7 @@ createApp({
         `[identity-config] Deploy from Git restored ${restoredIdentityValues} identity values from the app-owned store.`
       );
     }
+    console.log(describeUserApiScopes());
     const [
       { setupInsightsRoutes, MIGRATIONS },
       { setupSettingsRoutes },

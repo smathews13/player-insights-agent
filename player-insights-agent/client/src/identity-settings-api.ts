@@ -269,11 +269,16 @@ export async function resetGroupRoleMapping(groupName: string): Promise<RosterPa
   });
 }
 
-export async function assignSpPersona(email: string, personaId: string | null): Promise<SpIdentityAdminPayload> {
+export async function assignSpPersona(
+  email: string,
+  personaId: string | null,
+  reason = ''
+): Promise<SpIdentityAdminPayload> {
+  const trimmed = reason.trim();
   const response = await fetch('/api/admin/sp-identity/assignments', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, personaId }),
+    body: JSON.stringify(trimmed ? { email, personaId, reason: trimmed } : { email, personaId }),
   });
   const body = (await response.json().catch(() => null)) as {
     payload?: SpIdentityAdminPayload;

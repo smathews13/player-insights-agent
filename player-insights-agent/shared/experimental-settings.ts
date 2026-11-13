@@ -9,11 +9,13 @@ export type { ExperimentalFeatures } from './experimental-settings-browser';
  *
  * These flags decide which product surfaces the deployment offers. They are
  * therefore app-global Lakebase state, not a browser preference. Missing fields
- * default off without writing anything, so a later default change cannot rewrite
- * an administrator's explicit true or false.
+ * default without writing anything, so a later default change cannot rewrite
+ * an administrator's explicit true or false. Every surface defaults off except
+ * the AI Gateway route, which defaults on; the store keeps that choice under
+ * its own key (see experimental-settings-store.ts).
  */
 export const ExperimentalSettingsSchema = z.object({
-  aiGateway: z.boolean().default(false),
+  aiGateway: z.boolean().default(true),
   benchmarkLab: z.boolean().default(false),
   contractObservatory: z.boolean().default(false),
   egressControls: z.boolean().default(false),

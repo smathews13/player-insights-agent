@@ -330,6 +330,8 @@ export interface SpAssignment {
   personaId: string;
   updatedAt: string;
   updatedBy: string;
+  /** Why the persona was set, when the admin said. */
+  reason?: string | null;
 }
 
 export interface SpMintingStatus {
@@ -518,6 +520,7 @@ export const SpPersonaDefinitionPatchSchema = z
 export const SpAssignmentWriteSchema = z.object({
   email: z.string().trim().min(3).max(320),
   personaId: z.string().trim().min(1).max(80).nullable(),
+  reason: z.string().trim().max(1000).nullable().optional(),
 });
 
 export type SpPersonaWrite = z.infer<typeof SpPersonaWriteSchema>;

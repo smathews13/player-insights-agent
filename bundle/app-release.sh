@@ -61,6 +61,9 @@ APP_DB_GRANT="$BUNDLE_ROOT/bundle/app-db-grant.sh"
 APP_ACL_SELF_GRANT="$BUNDLE_ROOT/bundle/app-acl-self-grant.sh"
 APP_USER_ACCESS="$BUNDLE_ROOT/bundle/app-user-access.sh"
 EXPERIMENT_ACCESS="$BUNDLE_ROOT/bundle/experiment-access.sh"
+GATE3_ACCESS="$BUNDLE_ROOT/bundle/gate3-access.sh"
+AI_GATEWAY_POLICY="$BUNDLE_ROOT/bundle/ai_gateway_policy.py"
+SERVING_ENDPOINT="$(bundle_var serving_endpoint_name)"
 
 run_app_db_grant() {
   [[ -f "$APP_DB_GRANT" ]] || die "bundle/app-db-grant.sh is missing. Refusing to deploy
@@ -99,6 +102,17 @@ run_app_user_access() {
   fi
 }
 
+# The groups' warehouse CAN_USE and Genie CAN_RUN, which a question needs as
+# well as its table grants. A warning, not a stop, like the App grant.
+run_gate3_access() {
+  [[ -f "$GATE3_ACCESS" ]] || return 0
+  if ! TARGET="$TARGET" PROFILE="$PROFILE" bash "$GATE3_ACCESS" --apply; then
+    note "WARNING: the customer access groups were NOT granted the warehouse and Genie access questions need."
+    note "Repair it with:"
+    note "  TARGET=$TARGET PROFILE=$PROFILE bundle/gate3-access.sh --apply"
+  fi
+}
+
 # The agent experiment's ACL: the app, the endpoint's creator and the admin
 # group, and no workspace-wide grant, because traces carry each person's
 # questions and returned figures. A warning, not a stop, for the same reason as
@@ -108,6 +122,18 @@ run_experiment_access() {
     note "WARNING: the MLflow experiment ACL was NOT restricted for $APP_NAME."
     note "Repair it with:"
     note "  TARGET=$TARGET PROFILE=$PROFILE bundle/experiment-access.sh --apply"
+  fi
+}
+
+# Usage tracking, the per-user and per-endpoint rate limits, and no inference
+# table on the agent endpoint (questions and answers stay in Lakebase). The rest
+# of its AI Gateway configuration is left as it is. A
+# warning, not a stop: a failure leaves the previous policy in place.
+run_ai_gateway_policy() {
+  if ! python3 "$AI_GATEWAY_POLICY" --endpoint "$SERVING_ENDPOINT" --profile "$PROFILE" --apply; then
+    note "WARNING: the AI Gateway policy was NOT applied to $SERVING_ENDPOINT."
+    note "Repair it with:"
+    note "  python3 bundle/ai_gateway_policy.py --endpoint $SERVING_ENDPOINT --profile '$PROFILE' --apply"
   fi
 }
 
@@ -331,6 +357,7 @@ SHARED_RAIL="$(bundle_var_or_empty shared_conversation_rail)"
 ADMIN_GROUP="$(bundle_var_or_empty app_admin_group)"
 ENGINEER_GROUP="$(bundle_var_or_empty app_engineer_group)"
 EXEC_GROUP="$(bundle_var_or_empty app_exec_group)"
+SUPER_ADMIN_GROUP="$(bundle_var_or_empty app_super_admin_group)"
 CONSUMER_GROUPS="${ENGINEER_GROUP}${ENGINEER_GROUP:+${EXEC_GROUP:+,}}${EXEC_GROUP}"
 # Postgres schema the app owns inside Lakebase. Default player_insights; the
 # release bakes the resolved var into PLAYER_INSIGHTS_APP_SCHEMA so Connections
@@ -591,6 +618,7 @@ step "Building the dependency-free deploy tree"
      PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL="$SHARED_RAIL" \
      PLAYER_INSIGHTS_ADMIN_GROUP="$ADMIN_GROUP" \
      PLAYER_INSIGHTS_CONSUMER_GROUPS="$CONSUMER_GROUPS" \
+     PLAYER_INSIGHTS_SUPER_ADMIN_GROUP="$SUPER_ADMIN_GROUP" \
      PLAYER_INSIGHTS_JUDGE_ENDPOINT="$JUDGE_ENDPOINT" \
      PLAYER_INSIGHTS_LLM_ENDPOINT="$LLM_ENDPOINT" \
      PLAYER_INSIGHTS_CATALOG="$CATALOG" \
@@ -651,7 +679,9 @@ fi
 run_app_db_grant
 run_app_acl_self_grant
 run_app_user_access
+run_gate3_access
 run_experiment_access
+run_ai_gateway_policy
 
 step "Replacing validated staging source at $SRC_PATH"
 clean_and_import_app_source "$DEPLOY_TREE" "$SRC_PATH" "$APP_NAME" "$PROFILE"

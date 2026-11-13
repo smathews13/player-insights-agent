@@ -1,0 +1,8 @@
+{
+  "warehouse_id": "<sql-warehouse-id>",
+  "governance_schema": "<governance-catalog>.masks",
+  "privileged_group": "<player-identity-readers-account-group>",
+  "salt_secret": { "scope": "<governance-secret-scope>", "key": "identity-mask-salt" },
+  "reader_groups": ["<engineer-access-group>", "<executive-access-group>", "<admin-access-group>"],
+  "columns": ["<catalog>.<schema>.<table>.<identity-column>"]
+}

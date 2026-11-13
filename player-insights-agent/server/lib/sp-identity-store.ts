@@ -28,6 +28,7 @@ import {
 } from '../../shared/sp-identity';
 import { normalizeAdminEmail } from './admin-identity';
 import type { LakebaseReader } from './lakebase-store';
+import { SP_ASSIGNMENT_EVENTS_TABLE, normalizeReason } from './persona-history';
 
 export const SP_PERSONAS_TABLE = appTable('sp_personas');
 export const SP_PERSONA_DEFINITIONS_TABLE = appTable('sp_persona_definitions');
@@ -73,6 +74,7 @@ function assignmentFromRow(row: Record<string, unknown>): SpAssignment {
     personaId: text(row.persona_id),
     updatedAt: iso(row.updated_at),
     updatedBy: text(row.updated_by),
+    reason: text(row.reason) || null,
   };
 }
 
@@ -292,9 +294,17 @@ export async function upsertSpPersonaForDefinition(
   return personaFromRow(result.rows[0]);
 }
 
-export async function deleteSpPersona(client: LakebaseReader, id: string): Promise<boolean> {
+export async function deleteSpPersona(client: LakebaseReader, id: string, actor = ''): Promise<boolean> {
   try {
-    await client.lakebase.query(`DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE persona_id = $1`, [id]);
+    await client.lakebase.query(
+      `WITH removed AS (
+         DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE persona_id = $1 RETURNING email, updated_by
+       )
+       INSERT INTO ${SP_ASSIGNMENT_EVENTS_TABLE} (email, persona_id, persona_name, reason, actor)
+       SELECT email, NULL, NULL, 'The persona was deleted.', COALESCE(NULLIF($2, ''), updated_by)
+         FROM removed`,
+      [id, actor]
+    );
     const result = await client.lakebase.query(`DELETE FROM ${SP_PERSONAS_TABLE} WHERE id = $1 RETURNING id`, [id]);
     return (result?.rows?.length ?? 0) > 0;
   } catch (error) {
@@ -496,7 +506,7 @@ export async function deleteSpPersonaDefinition(client: LakebaseReader, id: stri
 export async function listSpAssignments(client: LakebaseReader): Promise<SpAssignment[]> {
   try {
     const result = await client.lakebase.query(
-      `SELECT email, persona_id, updated_at, updated_by
+      `SELECT email, persona_id, updated_at, updated_by, reason
          FROM ${SP_ASSIGNMENTS_TABLE}
         ORDER BY email`
     );
@@ -525,29 +535,51 @@ export async function assignmentForEmail(client: LakebaseReader, email: string):
   }
 }
 
+/**
+ * Set or clear a person's persona, and record the change.
+ *
+ * One statement, so the assignment and its history row commit together. A
+ * removal of a person who held no persona records nothing.
+ */
 export async function writeSpAssignment(
   client: LakebaseReader,
   email: string,
   personaId: string | null,
-  updatedBy: string
+  updatedBy: string,
+  reason: string | null = null
 ): Promise<SpAssignment | null> {
   const normalised = normalizeAdminEmail(email);
   if (!normalised) return null;
+  const why = normalizeReason(reason);
   if (!personaId) {
-    await client.lakebase.query(`DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE email = $1`, [normalised]);
+    await client.lakebase.query(
+      `WITH removed AS (
+         DELETE FROM ${SP_ASSIGNMENTS_TABLE} WHERE email = $1 RETURNING email
+       )
+       INSERT INTO ${SP_ASSIGNMENT_EVENTS_TABLE} (email, persona_id, persona_name, reason, actor)
+       SELECT email, NULL, NULL, $2, $3 FROM removed`,
+      [normalised, why, updatedBy]
+    );
     return null;
   }
   const persona = await readSpPersona(client, personaId);
   if (!persona) return null;
   const result = await client.lakebase.query(
-    `INSERT INTO ${SP_ASSIGNMENTS_TABLE} (email, persona_id, updated_by, updated_at)
-     VALUES ($1, $2, $3, now())
-     ON CONFLICT (email) DO UPDATE
-        SET persona_id = EXCLUDED.persona_id,
-            updated_by = EXCLUDED.updated_by,
-            updated_at = now()
-     RETURNING email, persona_id, updated_at, updated_by`,
-    [normalised, personaId, updatedBy]
+    `WITH saved AS (
+       INSERT INTO ${SP_ASSIGNMENTS_TABLE} (email, persona_id, updated_by, updated_at, reason)
+       VALUES ($1, $2, $3, now(), $4)
+       ON CONFLICT (email) DO UPDATE
+          SET persona_id = EXCLUDED.persona_id,
+              updated_by = EXCLUDED.updated_by,
+              updated_at = now(),
+              reason = EXCLUDED.reason
+       RETURNING email, persona_id, updated_at, updated_by, reason
+     ), recorded AS (
+       INSERT INTO ${SP_ASSIGNMENT_EVENTS_TABLE} (email, persona_id, persona_name, reason, actor)
+       SELECT email, persona_id, $5, reason, updated_by FROM saved
+     )
+     SELECT email, persona_id, updated_at, updated_by, reason FROM saved`,
+    [normalised, personaId, updatedBy, why, persona.displayName]
   );
   return assignmentFromRow(result.rows[0]);
 }

@@ -3,7 +3,8 @@
 # schemas plus the shared ones, attaches the master-table row filter, and that
 # --verify catches a cross-label read, a missing row filter, a central-only
 # table a label can read or whose privileges cannot be read, and a label outside
-# the agent's read scope.
+# the agent's read scope. The checks themselves are the module's; its own tests
+# cover the access matrix, owners, bindings and the no-data identities.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,48 +17,55 @@ ok() { printf '  ok    %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL  %s\n' "$1"; FAIL=$((FAIL + 1)); }
 
 mkdir -p "$WORK/bin"
-cat > "$WORK/bin/databricks" <<'SH'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$CALLS"
-case "$1 $2" in
-  "bundle validate") cat "$BUNDLE_FIXTURE" ;;
-  "grants update")
-    CHANGES="${@: -1}" python3 - "$GRANTS" "$3" "$4" <<'PY'
+cat > "$WORK/bin/databricks" <<'PY'
+#!/usr/bin/env python3
+"""The calls label_access.py makes through `databricks api`, against files in $WORK."""
 import json, os, sys
-path, kind, name = sys.argv[1:]
-state = json.load(open(path))
-for change in json.loads(os.environ["CHANGES"])["changes"]:
-    key = f"{kind} {name} {change['principal']}"
-    state[key] = sorted(set(state.get(key, [])) | set(change.get("add", [])))
-json.dump(state, open(path, "w"))
+from urllib.parse import parse_qs, unquote, urlsplit
+
+args = sys.argv[1:]
+open(os.environ["CALLS"], "a").write(" ".join(args) + "\n")
+if args[:2] == ["bundle", "validate"]:
+    sys.stdout.write(open(os.environ["BUNDLE_FIXTURE"]).read())
+    raise SystemExit(0)
+if args[0] != "api":
+    sys.exit(f"unexpected databricks call: {' '.join(args)}")
+method, url = args[1], urlsplit(args[2])
+body = json.loads(args[args.index("--json") + 1]) if "--json" in args else None
+parts = [unquote(p) for p in url.path.split("/")]
+grants_path = os.environ["GRANTS"]
+state = json.load(open(grants_path))
+
+if method == "patch" and "permissions" in parts:
+    kind, name = parts[-2], parts[-1]
+    for change in body["changes"]:
+        key = f"{kind} {name} {change['principal']}"
+        state[key] = sorted(set(state.get(key, [])) | set(change.get("add", [])))
+    json.dump(state, open(grants_path, "w"))
+    print("{}")
+elif method == "get" and "effective-permissions" in parts:
+    kind, name = parts[-2], parts[-1]
+    principal = parse_qs(url.query)["principal"][0]
+    if os.environ.get("UNREADABLE_TABLES") == "1" and kind == "table":
+        sys.exit("Error: permission denied")
+    held = list(state.get(f"{kind} {name} {principal}", []))
+    if os.environ.get("OPEN_CATALOG") == "1" and kind == "schema":
+        held += ["ALL_PRIVILEGES", "SELECT", "USE_SCHEMA"]
+    print(json.dumps({"privilege_assignments": [{"principal": principal, "privileges": [{"privilege": p} for p in held]}]}))
+elif method == "get" and parts[-2] == "tables":
+    filtered = os.environ["FILTERED"]
+    print(json.dumps({"row_filter": {"function_name": open(filtered).read()}} if os.path.exists(filtered) else {}))
+elif method == "get" and parts[-2] in ("catalogs", "schemas"):
+    print(json.dumps({"owner": "Data_Governance", "isolation_mode": "ISOLATED"}))
+elif method == "post" and url.path == "/api/2.0/sql/statements":
+    statement = body["statement"]
+    if statement.startswith("ALTER TABLE "):
+        open(os.environ["FILTERED"], "w").write(statement.split(" SET ROW FILTER ")[1].split()[0])
+    open(os.environ["STATEMENTS"], "a").write(statement + "\n")
+    print('{"status":{"state":"SUCCEEDED"}}')
+else:
+    sys.exit(f"unexpected databricks call: {' '.join(args)}")
 PY
-    printf '{}\n' ;;
-  "grants get-effective")
-    [[ "${UNREADABLE_TABLES:-}" == 1 && "$3" == table ]] && { printf 'permission denied\n' >&2; exit 1; }
-    python3 - "$GRANTS" "$3" "$4" "$6" <<'PY'
-import json, os, sys
-path, kind, name, principal = sys.argv[1:]
-state = json.load(open(path))
-held = list(state.get(f"{kind} {name} {principal}", []))
-if os.environ.get("OPEN_CATALOG") == "1" and kind == "schema":
-    held += ["ALL_PRIVILEGES", "SELECT", "USE_SCHEMA"]
-print(json.dumps({"privilege_assignments": [{"principal": principal, "privileges": [{"privilege": p} for p in held]}]}))
-PY
-    ;;
-  "tables get")
-    if [[ -f "$FILTERED" ]]; then printf '{"row_filter":{"function_name":"%s"}}\n' "$(cat "$FILTERED")"; else printf '{}\n'; fi ;;
-  "api post")
-    body=""
-    while [[ $# -gt 0 ]]; do [[ "$1" == --json ]] && body="$2"; shift; done
-    statement="$(printf '%s' "$body" | python3 -c 'import json,sys;print(json.load(sys.stdin)["statement"])')"
-    if [[ "$statement" == "ALTER TABLE "* ]]; then
-      printf '%s' "$statement" | sed -E 's/.* SET ROW FILTER ([^ ]+) ON .*/\1/' > "$FILTERED"
-    fi
-    printf '%s\n' "$statement" >> "$STATEMENTS"
-    printf '{"status":{"state":"SUCCEEDED"}}\n' ;;
-  *) printf 'unexpected databricks call: %s\n' "$*" >&2; exit 2 ;;
-esac
-SH
 chmod +x "$WORK/bin/databricks"
 
 bundle_fixture() {
@@ -107,7 +115,7 @@ echo "label-access.sh"
 bundle_fixture '["prod"]'
 config
 reset
-if run_tool && ! grep -q '^grants update\|^api post' "$WORK/calls"; then
+if run_tool && ! grep -q '^api patch\|^api post' "$WORK/calls"; then
   ok "the plan changes nothing"
 else
   bad "the plan wrote something: $(cat "$WORK/calls")"
@@ -174,6 +182,12 @@ printf '{"labels":[]}' > "$WORK/config.json"
 reset
 if run_tool; then bad "a config without a catalog was accepted"; else
   grep -q "catalog is missing" "$WORK/output" && ok "rejects a config without a catalog" || bad "unexpected: $(cat "$WORK/output")"
+fi
+
+if python3 "$HERE/label_access_module_test.py" > "$WORK/module" 2>&1; then
+  ok "the Genie Code skill's module applies and verifies the same plan"
+else
+  bad "the Genie Code skill's module tests failed: $(tail -20 "$WORK/module")"
 fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"

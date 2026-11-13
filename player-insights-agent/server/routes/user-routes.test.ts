@@ -222,6 +222,12 @@ async function startApp(store: AdminStore, suppliedAppAccess?: AppAccessService)
       }),
     groupMembers: (email: string, groupName: string) =>
       fetch(`${base}/api/users/groups/${encodeURIComponent(groupName)}/members`, { headers: headers(email) }),
+    erase: (email: string, target: string, confirmEmail?: string) =>
+      fetch(`${base}/api/users/${encodeURIComponent(target)}/erase-data`, {
+        method: 'POST',
+        headers: headers(email),
+        body: JSON.stringify(confirmEmail === undefined ? {} : { confirmEmail }),
+      }),
     resetGroup: (email: string, groupName: string) =>
       fetch(`${base}/api/users/groups/${encodeURIComponent(groupName)}`, {
         method: 'DELETE',
@@ -274,6 +280,45 @@ describe('an administrator who is not the super admin', () => {
     const app = await startApp(store);
     expect((await app.change(DEPUTY, DEPUTY, 'super_admin')).status).toBe(403);
     expect(store.rows.roster).toEqual([]);
+  });
+});
+
+describe("erasing one person's stored data", () => {
+  function erasureStore() {
+    const store = fakeLakebase();
+    const statements: string[] = [];
+    const query = store.query.bind(store);
+    store.query = (text: string, params: unknown[] = []) => {
+      statements.push(text.replace(/\s+/g, ' ').trim());
+      return query(text, params);
+    };
+    return { store, statements };
+  }
+  const erasures = (statements: string[]) => statements.filter((sql) => /^(DELETE|WITH)/.test(sql));
+
+  it('is refused to an administrator who is not the super admin, before anything is removed', async () => {
+    const { store, statements } = erasureStore();
+    const app = await startApp(store);
+    expect((await app.erase(DEPUTY, ANALYST, ANALYST)).status).toBe(403);
+    expect(erasures(statements)).toEqual([]);
+  });
+
+  it('needs the address repeated, so a mistyped URL erases nobody', async () => {
+    const { store, statements } = erasureStore();
+    const app = await startApp(store);
+    const response = await app.erase(LEAD, ANALYST, STRANGER);
+    expect(response.status).toBe(400);
+    expect(await errorOf(response)).toBe('erasure_not_confirmed');
+    expect(erasures(statements)).toEqual([]);
+  });
+
+  it('erases for the super admin and records who asked', async () => {
+    const { store, statements } = erasureStore();
+    const app = await startApp(store);
+    const response = await app.erase(LEAD, ANALYST, ANALYST.toUpperCase());
+    expect(response.status).toBe(200);
+    expect(erasures(statements).length).toBeGreaterThan(0);
+    expect(store.rows.audit).toEqual([expect.objectContaining({ action: 'user-data-erased', subject: ANALYST })]);
   });
 });
 

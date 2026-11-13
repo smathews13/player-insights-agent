@@ -15,5 +15,7 @@
   "admin_emails": "super:<initial-admin@example.com>",
   "app_engineer_group": "<engineer-access-group>",
   "app_exec_group": "<executive-access-group>",
-  "app_admin_group": "<admin-access-group>"
+  "app_admin_group": "<admin-access-group>",
+  "app_manager_group": "<platform-admin-group>",
+  "app_super_admin_group": "<super-admin-group>"
 }

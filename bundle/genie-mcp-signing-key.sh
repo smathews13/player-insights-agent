@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Ensure the app-only Ed25519 private key and export its public counterpart.
+# Ensure the app-only Ed25519 private key and export the public keys to trust.
 #
 # Operation is idempotent and never overwrites an existing private key. Rotation
 # means incrementing the bundle's version variable, preserving the old pair for
 # rollback.
+#
+# Prints the current public key, then the previous version's when it exists.
+# The model trusts both, so a release that moves the app to the new key does not
+# refuse capabilities still signed with the old one. The next rotation drops it.
 
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
@@ -84,3 +88,17 @@ rm -f "$PUBLIC_FILE"
 databricks workspace export "$PUBLIC_PATH" \
   --file "$PUBLIC_FILE" --format AUTO "${PROFILE_ARGS[@]}"
 cat "$PUBLIC_FILE"
+
+VERSION_NUMBER="${KEY_VERSION#v}"
+if (( VERSION_NUMBER > 1 )) && [[ "$PUBLIC_PATH" == *"-${KEY_VERSION}.pem" ]]; then
+  PREVIOUS_PATH="${PUBLIC_PATH%-"${KEY_VERSION}".pem}-v$((VERSION_NUMBER - 1)).pem"
+  PREVIOUS_FILE="$WORK/previous.pem"
+  if databricks workspace get-status "$PREVIOUS_PATH" "${PROFILE_ARGS[@]}" -o json >/dev/null 2>&1; then
+    databricks workspace export "$PREVIOUS_PATH" \
+      --file "$PREVIOUS_FILE" --format AUTO "${PROFILE_ARGS[@]}"
+    printf '\n'
+    cat "$PREVIOUS_FILE"
+    printf 'Trusting the previous Genie MCP signing key %s until the next rotation.\n' \
+      "v$((VERSION_NUMBER - 1))" >&2
+  fi
+fi

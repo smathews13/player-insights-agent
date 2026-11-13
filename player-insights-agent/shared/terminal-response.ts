@@ -48,6 +48,8 @@ export type PersistenceStatus = 'stored' | 'not_stored' | 'unknown';
 export interface ExecutionIdentityClaim {
   mode: string;
   verified: boolean;
+  /** The persona's display name, when the work ran as an assigned persona. */
+  persona?: string;
 }
 
 export interface UnavailableResult {

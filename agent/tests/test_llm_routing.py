@@ -48,6 +48,37 @@ def test_gateway_request_fails_closed_when_capability_is_incomplete():
         llm_routing.activate({"llm_route": "ai_gateway"}, incomplete)
 
 
+def test_an_optional_gateway_request_answers_direct_on_a_model_without_one():
+    incomplete = SimpleNamespace(
+        llm_endpoint="direct-foundation-model",
+        llm_gateway_endpoint="",
+        llm_gateway="",
+    )
+    selected = llm_routing.activate(
+        {"llm_route": "ai_gateway", "llm_gateway_optional": True}, incomplete
+    )
+    assert selected.route == "direct"
+    assert selected.endpoint == "direct-foundation-model"
+    assert llm_routing.current(incomplete) == selected
+
+
+def test_an_optional_gateway_request_still_uses_a_configured_gateway():
+    selected = llm_routing.activate(
+        {"llm_route": "ai_gateway", "llm_gateway_optional": True}, settings()
+    )
+    assert selected.route == "ai_gateway"
+    assert selected.endpoint == "catalog.schema.gateway_model"
+
+
+def test_only_an_exact_true_makes_the_gateway_optional():
+    incomplete = SimpleNamespace(llm_endpoint="d", llm_gateway_endpoint="", llm_gateway="")
+    for flag in ("true", 1, "yes"):
+        with pytest.raises(llm_routing.AiGatewayNotConfigured):
+            llm_routing.activate(
+                {"llm_route": "ai_gateway", "llm_gateway_optional": flag}, incomplete
+            )
+
+
 def test_unknown_route_never_falls_back_to_direct():
     with pytest.raises(llm_routing.InvalidLlmRoute):
         llm_routing.activate({"llm_route": "direct-please"}, settings())

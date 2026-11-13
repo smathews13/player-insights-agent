@@ -1559,6 +1559,7 @@ describe('serving request body', () => {
     expect(body.custom_inputs).toEqual({
       conversation_id: 'conv-1',
       llm_route: 'ai_gateway',
+      llm_gateway_optional: true,
     });
     expect(JSON.stringify(body)).not.toMatch(/gateway_endpoint|llm_endpoint|gateway_mode/);
   });

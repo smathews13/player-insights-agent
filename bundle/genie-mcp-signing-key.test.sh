@@ -76,5 +76,14 @@ PY
 bash "$ROOT/bundle/genie-mcp-signing-key.sh" > "$WORK/rotated.pem"
 [[ "$(<"$WORK/puts")" == 2 ]]
 ! cmp -s "$WORK/first.pem" "$WORK/rotated.pem"
-
-printf 'ok - Genie MCP signing key provisioning is idempotent and rotation is explicit\n'
+# The rotated release trusts the new key first and the previous one second.
+[[ "$(grep -c 'BEGIN PUBLIC KEY' "$WORK/rotated.pem")" == 2 ]]
+python3 - "$WORK/first.pem" "$WORK/rotated.pem" <<'PY'
+import re, sys
+block = re.compile(r"-----BEGIN PUBLIC KEY-----.+?-----END PUBLIC KEY-----", re.S)
+first, rotated = (block.findall(open(path).read()) for path in sys.argv[1:])
+assert len(first) == 1 and len(rotated) == 2
+assert rotated[1] == first[0], "the previous key is not trusted second"
+assert rotated[0] != first[0], "the new key is not trusted first"
+PY
+printf 'ok - Genie MCP signing key provisioning is idempotent, rotation is explicit, and the previous key stays trusted for one release\n'

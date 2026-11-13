@@ -29,6 +29,7 @@
  */
 import { z } from 'zod';
 import { withdrawAccess } from '../lib/admin-access';
+import { eraseUserData } from '../lib/conversation-erasure';
 import {
   normalizeAdminEmail,
   recordAdminAction,
@@ -94,7 +95,7 @@ const GroupMappingBody = z.object({
 const CONFIGURED_ADMIN_GROUP_REFUSAL = {
   error: 'group_role_deployment_managed',
   detail:
-    'This deployment sets that group\u2019s Player Insights Agent role. Change PLAYER_INSIGHTS_ADMIN_GROUP or PLAYER_INSIGHTS_CONSUMER_GROUPS to change it.',
+    'This deployment sets that group\u2019s Player Insights Agent role. Change PLAYER_INSIGHTS_SUPER_ADMIN_GROUP, PLAYER_INSIGHTS_ADMIN_GROUP or PLAYER_INSIGHTS_CONSUMER_GROUPS to change it.',
 };
 
 function appAccessOptions(req: Request): AppAccessOptions | null {
@@ -475,6 +476,55 @@ export function setupUserRoutes(
      * back BEFORE the row goes, because the record of what was granted is keyed by
      * the address and the withdrawal path has to read it.
      */
+    /**
+     * Erase one person's stored use of this app, on an erasure request.
+     *
+     * Their conversations with every message, run, attachment and feedback row,
+     * their settings override and their activity minutes. Their roster row and
+     * persona assignment are administration and stay; the persona history is
+     * the append-only audit record and stays. Super admin only, by the route
+     * guard, and the body must repeat the address so a mistyped URL erases
+     * nobody.
+     */
+    app.post('/api/users/:email/erase-data', async (req, res) => {
+      const email = normalizeAdminEmail(req.params.email);
+      const invalid = invalidAdminEmail(email);
+      if (invalid) {
+        res.status(400).json({ error: 'invalid_roster_email', detail: invalid });
+        return;
+      }
+      const confirm = (req.body as { confirmEmail?: unknown } | undefined)?.confirmEmail;
+      if (typeof confirm !== 'string' || normalizeAdminEmail(confirm) !== email) {
+        res.status(400).json({
+          error: 'erasure_not_confirmed',
+          detail: 'Nothing was erased. Send the same address as confirmEmail to confirm.',
+        });
+        return;
+      }
+      const actor = userEmail(req);
+      try {
+        const erased = await eraseUserData(appkit.lakebase, email);
+        await recordAdminAction(appkit.lakebase, {
+          actor,
+          action: 'user-data-erased',
+          subject: email,
+          detail:
+            `${actor} erased ${email}'s stored data: ${erased.conversations} conversation(s), ` +
+            `${erased.messages} messages, ${erased.runs + erased.strayRuns} runs, ` +
+            `${erased.attachments} attachments, ${erased.feedback + erased.strayFeedback} feedback rows.`,
+        });
+        res.json({ email, erased });
+      } catch (error) {
+        console.error(`[admin] Erasure for ${email} did not complete:`, (error as Error).message);
+        res.status(503).json({
+          error: 'erasure_incomplete',
+          detail:
+            'The erasure did not complete. Some rows may already be gone; run it again to finish. ' +
+            'Every step is safe to repeat.',
+        });
+      }
+    });
+
     app.delete('/api/users/:email', async (req, res) => {
       const email = normalizeAdminEmail(req.params.email);
       const actor = userEmail(req);

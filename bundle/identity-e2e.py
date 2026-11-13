@@ -26,6 +26,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import secrets as random_secrets
 import stat
 import subprocess
 import sys
@@ -58,7 +59,7 @@ GROUPS = {
     "pia-e2e-admins": ["admin"],
 }
 ADMIN_GROUP = "pia-e2e-admins"
-SCHEMAS = ["pia_e2e_label_a", "pia_e2e_label_b", "pia_e2e_global", "pia_e2e_xlabel"]
+SCHEMAS = ["pia_e2e_label_a", "pia_e2e_label_b", "pia_e2e_global", "pia_e2e_xlabel", "pia_e2e_governance"]
 MASTER = f"{CATALOG}.pia_e2e_xlabel.master"
 FIXTURE_SQL = [
     f"CREATE TABLE IF NOT EXISTS {CATALOG}.pia_e2e_label_a.titles AS SELECT 'label_a' AS label, 'Alpha' AS title",
@@ -66,7 +67,12 @@ FIXTURE_SQL = [
     f"CREATE TABLE IF NOT EXISTS {CATALOG}.pia_e2e_global.calendar AS SELECT 'shared' AS note",
     f"CREATE TABLE IF NOT EXISTS {MASTER} AS SELECT * FROM VALUES "
     "('label_a', 10), ('label_b', 20), ('label_c', 30) AS t(label, revenue)",
+    f"CREATE TABLE IF NOT EXISTS {CATALOG}.pia_e2e_label_a.players AS SELECT * FROM VALUES "
+    "('p-1'), ('p-2'), ('p-2'), (NULL) AS t(player_id)",
 ]
+MASK_SCOPE = "pia-e2e-masks"
+MASKED_TABLE = f"{CATALOG}.pia_e2e_label_a.players"
+IDENTITY_MASKS = str(Path(__file__).with_name("identity_masks.py"))
 def label_config(secrets: dict) -> dict:
     # Unity Catalog grants only to account principals, and groups created
     # through a workspace are workspace-local, so each label "group" here is the
@@ -78,12 +84,40 @@ def label_config(secrets: dict) -> dict:
         "central_groups": [principal("central")],
         "group_check": "current_user",
         "check_agent_scope": False,
+        # The operator creates and owns these fixtures; production owners are groups.
+        "owners_must_be_groups": False,
+        "no_data_principals": [str(cli("apps", "get", APP_NAME)["service_principal_client_id"])],
         "labels": [
             {"label": "label_a", "group": principal("label-a"), "schemas": ["pia_e2e_label_a"]},
             {"label": "label_b", "group": principal("label-b"), "schemas": ["pia_e2e_label_b"]},
         ],
         "master_tables": [{"table": MASTER, "label_column": "label", "readers": "all_labels"}],
     }
+
+
+def mask_config(secrets: dict) -> dict:
+    # No one is a member of the privileged group here, so every reader, the
+    # operator included, sees hashes. The readers are account principals for
+    # the same reason as the labels above.
+    return {
+        "warehouse_id": WAREHOUSE_ID,
+        "governance_schema": f"{CATALOG}.pia_e2e_governance",
+        "privileged_group": "pia-e2e-identity-readers",
+        "salt_secret": {"scope": MASK_SCOPE, "key": "salt"},
+        "reader_groups": [secrets[s]["applicationId"] for s in ["label-a", "label-b"]],
+        "columns": [f"{MASKED_TABLE}.player_id"],
+    }
+
+
+def run_identity_masks(flag: str, secrets: dict) -> bool:
+    config = SECRETS.parent / f"{TARGET}-masks.json"
+    config.write_text(json.dumps(mask_config(secrets), indent=2))
+    result = subprocess.run([sys.executable, IDENTITY_MASKS, flag, "--config", str(config), "--profile", PROFILE],
+                            capture_output=True, text=True)
+    for line in (result.stdout + result.stderr).splitlines():
+        if line.strip().startswith(("FAIL", "ERROR")):
+            print(f"    identity-masks: {line.strip()}")
+    return result.returncode == 0
 
 
 # Who reads the agent's demo schema. A grant, never a write.
@@ -173,11 +207,11 @@ def save_secrets(data: dict) -> None:
     os.chmod(SECRETS, stat.S_IRUSR | stat.S_IWUSR)
 
 
-def sp_token(record: dict) -> str:
+def sp_token(record: dict, scope: str = "all-apis") -> str:
     basic = base64.b64encode(f"{record['applicationId']}:{record['secret']}".encode()).decode()
     request = urllib.request.Request(
         f"{HOST}/oidc/v1/token",
-        data=urllib.parse.urlencode({"grant_type": "client_credentials", "scope": "all-apis"}).encode(),
+        data=urllib.parse.urlencode({"grant_type": "client_credentials", "scope": scope}).encode(),
         method="POST",
     )
     request.add_header("Authorization", f"Basic {basic}")
@@ -197,6 +231,11 @@ def find_group(name: str) -> dict | None:
 
 def app_url() -> str:
     return str(cli("apps", "get", APP_NAME)["url"]).rstrip("/")
+
+
+def app_user_scopes() -> list[str]:
+    app = cli("apps", "get", APP_NAME)
+    return list(app.get("effective_user_api_scopes") or app.get("user_api_scopes") or [])
 
 
 def endpoint_id() -> str:
@@ -270,6 +309,17 @@ def setup() -> None:
     print("==> Label grants and row filter (bundle/label-access.sh)")
     if not run_label_access("--apply", secrets) and not broad_catalog_grant():
         raise SystemExit("bundle/label-access.sh --apply failed; see above.")
+
+    print("==> Identity masks (bundle/identity_masks.py), salt in a secret only the operator reads")
+    scopes = cli("secrets", "list-scopes") or []
+    if not any(s.get("name") == MASK_SCOPE for s in scopes):
+        cli("secrets", "create-scope", MASK_SCOPE)
+    keys = cli("secrets", "list-secrets", MASK_SCOPE) or []
+    if not any(k.get("key") == "salt" for k in keys):
+        cli("secrets", "put-secret", MASK_SCOPE, "salt", "--string-value", random_secrets.token_hex(32))
+    if not run_identity_masks("--apply", secrets):
+        raise SystemExit("bundle/identity_masks.py --apply failed; see above.")
+    print(f"  player_id masked on {MASKED_TABLE}")
     print(f"\nSetup done. Secrets: {SECRETS}")
 
 
@@ -378,6 +428,8 @@ SUPER_ADMIN_ROUTES = {
     "/api/users": "/api/users/groups/pia-e2e-no-such-group",
     "/api/admin/sp-identity": "/api/admin/sp-identity/persona-definitions/pia-e2e-no-such-persona",
 }
+# APIs PIA never calls for a user. Each needs a scope the app does not request.
+OUT_OF_SCOPE_PATHS = ["/api/2.0/clusters/list", "/api/2.2/jobs/list", "/api/2.0/secrets/scopes/list"]
 DATA_QUESTION = "How many rows are in the player profiles table? Answer with one number."
 
 
@@ -414,6 +466,23 @@ def run() -> int:
                   f"{status} role={me.get('role')}")
             check(me.get("signedInAs") == secrets[short]["applicationId"], f"{short} is identified as itself",
                   str(me.get("signedInAs")))
+
+        print("==> The app's user scopes are the limit of a signed-in token")
+        app_scopes = app_user_scopes()
+        scoped = sp_token(secrets["consumer"], " ".join(app_scopes))
+        status, _ = http("GET", f"{HOST}/api/2.0/sql/warehouses", scoped)
+        check(status == 200, "a token with only the app's scopes can use SQL", str(status))
+        for path in OUT_OF_SCOPE_PATHS:
+            status, body = http("GET", f"{HOST}{path}", scoped)
+            check(status == 403 and "required scopes" in str(body), f"the same token is refused {path}",
+                  f"{status} {str(body)[:160]}")
+        no_sql = sp_token(secrets["consumer"], " ".join(s for s in app_scopes if s != "sql"))
+        status, body = http("POST", f"{HOST}/api/2.0/sql/statements", no_sql,
+                            {"warehouse_id": WAREHOUSE_ID, "statement": f"SELECT * FROM {DATA_SCHEMA}.data_dictionary"})
+        check(status == 403 and "required scopes" in str(body) and not (body or {}).get("result"),
+              "a token without the SQL scope gets no rows", f"{status} {str(body)[:160]}")
+        status, body = http("GET", f"{HOST}/api/2.0/preview/scim/v2/Me", "not-a-token")
+        check(status == 401, "an invalid or expired token is refused", str(status))
 
         print("==> Route guards")
         for route in ADMIN_ROUTES + list(SUPER_ADMIN_ROUTES):
@@ -481,6 +550,40 @@ def run() -> int:
             check(not verified, "bundle/label-access.sh --verify reports the open catalog as cross-label reads")
         else:
             check(verified, "bundle/label-access.sh --verify passes on the test labels")
+
+        print("==> Identity columns are hashed for every reader outside the privileged group")
+        token = label_tokens["label-a"]
+        result = sql(f"SELECT player_id FROM {MASKED_TABLE}", token)
+        values = [row[0] for row in result["rows"]]
+        hashed = [v for v in values if v is not None]
+        check(result["state"] == "SUCCEEDED" and len(values) == 4 and len(hashed) == 3
+              and all(len(v) == 64 and all(c in "0123456789abcdef" for c in v) for v in hashed),
+              "a reader sees a hash in place of each player ID, and NULL stays NULL",
+              f"{result['state']} {values} {result['error'][:160]}")
+        result = sql(f"SELECT player_id FROM {MASKED_TABLE} WHERE player_id IS NOT NULL", operator_token())
+        check(result["state"] == "SUCCEEDED" and all(row[0] not in ("p-1", "p-2") for row in result["rows"]),
+              "the table owner outside the privileged group sees hashes too", f"{result['rows']}")
+        result = sql(f"SELECT COUNT(DISTINCT player_id), "
+                     f"(SELECT COUNT(*) FROM {MASKED_TABLE} a JOIN {MASKED_TABLE} b USING (player_id)) "
+                     f"FROM {MASKED_TABLE}", token)
+        counts = result["rows"][0] if result["rows"] else []
+        check(counts == ["2", "5"], "distinct counts and joins on the hashed column still match the raw data",
+              f"{result['state']} {counts} {result['error'][:160]}")
+        result = sql("SELECT player_id = sha2('p-1', 256) OR player_id = sha2('p-2', 256) "
+                     f"FROM {MASKED_TABLE} WHERE player_id IS NOT NULL", token)
+        check(result["state"] == "SUCCEEDED" and all(row[0] == "false" for row in result["rows"]),
+              "the hash is salted, so hashing a guessed ID does not match it", f"{result['rows']}")
+        result = sql(f"SELECT secret('{MASK_SCOPE}', 'salt')", token)
+        check(result["state"] != "SUCCEEDED" and not result["rows"], "a reader cannot read the salt from the secret",
+              result["state"])
+        not_provable("a member of the privileged group sees raw player IDs",
+                     "no account-level group can be created here; Acme proves it with its Entra ID group")
+        masked = run_identity_masks("--verify", secrets)
+        if open_catalog:
+            not_provable("readers cannot read the salt table or drop the mask", open_catalog)
+            check(not masked, "bundle/identity_masks.py --verify reports the open catalog")
+        else:
+            check(masked, "bundle/identity_masks.py --verify passes")
     finally:
         if added_group:
             remove_app_group(ADMIN_GROUP)
@@ -553,7 +656,9 @@ def teardown() -> None:
         if found:
             cli("service-principals", "delete", found["id"], check=False)
             print(f"  deleted pia-e2e-{short}")
-    for path in [SECRETS, SECRETS.parent / f"{TARGET}-labels.json"]:
+    print("==> Mask salt secret scope")
+    cli("secrets", "delete-scope", MASK_SCOPE, check=False)
+    for path in [SECRETS, SECRETS.parent / f"{TARGET}-labels.json", SECRETS.parent / f"{TARGET}-masks.json"]:
         path.unlink(missing_ok=True)
     print("Teardown done.")
 

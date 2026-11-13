@@ -1,11 +1,11 @@
 {
   "catalog": "<production catalog>",
-  "shared_schemas": ["<shared schema every label reads>"],
+  "shared_schemas": ["<shared schema every label reads, or catalog.schema>"],
   "central_groups": ["<group that reads every label>"],
   "group_check": "is_account_group_member",
   "labels": [
-    { "label": "<value in the master table's label column>", "group": "<label A data group>", "schemas": ["<label A schema>"] },
-    { "label": "<value in the master table's label column>", "group": "<label B data group>", "schemas": ["<label B schema>"] }
+    { "label": "<value in the master table's label column>", "group": "<label A data group>", "schemas": ["<label A catalog>.<schema>"] },
+    { "label": "<value in the master table's label column>", "group": "<label B data group>", "schemas": ["<label B catalog>.<schema>"] }
   ],
   "master_tables": [
     {
@@ -13,5 +13,7 @@
       "label_column": "<column holding the label>",
       "readers": "central"
     }
-  ]
+  ],
+  "no_data_principals": ["<PIA app service principal application ID>", "<agent endpoint identity>"],
+  "require_workspace_binding": false
 }

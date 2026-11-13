@@ -26,7 +26,7 @@ export const EXPERIMENTAL_FEATURE_KEYS = [
 ] as const;
 
 export const NO_EXPERIMENTS: Readonly<ExperimentalFeatures> = {
-  aiGateway: false,
+  aiGateway: true,
   benchmarkLab: false,
   contractObservatory: false,
   egressControls: false,
@@ -64,7 +64,7 @@ export function decodeExperimentalSettingsDocument(
   }
   return {
     settings: {
-      aiGateway: settings.aiGateway === true,
+      aiGateway: settings.aiGateway !== false,
       benchmarkLab: settings.benchmarkLab === true,
       contractObservatory: settings.contractObservatory === true,
       egressControls: settings.egressControls === true,

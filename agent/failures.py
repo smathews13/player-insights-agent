@@ -132,10 +132,14 @@ BUDGET_APPROVAL_REQUIRED = "BUDGET_APPROVAL_REQUIRED"
 #: The app's release-certification gate also refuses before it calls Model Serving.
 RELEASE_NOT_CERTIFIED = "RELEASE_NOT_CERTIFIED"
 
+#: The endpoint's AI Gateway rate limit answered 429 before the agent ran.
+MODEL_RATE_LIMITED = "MODEL_RATE_LIMITED"
+
 APP_ONLY_CODES = (
     IDEMPOTENCY_CONFLICT,
     IDEMPOTENCY_KEY_MALFORMED,
     BUDGET_APPROVAL_REQUIRED,
+    MODEL_RATE_LIMITED,
     RELEASE_NOT_CERTIFIED,
 )
 

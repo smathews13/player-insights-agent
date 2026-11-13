@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isAdminRoute, requiresSuperAdmin } from '../lib/admin-roles';
 import {
+  SpAssignmentWriteSchema,
   SpPersonaConnectionWriteSchema,
   SpPersonaDefinitionWriteSchema,
   SpPersonaWriteSchema,
@@ -31,6 +32,21 @@ describe('service-principal identity admin routes', () => {
     expect(requiresSuperAdmin('PUT', '/api/admin/sp-identity/persona-definitions/id/connection')).toBe(true);
     expect(requiresSuperAdmin('POST', '/api/admin/sp-identity/persona-definitions/id/status-check')).toBe(true);
     expect(requiresSuperAdmin('DELETE', '/api/admin/sp-identity/persona-definitions/id')).toBe(true);
+  });
+
+  it('records an optional reason and serves the persona history to admins', () => {
+    expect(isAdminRoute('/api/admin/sp-identity/history')).toBe(true);
+    expect(requiresSuperAdmin('GET', '/api/admin/sp-identity/history')).toBe(false);
+    expect(source).toContain("app.get('/api/admin/sp-identity/history'");
+    expect(source).toContain('writeSpAssignment(appkit, parsed.data.email, parsed.data.personaId, actor, reason)');
+    expect(source).toContain('deleteSpPersona(appkit, id.data, userEmail(req))');
+    expect(SpAssignmentWriteSchema.parse({ email: 'ada@example.com', personaId: 'p' })).not.toHaveProperty('reason');
+    expect(SpAssignmentWriteSchema.parse({ email: 'ada@example.com', personaId: null, reason: ' why ' }).reason).toBe(
+      'why'
+    );
+    expect(
+      SpAssignmentWriteSchema.safeParse({ email: 'ada@example.com', personaId: 'p', reason: 'x'.repeat(1001) }).success
+    ).toBe(false);
   });
 
   it('has no permission-suggestion route, model call, timeout, or cancellation surface', () => {

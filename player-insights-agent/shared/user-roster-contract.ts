@@ -159,12 +159,13 @@ export interface RosterAppAccessPrincipal {
 
 export interface GroupRoleMappingEntry {
   groupName: string;
-  role: Extract<Role, 'admin' | 'consumer'>;
+  /** Super admin only for the deployment's Super admin group, which is never editable. */
+  role: Extract<Role, 'super_admin' | 'admin' | 'consumer'>;
   setBy: string;
   setAt: string;
   scimConfirmed: boolean;
   identityManagementUrl: string;
-  /** A deployment access group (Admin, Engineer or Exec): its role is fixed by the deployment, not editable in Identity. */
+  /** A deployment access group (Super admin, Admin, Engineer or Exec): its role is fixed by the deployment, not editable in Identity. */
   deploymentManaged?: boolean;
   /** Set with deploymentManaged: whether the group itself is on the App ACL. */
   onAppAccess?: boolean;

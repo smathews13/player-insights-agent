@@ -220,6 +220,27 @@ describe('a request the endpoint refuses is not asked again as the application',
     }
   });
 
+  it('reports an AI Gateway rate limit as a wait, once, and not as an outage', async () => {
+    const { calls, transport } = recordingTransport(() =>
+      Promise.reject(httpError(429, 'REQUEST_LIMIT_EXCEEDED: rate limit exceeded for user'))
+    );
+    const app = await startApp(transport);
+    const token = jwt({ sub: ALICE, exp: inAnHour() });
+
+    try {
+      const response = await app.ask(asUser(ALICE, token));
+      const body = (await response.json()) as Record<string, unknown>;
+
+      expect(calls).toHaveLength(1);
+      expect(response.status).toBe(429);
+      expect(body.code).toBe('MODEL_RATE_LIMITED');
+      expect(body.retryable).toBe(true);
+      expect(String(body.message)).toContain('Wait a minute');
+    } finally {
+      await app.close();
+    }
+  });
+
   it('distinguishes a rejected credential from a permitted user reaching data they cannot read', async () => {
     // The distinction the two codes exist for. Both were one event, because
     // both led to the same retry, and only the second is about grants.

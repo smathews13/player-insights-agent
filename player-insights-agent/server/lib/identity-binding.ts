@@ -184,6 +184,9 @@ export function decideIdentity(req: Request, options: DecideOptions): IdentityDe
 
 /** What a decision asserts about the run, for the record and the response. */
 export function executionIdentityClaim(decision: BoundIdentity): ExecutionIdentityClaim {
+  if (decision.mode === ASSIGNED_SERVICE_PRINCIPAL && decision.persona) {
+    return { mode: decision.mode, verified: decision.verified, persona: decision.persona.displayName };
+  }
   return { mode: decision.mode, verified: decision.verified };
 }
 

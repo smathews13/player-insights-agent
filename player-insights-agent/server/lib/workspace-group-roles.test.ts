@@ -14,75 +14,42 @@ function storeWithMappings(rows: Record<string, unknown>[]): AdminStore {
   return { query: vi.fn(() => Promise.resolve({ rows })) };
 }
 
-function scim(groups: string[]) {
-  return {
-    Resources: [
-      {
-        userName: EMAIL,
-        groups: groups.map((display) => ({ display })),
-      },
-    ],
+/** The caller's own SCIM record, as the request middleware records it. */
+async function signIn(groups: (string | { display: string; type: string })[], caller = EMAIL): Promise<void> {
+  const own = {
+    userName: caller,
+    groups: groups.map((group) => (typeof group === 'string' ? { display: group } : group)),
   };
+  await expect(rememberOwnGroups(caller, 'user-token', () => Promise.resolve(own))).resolves.toBe(true);
+}
+
+function mapping(groupName: string, role: 'admin' | 'consumer') {
+  return { group_name: groupName, role, added_by: 'owner@example.com', added_at: '2026-09-10T00:00:00.000Z' };
 }
 
 describe('stored workspace group roles', () => {
   beforeEach(() => forgetWorkspaceGroupMemberships());
 
   it('does not assign a group role when no mapping has been added', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim(['Existing Team'])));
-    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
-    expect(reader).not.toHaveBeenCalled();
+    await signIn(['Existing Team']);
+    await expect(groupRoleLookupForStore(storeWithMappings([]))(EMAIL)).resolves.toBeNull();
   });
 
-  it('maps direct workspace membership without case sensitivity', async () => {
-    const store = storeWithMappings([
-      {
-        group_name: 'Existing Team',
-        role: 'admin',
-        added_by: 'owner@example.com',
-        added_at: '2026-09-10T00:00:00.000Z',
-      },
-    ]);
-    const reader = vi.fn(() => Promise.resolve(scim(['existing team'])));
-
-    await expect(groupRoleLookupForStore(store, reader)(EMAIL.toUpperCase())).resolves.toBe('admin');
-    expect(reader).toHaveBeenCalledWith('/api/2.0/preview/scim/v2/Users', {
-      filter: `userName eq "${EMAIL}"`,
-    });
+  it('maps membership without case sensitivity', async () => {
+    await signIn(['existing team']);
+    const store = storeWithMappings([mapping('Existing Team', 'admin')]);
+    await expect(groupRoleLookupForStore(store)(EMAIL.toUpperCase())).resolves.toBe('admin');
   });
 
   it('gives an admin mapping precedence over a consumer mapping', async () => {
-    const store = storeWithMappings([
-      {
-        group_name: 'Readers',
-        role: 'consumer',
-        added_by: 'owner@example.com',
-        added_at: '2026-09-10T00:00:00.000Z',
-      },
-      {
-        group_name: 'Operators',
-        role: 'admin',
-        added_by: 'owner@example.com',
-        added_at: '2026-09-10T00:00:00.000Z',
-      },
-    ]);
-    const reader = vi.fn(() => Promise.resolve(scim(['Readers', 'Operators'])));
-
-    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('admin');
+    await signIn(['Readers', 'Operators']);
+    const store = storeWithMappings([mapping('Readers', 'consumer'), mapping('Operators', 'admin')]);
+    await expect(groupRoleLookupForStore(store)(EMAIL)).resolves.toBe('admin');
   });
 
-  it('fails closed when SCIM membership cannot be read', async () => {
-    const store = storeWithMappings([
-      {
-        group_name: 'Operators',
-        role: 'admin',
-        added_by: 'owner@example.com',
-        added_at: '2026-09-10T00:00:00.000Z',
-      },
-    ]);
-    await expect(
-      groupRoleLookupForStore(store, () => Promise.reject(new Error('forbidden')))(EMAIL)
-    ).resolves.toBeNull();
+  it('fails closed when the caller has not been seen with their own record', async () => {
+    const store = storeWithMappings([mapping('Operators', 'admin')]);
+    await expect(groupRoleLookupForStore(store)(EMAIL)).resolves.toBeNull();
   });
 });
 
@@ -100,112 +67,56 @@ describe('the deployment admin group', () => {
   });
 
   it('makes members admins without any stored mapping', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP.toLowerCase()])));
-    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBe('admin');
+    await signIn([ADMIN_GROUP.toLowerCase()]);
+    await expect(groupRoleLookupForStore(storeWithMappings([]))(EMAIL)).resolves.toBe('admin');
   });
 
   it('cannot be weakened by a stored consumer row for the same group', async () => {
-    const store = storeWithMappings([
-      {
-        group_name: ADMIN_GROUP,
-        role: 'consumer',
-        added_by: 'owner@example.com',
-        added_at: '2026-10-06T00:00:00.000Z',
-      },
-    ]);
-    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
-    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('admin');
+    await signIn([ADMIN_GROUP]);
+    await expect(groupRoleLookupForStore(storeWithMappings([mapping(ADMIN_GROUP, 'consumer')]))(EMAIL)).resolves.toBe(
+      'admin'
+    );
   });
 
   it('still applies, and says so, when stored mappings cannot be read', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await signIn([ADMIN_GROUP]);
     const store: AdminStore = { query: vi.fn(() => Promise.reject(new Error('lakebase down'))) };
-    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
-    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('admin');
+    await expect(groupRoleLookupForStore(store)(EMAIL)).resolves.toBe('admin');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('lakebase down'));
     warn.mockRestore();
   });
 
-  it('reads SCIM membership once per caller within the cache window', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
-    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
-    await expect(lookup(EMAIL)).resolves.toBe('admin');
-    await expect(lookup(EMAIL)).resolves.toBe('admin');
-    expect(reader).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not cache a failed SCIM read', async () => {
-    const reader = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('throttled'))
-      .mockResolvedValueOnce(scim([ADMIN_GROUP]));
-    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
-    await expect(lookup(EMAIL)).resolves.toBeNull();
-    await expect(lookup(EMAIL)).resolves.toBe('admin');
-  });
-
-  it('does not cache a SCIM body that does not include the caller', async () => {
-    const reader = vi
-      .fn()
-      .mockResolvedValueOnce({ Resources: [] })
-      .mockResolvedValueOnce(scim([ADMIN_GROUP]));
-    const lookup = groupRoleLookupForStore(storeWithMappings([]), reader);
-    await expect(lookup(EMAIL)).resolves.toBeNull();
-    await expect(lookup(EMAIL)).resolves.toBe('admin');
-  });
-
   it('ignores stored mappings in the deployment-only lookup', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim(['Operators', ADMIN_GROUP])));
-    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBe('admin');
+    await signIn(['Operators', ADMIN_GROUP]);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('admin');
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = '';
-    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBeNull();
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBeNull();
   });
 
   it('counts membership through a nested group, which SCIM reports as indirect', async () => {
-    const reader = vi.fn(() =>
-      Promise.resolve({
-        Resources: [
-          {
-            userName: EMAIL,
-            groups: [
-              { display: 'Studio Leads', type: 'direct' },
-              { display: ADMIN_GROUP, type: 'indirect' },
-            ],
-          },
-        ],
-      })
-    );
-    await expect(deploymentGroupRoleLookup(reader)(EMAIL)).resolves.toBe('admin');
-  });
-
-  it('reads a service principal from ServicePrincipals by its application ID', async () => {
-    const applicationId = '719c79e8-0bff-4676-be78-e6648cd27794';
-    const reader = vi.fn(() =>
-      Promise.resolve({ Resources: [{ applicationId, groups: [{ display: ADMIN_GROUP, type: 'direct' }] }] })
-    );
-    await expect(deploymentGroupRoleLookup(reader)(applicationId.toUpperCase())).resolves.toBe('admin');
-    expect(reader).toHaveBeenCalledWith('/api/2.0/preview/scim/v2/ServicePrincipals', {
-      filter: `applicationId eq "${applicationId}"`,
-    });
+    await signIn([
+      { display: 'Studio Leads', type: 'direct' },
+      { display: ADMIN_GROUP, type: 'indirect' },
+    ]);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('admin');
   });
 
   it('gives non-members no group role', async () => {
-    const reader = vi.fn(() => Promise.resolve(scim(['Example_PIA_Engineer'])));
-    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
+    await signIn(['Example_PIA_Engineer']);
+    await expect(groupRoleLookupForStore(storeWithMappings([]))(EMAIL)).resolves.toBeNull();
   });
 
   it('is inert when the deployment names no group', async () => {
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = '';
-    const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
-    await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
-    expect(reader).not.toHaveBeenCalled();
+    await signIn([ADMIN_GROUP]);
+    await expect(groupRoleLookupForStore(storeWithMappings([]))(EMAIL)).resolves.toBeNull();
   });
 });
 
 describe("the caller's own group read", () => {
   const ADMIN_GROUP = 'Example_PIA_Admin';
   const previous = process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
-  const unseen = { Resources: [{ userName: EMAIL }] };
 
   beforeEach(() => {
     forgetWorkspaceGroupMemberships();
@@ -214,49 +125,135 @@ describe("the caller's own group read", () => {
   afterEach(() => {
     if (previous === undefined) delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
     else process.env.PLAYER_INSIGHTS_ADMIN_GROUP = previous;
+    vi.restoreAllMocks();
   });
 
-  it('resolves a group role the app identity cannot see', async () => {
+  it('reads the record with the caller token and resolves the group role from it', async () => {
     const self = vi.fn(() => Promise.resolve({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] }));
-    const directory = vi.fn(() => Promise.resolve(unseen));
-
     await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(true);
     expect(self).toHaveBeenCalledWith('user-token');
-    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBe('admin');
-    expect(directory).not.toHaveBeenCalled();
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('reads once per caller within the cache window', async () => {
+    const self = vi.fn(() => Promise.resolve({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] }));
+    await rememberOwnGroups(EMAIL, 'user-token', self);
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+    expect(self).toHaveBeenCalledTimes(1);
   });
 
   it('reads a service principal by its application ID', async () => {
     const caller = '0f6a2b5c-1d3e-4f70-8a9b-0c1d2e3f4a5b';
     const self = vi.fn(() => Promise.resolve({ applicationId: caller, groups: [{ display: ADMIN_GROUP }] }));
-
-    await expect(rememberOwnGroups(caller, 'sp-token', self)).resolves.toBe(true);
-    await expect(deploymentGroupRoleLookup(vi.fn())(caller)).resolves.toBe('admin');
+    await expect(rememberOwnGroups(caller.toUpperCase(), 'sp-token', self)).resolves.toBe(true);
+    await expect(deploymentGroupRoleLookup()(caller)).resolves.toBe('admin');
   });
 
   it('never records groups from a token for somebody else', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const self = vi.fn(() => Promise.resolve({ userName: 'other@example.com', groups: [{ display: ADMIN_GROUP }] }));
-    const directory = vi.fn(() => Promise.resolve(unseen));
-
     await expect(rememberOwnGroups(EMAIL, 'other-token', self)).resolves.toBe(false);
-    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBeNull();
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBeNull();
   });
 
-  it('skips the read without a token, and survives a failed one', async () => {
+  it('gives no group role, and says so once, when the own record cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const self = vi.fn(() => Promise.reject(new Error('SCIM Me returned 403')));
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('SCIM Me returned 403');
+    expect(warn.mock.calls[0][0]).not.toContain(EMAIL);
+  });
 
+  it('retries a failed read on the next request', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const self = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('throttled'))
+      .mockResolvedValueOnce({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] });
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(true);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('admin');
+  });
+
+  it('skips the read without a token', async () => {
+    const self = vi.fn();
     await expect(rememberOwnGroups(EMAIL, null, self)).resolves.toBe(false);
     expect(self).not.toHaveBeenCalled();
-    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+  });
+});
+
+describe('the deployment Super admin group', () => {
+  const SUPER = 'Example_PIA_Super';
+  const ADMIN = 'Example_PIA_Admin';
+  const ENGINEER = 'Example_PIA_Engineer';
+  const saved = {
+    super: process.env.PLAYER_INSIGHTS_SUPER_ADMIN_GROUP,
+    admin: process.env.PLAYER_INSIGHTS_ADMIN_GROUP,
+    consumers: process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS,
+  };
+  const restore = (name: string, value: string | undefined) => {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  };
+
+  beforeEach(() => {
+    forgetWorkspaceGroupMemberships();
+    process.env.PLAYER_INSIGHTS_SUPER_ADMIN_GROUP = SUPER;
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = ADMIN;
+    process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = ENGINEER;
+  });
+  afterEach(() => {
+    restore('PLAYER_INSIGHTS_SUPER_ADMIN_GROUP', saved.super);
+    restore('PLAYER_INSIGHTS_ADMIN_GROUP', saved.admin);
+    restore('PLAYER_INSIGHTS_CONSUMER_GROUPS', saved.consumers);
   });
 
-  it('does not cache a directory record that hides membership', async () => {
-    const directory = vi.fn(() => Promise.resolve(unseen));
-    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBeNull();
+  it.each([
+    [[SUPER], 'super_admin'],
+    [[ADMIN], 'admin'],
+    [[ENGINEER], 'consumer'],
+    [[SUPER, ADMIN], 'super_admin'],
+    [[SUPER, ENGINEER], 'super_admin'],
+    [[ADMIN, ENGINEER], 'admin'],
+    [[SUPER, ADMIN, ENGINEER], 'super_admin'],
+    [['Somebody Else'], null],
+    [[], null],
+  ] as const)('members of %j resolve to %s', async (groups, expected) => {
+    await signIn([...groups]);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe(expected);
+  });
 
-    const self = vi.fn(() => Promise.resolve({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] }));
-    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(true);
-    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBe('admin');
+  it('cannot be lowered by a stored row for the same group', async () => {
+    await signIn([SUPER]);
+    await expect(groupRoleLookupForStore(storeWithMappings([mapping(SUPER, 'consumer')]))(EMAIL)).resolves.toBe(
+      'super_admin'
+    );
+  });
+
+  it('is listed first among the deployment groups, and only once if it is also the admin group', () => {
+    expect(deploymentGroups()[0]).toEqual({ groupName: SUPER, role: 'super_admin' });
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = SUPER;
+    expect(deploymentGroups().filter((group) => group.groupName === SUPER)).toEqual([
+      { groupName: SUPER, role: 'super_admin' },
+    ]);
+  });
+
+  it('is never a consumer group, even if listed as one', () => {
+    process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS = `${ENGINEER},${SUPER}`;
+    expect(deploymentGroups().filter((group) => group.role === 'consumer')).toEqual([
+      { groupName: ENGINEER, role: 'consumer' },
+    ]);
+  });
+
+  it('loses the role on the next read after leaving the group', async () => {
+    await signIn([SUPER]);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('super_admin');
+    forgetWorkspaceGroupMemberships();
+    await signIn([ENGINEER]);
+    await expect(deploymentGroupRoleLookup()(EMAIL)).resolves.toBe('consumer');
   });
 });
 
@@ -282,11 +279,8 @@ describe('the deployment consumer groups', () => {
   });
 
   it('cannot be raised by a stored admin row for the same group', async () => {
-    const store = storeWithMappings([
-      { group_name: EXEC, role: 'admin', added_by: 'owner@example.com', added_at: '2026-10-06T00:00:00.000Z' },
-    ]);
-    const reader = vi.fn(() => Promise.resolve(scim([EXEC.toLowerCase()])));
-    await expect(groupRoleLookupForStore(store, reader)(EMAIL)).resolves.toBe('consumer');
+    await signIn([EXEC.toLowerCase()]);
+    await expect(groupRoleLookupForStore(storeWithMappings([mapping(EXEC, 'admin')]))(EMAIL)).resolves.toBe('consumer');
   });
 
   it('is nothing when the environment names no groups', () => {

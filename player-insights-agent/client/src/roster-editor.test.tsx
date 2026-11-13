@@ -261,7 +261,7 @@ describe('the #24a Roles geometry', () => {
     expect(editor).toContain('roster-frame');
   });
 
-  it('puts Databricks App groups and users in one table and offers the workspace picker', () => {
+  it('puts Databricks App groups and users in separate tables and offers the workspace picker', () => {
     const payload: RosterPayload = {
       entries: [entry({ email: ANALYST, role: 'consumer', assignable: ['admin'], canRemove: true })],
       storedRosterReadable: true,
@@ -291,9 +291,14 @@ describe('the #24a Roles geometry', () => {
         onGroupReset={() => {}}
       />
     );
-    expect(markup.match(/<table/g)).toHaveLength(1);
-    expect(text(markup)).toContain('Example analysts');
-    expect(text(markup)).toContain('analyst');
+    const tables = markup.split('<table').slice(1);
+    expect(tables).toHaveLength(2);
+    expect(text(markup).indexOf('User groups')).toBeLessThan(text(markup).indexOf('Individual users'));
+    expect(text(tables[0])).toContain('Example analysts');
+    expect(tables[0]).not.toContain('Persona');
+    expect(text(tables[1])).toContain('analyst');
+    expect(text(tables[1])).not.toContain('Example analysts');
+    expect(tables[1]).toContain('<th scope="col">Persona</th>');
     expect(markup).toContain('aria-label="Reset Example analysts to Consumer"');
     expect(markup).not.toContain('Persona for group');
     const editor = readFileSync(new URL('./UserRoleEditor.tsx', import.meta.url), 'utf8');

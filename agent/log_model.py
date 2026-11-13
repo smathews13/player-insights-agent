@@ -404,6 +404,7 @@ with mlflow.start_run(run_name="log_player_insights_agent"):
             str(ROOT / "stage_lexicon.py"),
             str(ROOT / "tool_repetition.py"),
             str(ROOT / "tools.py"),
+            str(ROOT / "trace_redaction.py"),
             str(ROOT / "unattributed_figures.py"),
             str(ROOT / "user_authorization.py"),
         ],

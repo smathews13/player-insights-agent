@@ -3,6 +3,12 @@
 The model artifact carries both destinations.  The app chooses one route for a
 new ask and sends only the route name; callers cannot supply endpoint names.
 Missing route metadata keeps older clients on the direct path.
+
+AI Gateway is the app's default route but not a mandatory one. The app marks
+its Gateway request optional, and a model released without a Gateway service
+then answers on the direct route. A request NOT marked optional still fails
+loudly on a model without one. Once the Gateway route is chosen, a Gateway
+failure is a failure: nothing falls back to direct mid-ask.
 """
 
 from __future__ import annotations
@@ -15,6 +21,7 @@ DIRECT = "direct"
 AI_GATEWAY = "ai_gateway"
 ROUTES = frozenset({DIRECT, AI_GATEWAY})
 CUSTOM_INPUT_KEY = "llm_route"
+OPTIONAL_INPUT_KEY = "llm_gateway_optional"
 TRACE_ATTRIBUTE = "player_insights.llm_route"
 
 
@@ -51,18 +58,25 @@ def activate(custom_inputs: dict[str, Any], settings: Any) -> Selection:
     if raw == AI_GATEWAY:
         endpoint = str(getattr(settings, "llm_gateway_endpoint", "") or "").strip()
         mode = str(getattr(settings, "llm_gateway", "") or "").strip()
+        if (not endpoint or not mode) and custom_inputs.get(OPTIONAL_INPUT_KEY) is True:
+            return _activate_direct(settings)
         if not endpoint or not mode:
             raise AiGatewayNotConfigured(
                 "AI Gateway is enabled for this ask, but the logged model has no configured "
                 "Gateway service and transport."
             )
         selection = Selection(route=AI_GATEWAY, endpoint=endpoint, gateway_mode=mode)
-    else:
-        selection = Selection(
-            route=DIRECT,
-            endpoint=str(getattr(settings, "llm_endpoint", "") or "").strip(),
-            gateway_mode="",
-        )
+        _current.set(selection)
+        return selection
+    return _activate_direct(settings)
+
+
+def _activate_direct(settings: Any) -> Selection:
+    selection = Selection(
+        route=DIRECT,
+        endpoint=str(getattr(settings, "llm_endpoint", "") or "").strip(),
+        gateway_mode="",
+    )
     _current.set(selection)
     return selection
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import re
+import threading
 import time
 from contextvars import ContextVar
 from typing import Any
@@ -21,12 +23,21 @@ AUDIENCE = "player-insights-agent"
 PURPOSE = "managed-genie-mcp"
 VERSION = 1
 MAX_LIFETIME_SECONDS = 60
+MAX_TRUSTED_KEYS = 2
+_PEM_BLOCK = re.compile(r"-----BEGIN PUBLIC KEY-----[A-Za-z0-9+/=\s]+?-----END PUBLIC KEY-----")
 CLOCK_SKEW_SECONDS = 5
 _CURRENT: ContextVar[str] = ContextVar("genie_transport", default=DIRECT)
 _VERIFICATION: ContextVar[str] = ContextVar(
     "genie_capability_verification", default="not_requested"
 )
 _CAPABILITY: ContextVar[str] = ContextVar("genie_mcp_capability", default="")
+#: Capability ids already spent in this process, with their expiry. The app signs
+#: one capability per question and invokes once, so a second sight of an id is a
+#: replay. Per serving replica: a replay that reaches another replica within the
+#: lifetime is still bound to the same user, request and deployment key.
+_SPENT: dict[str, int] = {}
+_SPENT_LOCK = threading.Lock()
+_MAX_SPENT = 10_000
 
 
 class InvalidGenieTransport(ValueError):
@@ -50,6 +61,52 @@ def _decode(value: str) -> bytes:
 
 def _canonical(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def _spend(jti: str, exp: int, now: int) -> None:
+    with _SPENT_LOCK:
+        for spent, expiry in list(_SPENT.items()):
+            if expiry < now - CLOCK_SKEW_SECONDS:
+                del _SPENT[spent]
+        if jti in _SPENT or len(_SPENT) >= _MAX_SPENT:
+            _refuse()
+        _SPENT[jti] = exp
+
+
+def forget_spent() -> None:
+    """Empty the replay record. For tests, which reuse one signed fixture."""
+
+    with _SPENT_LOCK:
+        _SPENT.clear()
+
+
+def trusted_keys(public_key_pem: str) -> list[Ed25519PublicKey]:
+    """The current key and, during a rotation, the previous one.
+
+    The release bakes one PEM block per trusted key, newest first. More than
+    `MAX_TRUSTED_KEYS` is refused rather than trimmed: a third key means a
+    rotation was not finished, and silently trusting it would keep a retired
+    key alive.
+    """
+
+    blocks = _PEM_BLOCK.findall(public_key_pem)
+    if not blocks or len(blocks) > MAX_TRUSTED_KEYS:
+        _refuse()
+    keys = []
+    for block in blocks:
+        key = serialization.load_pem_public_key(block.encode())
+        if not isinstance(key, Ed25519PublicKey):
+            _refuse()
+        keys.append(key)
+    return keys
+
+
+def _signed_by(key: Ed25519PublicKey, signature: bytes, body: str) -> bool:
+    try:
+        key.verify(signature, body.encode("ascii"))
+    except InvalidSignature:
+        return False
+    return True
 
 
 def _refuse() -> None:
@@ -111,10 +168,10 @@ def _verify(
             or now - iat > MAX_LIFETIME_SECONDS + CLOCK_SKEW_SECONDS
         ):
             _refuse()
-        key = serialization.load_pem_public_key(public_key_pem.encode())
-        if not isinstance(key, Ed25519PublicKey):
+        signature = _decode(encoded_signature)
+        if not any(_signed_by(key, signature, body) for key in trusted_keys(public_key_pem)):
             _refuse()
-        key.verify(_decode(encoded_signature), body.encode("ascii"))
+        _spend(payload["jti"], exp, now)
     except UntrustedGenieTransport:
         raise
     except (

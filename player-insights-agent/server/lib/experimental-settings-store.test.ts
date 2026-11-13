@@ -38,7 +38,7 @@ describe('deployment-wide Experimental settings', () => {
     const db = new MemoryExperimentalDb();
     expect(EXPERIMENTAL_SETTINGS_TABLE).toMatch(/\.experimental_settings$/);
     expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings).toEqual({
-      aiGateway: false,
+      aiGateway: true,
       benchmarkLab: false,
       contractObservatory: false,
       egressControls: false,
@@ -47,6 +47,34 @@ describe('deployment-wide Experimental settings', () => {
       notebookAgentSync: false,
     });
     expect(db.row).toBeNull();
+  });
+
+  it('turns AI Gateway on for a row whose stored false was only the old default', async () => {
+    const db = new MemoryExperimentalDb();
+    db.row = { settings: { aiGateway: false, benchmarkLab: true }, revision: 3 };
+    const read = await readExperimentalSettings(db as never, { maxAgeMs: 0 });
+    expect(read.settings.aiGateway).toBe(true);
+    expect(read.settings.benchmarkLab).toBe(true);
+  });
+
+  it('keeps an administrator turning AI Gateway off, as its own stored choice', async () => {
+    const db = new MemoryExperimentalDb();
+    await writeExperimentalSettings(db as never, { aiGateway: false }, 0, 'admin');
+    expect(db.row?.settings).toMatchObject({ aiGatewayRoute: 'off' });
+    expect(db.row?.settings).not.toHaveProperty('aiGateway');
+    forgetExperimentalSettings();
+    expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings.aiGateway).toBe(false);
+    await writeExperimentalSettings(db as never, { benchmarkLab: true }, 1, 'admin');
+    expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings.aiGateway).toBe(false);
+    await writeExperimentalSettings(db as never, { aiGateway: true }, 2, 'admin');
+    expect((await readExperimentalSettings(db as never, { maxAgeMs: 0 })).settings.aiGateway).toBe(true);
+  });
+
+  it('keeps AI Gateway on through a store outage on a cold process', async () => {
+    const db = new MemoryExperimentalDb();
+    db.failReads = true;
+    forgetExperimentalSettings();
+    await expect(readAiGatewayEnabled(db as never)).resolves.toBe(true);
   });
 
   it('keeps true after restart, redeploy, and a changed build SHA', async () => {

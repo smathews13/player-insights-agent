@@ -47,6 +47,19 @@ function store(seed?: { failOn?: RegExp }) {
       { id: 'fb-1', message_id: 'msg-2' },
       { id: 'fb-other', message_id: 'msg-other' },
     ],
+    runs: [
+      { id: 'run-1', conversation_id: 'conv-1' },
+      { id: 'run-other', conversation_id: 'conv-2' },
+    ],
+    run_events: [
+      { id: 'run-1:1', run_id: 'run-1' },
+      { id: 'run-1:2', run_id: 'run-1' },
+      { id: 'run-other:1', run_id: 'run-other' },
+    ],
+    run_attempts: [
+      { id: 'att-run-1', run_id: 'run-1' },
+      { id: 'att-run-other', run_id: 'run-other' },
+    ],
     // Present so that a statement reaching for it would have something to
     // destroy. A benchmark run belongs to a suite, not to a conversation.
     benchmark_runs: [{ id: 'bench-1', suite_id: 'poc-benchmark' }],
@@ -76,6 +89,13 @@ function store(seed?: { failOn?: RegExp }) {
         if (sql.startsWith('SELECT user_email FROM player_insights.conversations WHERE id = $1')) {
           const row = tables.conversations.find((c) => c.id === params[0]);
           return Promise.resolve({ rows: row ? [{ user_email: row.user_email }] : [] });
+        }
+        if (sql.startsWith('WITH gone AS ( DELETE FROM player_insights.runs WHERE conversation_id = $1')) {
+          const doomed = new Set(tables.runs.filter((r) => r.conversation_id === params[0]).map((r) => r.id));
+          const runs = take(tables.runs, (row) => !doomed.has(row.id)).rows.length;
+          const events = take(tables.run_events, (row) => !doomed.has(row.run_id)).rows.length;
+          const attempts = take(tables.run_attempts, (row) => !doomed.has(row.run_id)).rows.length;
+          return Promise.resolve({ rows: [{ runs, run_events: events, run_attempts: attempts }] });
         }
         if (sql.startsWith('DELETE FROM player_insights.feedback')) {
           const doomed = new Set(tables.messages.filter((m) => m.conversation_id === params[0]).map((m) => m.id));
@@ -147,12 +167,15 @@ describe('deleting one conversation', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
         conversationId: 'conv-1',
-        deleted: { conversations: 1, messages: 2, attachments: 1, feedback: 1 },
+        deleted: { conversations: 1, messages: 2, attachments: 1, feedback: 1, runs: 1 },
       });
       expect(backing.tables.conversations.map((row) => row.id)).toEqual(['conv-2']);
       expect(backing.tables.messages.map((row) => row.id)).toEqual(['msg-other']);
       expect(backing.tables.attachments.map((row) => row.id)).toEqual(['att-other']);
       expect(backing.tables.feedback.map((row) => row.id)).toEqual(['fb-other']);
+      expect(backing.tables.runs.map((row) => row.id)).toEqual(['run-other']);
+      expect(backing.tables.run_events.map((row) => row.id)).toEqual(['run-other:1']);
+      expect(backing.tables.run_attempts.map((row) => row.id)).toEqual(['att-run-other']);
     } finally {
       await app.close();
     }
@@ -214,25 +237,19 @@ describe('deleting one conversation', () => {
     }
   });
 
-  it('takes the derived run with the messages, because no run row exists to remove', async () => {
+  it('removes the ledger runs of this conversation in one statement, with their events and attempts', async () => {
     const backing = store();
     const app = await startApp(backing.lakebase);
 
     try {
       await app.fetch('/api/conversations/conv-1', { method: 'DELETE', headers: asOwner });
 
-      // `RUNS_QUERY` derives a conversation run from the assistant messages
-      // that carry a trace rather than reading a stored row, so deleting the
-      // messages is what removes the run. A statement naming a `runs` table
-      // here would be deleting something that does not exist.
-      //
-      // Scoped to the statements that REMOVE something. The boot schema pass
-      // names `player_insights.runs` (it creates the ledger, and version 2 adds
-      // a column to it), so matching every statement the app has ever issued
-      // stopped being a statement about this handler.
-      const removals = backing.statements.filter((sql) => /^\s*(DELETE|UPDATE|TRUNCATE)\b/i.test(sql));
-      expect(removals.join(' ')).not.toMatch(/player_insights\.runs/);
-      expect(backing.tables.messages.some((row) => row.conversation_id === 'conv-1')).toBe(false);
+      // One statement, so a run never survives without its events or loses
+      // them while it stays. Keyed on the one conversation id.
+      const ledger = backing.statements.filter((sql) => sql.startsWith('WITH gone AS'));
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0]).toContain('WHERE conversation_id = $1');
+      expect(ledger[0]).toMatch(/run_events WHERE run_id IN \(SELECT run_id FROM gone\)/);
     } finally {
       await app.close();
     }
@@ -249,7 +266,7 @@ describe('deleting one conversation', () => {
       });
 
       expect(response.status).toBe(404);
-      expect(backing.statements.filter((sql) => sql.startsWith('DELETE'))).toEqual([]);
+      expect(backing.statements.filter((sql) => /^(DELETE|WITH)/.test(sql))).toEqual([]);
     } finally {
       await app.close();
     }

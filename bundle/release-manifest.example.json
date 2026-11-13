@@ -1,0 +1,6 @@
+{
+  "tables": [
+    "<catalog>.<schema>.<curated table or view the release answers from>"
+  ],
+  "groups": ["<PIA access group or label data group whose reads must stay inside the manifest>"]
+}

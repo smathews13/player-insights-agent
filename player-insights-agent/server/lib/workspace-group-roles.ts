@@ -1,18 +1,34 @@
 import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import type { Role } from '../../shared/user-roster-contract';
 import type { AdminStore } from './admin-identity';
-import { SCIM_USERS_PATH, workspaceControlPlaneReader, type ControlPlaneReader } from './control-plane-identity';
 
-const SCIM_SERVICE_PRINCIPALS_PATH = '/api/2.0/preview/scim/v2/ServicePrincipals';
 const SCIM_ME_PATH = '/api/2.0/preview/scim/v2/Me';
 import { readGroupRoleMappings } from './group-role-mappings';
 import { ExpiringLruCache } from './expiring-lru';
 
-export type GroupRoleLookup = (email: string) => Promise<Extract<Role, 'admin' | 'consumer'> | null>;
+export type GroupRole = Extract<Role, 'super_admin' | 'admin' | 'consumer'>;
+export type GroupRoleLookup = (email: string) => Promise<GroupRole | null>;
 
 interface GroupRoleMapping {
   groupName: string;
-  role: Extract<Role, 'admin' | 'consumer'>;
+  role: GroupRole;
+}
+
+/** Highest first: a member of several groups gets the highest role among them. */
+const GROUP_ROLE_ORDER: readonly GroupRole[] = ['super_admin', 'admin', 'consumer'];
+
+/**
+ * The deployment's Super admin group. Only the deployment can name it: Identity
+ * never maps a group to Super admin, so the top role changes only when the
+ * group's membership changes in the identity provider.
+ */
+export function configuredSuperAdminGroup(): string {
+  return process.env.PLAYER_INSIGHTS_SUPER_ADMIN_GROUP?.trim() || '';
+}
+
+export function isConfiguredSuperAdminGroup(groupName: string): boolean {
+  const configured = normalized(configuredSuperAdminGroup());
+  return Boolean(configured) && normalized(groupName) === configured;
 }
 
 /**
@@ -42,7 +58,10 @@ export function configuredConsumerGroups(): string[] {
     .map((name) => name.trim())
     .filter((name) => {
       const key = normalized(name);
-      if (!key || key === normalized(configuredAdminGroup()) || seen.has(key)) return false;
+      if (!key || key === normalized(configuredAdminGroup()) || key === normalized(configuredSuperAdminGroup())) {
+        return false;
+      }
+      if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
@@ -53,17 +72,21 @@ export function isConfiguredConsumerGroup(groupName: string): boolean {
   return Boolean(key) && configuredConsumerGroups().some((name) => normalized(name) === key);
 }
 
-/** Every group whose role the deployment sets, with that role. Admin first. */
+/** Every group whose role the deployment sets, with that role. Highest first. */
 export function deploymentGroups(): GroupRoleMapping[] {
-  const adminGroup = configuredAdminGroup();
+  const superGroup = configuredSuperAdminGroup();
+  const adminGroup = isConfiguredSuperAdminGroup(configuredAdminGroup()) ? '' : configuredAdminGroup();
   return [
+    ...(superGroup ? [{ groupName: superGroup, role: 'super_admin' as const }] : []),
     ...(adminGroup ? [{ groupName: adminGroup, role: 'admin' as const }] : []),
     ...configuredConsumerGroups().map((groupName) => ({ groupName, role: 'consumer' as const })),
   ];
 }
 
 export function isDeploymentManagedGroup(groupName: string): boolean {
-  return isConfiguredAdminGroup(groupName) || isConfiguredConsumerGroup(groupName);
+  return (
+    isConfiguredSuperAdminGroup(groupName) || isConfiguredAdminGroup(groupName) || isConfiguredConsumerGroup(groupName)
+  );
 }
 
 /**
@@ -71,8 +94,9 @@ export function isDeploymentManagedGroup(groupName: string): boolean {
  *
  * A configured group is not an editable suggestion: a stale Lakebase row must
  * never turn the admin group's members into consumers, so the deployment's role
- * replaces any stored row for the same group. Super admin stays an explicit
- * roster role, and individual users are never touched by any of this.
+ * replaces any stored row for the same group. Super admin comes only from the
+ * deployment's Super admin group or a pinned person, and individual users are
+ * never touched by any of this.
  */
 function withConfiguredAdminGroup(stored: readonly GroupRoleMapping[]): GroupRoleMapping[] {
   const kept = stored.filter((mapping) => !isDeploymentManagedGroup(mapping.groupName));
@@ -87,27 +111,21 @@ function normalized(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLocaleLowerCase() : '';
 }
 
-function scimFilterLiteral(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-}
-
 const MEMBERSHIP_TTL_MS = 15_000;
 const MEMBERSHIP_CACHE_MAX_ENTRIES = 512;
 // Group membership per caller, never the derived role: a mapping change in
 // Identity applies on the next request. Membership (owned by the workspace) may
 // lag by up to 15 seconds, which also bounds how long removing someone from an
-// admin-mapped group takes. Only a read that returned the caller is cached; a
-// failed read or a body without them is retried on the next request.
+// admin-mapped group takes. Only the caller's own record is cached; a failed
+// read is retried on the next request.
 const memberships = new ExpiringLruCache<ReadonlySet<string>>(MEMBERSHIP_CACHE_MAX_ENTRIES, MEMBERSHIP_TTL_MS);
+const warnedUnreadable = new ExpiringLruCache<true>(MEMBERSHIP_CACHE_MAX_ENTRIES, 60_000);
 
 /** Test and deployment-reload seam. */
 export function forgetWorkspaceGroupMemberships(): void {
   memberships.clear();
+  warnedUnreadable.clear();
 }
-
-// A service principal signs in as its application ID and is listed under
-// ServicePrincipals, not Users.
-const APPLICATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function groupNames(groups: unknown[]): ReadonlySet<string> {
   return new Set(
@@ -135,11 +153,10 @@ export const workspaceSelfReader: SelfReader = async (token) => {
 /**
  * Record the caller's groups from their own SCIM record.
  *
- * A directory read by a principal that is not a workspace admin returns user and
- * service principal records with no `groups` at all, so the app service
- * principal cannot see anybody's membership. `Me` read with the caller's own
- * forwarded token can. Kept only when the record is the caller's, so a token
- * for one identity can never set another's groups. Never throws.
+ * This is the only source of group membership: the app service principal never
+ * reads the directory for it, so a caller whose own record cannot be read gets
+ * no group role. Kept only when the record is the caller's, so a token for one
+ * identity can never set another's groups. Never throws.
  */
 export async function rememberOwnGroups(
   caller: string,
@@ -148,71 +165,55 @@ export async function rememberOwnGroups(
 ): Promise<boolean> {
   const key = normalized(caller);
   if (!key || !token || memberships.get(key)) return false;
+  let reason: string;
   try {
     const me = record(await read(token));
-    if (normalized(me.userName) !== key && normalized(me.applicationId) !== key) return false;
-    if (!Array.isArray(me.groups)) return false;
-    memberships.set(key, groupNames(me.groups));
-    return true;
-  } catch {
-    return false;
+    if (normalized(me.userName) === key || normalized(me.applicationId) === key) {
+      if (Array.isArray(me.groups)) {
+        memberships.set(key, groupNames(me.groups));
+        return true;
+      }
+      reason = 'the record lists no groups';
+    } else {
+      reason = 'the record is not the caller';
+    }
+  } catch (error) {
+    reason = (error as Error).message;
   }
+  if (!warnedUnreadable.get(key)) {
+    warnedUnreadable.set(key, true);
+    console.warn(`[admin] A caller's own groups could not be read (${reason}); no group role applies to them.`);
+  }
+  return false;
 }
 
-async function workspaceGroupsFor(caller: string, reader: ControlPlaneReader): Promise<ReadonlySet<string>> {
-  const cached = memberships.get(caller);
-  if (cached) return cached;
-  const servicePrincipal = APPLICATION_ID_PATTERN.test(caller);
-  const body = servicePrincipal
-    ? await reader(SCIM_SERVICE_PRINCIPALS_PATH, { filter: `applicationId eq ${scimFilterLiteral(caller)}` })
-    : await reader(SCIM_USERS_PATH, { filter: `userName eq ${scimFilterLiteral(caller)}` });
-  const resources = record(body).Resources;
-  const key = servicePrincipal ? 'applicationId' : 'userName';
-  const user = Array.isArray(resources)
-    ? resources.map(record).find((candidate) => normalized(candidate[key]) === caller)
-    : null;
-  // A record without `groups` means the reader may not see membership, not that
-  // there is none, so it is not cached over a later self read.
-  if (!Array.isArray(user?.groups)) return new Set<string>();
-  const groups = groupNames(user.groups);
-  memberships.set(caller, groups);
-  return groups;
+/** Groups from the caller's own record, or none. */
+function ownGroups(caller: string): ReadonlySet<string> {
+  return memberships.get(caller) ?? new Set<string>();
 }
 
-function roleFromGroups(
-  mappings: readonly GroupRoleMapping[],
-  groups: ReadonlySet<string>
-): Extract<Role, 'admin' | 'consumer'> | null {
-  if (mappings.some((mapping) => mapping.role === 'admin' && groups.has(normalized(mapping.groupName)))) {
-    return 'admin';
-  }
-  return mappings.some((mapping) => mapping.role === 'consumer' && groups.has(normalized(mapping.groupName)))
-    ? 'consumer'
-    : null;
+function roleFromGroups(mappings: readonly GroupRoleMapping[], groups: ReadonlySet<string>): GroupRole | null {
+  const held = new Set(
+    mappings.filter((mapping) => groups.has(normalized(mapping.groupName))).map((mapping) => mapping.role)
+  );
+  return GROUP_ROLE_ORDER.find((role) => held.has(role)) ?? null;
 }
 
 /**
- * The deployment admin group alone, with no stored state. Role resolution uses
+ * The deployment's own groups alone, with no stored state. Role resolution uses
  * this when the roster cannot be read: an unreadable store still admits nobody,
  * but deployment config does not live in the store.
  */
-export function deploymentGroupRoleLookup(reader: ControlPlaneReader = workspaceControlPlaneReader): GroupRoleLookup {
-  return async (email) => {
+export function deploymentGroupRoleLookup(): GroupRoleLookup {
+  return (email) => {
     const caller = normalized(email);
     const mappings = withConfiguredAdminGroup([]);
-    if (!caller || mappings.length === 0) return null;
-    try {
-      return roleFromGroups(mappings, await workspaceGroupsFor(caller, reader));
-    } catch {
-      return null;
-    }
+    if (!caller || mappings.length === 0) return Promise.resolve(null);
+    return Promise.resolve(roleFromGroups(mappings, ownGroups(caller)));
   };
 }
 
-export function groupRoleLookupForStore(
-  store: AdminStore,
-  reader: ControlPlaneReader = workspaceControlPlaneReader
-): GroupRoleLookup {
+export function groupRoleLookupForStore(store: AdminStore): GroupRoleLookup {
   return async (email) => {
     const caller = normalized(email);
     if (!caller) return null;
@@ -227,10 +228,6 @@ export function groupRoleLookupForStore(
     });
     const mappings = withConfiguredAdminGroup(stored);
     if (mappings.length === 0) return null;
-    try {
-      return roleFromGroups(mappings, await workspaceGroupsFor(caller, reader));
-    } catch {
-      return null;
-    }
+    return roleFromGroups(mappings, ownGroups(caller));
   };
 }

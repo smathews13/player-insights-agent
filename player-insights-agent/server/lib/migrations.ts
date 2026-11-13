@@ -29,6 +29,7 @@ import { LAKEBASE_BINDING_PLAN_DDL, LAKEBASE_BINDING_PLAN_TABLE } from './lakeba
 import { GROUP_ROLE_MAPPINGS_DDL, GROUP_ROLE_MAPPINGS_TABLE } from './group-role-mappings';
 import { ORGANIZATION_PROFILES_DDL, ORGANIZATION_PROFILES_TABLE } from './organization-profiles';
 import { APP_GROUPS_DDL, APP_GROUPS_TABLE } from './app-groups-store';
+import { PERSONA_HISTORY_DOWN, PERSONA_HISTORY_STATEMENTS } from './persona-history';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -1036,6 +1037,17 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      */
     statements: [`ALTER TABLE ${APP_SCHEMA}.attachments ADD COLUMN IF NOT EXISTS truncated BOOLEAN`],
     down: [`ALTER TABLE ${APP_SCHEMA}.attachments DROP COLUMN IF EXISTS truncated`],
+  },
+  {
+    version: 45,
+    name: 'persona assignment history and use',
+    /**
+     * Append-only records of who held which persona and why, and of every
+     * question a persona ran. Existing assignments keep working and get one
+     * history row each.
+     */
+    statements: PERSONA_HISTORY_STATEMENTS,
+    down: PERSONA_HISTORY_DOWN,
   },
 ];
 

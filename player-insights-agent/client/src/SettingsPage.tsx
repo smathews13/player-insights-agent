@@ -394,8 +394,8 @@ export function SettingsPage({
                       <td>
                         <ExperimentalFeatureName kind="ai-gateway">AI Gateway</ExperimentalFeatureName>
                         <p className="settings-row-note">
-                          Routes model requests through the configured Unity Catalog AI Gateway service and its
-                          policies.
+                          On by default. Routes model requests through the configured Unity Catalog AI Gateway service
+                          and its policies, or the direct route if this deployment has none.
                         </p>
                       </td>
                       <td className="exp-feature-status">

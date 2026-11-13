@@ -750,6 +750,10 @@ export type AdminAction =
   | 'eval-suite-cancelled'
   /** An admin restored the previous promoted Ask endpoint. */
   | 'eval-agent-rolled-back'
+  /** A super admin erased one person's stored conversations and settings on request. */
+  | 'user-data-erased'
+  /** The retention purge removed conversations older than the configured window. */
+  | 'conversations-purged'
   | 'sp-identity-enabled'
   | 'sp-identity-disabled'
   | 'sp-persona-created'

@@ -307,6 +307,42 @@ describe('what the rail reads', () => {
     expect(messages.params).toEqual(['conv-bob', 'alice@example.example', 51]);
   });
 
+  it("audits an admin opening somebody else's conversation, and not their own", async () => {
+    process.env[SHARED_CONVERSATION_RAIL_ENV] = 'true';
+    const store = recordingStore('admin');
+    const answer = store.lakebase.query.bind(store.lakebase);
+    store.lakebase.query = (sql: string, params: unknown[] = []) => {
+      if (/FROM player_insights\.messages m/i.test(sql)) {
+        return answer(sql, params).then(() => ({
+          rows: [{ id: 'msg-1', role: 'user', content: 'q', created_at: '2026-11-01T00:00:00.000Z' }],
+        }));
+      }
+      if (/^SELECT user_email FROM player_insights\.conversations WHERE id = \$1/.test(sql)) {
+        void answer(sql, params);
+        return Promise.resolve({
+          rows: [{ user_email: params[0] === 'conv-bob' ? 'bob@example.example' : 'alice@example.example' }],
+        });
+      }
+      return answer(sql, params);
+    };
+    const app = await startApp(store.lakebase);
+    store.queries.length = 0;
+
+    try {
+      await app.fetch('/api/conversations/conv-bob/messages', { headers: asAlice });
+      await app.fetch('/api/conversations/conv-alice/messages', { headers: asAlice });
+      await vi.waitFor(() => {
+        expect(store.queries.filter((entry) => entry.sql.startsWith('SELECT user_email'))).toHaveLength(2);
+      });
+    } finally {
+      await app.close();
+    }
+
+    const audits = store.queries.filter((entry) => entry.sql.includes('admin_audit'));
+    expect(audits).toHaveLength(1);
+    expect(audits[0].params).toEqual(expect.arrayContaining(['alice@example.example', 'conversation-read', 'conv-bob']));
+  });
+
   /**
    * The Run Explorer's "Open full response" with the rail per-user.
    *

@@ -221,6 +221,18 @@ variables:
   app_admin_group:
     description: Workspace group granted App CAN_USE and the in-app Admin role floor.
     default: ""
+  app_manager_group:
+    description: >-
+      Small platform group granted App CAN_MANAGE (redeploy, stop, edit the
+      ACL). Use an account-level group. Empty grants nobody beyond the owner and
+      workspace admins.
+    default: ""
+  app_super_admin_group:
+    description: >-
+      Group whose members are in-app Super admins (Identity and SP personas).
+      Use an account-level group with at least two members. Empty keeps the
+      pinned super admin list in admin_emails.
+    default: ""
   shared_conversation_rail:
     description: >-
       Whether users can see shared conversations in the rail. Defaults to

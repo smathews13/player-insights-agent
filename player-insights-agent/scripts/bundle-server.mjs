@@ -383,6 +383,7 @@ async function main() {
   // plain Git build) leaves no admin group at all.
   const adminGroup = (process.env.PLAYER_INSIGHTS_ADMIN_GROUP ?? '').trim();
   const consumerGroups = (process.env.PLAYER_INSIGHTS_CONSUMER_GROUPS ?? '').trim();
+  const superAdminGroup = (process.env.PLAYER_INSIGHTS_SUPER_ADMIN_GROUP ?? '').trim();
   if (sharedRail && sharedRail.toLowerCase() === 'true') {
     console.log(
       '\n  note  PLAYER_INSIGHTS_SHARED_CONVERSATION_RAIL=true: the deployed app.yaml will let every\n' +
@@ -545,6 +546,9 @@ async function main() {
       ...(adminGroup ? [{ name: 'PLAYER_INSIGHTS_ADMIN_GROUP', value: `'${adminGroup.replaceAll("'", "''")}'` }] : []),
       ...(consumerGroups
         ? [{ name: 'PLAYER_INSIGHTS_CONSUMER_GROUPS', value: `'${consumerGroups.replaceAll("'", "''")}'` }]
+        : []),
+      ...(superAdminGroup
+        ? [{ name: 'PLAYER_INSIGHTS_SUPER_ADMIN_GROUP', value: `'${superAdminGroup.replaceAll("'", "''")}'` }]
         : []),
       // Both per-deployment and correctly empty when unresolved. No telemetry
       // destination means telemetry is off. No admin bootstrap means only that a

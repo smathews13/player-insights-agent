@@ -127,7 +127,7 @@ env:
     value: 'false'
   # The deployment's admin access group. Its members hold at least the Player
   # Insights Agent Admin role, and Identity shows it as deployment-managed rather
-  # than editable. Super admin stays an explicit roster role.
+  # than editable. Super admin comes from PLAYER_INSIGHTS_SUPER_ADMIN_GROUP below.
   #
   # EMPTY HERE ON PURPOSE: this file is published, and customer group names do
   # not belong in it. Empty means "keep what this deployment last stated": the
@@ -141,6 +141,13 @@ env:
   # Identity lists them as set by this deployment. Individual users are never
   # replaced by any group here. Empty for the same reason as the admin group.
   - name: PLAYER_INSIGHTS_CONSUMER_GROUPS
+    value: ''
+  # The deployment's Super admin group. Its members are Super admins (Identity
+  # and SP personas), so the top role changes only through group membership in
+  # the identity provider. Use an account-level group with at least two members.
+  # Empty for the same reason as the admin group. bundle/app-release.sh sets it
+  # from var.app_super_admin_group.
+  - name: PLAYER_INSIGHTS_SUPER_ADMIN_GROUP
     value: ''
   # Super admins pinned by this deployment. Unlike the bootstrap list below, this
   # applies on every boot and to an existing roster, so a plain Deploy from Git

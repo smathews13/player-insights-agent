@@ -326,6 +326,12 @@ export function RosterRows({
   onGroupReset?: (entry: GroupRoleEntry) => void;
   footer?: ReactNode;
 }) {
+  const tableMode = `roles-table--${manageHumanRoles ? 'editable' : 'assignment-only'}`;
+  const groups = payload.groupRoleMappings ?? [];
+  const showGroups = showPersona && manageHumanRoles && (groups.length > 0 || Boolean(footer));
+  const servicePrincipals = (payload.appAccessPrincipals ?? []).filter(
+    (principal) => principal.kind === 'service_principal'
+  );
   return (
     <>
       {/* The way back into a deployment nobody can administer. Present only when
@@ -339,31 +345,29 @@ export function RosterRows({
         <CopyableCommand command={payload.pendingSchemaStatement} label="Add the role column" />
       ) : null}
 
-      <div className="settings-table-frame roster-frame">
-        <table
-          className={`settings-data-table roles-table roles-table--${
-            manageHumanRoles ? 'editable' : 'assignment-only'
-          }${manageHumanRoles ? ' settings-actions-table' : ''}`}
-        >
-          <colgroup>
-            <col className="roster-email-column" />
-            <col className="roster-organization-column" />
-            <col className="roster-role-column" />
-            {showPersona ? <col className="roster-persona-column" /> : null}
-            {manageHumanRoles ? <col className="roster-action-column" /> : null}
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col">Email</th>
-              <th scope="col">Organization</th>
-              <th scope="col">User role</th>
-              {showPersona ? <th scope="col">Persona</th> : null}
-              {manageHumanRoles ? <th scope="col">Actions</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {showPersona && manageHumanRoles
-              ? (payload.groupRoleMappings ?? []).map((entry) => (
+      {showGroups ? (
+        <section className="roster-section" aria-labelledby="roster-groups-title">
+          <h5 id="roster-groups-title" className="roster-section-title">
+            User groups
+          </h5>
+          <div className="settings-table-frame roster-frame">
+            <table className={`settings-data-table roles-table ${tableMode} group-roles-table settings-actions-table`}>
+              <colgroup>
+                <col className="roster-email-column" />
+                <col className="roster-organization-column" />
+                <col className="roster-role-column" />
+                <col className="roster-action-column" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Workspace group</th>
+                  <th scope="col">Organization</th>
+                  <th scope="col">User role</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((entry) => (
                   <GroupRoleRow
                     key={`group:${entry.groupName}`}
                     entry={entry}
@@ -372,105 +376,147 @@ export function RosterRows({
                     onRoleChange={(mapping, role) => onGroupRoleChange?.(mapping, role)}
                     onReset={(mapping) => onGroupReset?.(mapping)}
                   />
-                ))
-              : null}
-            {payload.entries.map((entry) => {
-              const organization = organizationForEmail(entry.email, payload.organizations ?? []);
-              return (
-                <tr key={entry.email} className="admin-row">
-                  <td className="roster-email" title={entry.email}>
-                    <span className="admin-row-email">
-                      <span className="roster-email-details">
-                        <OrganizationUserBadge
-                          identity={entry.email}
-                          organization={organization}
-                          className="admin-row-address"
-                          canOpen
-                          showFullIdentity
-                        />
-                        <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
+                ))}
+              </tbody>
+              {footer ? <tfoot>{footer}</tfoot> : null}
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="roster-section" aria-labelledby="roster-people-title">
+        <h5 id="roster-people-title" className="roster-section-title">
+          Individual users
+        </h5>
+        <div className="settings-table-frame roster-frame">
+          <table
+            className={`settings-data-table roles-table ${tableMode}${manageHumanRoles ? ' settings-actions-table' : ''}`}
+          >
+            <colgroup>
+              <col className="roster-email-column" />
+              <col className="roster-organization-column" />
+              <col className="roster-role-column" />
+              {showPersona ? <col className="roster-persona-column" /> : null}
+              {manageHumanRoles ? <col className="roster-action-column" /> : null}
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">Organization</th>
+                <th scope="col">User role</th>
+                {showPersona ? <th scope="col">Persona</th> : null}
+                {manageHumanRoles ? <th scope="col">Actions</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {payload.entries.map((entry) => {
+                const organization = organizationForEmail(entry.email, payload.organizations ?? []);
+                return (
+                  <tr key={entry.email} className="admin-row">
+                    <td className="roster-email" title={entry.email}>
+                      <span className="admin-row-email">
+                        <span className="roster-email-details">
+                          <OrganizationUserBadge
+                            identity={entry.email}
+                            organization={organization}
+                            className="admin-row-address"
+                            canOpen
+                            showFullIdentity
+                          />
+                          <AppAccessBadge state={entry.appAccess} detail={entry.appAccessDetail} />
+                        </span>
+                        {entry.isYou ? <span className="admin-row-you">you</span> : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="roster-email-copy"
+                          aria-label={`Copy email ${entry.email}`}
+                          title={`Copy ${entry.email}`}
+                          onClick={() => void navigator.clipboard?.writeText(entry.email)}
+                        >
+                          <Copy className="size-3.5" aria-hidden="true" />
+                        </Button>
                       </span>
-                      {entry.isYou ? <span className="admin-row-you">you</span> : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="roster-email-copy"
-                        aria-label={`Copy email ${entry.email}`}
-                        title={`Copy ${entry.email}`}
-                        onClick={() => void navigator.clipboard?.writeText(entry.email)}
-                      >
-                        <Copy className="size-3.5" aria-hidden="true" />
-                      </Button>
-                    </span>
-                  </td>
-                  <td className="roster-organization">
-                    <span className="roster-organization-value">
-                      <OrganizationAvatar organization={organization} />
-                      <span>{organization.name}</span>
-                    </span>
-                  </td>
-                  <td className="roster-role">
-                    <RoleControl
-                      entry={manageHumanRoles ? entry : { ...entry, assignable: [] }}
-                      busy={busy}
-                      onChange={onChange}
-                    />
-                  </td>
-                  {showPersona ? (
-                    <td className="roster-persona">
-                      <PersonaControl
-                        email={entry.email}
-                        personaId={personaByEmail.get(entry.email) ?? null}
-                        personas={personas}
-                        disabled={busy || personaDisabled}
-                        onChange={onPersonaChange}
-                        isDeploymentOwner={entry.isDeploymentOwner}
+                    </td>
+                    <td className="roster-organization">
+                      <span className="roster-organization-value">
+                        <OrganizationAvatar organization={organization} />
+                        <span>{organization.name}</span>
+                      </span>
+                    </td>
+                    <td className="roster-role">
+                      <RoleControl
+                        entry={manageHumanRoles ? entry : { ...entry, assignable: [] }}
+                        busy={busy}
+                        onChange={onChange}
                       />
                     </td>
-                  ) : null}
-                  {manageHumanRoles ? (
-                    <td className="roster-action">
-                      {entry.canRemove ? (
-                        <Button
-                          variant="destructive"
-                          data-variant="destructive"
-                          className="roster-control settings-destructive roster-action-button"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => onRemove(entry)}
-                          aria-label={`Reset ${entry.email} to Consumer`}
-                        >
-                          <Trash2 className="roster-action-icon" aria-hidden="true" />
-                          Reset role
-                        </Button>
-                      ) : null}
-                    </td>
-                  ) : null}
+                    {showPersona ? (
+                      <td className="roster-persona">
+                        <PersonaControl
+                          email={entry.email}
+                          personaId={personaByEmail.get(entry.email) ?? null}
+                          personas={personas}
+                          disabled={busy || personaDisabled}
+                          onChange={onPersonaChange}
+                          isDeploymentOwner={entry.isDeploymentOwner}
+                        />
+                      </td>
+                    ) : null}
+                    {manageHumanRoles ? (
+                      <td className="roster-action">
+                        {entry.canRemove ? (
+                          <Button
+                            variant="destructive"
+                            data-variant="destructive"
+                            className="roster-control settings-destructive roster-action-button"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => onRemove(entry)}
+                            aria-label={`Reset ${entry.email} to Consumer`}
+                          >
+                            <Trash2 className="roster-action-icon" aria-hidden="true" />
+                            Reset role
+                          </Button>
+                        ) : null}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {servicePrincipals.length > 0 ? (
+        <section className="roster-section" aria-labelledby="roster-sp-title">
+          <h5 id="roster-sp-title" className="roster-section-title">
+            Service principals
+          </h5>
+          {/* Admitted by the Databricks App ACL, not by a Player Insights Agent
+              role, so these rows offer no role, persona or reset control. */}
+          <div className="settings-table-frame roster-frame">
+            <table className={`settings-data-table roles-table ${tableMode} service-principal-table`}>
+              <colgroup>
+                <col className="roster-email-column" />
+                <col className="roster-role-column" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">Service principal</th>
+                  <th scope="col">Databricks App access</th>
                 </tr>
-              );
-            })}
-            {/* Service principals that hold Databricks App access render as their
-                own rows, the way group grants do, rather than in a pill list
-                below the table. A service principal is a real member of the app
-                -- the app's own runtime identity is one -- so it belongs in the
-                same list a reader scans for "who can reach this". Its identity
-                mark is a robot glyph instead of an organization logo, because it
-                is not a person in an org: it is admitted by the App ACL, not by a
-                Player Insights Agent role, which is what the role cell says. */}
-            {(payload.appAccessPrincipals ?? [])
-              .filter((principal) => principal.kind === 'service_principal')
-              .map((principal) => (
-                <ServicePrincipalRow
-                  key={`sp:${principal.name}`}
-                  principal={principal}
-                  showPersona={showPersona}
-                  manageHumanRoles={manageHumanRoles}
-                />
-              ))}
-          </tbody>
-          {footer ? <tfoot>{footer}</tfoot> : null}
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {servicePrincipals.map((principal) => (
+                  <ServicePrincipalRow key={`sp:${principal.name}`} principal={principal} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -514,7 +560,7 @@ export function GroupMappingAddRow({
   if (!open) {
     return (
       <tr className="roster-add-row group-mapping-add-row">
-        <td colSpan={5}>
+        <td colSpan={4}>
           <Button type="button" variant="outline" onClick={() => void openPicker()}>
             <UserPlus className="roster-action-icon" aria-hidden="true" />
             Add Workspace Access Group
@@ -557,7 +603,6 @@ export function GroupMappingAddRow({
           }))}
         />
       </td>
-      <td />
       <td className="roster-action">
         <Button type="button" variant="outline" disabled={busy || !draft.trim()} onClick={onAdd}>
           <UsersRound className="roster-action-icon" aria-hidden="true" /> Add
@@ -644,7 +689,7 @@ function GroupRoleRow({
           </span>
         </td>
         <td className="roster-role">
-          {entry.deploymentManaged ? (
+          {entry.deploymentManaged || entry.role === 'super_admin' ? (
             <RoleBadgePill state={entry.role} />
           ) : (
             <AppSelect
@@ -662,7 +707,6 @@ function GroupRoleRow({
             />
           )}
         </td>
-        <td className="roster-persona" />
         <td className="roster-action">
           {entry.setBy ? (
             <Button
@@ -686,7 +730,7 @@ function GroupRoleRow({
       </tr>
       {open ? (
         <tr className="group-role-members-row">
-          <td colSpan={5}>
+          <td colSpan={4}>
             {loading ? <PiaLoader variant="inline" label="Reading group members" className="settings-status" /> : null}
             {!loading && members ? (
               <div className="group-role-members">
@@ -718,26 +762,14 @@ function GroupRoleRow({
 }
 
 /**
- * A service principal that holds Databricks App access, rendered as a member row.
+ * A service principal that holds Databricks App access, in its own table.
  *
- * Same columns as a person's row so it reads as "another member of the app", but
- * with a robot glyph in place of the organization logo -- both as the identity
- * mark left of the name and in the Organization column -- because a service
- * principal is not a person in an organization. It carries no Player Insights
- * Agent role and no persona: it is admitted by the App ACL, so the role cell says
- * its App permission rather than offering a control the app cannot honour, and
- * there is no Reset action because a grant to a service principal is changed in
- * Databricks App permissions, not here.
+ * It carries no Player Insights Agent role and no persona: it is admitted by the
+ * App ACL, so its row states the App permission rather than offering a control
+ * the app cannot honour, and there is no Reset action because a grant to a
+ * service principal is changed in Databricks App permissions, not here.
  */
-function ServicePrincipalRow({
-  principal,
-  showPersona,
-  manageHumanRoles,
-}: {
-  principal: RosterAppAccessPrincipal;
-  showPersona: boolean;
-  manageHumanRoles: boolean;
-}) {
+function ServicePrincipalRow({ principal }: { principal: RosterAppAccessPrincipal }) {
   // Match how a person's row surfaces the same ACL shape: an inherited grant
   // (via a group, not a direct entry on the app) reads as "Inherited", not as a
   // direct Can use / Can manage. Reporting a direct grant on an inherited SP
@@ -747,11 +779,6 @@ function ServicePrincipalRow({
     : principal.permission === 'CAN_MANAGE'
       ? 'can_manage'
       : 'can_use';
-  const permissionLabel = principal.inherited
-    ? 'Inherited app access'
-    : principal.permission === 'CAN_MANAGE'
-      ? 'Can manage app'
-      : 'Can use app';
   const permissionTitle = principal.inherited
     ? 'Inherited Databricks App permission'
     : 'Direct Databricks App permission';
@@ -763,7 +790,6 @@ function ServicePrincipalRow({
             <Bot aria-hidden="true" />
             <span className="roster-sp-name">{principal.displayName}</span>
           </span>
-          <AppAccessBadge state={accessState} detail={permissionTitle} />
           <Button
             type="button"
             variant="ghost"
@@ -776,33 +802,9 @@ function ServicePrincipalRow({
           </Button>
         </span>
       </td>
-      <td className="roster-organization">
-        <span className="roster-organization-value">
-          <span
-            className="roster-organization-mark roster-organization-mark--service-principal"
-            role="img"
-            aria-label="Service principal"
-            title="Service principal"
-          >
-            <Bot aria-hidden="true" />
-          </span>
-          <span>Service principal</span>
-        </span>
-      </td>
       <td className="roster-role">
-        <span
-          className="roster-sp-role"
-          title="Admitted by the Databricks App ACL. Service principals are not assigned a Player Insights Agent role."
-        >
-          {permissionLabel}
-        </span>
+        <AppAccessBadge state={accessState} detail={permissionTitle} />
       </td>
-      {showPersona ? (
-        <td className="roster-persona">
-          <span className="roster-sp-role">—</span>
-        </td>
-      ) : null}
-      {manageHumanRoles ? <td className="roster-action" /> : null}
     </tr>
   );
 }
@@ -825,6 +827,7 @@ export function UserRoleEditor({
   const [groupDraft, setGroupDraft] = useState('');
   const [groupDraftRole, setGroupDraftRole] = useState<Extract<Role, 'admin' | 'consumer'>>('consumer');
   const [groupAddError, setGroupAddError] = useState('');
+  const [personaReason, setPersonaReason] = useState('');
   const [notice, setNotice] = useState('');
   const loadGeneration = useRef(0);
   const mutationInFlight = useRef(false);
@@ -942,6 +945,18 @@ export function UserRoleEditor({
                   'Databricks App permissions determine membership. Player Insights Agent determines each member’s app role.'}
               </p>
             )}
+            {canManageHumanRoles && spPayload.personas.length > 0 ? (
+              <label className="admin-list-note persona-reason-field">
+                <span>Reason for the next persona change (optional, kept in the persona history)</span>
+                <Input
+                  value={personaReason}
+                  maxLength={1000}
+                  onChange={(event) => setPersonaReason(event.target.value)}
+                  placeholder="For example: reproduce the regional analyst's view for a support ticket"
+                  aria-label="Reason for the next persona change"
+                />
+              </label>
+            ) : null}
             <RosterRows
               payload={payload}
               busy={busy}
@@ -994,10 +1009,13 @@ export function UserRoleEditor({
                     roster: current.roster.map((row) => (row.email === email ? { ...row, personaId } : row)),
                   }));
                   void run(
-                    () => assignSpPersona(email, personaId),
+                    () => assignSpPersona(email, personaId, personaReason),
                     personaId ? `${email} now uses the selected persona.` : `${email} now has no persona.`,
                     {
-                      apply: setSpPayload,
+                      apply: (next) => {
+                        setSpPayload(next);
+                        setPersonaReason('');
+                      },
                       onError: (message) => {
                         setSpPayload(before);
                         setWriteError(message);

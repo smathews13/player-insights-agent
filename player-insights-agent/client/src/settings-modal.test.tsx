@@ -187,7 +187,7 @@ describe('Settings modal', () => {
     const featureTable = markup.slice(tableStart, markup.indexOf('</table>', tableStart) + '</table>'.length);
     for (const description of [
       'Configures approved outbound network destinations for app requests.',
-      'Routes model requests through the configured Unity Catalog AI Gateway service and its policies.',
+      'On by default. Routes model requests through the configured Unity Catalog AI Gateway service and its policies, or the direct route if this deployment has none.',
       'Routes governed data questions from eligible administrators through the configured managed Genie Agent MCP server.',
       'Selects the agent notebook and applies staged agent versions.',
       'Applies billing attribution tags to supported Databricks resources.',

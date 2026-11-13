@@ -16,11 +16,35 @@ const KEY = 'app-global';
 
 export const EXPERIMENTAL_SETTINGS_TABLE = appTable('experimental_settings');
 
-/** Retired browser pivot; mappings are always available in Identity now. */
+/**
+ * The AI Gateway choice is stored as `aiGatewayRoute: 'on' | 'off'`, not as the
+ * legacy `aiGateway` boolean. Every earlier first save wrote `aiGateway: false`
+ * as a default nobody chose, so reading that field would keep those
+ * deployments off. The legacy field is dropped; an absent route means on.
+ */
+export const AI_GATEWAY_ROUTE_KEY = 'aiGatewayRoute';
+
+/**
+ * Retired stored fields: `spIdentities` was a browser pivot (mappings are
+ * always available in Identity now), and `aiGateway` is the legacy route.
+ */
 export function withoutLegacySpIdentities(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  const { spIdentities: _retired, ...settings } = value as Record<string, unknown>;
+  const { spIdentities: _retired, aiGateway: _legacyRoute, ...settings } = value as Record<string, unknown>;
   return settings;
+}
+
+/** The stored document as the browser-shaped features. */
+export function featuresFromStored(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const { [AI_GATEWAY_ROUTE_KEY]: route, aiGateway: _legacyRoute, ...features } = value as Record<string, unknown>;
+  return route === 'off' || route === 'on' ? { ...features, aiGateway: route === 'on' } : features;
+}
+
+/** The browser's `aiGateway` boolean, stored as the explicit route choice. */
+export function storedExperimentalPatch(patch: Partial<ExperimentalFeatures>): Record<string, unknown> {
+  const { aiGateway, ...rest } = patch;
+  return aiGateway === undefined ? rest : { ...rest, [AI_GATEWAY_ROUTE_KEY]: aiGateway ? 'on' : 'off' };
 }
 
 const STORE: VersionedSettingsStore<ExperimentalFeatures> = {
@@ -28,7 +52,7 @@ const STORE: VersionedSettingsStore<ExperimentalFeatures> = {
   key: KEY,
   defaults: { ...NO_EXPERIMENTS },
   prepare: withoutLegacySpIdentities,
-  parse: (value) => ExperimentalSettingsSchema.parse(value),
+  parse: (value) => ExperimentalSettingsSchema.parse(featuresFromStored(value)),
 };
 
 let cache = new WeakMap<object, { document: VersionedSettings<ExperimentalFeatures>; at: number }>();
@@ -57,7 +81,13 @@ export async function writeExperimentalSettings(
   revision: number,
   updatedBy: string
 ): Promise<VersionedSettings<ExperimentalFeatures>> {
-  const document = await writeVersionedSettingsPatch(client, STORE, patch, revision, updatedBy);
+  const document = await writeVersionedSettingsPatch(
+    client,
+    STORE,
+    storedExperimentalPatch(patch),
+    revision,
+    updatedBy
+  );
   cache.set(client, { document, at: Date.now() });
   return document;
 }
@@ -66,9 +96,10 @@ export async function writeExperimentalSettings(
  * Resolve the routing toggle for a new ask.
  *
  * A successful read is authoritative. During a transient Lakebase failure, keep
- * the last state this process actually read or wrote so an enabled Gateway never
- * silently falls back to direct. A cold process with no state preserves the
- * schema's default-off behavior.
+ * the last state this process actually read or wrote, so an administrator's
+ * choice survives the outage. A cold process with no state uses the default,
+ * which is on. Whether the ask actually uses the Gateway also depends on the
+ * deployed model having one configured; see chooseLlmRoute.
  */
 export async function readAiGatewayEnabled(client: LakebaseReader): Promise<boolean> {
   try {
@@ -77,10 +108,10 @@ export async function readAiGatewayEnabled(client: LakebaseReader): Promise<bool
     const remembered = cache.get(client);
     if (remembered) return remembered.document.settings.aiGateway;
     console.warn(
-      '[experimental-settings] AI Gateway state could not be read; using the default-off state:',
+      '[experimental-settings] AI Gateway state could not be read; using the default-on state:',
       (error as Error).message
     );
-    return false;
+    return true;
   }
 }
 
