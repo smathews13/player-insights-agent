@@ -390,10 +390,11 @@ def run() -> int:
         operator = Session(url, operator_token())
 
         print("==> Mapping the test admin group to Admin, as an operator would in Identity")
-        status, groups = operator.get("/api/users/groups")
+        status, roster = operator.get("/api/users")
+        mappings = roster.get("groupRoleMappings") or [] if isinstance(roster, dict) else []
         mapped = any(
-            str(g.get("groupName", "")).lower() == ADMIN_GROUP and g.get("role") == "admin"
-            for g in (groups.get("groups") or groups.get("mappings") or [] if isinstance(groups, dict) else [])
+            str(g.get("groupName", "")).lower() == ADMIN_GROUP and g.get("role") == "admin" and g.get("setBy")
+            for g in mappings
         )
         if not mapped:
             grant_acl("apps", APP_NAME, [{"group_name": ADMIN_GROUP, "permission_level": "CAN_USE"}])

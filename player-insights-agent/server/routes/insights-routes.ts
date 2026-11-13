@@ -87,6 +87,7 @@ import {
   resolveRole,
   rolePayload,
 } from '../lib/admin-roles';
+import { rememberOwnGroups, type SelfReader } from '../lib/workspace-group-roles';
 import { readRosterForRequest } from '../lib/user-roster';
 import { resolveCanonicalUserIdentity } from '../lib/canonical-user-identity';
 import { opensAdminSurfaces } from '../../shared/user-roster-contract';
@@ -2497,8 +2498,11 @@ export function conversationMessagesQuery(
   // message id and carries no conversation id, so it is a scalar subquery rather
   // than a join, and it is scoped to the caller: the feedback route accepts any
   // message id, so without the address predicate a reopened answer would show
-  // whatever direction somebody else gave it. A comment is exposed only for
-  // Not helpful, so an obsolete negative reason cannot reappear after Helpful.
+  // whatever direction somebody else gave it. The comment comes from the same
+  // newest row as the direction, so a reason never reappears beside a rating it
+  // was not written for. A Helpful row counts only with an explicit sentiment:
+  // legacy usefulness rows and every Helpful row before comments on Helpful
+  // were kept carried none of their own.
   const select = `SELECT m.id, m.role, m.content, m.response_json, m.trace_id, m.created_at,
                 m.app_principal, m.serving_principal, m.serving_principal_observed_at,
                 m.access_mode, m.execution_mode, m.execution_identity_verified,
@@ -2506,7 +2510,10 @@ export function conversationMessagesQuery(
                 (SELECT ${feedbackDirectionSql('f')} FROM ${APP_SCHEMA}.feedback f
                  WHERE f.message_id = m.id AND f.user_email = $2
                  ORDER BY f.created_at DESC LIMIT 1) AS feedback_sentiment,
-                (SELECT CASE WHEN ${feedbackDirectionSql('f')} = 'down' THEN f.comment ELSE NULL END
+                (SELECT CASE
+                          WHEN ${feedbackDirectionSql('f')} = 'down' OR lower(f.sentiment) = 'up' THEN f.comment
+                          ELSE NULL
+                        END
                    FROM ${APP_SCHEMA}.feedback f
                   WHERE f.message_id = m.id AND f.user_email = $2
                   ORDER BY f.created_at DESC LIMIT 1) AS feedback_comment
@@ -4002,6 +4009,8 @@ export function setupInsightsRoutes(
     onRequestLatencyRecorder?: (recorder: ReturnType<typeof requestLatencyRecorder>) => void;
     /** Test seam; production reads the Databricks control plane as the app SP. */
     identityControlPlaneReader?: ControlPlaneReader;
+    /** Test seam; production reads each caller's own SCIM record with their token. */
+    selfGroupReader?: SelfReader;
     /** Test seam for authoritative app-budget admission. */
     readBudgetStatus?: typeof readAppBudgetStatus;
     /** Production reads only token-bearing MLflow span metadata; tests inject fixtures. */
@@ -4089,6 +4098,22 @@ export function setupInsightsRoutes(
       config: idleConfig,
     });
     app.use(executionCredentialMiddleware(appkit));
+    // Before any role is resolved. Group roles need the caller's membership, and
+    // only their own token can read it unless the app is a workspace admin.
+    app.use((req, _res, next) => {
+      if (!req.path.toLowerCase().startsWith('/api/')) {
+        next();
+        return;
+      }
+      let caller = '';
+      try {
+        caller = userEmail(req);
+      } catch {
+        next();
+        return;
+      }
+      void rememberOwnGroups(caller, forwardedUserToken(req), options.selfGroupReader).finally(() => next());
+    });
     if (options.rolesReady) {
       app.use((req, _res, next) => {
         if (!isAdminRoute(req.path)) {
@@ -6572,7 +6597,7 @@ export function setupInsightsRoutes(
         id: crypto.randomUUID(),
         messageId: parsed.data.messageId,
         sentiment: parsed.data.sentiment,
-        comment: parsed.data.sentiment === 'down' ? parsed.data.comment?.trim() || null : null,
+        comment: parsed.data.comment?.trim() || null,
       };
       const written = await readStored(
         appkit,

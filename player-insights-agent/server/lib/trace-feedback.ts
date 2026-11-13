@@ -28,6 +28,8 @@ export interface TraceRating {
   sentiment: 'up' | 'down';
   comment: string | null;
   raterId: string;
+  /** The rater's earlier assessment on this trace, which this one replaces. */
+  overrides?: string;
 }
 
 export interface MlflowRequest {
@@ -61,6 +63,7 @@ export function feedbackAssessmentRequest(rating: TraceRating): MlflowRequest {
         feedback: { value: rating.sentiment === 'up' },
         ...(rating.comment ? { rationale: rating.comment } : {}),
         metadata: { [FEEDBACK_ID_METADATA]: rating.feedbackId, 'pia.message_id': rating.messageId },
+        ...(rating.overrides ? { overrides: rating.overrides } : {}),
       },
     },
   };
@@ -89,17 +92,72 @@ function withTimeout<T>(work: Promise<T>): Promise<T> {
   ]);
 }
 
+/**
+ * Write one rating. One that replaces the rater's earlier rating is retried as a
+ * plain write if MLflow refuses the replacement, so the newest rating is never
+ * lost for the sake of retiring an old one.
+ */
 export async function writeTraceRating(rating: TraceRating, transport: MlflowTransport): Promise<void> {
-  await withTimeout(transport(feedbackAssessmentRequest(rating)));
+  try {
+    await withTimeout(transport(feedbackAssessmentRequest(rating)));
+  } catch (error) {
+    if (!rating.overrides) throw error;
+    await withTimeout(transport(feedbackAssessmentRequest({ ...rating, overrides: undefined })));
+  }
 }
 
-/** True when the trace already carries this rating, so the copy is never doubled. */
-export async function traceHasRating(traceId: string, feedbackId: string, transport: MlflowTransport) {
+interface TraceAssessment {
+  assessment_id?: unknown;
+  assessment_name?: unknown;
+  source?: { source_id?: unknown };
+  valid?: unknown;
+  create_time?: unknown;
+  metadata?: Record<string, unknown>;
+}
+
+async function traceAssessments(traceId: string, transport: MlflowTransport): Promise<TraceAssessment[]> {
   const response = (await withTimeout(
     transport({ method: 'GET', path: `/api/3.0/mlflow/traces/${encodeURIComponent(traceId)}` })
-  )) as { trace?: { trace_info?: { assessments?: { metadata?: Record<string, unknown> }[] } } } | null;
-  const assessments = response?.trace?.trace_info?.assessments ?? [];
-  return assessments.some((assessment) => assessment.metadata?.[FEEDBACK_ID_METADATA] === feedbackId);
+  )) as { trace?: { trace_info?: { assessments?: TraceAssessment[] } } } | null;
+  const assessments = response?.trace?.trace_info?.assessments;
+  return Array.isArray(assessments) ? assessments : [];
+}
+
+function createdAt(assessment: TraceAssessment): string {
+  return typeof assessment.create_time === 'string' ? assessment.create_time : '';
+}
+
+/**
+ * The rater's current rating on the trace, if any. Each person keeps one rating
+ * per answer, so a new one overrides it rather than sitting beside it.
+ */
+export function currentRatingBy(assessments: TraceAssessment[], raterId: string): string | undefined {
+  const current = assessments
+    .filter(
+      (assessment) =>
+        assessment.assessment_name === TRACE_FEEDBACK_NAME &&
+        assessment.source?.source_id === raterId &&
+        assessment.valid !== false &&
+        typeof assessment.assessment_id === 'string' &&
+        assessment.assessment_id
+    )
+    .sort((left, right) => createdAt(left).localeCompare(createdAt(right)));
+  const latest = current[current.length - 1];
+  return latest ? String(latest.assessment_id) : undefined;
+}
+
+const traceWrites = new Map<string, Promise<unknown>>();
+
+/** Writes to one trace run in order, so rapid re-rating cannot race to the same predecessor. */
+function inOrder<T>(traceId: string, work: () => Promise<T>): Promise<T> {
+  const previous = traceWrites.get(traceId) ?? Promise.resolve();
+  const next = previous.then(work, work);
+  const settled = next.catch(() => undefined);
+  traceWrites.set(traceId, settled);
+  void settled.then(() => {
+    if (traceWrites.get(traceId) === settled) traceWrites.delete(traceId);
+  });
+  return next;
 }
 
 export const TRACE_ID_FOR_MESSAGE = `SELECT trace_id FROM ${APP_SCHEMA}.messages WHERE id = $1`;
@@ -122,21 +180,30 @@ export async function copyRatingToTrace(
   const read = await store.query(TRACE_ID_FOR_MESSAGE, [input.messageId]);
   const traceId = read.rows[0]?.trace_id;
   if (!isMlflowTraceId(traceId)) return 'skipped';
-  await writeTraceRating({ ...input, traceId: String(traceId), raterId }, transport);
+  const trace = String(traceId);
+  await inOrder(trace, async () => {
+    const overrides = currentRatingBy(await traceAssessments(trace, transport).catch(() => []), raterId);
+    await writeTraceRating({ ...input, traceId: trace, raterId, overrides }, transport);
+  });
   return 'written';
 }
 
+/** Each person's final rating of each answer; an earlier tap they changed is not copied. */
 export const RATINGS_FOR_BACKFILL = `
-  SELECT f.id AS feedback_id, f.message_id, f.user_email, f.comment, m.trace_id,
-         CASE
-           WHEN lower(f.sentiment) IN ('up', 'down') THEN lower(f.sentiment)
-           WHEN f.usefulness BETWEEN 4 AND 5 THEN 'up'
-           WHEN f.usefulness BETWEEN 1 AND 2 THEN 'down'
-         END AS direction
-    FROM ${APP_SCHEMA}.feedback f
-    JOIN ${APP_SCHEMA}.messages m ON m.id = f.message_id
-   WHERE m.trace_id IS NOT NULL
-   ORDER BY f.created_at DESC
+  SELECT * FROM (
+    SELECT DISTINCT ON (f.message_id, lower(f.user_email))
+           f.id AS feedback_id, f.message_id, f.user_email, f.comment, m.trace_id, f.created_at,
+           CASE
+             WHEN lower(f.sentiment) IN ('up', 'down') THEN lower(f.sentiment)
+             WHEN f.usefulness BETWEEN 4 AND 5 THEN 'up'
+             WHEN f.usefulness BETWEEN 1 AND 2 THEN 'down'
+           END AS direction
+      FROM ${APP_SCHEMA}.feedback f
+      JOIN ${APP_SCHEMA}.messages m ON m.id = f.message_id
+     WHERE m.trace_id IS NOT NULL
+     ORDER BY f.message_id, lower(f.user_email), f.created_at DESC, f.id DESC
+  ) latest
+   ORDER BY latest.created_at DESC
    LIMIT ${BACKFILL_LIMIT}`;
 
 export interface RatingBackfillResult {
@@ -168,7 +235,8 @@ export async function backfillTraceRatings(
     }
     const feedbackId = String(row.feedback_id);
     try {
-      if (await traceHasRating(String(traceId), feedbackId, transport)) {
+      const assessments = await traceAssessments(String(traceId), transport);
+      if (assessments.some((assessment) => assessment.metadata?.[FEEDBACK_ID_METADATA] === feedbackId)) {
         result.alreadyCopied += 1;
         continue;
       }
@@ -181,6 +249,7 @@ export async function backfillTraceRatings(
           sentiment: direction,
           comment,
           raterId,
+          overrides: currentRatingBy(assessments, raterId),
         },
         transport
       );

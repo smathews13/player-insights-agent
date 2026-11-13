@@ -49,7 +49,7 @@ export function feedbackFromStored(messages: ConversationMessage[]): Record<stri
       ...EMPTY_FEEDBACK,
       saved: true,
       sentiment,
-      comment: sentiment === 'down' && typeof message.feedback_comment === 'string' ? message.feedback_comment : '',
+      comment: typeof message.feedback_comment === 'string' ? message.feedback_comment : '',
     };
   }
   return entries;

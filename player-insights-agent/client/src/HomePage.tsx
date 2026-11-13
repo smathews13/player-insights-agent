@@ -1928,7 +1928,8 @@ export function HomePage() {
    * cannot land out of order in the append-only audit table. The UI only accepts
    * completion from the newest requested change. A failed replacement restores
    * the last confirmed direction; failed written feedback stays in the focused
-   * field so the reader can retry without retyping it.
+   * field so the reader can retry without retyping it. A comment belongs to the
+   * rating it was written for, so switching rating in either direction clears it.
    */
   async function saveFeedback(
     messageId: string,
@@ -1939,7 +1940,8 @@ export function HomePage() {
     if (!confirmedFeedbackRef.current.has(messageId) && entry.saved) {
       confirmedFeedbackRef.current.set(messageId, { ...entry });
     }
-    const comment = sentiment === 'down' ? entry.comment.trim() : '';
+    const switching = entry.sentiment !== null && entry.sentiment !== sentiment;
+    const comment = switching ? '' : entry.comment.trim();
     const version = (feedbackWriteVersionsRef.current.get(messageId) ?? 0) + 1;
     feedbackWriteVersionsRef.current.set(messageId, version);
     const patch = (changes: Partial<FeedbackEntry>) => {
@@ -1952,8 +1954,8 @@ export function HomePage() {
       saved: false,
       error: null,
       sentiment,
-      open: sentiment === 'down' && (options.keepCommentOpen === true || entry.open),
-      ...(sentiment === 'up' ? { comment: '' } : {}),
+      open: options.keepCommentOpen === true || entry.open,
+      ...(switching ? { comment: '' } : {}),
     });
 
     const write = feedbackWriteQueueRef.current.enqueue(messageId, async () => {
@@ -1973,7 +1975,7 @@ export function HomePage() {
         saved: true,
         sentiment,
         comment,
-        open: sentiment === 'down' && options.keepCommentOpen === true,
+        open: options.keepCommentOpen === true,
       };
       confirmedFeedbackRef.current.set(messageId, confirmed);
       if (feedbackWriteVersionsRef.current.get(messageId) !== version) return;
@@ -1983,7 +1985,6 @@ export function HomePage() {
         open: confirmed.open,
         error: null,
         sentiment,
-        ...(sentiment === 'up' ? { comment: '' } : {}),
       });
       setRunSummaries((current) => {
         const next = new Map(current);
@@ -1999,8 +2000,8 @@ export function HomePage() {
         saving: false,
         saved: false,
         sentiment: confirmed.sentiment,
-        comment: sentiment === 'down' ? entry.comment : confirmed.comment,
-        open: sentiment === 'down' || confirmed.sentiment === 'down',
+        comment: switching ? confirmed.comment : entry.comment,
+        open: true,
         error: (error as Error).message || 'Feedback was not recorded.',
       });
     }

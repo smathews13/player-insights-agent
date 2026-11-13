@@ -515,8 +515,8 @@ export function AnswerCard({
               className={`feedback-rating feedback-rating--up${feedback.sentiment === 'up' ? ' feedback-chosen' : ''}`}
               disabled={feedback.saving}
               onClick={() => {
-                onFeedbackChange({ open: false, comment: '' });
-                void saveFeedback('up');
+                onFeedbackChange({ open: true });
+                void saveFeedback('up', { keepCommentOpen: true });
               }}
             >
               <ThumbsUp aria-hidden="true" />
@@ -541,14 +541,14 @@ export function AnswerCard({
                   ref={feedbackInputRef}
                   value={feedback.comment}
                   onChange={(event) => onFeedbackChange({ comment: event.target.value })}
-                  placeholder="What could be better?"
-                  aria-label="Tell us what could be better"
+                  placeholder={feedback.sentiment === 'up' ? 'What worked well?' : 'What could be better?'}
+                  aria-label={feedback.sentiment === 'up' ? 'Tell us what worked well' : 'Tell us what could be better'}
                 />
                 <Button
                   size="sm"
                   disabled={feedback.saving}
                   aria-busy={feedback.saving || undefined}
-                  onClick={() => void saveFeedback('down')}
+                  onClick={() => void saveFeedback(feedback.sentiment ?? 'down')}
                 >
                   <PiaBusyButtonContent busy={feedback.saving} label="Save feedback" busyLabel="Saving" />
                 </Button>

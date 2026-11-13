@@ -1,8 +1,10 @@
+import { normalizeWorkspaceHost } from '../../shared/databricks-links';
 import type { Role } from '../../shared/user-roster-contract';
 import type { AdminStore } from './admin-identity';
 import { SCIM_USERS_PATH, workspaceControlPlaneReader, type ControlPlaneReader } from './control-plane-identity';
 
 const SCIM_SERVICE_PRINCIPALS_PATH = '/api/2.0/preview/scim/v2/ServicePrincipals';
+const SCIM_ME_PATH = '/api/2.0/preview/scim/v2/Me';
 import { readGroupRoleMappings } from './group-role-mappings';
 import { ExpiringLruCache } from './expiring-lru';
 
@@ -107,6 +109,56 @@ export function forgetWorkspaceGroupMemberships(): void {
 // ServicePrincipals, not Users.
 const APPLICATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+function groupNames(groups: unknown[]): ReadonlySet<string> {
+  return new Set(
+    groups
+      .map(record)
+      .map((group) => normalized(group.display))
+      .filter(Boolean)
+  );
+}
+
+export type SelfReader = (token: string) => Promise<unknown>;
+
+/** The caller's own SCIM record, read with their own token. */
+export const workspaceSelfReader: SelfReader = async (token) => {
+  const host = normalizeWorkspaceHost(process.env.DATABRICKS_HOST);
+  if (!host) throw new Error('DATABRICKS_HOST is not set');
+  const response = await fetch(`${host}${SCIM_ME_PATH}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) throw new Error(`SCIM Me returned ${response.status}`);
+  return response.json();
+};
+
+/**
+ * Record the caller's groups from their own SCIM record.
+ *
+ * A directory read by a principal that is not a workspace admin returns user and
+ * service principal records with no `groups` at all, so the app service
+ * principal cannot see anybody's membership. `Me` read with the caller's own
+ * forwarded token can. Kept only when the record is the caller's, so a token
+ * for one identity can never set another's groups. Never throws.
+ */
+export async function rememberOwnGroups(
+  caller: string,
+  token: string | null,
+  read: SelfReader = workspaceSelfReader
+): Promise<boolean> {
+  const key = normalized(caller);
+  if (!key || !token || memberships.get(key)) return false;
+  try {
+    const me = record(await read(token));
+    if (normalized(me.userName) !== key && normalized(me.applicationId) !== key) return false;
+    if (!Array.isArray(me.groups)) return false;
+    memberships.set(key, groupNames(me.groups));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function workspaceGroupsFor(caller: string, reader: ControlPlaneReader): Promise<ReadonlySet<string>> {
   const cached = memberships.get(caller);
   if (cached) return cached;
@@ -119,15 +171,11 @@ async function workspaceGroupsFor(caller: string, reader: ControlPlaneReader): P
   const user = Array.isArray(resources)
     ? resources.map(record).find((candidate) => normalized(candidate[key]) === caller)
     : null;
-  const groups = Array.isArray(user?.groups)
-    ? new Set(
-        user.groups
-          .map(record)
-          .map((group) => normalized(group.display))
-          .filter(Boolean)
-      )
-    : new Set<string>();
-  if (user) memberships.set(caller, groups);
+  // A record without `groups` means the reader may not see membership, not that
+  // there is none, so it is not cached over a later self read.
+  if (!Array.isArray(user?.groups)) return new Set<string>();
+  const groups = groupNames(user.groups);
+  memberships.set(caller, groups);
   return groups;
 }
 

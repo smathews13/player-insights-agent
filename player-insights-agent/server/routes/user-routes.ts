@@ -236,9 +236,17 @@ export function setupUserRoutes(
     // so each always gets a row; otherwise nothing in Identity would explain them.
     const aclNames = new Set(appGroupNames.map((name) => name.toLocaleLowerCase()));
     const managed = deploymentGroups();
+    const managedGroupNames = managed
+      .map((group) => group.groupName)
+      .filter((name) => !aclNames.has(name.toLocaleLowerCase()));
+    // A stored mapping keeps granting its role to members who reach the App
+    // through another group after its own group leaves the ACL, so it keeps a
+    // row that can be reset.
+    const listed = new Set([...aclNames, ...managedGroupNames.map((name) => name.toLocaleLowerCase())]);
     const groupNames = [
       ...appGroupNames,
-      ...managed.map((group) => group.groupName).filter((name) => !aclNames.has(name.toLocaleLowerCase())),
+      ...managedGroupNames,
+      ...mappings.map((mapping) => mapping.groupName).filter((name) => !listed.has(name.toLocaleLowerCase())),
     ];
     const confirmations = await Promise.all(groupNames.map((name) => confirmWorkspaceGroup(name)));
     const identityManagementUrl = accountConsoleUrlForWorkspace(process.env.DATABRICKS_HOST);

@@ -149,8 +149,11 @@ export function monitoringFeedbackRequest(
 }
 
 /**
- * One feedback submission per row. The period and cursor are deliberately on
- * feedback.created_at; a question can be rated later than it was asked.
+ * Each person's final rating of each answer, one per row. Every tap and every
+ * saved comment appends a row, so earlier rows the same person replaced are
+ * not feedback anybody still gives and are neither listed nor counted. The
+ * period and cursor are deliberately on feedback.created_at; a question can be
+ * rated later than it was asked.
  */
 export const MONITORING_FEEDBACK_QUERY = `
   WITH joined AS (
@@ -199,6 +202,14 @@ export const MONITORING_FEEDBACK_QUERY = `
         ON persona.id = assignment.persona_id
      WHERE f.created_at >= $1::timestamptz
        AND f.created_at < $2::timestamptz
+       AND NOT EXISTS (
+         SELECT 1
+           FROM ${APP_SCHEMA}.feedback newer
+          WHERE newer.message_id = f.message_id
+            AND lower(newer.user_email) = lower(f.user_email)
+            AND (newer.created_at, newer.id) > (f.created_at, f.id)
+            AND ${feedbackDirectionSql('newer')} IS NOT NULL
+       )
   ),
   submitted AS (
     SELECT *
@@ -212,8 +223,7 @@ export const MONITORING_FEEDBACK_QUERY = `
             lower(question) LIKE ('%' || lower($6) || '%') OR
             lower(feedback_user) LIKE ('%' || lower($6) || '%') OR
             lower(split_part(feedback_user, '@', 1)) LIKE ('%' || lower($6) || '%') OR
-            lower(CASE WHEN direction = 'down' THEN COALESCE(comment, '') ELSE '' END)
-              LIKE ('%' || lower($6) || '%'))
+            lower(COALESCE(comment, '')) LIKE ('%' || lower($6) || '%'))
        AND ($7 = '' OR direction = $7)
        AND ($8 = '' OR lower(feedback_user) = lower($8))
        AND ($9 = '' OR user_role = $9)
@@ -232,9 +242,13 @@ export const MONITORING_FEEDBACK_QUERY = `
     SELECT COUNT(*)::int AS total_feedback,
            COUNT(*) FILTER (WHERE direction = 'up')::int AS helpful_feedback,
            COUNT(*) FILTER (WHERE direction = 'down')::int AS not_helpful_feedback,
+           COUNT(*) FILTER (WHERE comment IS NOT NULL AND btrim(comment) <> '')::int AS comments_captured,
+           COUNT(*) FILTER (
+             WHERE direction = 'up' AND comment IS NOT NULL AND btrim(comment) <> ''
+           )::int AS helpful_comments,
            COUNT(*) FILTER (
              WHERE direction = 'down' AND comment IS NOT NULL AND btrim(comment) <> ''
-           )::int AS comments_captured,
+           )::int AS not_helpful_comments,
            COALESCE(MAX(feedback_at)::text, '') || ':' || COUNT(*)::text AS data_revision
       FROM filtered
   ),
@@ -305,7 +319,7 @@ export function monitoringFeedbackRow(
     persona: personaId && personaName ? { id: personaId, name: personaName } : null,
     organization: { domain: organization.domain, name: organization.name },
     feedback: direction,
-    comment: direction === 'down' ? text(row.comment).trim() || null : null,
+    comment: text(row.comment).trim() || null,
     submittedAt: stamp(row.feedback_at),
   };
 }
@@ -397,6 +411,8 @@ export function setupMonitoringFeedbackRoutes(
           helpful: integer(first.helpful_feedback),
           notHelpful: integer(first.not_helpful_feedback),
           comments: integer(first.comments_captured),
+          helpfulComments: integer(first.helpful_comments),
+          notHelpfulComments: integer(first.not_helpful_comments),
         },
         rows,
         filters: {

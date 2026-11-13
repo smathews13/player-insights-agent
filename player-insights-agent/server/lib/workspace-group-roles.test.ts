@@ -5,6 +5,7 @@ import {
   deploymentGroups,
   forgetWorkspaceGroupMemberships,
   groupRoleLookupForStore,
+  rememberOwnGroups,
 } from './workspace-group-roles';
 
 const EMAIL = 'person@example.com';
@@ -198,6 +199,64 @@ describe('the deployment admin group', () => {
     const reader = vi.fn(() => Promise.resolve(scim([ADMIN_GROUP])));
     await expect(groupRoleLookupForStore(storeWithMappings([]), reader)(EMAIL)).resolves.toBeNull();
     expect(reader).not.toHaveBeenCalled();
+  });
+});
+
+describe("the caller's own group read", () => {
+  const ADMIN_GROUP = 'Example_PIA_Admin';
+  const previous = process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+  const unseen = { Resources: [{ userName: EMAIL }] };
+
+  beforeEach(() => {
+    forgetWorkspaceGroupMemberships();
+    process.env.PLAYER_INSIGHTS_ADMIN_GROUP = ADMIN_GROUP;
+  });
+  afterEach(() => {
+    if (previous === undefined) delete process.env.PLAYER_INSIGHTS_ADMIN_GROUP;
+    else process.env.PLAYER_INSIGHTS_ADMIN_GROUP = previous;
+  });
+
+  it('resolves a group role the app identity cannot see', async () => {
+    const self = vi.fn(() => Promise.resolve({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] }));
+    const directory = vi.fn(() => Promise.resolve(unseen));
+
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(true);
+    expect(self).toHaveBeenCalledWith('user-token');
+    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBe('admin');
+    expect(directory).not.toHaveBeenCalled();
+  });
+
+  it('reads a service principal by its application ID', async () => {
+    const caller = '0f6a2b5c-1d3e-4f70-8a9b-0c1d2e3f4a5b';
+    const self = vi.fn(() => Promise.resolve({ applicationId: caller, groups: [{ display: ADMIN_GROUP }] }));
+
+    await expect(rememberOwnGroups(caller, 'sp-token', self)).resolves.toBe(true);
+    await expect(deploymentGroupRoleLookup(vi.fn())(caller)).resolves.toBe('admin');
+  });
+
+  it('never records groups from a token for somebody else', async () => {
+    const self = vi.fn(() => Promise.resolve({ userName: 'other@example.com', groups: [{ display: ADMIN_GROUP }] }));
+    const directory = vi.fn(() => Promise.resolve(unseen));
+
+    await expect(rememberOwnGroups(EMAIL, 'other-token', self)).resolves.toBe(false);
+    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBeNull();
+  });
+
+  it('skips the read without a token, and survives a failed one', async () => {
+    const self = vi.fn(() => Promise.reject(new Error('SCIM Me returned 403')));
+
+    await expect(rememberOwnGroups(EMAIL, null, self)).resolves.toBe(false);
+    expect(self).not.toHaveBeenCalled();
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(false);
+  });
+
+  it('does not cache a directory record that hides membership', async () => {
+    const directory = vi.fn(() => Promise.resolve(unseen));
+    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBeNull();
+
+    const self = vi.fn(() => Promise.resolve({ userName: EMAIL, groups: [{ display: ADMIN_GROUP }] }));
+    await expect(rememberOwnGroups(EMAIL, 'user-token', self)).resolves.toBe(true);
+    await expect(deploymentGroupRoleLookup(directory)(EMAIL)).resolves.toBe('admin');
   });
 });
 

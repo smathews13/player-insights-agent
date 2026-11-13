@@ -1,13 +1,13 @@
 import type { Role } from './user-roster-contract';
 
-export const MONITORING_FEEDBACK_SCHEMA_REVISION = 2;
+export const MONITORING_FEEDBACK_SCHEMA_REVISION = 3;
 /** One modal page: five compact rows fit without crowding the normal viewport. */
 export const MONITORING_FEEDBACK_PAGE_SIZE = 5;
 
 export type MonitoringFeedbackDirection = 'up' | 'down';
 
 export interface MonitoringFeedbackRow {
-  /** Append-only feedback submission id; also the second keyset field. */
+  /** The person's final feedback submission for this answer; also the second keyset field. */
   id: string;
   /** Existing Monitoring question id opened by the row. */
   questionId: string;
@@ -22,7 +22,7 @@ export interface MonitoringFeedbackRow {
   persona: { id: string; name: string } | null;
   organization: { domain: string; name: string };
   feedback: MonitoringFeedbackDirection;
-  /** Exact written down-feedback, or null when no comment was submitted. */
+  /** The comment saved with this rating, either direction, or null when there is none. */
   comment: string | null;
   /** Canonical feedback.created_at value and the first keyset field. */
   submittedAt: string;
@@ -45,8 +45,12 @@ export interface MonitoringFeedbackPayload {
     total: number;
     helpful: number;
     notHelpful: number;
-    /** Submitted feedback rows carrying a non-empty written comment. */
+    /** Final ratings carrying a non-empty written comment. */
     comments: number;
+    /** Of those, the ones on a Helpful rating. */
+    helpfulComments: number;
+    /** Of those, the ones on a Not helpful rating, so complaints stay easy to find. */
+    notHelpfulComments: number;
   };
   rows: MonitoringFeedbackRow[];
   filters: {

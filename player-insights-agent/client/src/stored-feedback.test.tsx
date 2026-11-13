@@ -43,17 +43,20 @@ function markup(feedback = EMPTY_FEEDBACK): string {
 }
 
 describe('stored canonical feedback', () => {
-  it('prefers explicit sentiment and restores only a down comment', () => {
+  it('prefers explicit sentiment and restores the comment saved with each rating', () => {
     const state = feedbackFromStored([
       reopened({ feedback_sentiment: 'down', usefulness: 5, feedback_comment: 'Wrong time window.' }),
-      reopened({ id: 'msg-2', feedback_sentiment: 'up', feedback_comment: 'Obsolete negative note.' }),
+      reopened({ id: 'msg-2', feedback_sentiment: 'up', feedback_comment: 'Clear and correct.' }),
+      // The server withholds a comment that belongs to an older rating.
+      reopened({ id: 'msg-3', feedback_sentiment: 'up', feedback_comment: null }),
     ]);
     expect(state['msg-1']).toMatchObject({
       saved: true,
       sentiment: 'down',
       comment: 'Wrong time window.',
     });
-    expect(state['msg-2']).toMatchObject({ saved: true, sentiment: 'up', comment: '' });
+    expect(state['msg-2']).toMatchObject({ saved: true, sentiment: 'up', comment: 'Clear and correct.' });
+    expect(state['msg-3']).toMatchObject({ saved: true, sentiment: 'up', comment: '' });
   });
 
   it('maps legacy rows without turning neutral feedback into a direction', () => {
@@ -83,6 +86,9 @@ describe('stored canonical feedback', () => {
     expect(up).toMatch(/aria-label="Mark answer helpful"[^>]*aria-pressed="true"/);
     expect(down).toMatch(/aria-label="Mark answer not helpful"[^>]*aria-pressed="true"/);
     expect(down).toContain('aria-label="Tell us what could be better"');
+    const upWithComment = markup({ ...EMPTY_FEEDBACK, saved: true, sentiment: 'up', open: true, comment: 'Clear.' });
+    expect(upWithComment).toContain('aria-label="Tell us what worked well"');
+    expect(upWithComment).toContain('placeholder="What worked well?"');
     const feedbackMarkup = [up, down]
       .map((value) => value.slice(value.indexOf('<div class="feedback">'), value.indexOf('<p class="ai-note"')))
       .join('');

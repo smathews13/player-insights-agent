@@ -429,6 +429,27 @@ describe('the super admin reads the roster', () => {
     ]);
   });
 
+  it('keeps a stored group role visible and resettable after the group leaves the Databricks App', async () => {
+    const store = fakeLakebase();
+    store.rows.groups.push({
+      group_name: 'Former analysts',
+      role: 'admin',
+      added_by: LEAD,
+      added_at: '2026-09-10T00:00:00.000Z',
+    });
+    const app = await startApp(store);
+
+    const payload = (await (await app.list(LEAD)).json()) as RosterPayload;
+    expect(payload.groupRoleMappings).toEqual([
+      expect.objectContaining({ groupName: 'Former analysts', role: 'admin', setBy: LEAD }),
+    ]);
+
+    const reset = await app.resetGroup(LEAD, 'Former analysts');
+    expect(reset.status).toBe(200);
+    expect(store.rows.groups).toEqual([]);
+    expect(((await reset.json()) as RosterPayload).groupRoleMappings).toEqual([]);
+  });
+
   it('shows the deployment admin group as a locked admin row and refuses to remap it', async () => {
     const adminGroup = 'Example_PIA_Admin';
     process.env.PLAYER_INSIGHTS_ADMIN_GROUP = adminGroup;

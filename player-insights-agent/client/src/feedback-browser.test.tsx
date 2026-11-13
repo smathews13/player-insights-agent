@@ -43,7 +43,7 @@ const payload: MonitoringFeedbackPayload = {
   readAt: '2026-09-03T12:00:00Z',
   dataRevision: 'feedback-rev',
   identityRevision: 'identity-rev',
-  summary: { total: 2, helpful: 1, notHelpful: 1, comments: 1 },
+  summary: { total: 2, helpful: 1, notHelpful: 1, comments: 1, helpfulComments: 0, notHelpfulComments: 1 },
   rows: [
     {
       id: 'feedback-2',
@@ -168,6 +168,7 @@ describe('feedback corpus modal', () => {
     expect(markup).toContain('lucide-thumbs-up');
     expect(markup).toContain('lucide-thumbs-down');
     expect(markup).toContain('Comments captured');
+    expect(markup).toContain('0 helpful · 1 not helpful');
     expect(markup).toContain('Helpful rate');
     expect(markup).toContain('Open user overview for User coach@example.com; organization example.com');
     expect(markup).toContain('aria-label="Open question details: Which players improved?"');
@@ -226,7 +227,11 @@ describe('feedback corpus modal', () => {
       status: 'ready',
       key: 'feedback-zero',
       requestId: 2,
-      data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0 } },
+      data: {
+        ...payload,
+        rows: [],
+        summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0, helpfulComments: 0, notHelpfulComments: 0 },
+      },
       error: null,
     });
     expect(zero).toContain('No feedback');
@@ -246,7 +251,11 @@ describe('feedback corpus modal', () => {
       status: 'ready',
       key: 'feedback',
       requestId: 1,
-      data: { ...payload, rows: [], summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0 } },
+      data: {
+        ...payload,
+        rows: [],
+        summary: { total: 0, helpful: 0, notHelpful: 0, comments: 0, helpfulComments: 0, notHelpfulComments: 0 },
+      },
       error: null,
     });
     expect(loading).toContain('pia-loader-mark');

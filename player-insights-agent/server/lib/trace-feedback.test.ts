@@ -75,11 +75,93 @@ describe('feedbackAssessmentRequest', () => {
 describe('copyRatingToTrace', () => {
   const input = { feedbackId: 'fb-1', messageId: 'msg-1', sentiment: 'up' as const, comment: null, email: EMAIL };
 
+  const posts = (requests: MlflowRequest[]) => requests.filter((request) => request.method === 'POST');
+  const traceWith = (assessments: Record<string, unknown>[]) => ({ trace: { trace_info: { assessments } } });
+
   it('writes onto the trace of the rated message', async () => {
     const { requests, transport } = recorder();
     await expect(copyRatingToTrace(store([{ trace_id: TRACE }]), transport, input)).resolves.toBe('written');
-    expect(requests).toHaveLength(1);
-    expect(requests[0].body).toMatchObject({ assessment: { feedback: { value: true } } });
+    expect(posts(requests)).toHaveLength(1);
+    expect(posts(requests)[0].body).toMatchObject({ assessment: { feedback: { value: true } } });
+    expect(posts(requests)[0].body?.assessment).not.toHaveProperty('overrides');
+  });
+
+  it("replaces the rater's current rating rather than adding a second one", async () => {
+    const rater = raterIdFor(EMAIL);
+    const { requests, transport } = recorder((request) =>
+      request.method === 'GET'
+        ? traceWith([
+            {
+              assessment_id: 'a-old',
+              assessment_name: 'user_feedback',
+              source: { source_id: rater },
+              valid: false,
+              create_time: '2026-11-01T00:00:00Z',
+            },
+            {
+              assessment_id: 'a-current',
+              assessment_name: 'user_feedback',
+              source: { source_id: rater },
+              create_time: '2026-11-02T00:00:00Z',
+            },
+            {
+              assessment_id: 'a-someone',
+              assessment_name: 'user_feedback',
+              source: { source_id: 'rater-other' },
+              create_time: '2026-11-03T00:00:00Z',
+            },
+            {
+              assessment_id: 'a-judge',
+              assessment_name: 'groundedness',
+              source: { source_id: rater },
+              create_time: '2026-11-04T00:00:00Z',
+            },
+          ])
+        : {}
+    );
+    await copyRatingToTrace(store([{ trace_id: TRACE }]), transport, { ...input, comment: 'Clear and right' });
+    expect(posts(requests)[0].body).toMatchObject({
+      assessment: { overrides: 'a-current', feedback: { value: true }, rationale: 'Clear and right' },
+    });
+  });
+
+  it('still records the new rating if MLflow refuses the replacement', async () => {
+    const rater = raterIdFor(EMAIL);
+    const requests: MlflowRequest[] = [];
+    const transport = (request: MlflowRequest) => {
+      requests.push(request);
+      if (request.method === 'GET') {
+        return Promise.resolve(
+          traceWith([{ assessment_id: 'a-current', assessment_name: 'user_feedback', source: { source_id: rater } }])
+        );
+      }
+      const assessment = (request.body?.assessment ?? {}) as Record<string, unknown>;
+      return assessment.overrides ? Promise.reject(new Error('400')) : Promise.resolve({});
+    };
+    await expect(copyRatingToTrace(store([{ trace_id: TRACE }]), transport, input)).resolves.toBe('written');
+    expect(posts(requests)).toHaveLength(2);
+    expect(posts(requests)[1].body?.assessment).not.toHaveProperty('overrides');
+  });
+
+  it('writes rapid re-ratings of one trace in order', async () => {
+    const order: string[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const transport = async (request: MlflowRequest) => {
+      if (request.method === 'GET') return {};
+      const id = String(
+        (request.body?.assessment as { metadata: Record<string, unknown> }).metadata[FEEDBACK_ID_METADATA]
+      );
+      if (id === 'fb-1') await gate;
+      order.push(id);
+      return {};
+    };
+    const first = copyRatingToTrace(store([{ trace_id: TRACE }]), transport, input);
+    const second = copyRatingToTrace(store([{ trace_id: TRACE }]), transport, { ...input, feedbackId: 'fb-2' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    release();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['fb-1', 'fb-2']);
   });
 
   it('skips a message with no MLflow trace', async () => {

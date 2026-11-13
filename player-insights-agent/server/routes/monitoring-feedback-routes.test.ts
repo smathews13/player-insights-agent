@@ -77,18 +77,32 @@ describe('Monitoring feedback SQL truth', () => {
     expect(MONITORING_FEEDBACK_QUERY).toContain("direction IN ('up', 'down')");
   });
 
+  it("counts only each person's final rating, since every tap and saved comment appends a row", () => {
+    expect(MONITORING_FEEDBACK_QUERY).toContain('FROM player_insights.feedback newer');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('newer.message_id = f.message_id');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('lower(newer.user_email) = lower(f.user_email)');
+    expect(MONITORING_FEEDBACK_QUERY).toContain('(newer.created_at, newer.id) > (f.created_at, f.id)');
+  });
+
   it('combines question, user, comment, direction, role, persona, and organization filters', () => {
     for (const parameter of ['$6', '$7', '$8', '$9', '$10', '$11']) {
       expect(MONITORING_FEEDBACK_QUERY).toContain(parameter);
     }
-    expect(MONITORING_FEEDBACK_QUERY).toContain("CASE WHEN direction = 'down' THEN COALESCE(comment, '')");
+    expect(MONITORING_FEEDBACK_QUERY).toContain("lower(COALESCE(comment, '')) LIKE");
+    expect(MONITORING_FEEDBACK_QUERY).not.toContain("CASE WHEN direction = 'down' THEN COALESCE(comment, '')");
     expect(MONITORING_FEEDBACK_QUERY).toContain('COUNT(*) FILTER');
     expect(MONITORING_FEEDBACK_QUERY).toContain('cardinality($11::text[]) = 0');
     expect(MONITORING_FEEDBACK_QUERY).toContain('unnest($11::text[])');
     expect(MONITORING_FEEDBACK_QUERY).toContain('organization_domain = organization_suffix');
     expect(MONITORING_FEEDBACK_QUERY).toContain("organization_domain LIKE ('%.' || organization_suffix)");
     expect(MONITORING_FEEDBACK_QUERY).toMatch(
-      /COUNT\(\*\) FILTER \(\s*WHERE direction = 'down' AND comment IS NOT NULL AND btrim\(comment\) <> ''\s*\)/
+      /COUNT\(\*\) FILTER \(WHERE comment IS NOT NULL AND btrim\(comment\) <> ''\)::int AS comments_captured/
+    );
+    expect(MONITORING_FEEDBACK_QUERY).toMatch(
+      /WHERE direction = 'up' AND comment IS NOT NULL AND btrim\(comment\) <> ''\s*\)::int AS helpful_comments/
+    );
+    expect(MONITORING_FEEDBACK_QUERY).toMatch(
+      /WHERE direction = 'down' AND comment IS NOT NULL AND btrim\(comment\) <> ''\s*\)::int AS not_helpful_comments/
     );
     expect(MONITORING_FEEDBACK_QUERY).toContain('FROM filtered');
   });
@@ -131,8 +145,11 @@ describe('Monitoring feedback row shaping', () => {
     });
   });
 
-  it('never exposes a stale comment on helpful feedback', () => {
-    expect(monitoringFeedbackRow({ ...base, direction: 'up', comment: 'old negative reason' })?.comment).toBeNull();
+  it('shows the comment a helpful rating was saved with', () => {
+    expect(monitoringFeedbackRow({ ...base, direction: 'up', comment: ' Clear and correct. ' })?.comment).toBe(
+      'Clear and correct.'
+    );
+    expect(monitoringFeedbackRow({ ...base, direction: 'up', comment: '   ' })?.comment).toBeNull();
     expect(monitoringFeedbackRow({ ...base, direction: null })).toBeNull();
   });
 });
@@ -153,6 +170,8 @@ describe('Monitoring feedback route', () => {
             helpful_feedback: 0,
             not_helpful_feedback: 1,
             comments_captured: 1,
+            helpful_comments: 0,
+            not_helpful_comments: 1,
             data_revision: 'rev-1',
             identity_revision: 'identity-1',
             user_options: [],
@@ -234,7 +253,7 @@ describe('Monitoring feedback route', () => {
       'Approved the proposed analysis plan.',
     ]);
     expect(responseBody).toMatchObject({
-      summary: { total: 1, helpful: 0, notHelpful: 1, comments: 1 },
+      summary: { total: 1, helpful: 0, notHelpful: 1, comments: 1, helpfulComments: 0, notHelpfulComments: 1 },
       pagination: { total: 1 },
     });
   });

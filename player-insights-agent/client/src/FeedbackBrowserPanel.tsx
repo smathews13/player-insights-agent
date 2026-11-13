@@ -135,12 +135,14 @@ function FeedbackKpi({
   unavailable,
   loading,
   icon: Icon,
+  detail,
 }: {
   label: string;
   value: string;
   unavailable?: string;
   loading: boolean;
   icon: LucideIcon;
+  detail?: string;
 }) {
   return (
     <div className="monitoring-feedback-kpi">
@@ -155,7 +157,10 @@ function FeedbackKpi({
       ) : unavailable ? (
         <p className="monitoring-feedback-kpi-unavailable">{unavailable}</p>
       ) : (
-        <p className="monitoring-feedback-kpi-value ast-num">{value}</p>
+        <p className="monitoring-feedback-kpi-value ast-num">
+          {value}
+          {detail ? <span className="monitoring-feedback-kpi-detail">{detail}</span> : null}
+        </p>
       )}
     </div>
   );
@@ -204,6 +209,11 @@ function FeedbackKpis({ state, period }: { state: PanelLoadState<MonitoringFeedb
         <FeedbackKpi
           label="Comments captured"
           value={(payload?.summary.comments ?? 0).toLocaleString()}
+          detail={
+            payload && payload.summary.comments > 0
+              ? `${(payload.summary.helpfulComments ?? 0).toLocaleString()} helpful · ${(payload.summary.notHelpfulComments ?? 0).toLocaleString()} not helpful`
+              : undefined
+          }
           unavailable={unavailable}
           loading={loading}
           icon={MessageSquareText}

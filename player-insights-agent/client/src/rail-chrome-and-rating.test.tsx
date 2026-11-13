@@ -302,7 +302,9 @@ describe('a thumb writes canonical feedback', () => {
 
   it('keeps the positive one on the same footing', () => {
     const up = CARD.slice(CARD.indexOf('aria-label="Mark answer helpful"'));
-    expect(up.slice(0, up.indexOf('<ThumbsUp'))).toContain("void saveFeedback('up')");
+    const handler = up.slice(0, up.indexOf('<ThumbsUp'));
+    expect(handler).toContain("void saveFeedback('up', { keepCommentOpen: true })");
+    expect(handler).toContain('onFeedbackChange({ open: true })');
   });
 
   it('shows the reader that the negative rating landed', () => {
@@ -335,7 +337,7 @@ describe('a thumb writes canonical feedback', () => {
       HOME.indexOf('async function uploadAttachments')
     );
 
-    expect(save).toContain("open: sentiment === 'down' && options.keepCommentOpen === true");
+    expect(save).toContain('open: options.keepCommentOpen === true,');
     // A blank box is not a comment. `''` would be stored and then rendered as an
     // empty one wherever comments are read back.
     expect(save).toContain('comment: comment || undefined');
@@ -350,6 +352,6 @@ describe('a thumb writes canonical feedback', () => {
 
     expect(schema).toMatch(/sentiment: z\.enum\(\['up', 'down'\]\)/);
     expect(schema).toMatch(/comment: z\.string\(\)\.max\(2000\)\.optional\(\)/);
-    expect(ROUTES).toContain("parsed.data.sentiment === 'down'");
+    expect(ROUTES).toContain('comment: parsed.data.comment?.trim() || null,');
   });
 });

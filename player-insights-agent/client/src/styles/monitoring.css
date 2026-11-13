@@ -1766,6 +1766,13 @@ html[data-theme='dark'] .monitoring-page .monitoring-search input {
   color: var(--ast-text-secondary);
   font-size: var(--text-sm);
 }
+.monitoring-feedback-kpi-detail {
+  margin-left: 6px;
+  color: var(--ast-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  white-space: nowrap;
+}
 .monitoring-feedback-kpi-skeleton {
   width: 56px;
   height: 18px;
