@@ -42,7 +42,7 @@ IDENTIFIER = re.compile(r"^[A-Za-z0-9_\-]+$")
 # guarantee: the inventory is a starting list for data governance to confirm.
 IDENTITY_COLUMN = re.compile(
     r"(^|_)(cdp_)?(customer|player|user|account|member|device|profile|gamer|psn|xbox|steam|social)_?"
-    r"(id|uuid|guid|key|tag|name)$|(^|_)(email|email_address|phone|phone_number|ip|ip_address|gamertag|username|handle)$",
+    r"(id|uuid|guid|key|ref|tag|name)$|(^|_)(email|email_address|phone|phone_number|ip|ip_address|gamertag|username|handle)$",
     re.IGNORECASE,
 )
 MASK_FUNCTION = "mask_identity"

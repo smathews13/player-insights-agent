@@ -117,6 +117,12 @@ class InventoryTest(unittest.TestCase):
             ],
         )
 
+    def test_recognises_reference_keys_and_leaves_ordinary_columns(self) -> None:
+        for name in ["customer_ref", "partner_player_ref", "device_uuid", "gamertag"]:
+            self.assertTrue(masks.IDENTITY_COLUMN.search(name), name)
+        for name in ["order_ref", "revenue", "playtime_minutes"]:
+            self.assertFalse(masks.IDENTITY_COLUMN.search(name), name)
+
 
 class VerifyTest(unittest.TestCase):
     def test_masked_columns_and_a_private_salt_pass(self) -> None:
