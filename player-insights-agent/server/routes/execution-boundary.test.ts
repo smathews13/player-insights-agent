@@ -220,6 +220,46 @@ describe('a request the endpoint refuses is not asked again as the application',
     }
   });
 
+  it('asks an older model again on the direct route when it has no AI Gateway service', async () => {
+    const { calls, transport } = recordingTransport((call) =>
+      Promise.resolve(
+        call === 1
+          ? { custom_outputs: { type: 'unavailable', code: 'AI_GATEWAY_UNAVAILABLE', layer: 'ai-gateway' } }
+          : structuredAnswer()
+      )
+    );
+    const app = await startApp(transport);
+    const token = jwt({ sub: ALICE, exp: inAnHour() });
+
+    try {
+      const response = await app.ask(asUser(ALICE, token));
+
+      expect(response.status).toBe(200);
+      expect(calls).toHaveLength(2);
+      expect(calls[0].customInputs.llm_route).toBe('ai_gateway');
+      expect(calls[1].customInputs.llm_route).toBe('direct');
+      expect(calls[1].customInputs.llm_gateway_optional).toBeUndefined();
+      expect(calls[1].token).toBe(token);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('does not ask again when the Gateway itself fails', async () => {
+    const { calls, transport } = recordingTransport(() =>
+      Promise.resolve({ custom_outputs: { type: 'unavailable', code: 'AI_GATEWAY_ERROR', layer: 'ai-gateway' } })
+    );
+    const app = await startApp(transport);
+    const token = jwt({ sub: ALICE, exp: inAnHour() });
+
+    try {
+      await app.ask(asUser(ALICE, token));
+      expect(calls).toHaveLength(1);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('reports an AI Gateway rate limit as a wait, once, and not as an outage', async () => {
     const { calls, transport } = recordingTransport(() =>
       Promise.reject(httpError(429, 'REQUEST_LIMIT_EXCEEDED: rate limit exceeded for user'))

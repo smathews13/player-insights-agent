@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FAILURE_TAXONOMY } from '../../shared/failure-taxonomy';
 import { answerContentIn } from '../../shared/terminal-response';
-import { readAgentRefusal, UNKNOWN_CODE_FALLBACK } from './agent-refusal';
+import { readAgentRefusal, refusedForMissingGateway, UNKNOWN_CODE_FALLBACK } from './agent-refusal';
 
 const CONTEXT = { requestId: 'req-app-1' };
 
@@ -223,5 +223,17 @@ describe('telling a refusal apart from an answer', () => {
       CONTEXT
     );
     expect(answerContentIn(result)).toEqual([]);
+  });
+});
+
+describe('refusedForMissingGateway', () => {
+  it('recognises only an older model refusing the Gateway route for want of a service', () => {
+    const outputs = (code: string) => ({ custom_outputs: { type: 'unavailable', code, layer: 'ai-gateway' } });
+    expect(refusedForMissingGateway(outputs('AI_GATEWAY_UNAVAILABLE'))).toBe(true);
+    expect(refusedForMissingGateway(outputs('AI_GATEWAY_ERROR'))).toBe(false);
+    expect(refusedForMissingGateway({ custom_outputs: { type: 'answer', code: 'AI_GATEWAY_UNAVAILABLE' } })).toBe(
+      false
+    );
+    expect(refusedForMissingGateway(null)).toBe(false);
   });
 });

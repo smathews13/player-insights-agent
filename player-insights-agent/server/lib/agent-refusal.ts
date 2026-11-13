@@ -110,6 +110,17 @@ function executionIdentity(outputs: Record<string, unknown>): ExecutionIdentityC
   return { mode, verified: record.verified === true };
 }
 
+/**
+ * A model logged before the AI Gateway route became optional refuses that route
+ * outright when it was released without a Gateway service. It does so before
+ * any tool runs, and the app sends no other request that earns this code, so
+ * asking again on the direct route repeats nothing.
+ */
+export function refusedForMissingGateway(payload: unknown): boolean {
+  const outputs = customOutputs(payload);
+  return outputs?.type === UNAVAILABLE_TYPE && outputs.code === 'AI_GATEWAY_UNAVAILABLE';
+}
+
 function customOutputs(payload: unknown): Record<string, unknown> | null {
   if (!payload || typeof payload !== 'object') return null;
   const outputs = (payload as { custom_outputs?: unknown }).custom_outputs;

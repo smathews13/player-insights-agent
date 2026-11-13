@@ -226,6 +226,10 @@ customer-controlled OIDC/gateway architecture.
 
 ## Update an existing deployment
 
+> **November 2026 security release:** after the Deploy from Git below, run the
+> one-time upgrade in [UPGRADE.md](UPGRADE.md). It releases the model and applies
+> the new access settings without a bundle deploy.
+
 For app-code-only updates, use **Deploy from Git** on the existing Databricks
 App:
 

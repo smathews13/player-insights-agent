@@ -156,7 +156,7 @@ import {
   type FailureEvidence,
   type FailureStage,
 } from '../../shared/failure-evidence';
-import { readAgentRefusal } from '../lib/agent-refusal';
+import { readAgentRefusal, refusedForMissingGateway } from '../lib/agent-refusal';
 import { budgetGuardBlocks, readAppBudgetStatus } from '../lib/app-budget-guard';
 import { declaredUserApiScopes, sessionFreshness } from '../lib/session-freshness';
 import {
@@ -3399,6 +3399,16 @@ export function agentRuntimeSettings(settings: RuntimeSettings): Record<string, 
  * `custom_inputs` keys are omitted rather than set to `undefined` so the wire
  * payload only carries approval fields when the user actually approved a plan.
  */
+/** The same request on the direct route, for a model that refused the Gateway one. */
+export function onDirectRoute(payload: Record<string, unknown>): Record<string, unknown> {
+  const custom_inputs: Record<string, unknown> = {
+    ...(payload.custom_inputs as Record<string, unknown>),
+    llm_route: 'direct',
+  };
+  delete custom_inputs.llm_gateway_optional;
+  return { ...payload, custom_inputs };
+}
+
 export function buildAskServingBody({
   history,
   prompt,
@@ -5792,25 +5802,34 @@ export function setupInsightsRoutes(
           // The endpoint is the promoted winner when Benchmarking saved one,
           // otherwise the deployed default. Connections does not change.
           const askEndpoint = await resolveAskEndpoint(appkit);
-          const endpointResult = identity.token
-            ? await invokeServingAsUser(
-                appkit,
-                payload,
-                identity.token,
-                onStage,
-                Math.max(0, runDeadlineAt.getTime() - Date.now()),
-                askEndpoint,
-                cancellationController.signal
-              )
-            : await invokeServing(
-                appkit,
-                payload,
-                onStage,
-                Math.max(0, runDeadlineAt.getTime() - Date.now()),
-                undefined,
-                askEndpoint,
-                cancellationController.signal
-              );
+          const askOnce = (body: Record<string, unknown>) =>
+            identity.token
+              ? invokeServingAsUser(
+                  appkit,
+                  body,
+                  identity.token,
+                  onStage,
+                  Math.max(0, runDeadlineAt.getTime() - Date.now()),
+                  askEndpoint,
+                  cancellationController.signal
+                )
+              : invokeServing(
+                  appkit,
+                  body,
+                  onStage,
+                  Math.max(0, runDeadlineAt.getTime() - Date.now()),
+                  undefined,
+                  askEndpoint,
+                  cancellationController.signal
+                );
+          let endpointResult = await askOnce(payload);
+          if (customInputs.llm_route === 'ai_gateway' && refusedForMissingGateway(endpointResult)) {
+            console.warn(
+              '[serving] The served model has no AI Gateway service and refuses the Gateway route; ' +
+                'asking again on the direct route. Release the model to stop this second call.'
+            );
+            endpointResult = await askOnce(onDirectRoute(payload));
+          }
           throwIfRunCancelled(cancellationController.signal, admission.run?.runId);
           // The serving budget bounds orchestration and stream consumption.
           // Once the complete envelope is in hand, persistence is fenced
@@ -6886,23 +6905,19 @@ export function setupInsightsRoutes(
             // one, and it is the function with no second attempt in it: a 401
             // or a 403 becomes an AuthorizationRefused rather than a retry
             // under the app's own principal.
-            raw = identity.token
-              ? await invokeServingAsUser(
-                  appkit,
-                  payload,
-                  identity.token,
-                  undefined,
-                  BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
-                  agentEndpoint
-                )
-              : await invokeServing(
-                  appkit,
-                  payload,
-                  undefined,
-                  BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
-                  undefined,
-                  agentEndpoint
-                );
+            const askOnce = (body: Record<string, unknown>) =>
+              identity.token
+                ? invokeServingAsUser(
+                    appkit,
+                    body,
+                    identity.token,
+                    undefined,
+                    BENCHMARK_SERVING_INVOKE_TIMEOUT_MS,
+                    agentEndpoint
+                  )
+                : invokeServing(appkit, body, undefined, BENCHMARK_SERVING_INVOKE_TIMEOUT_MS, undefined, agentEndpoint);
+            raw = await askOnce(payload);
+            if (aiGatewayEnabled && refusedForMissingGateway(raw)) raw = await askOnce(onDirectRoute(payload));
           } catch (error) {
             if (!(error instanceof AuthorizationRefused)) throw error;
             // `disclosable`, not `message`, for the reason spelled out on the
