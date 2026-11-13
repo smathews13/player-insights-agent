@@ -268,8 +268,9 @@ def check_gateway(report: Report, endpoint: dict, config: dict) -> None:
         report.add(
             False,
             "gateway",
-            f"{config['endpoint']} has no per-user rate limit; "
-            "run bundle/ai_gateway_policy.py --apply.",
+            f"{config['endpoint']} has no per-user rate limit; run bundle/ai_gateway_policy.py "
+            "--apply, or, where the workspace does not support one on this endpoint type, "
+            "set it on the AI Gateway model service.",
         )
 
 

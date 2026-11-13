@@ -6,7 +6,7 @@ default, and an administrator can turn the first one off.
 | What | Where it applies | Default | Who changes it |
 |---|---|---|---|
 | Unity Catalog AI Gateway route | The agent's own model calls (planning, tool choice, charts, the final answer) | On | An administrator, in **Settings → Experimental → AI Gateway** |
-| Agent endpoint policy | Every question sent to the agent serving endpoint | Usage tracking on; 60 questions a minute per person, 2,000 a minute in total; no request log | The release, through `bundle/ai_gateway_policy.py` |
+| Agent endpoint policy | Every question sent to the agent serving endpoint | No request log; usage tracking on, 60 questions a minute per person and 2,000 a minute in total where the workspace supports them | The release, through `bundle/ai_gateway_policy.py` |
 
 ## The model route
 
@@ -62,6 +62,13 @@ them with a synthetic prompt (see Verification).
 
 Change the numbers with `--user-calls` and `--endpoint-calls`. A failure to
 apply is a release warning, not a stop; the previous policy stays in place.
+
+Some workspaces do not support usage tracking or rate limits on a custom-model
+endpoint, and refuse them with "... is not currently supported for this
+endpoint type in this workspace". The script then applies the rest, so the
+request log still goes off, and names what was refused. Set the per-person limit
+and usage logging on the AI Gateway model service instead, and record the
+endpoint gap as accepted until the workspace supports it.
 
 ```bash
 # Show the difference; changes nothing.

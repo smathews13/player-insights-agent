@@ -16,6 +16,11 @@ foundation-model and external-model routes, so they belong on the Unity
 Catalog AI Gateway model service the agent calls, not on this custom-model
 endpoint.
 
+Some workspaces refuse usage tracking or rate limits on a custom-model
+endpoint ("... is not currently supported for this endpoint type in this
+workspace"). The script then applies the rest, turning the request log off,
+and names what was refused; set those on the AI Gateway model service instead.
+
 Dry run by default. Exit 0 when the endpoint already matches or was changed,
 1 when --check finds a difference, 2 when a read or write failed.
 
@@ -55,6 +60,33 @@ def desired(current: dict[str, Any], user_calls: int, endpoint_calls: int) -> di
         *others,
     ]
     config["inference_table_config"] = {"enabled": False}
+    return config
+
+
+OPTIONAL_FEATURES = {
+    "usage tracking": "usage_tracking_config",
+    "rate limits": "rate_limits",
+}
+
+
+def refused_feature(error: str) -> str | None:
+    """The optional feature a workspace said it does not support, if that was the refusal."""
+
+    text = error.lower()
+    if "not currently supported" not in text:
+        return None
+    return next((name for name in OPTIONAL_FEATURES if name in text), None)
+
+
+def without(target: dict[str, Any], current: dict[str, Any], feature: str) -> dict[str, Any]:
+    """The target with one refused feature left as the endpoint has it now."""
+
+    key = OPTIONAL_FEATURES[feature]
+    config = copy.deepcopy(target)
+    if key in (current or {}):
+        config[key] = copy.deepcopy(current[key])
+    else:
+        config.pop(key, None)
     return config
 
 
@@ -116,8 +148,19 @@ def main(argv: list[str] | None = None) -> int:
     if not args.apply:
         print("Dry run. Re-run with --apply to change the endpoint.")
         return 0
+    refused: list[str] = []
     try:
-        cli(args.profile, "put", f"/api/2.0/serving-endpoints/{name}/ai-gateway", target)
+        while True:
+            try:
+                cli(args.profile, "put", f"/api/2.0/serving-endpoints/{name}/ai-gateway", target)
+                break
+            except RuntimeError as error:
+                feature = refused_feature(str(error))
+                if feature is None or feature in refused:
+                    raise
+                refused.append(feature)
+                target = without(target, current, feature)
+        after = comparable(target)
         applied = comparable(
             cli(args.profile, "get", f"/api/2.0/serving-endpoints/{name}").get("ai_gateway") or {}
         )
@@ -127,7 +170,14 @@ def main(argv: list[str] | None = None) -> int:
     if applied != after:
         print(f"ERROR the endpoint reads back {json.dumps(applied)}", file=sys.stderr)
         return 2
-    print(f"PASS {args.endpoint} now has the AI Gateway policy.")
+    if refused:
+        print(
+            f"PASS {args.endpoint} has the AI Gateway policy, except "
+            f"{' and '.join(refused)}, which this workspace does not support on this "
+            "endpoint type. Set them on the AI Gateway model service the agent calls."
+        )
+    else:
+        print(f"PASS {args.endpoint} now has the AI Gateway policy.")
     return 0
 
 
