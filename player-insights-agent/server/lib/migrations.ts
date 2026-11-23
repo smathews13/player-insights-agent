@@ -30,6 +30,7 @@ import { GROUP_ROLE_MAPPINGS_DDL, GROUP_ROLE_MAPPINGS_TABLE } from './group-role
 import { ORGANIZATION_PROFILES_DDL, ORGANIZATION_PROFILES_TABLE } from './organization-profiles';
 import { APP_GROUPS_DDL, APP_GROUPS_TABLE } from './app-groups-store';
 import { PERSONA_HISTORY_DOWN, PERSONA_HISTORY_STATEMENTS } from './persona-history';
+import { deploymentVariablesDdl, deploymentVariablesDown } from './deployment-variables';
 /**
  * The numbered schema versions, and the rules for adding one.
  *
@@ -1048,6 +1049,16 @@ export const LATER_MIGRATIONS: readonly Migration[] = [
      */
     statements: PERSONA_HISTORY_STATEMENTS,
     down: PERSONA_HISTORY_DOWN,
+  },
+  {
+    version: 46,
+    name: 'deployment variables',
+    /**
+     * One row per release setting, with every change kept. The first read after
+     * this copies the existing release blob across.
+     */
+    statements: deploymentVariablesDdl(),
+    down: deploymentVariablesDown(),
   },
 ];
 

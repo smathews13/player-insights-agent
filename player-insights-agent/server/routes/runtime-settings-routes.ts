@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { RuntimeSettingsPatchSchema } from '../../shared/runtime-settings';
 import { ownsPreferenceDefaults } from '../lib/preference-default-owner';
 import { recordAdminAction } from '../lib/admin-roles';
+import { listDeploymentVariables } from '../lib/deployment-variables';
 import {
   APPEARANCE_KEYS,
   deleteUserRuntimeSettings,
@@ -39,6 +40,17 @@ export function setupRuntimeSettingsRoutes(appkit: InsightsAppKit): void {
         res.status(503).json({
           error: 'runtime_settings_store_unavailable',
           detail: `Runtime settings could not be read from Lakebase: ${(error as Error).message}`,
+        });
+      }
+    });
+
+    app.get('/api/admin/deployment-variables', async (_req, res) => {
+      try {
+        res.json({ variables: await listDeploymentVariables(appkit.lakebase) });
+      } catch {
+        res.status(503).json({
+          error: 'deployment_variables_unavailable',
+          detail: 'Saved deployment values could not be read from Lakebase.',
         });
       }
     });

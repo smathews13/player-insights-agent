@@ -2,6 +2,7 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, type Erro
 import './styles/routes/settings.css';
 import { X } from 'lucide-react';
 import { EgressPanel, EGRESS_SETTINGS_FORM_ID } from './EgressPanel';
+import { DeploymentVariablesPanel } from './DeploymentVariablesPanel';
 import { EnvironmentPanel } from './EnvironmentPanel';
 import { ExperimentalFeatureName, ExperimentalStatus } from './ExperimentalBadge';
 import { ResourceTagsPanel } from './ResourceTagsPanel';
@@ -365,6 +366,7 @@ export function SettingsPage({
                 initialAccessGuideAvailable={initialAccessGuideAvailable}
               />
             ) : null}
+            {active === 'environment' && showsAdminSurfaces(role.state) ? <DeploymentVariablesPanel /> : null}
             {active === 'egress' ? <EgressPanel onSaveState={setSaveState} onDirtyChange={handlePaneDirty} /> : null}
             {active === 'experimental' ? (
               <div className="settings-pane">

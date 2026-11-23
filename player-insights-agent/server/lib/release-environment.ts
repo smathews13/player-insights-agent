@@ -13,14 +13,8 @@
  * stamp, Git deploys must remain identifiable as Git deploys, and durable roles
  * remain the authority after their one-time bootstrap.
  */
-import { appTable } from '../../shared/app-schema';
-import {
-  DEPLOYMENT_DECISIONS_TABLE_NAME,
-  decisionSource,
-  readDeploymentDecision,
-  recordDeploymentDecision,
-  type DecisionStore,
-} from './deployment-decisions';
+import { decisionSource, type DecisionStore } from './deployment-decisions';
+import { readVariableScope, recordVariableScope } from './deployment-variables';
 
 export const RELEASE_ENVIRONMENT_DECISION = 'release_environment_v1';
 
@@ -44,10 +38,6 @@ export const RELEASE_ENVIRONMENT_KEYS = [
 ] as const;
 
 export type ReleaseEnvironmentKey = (typeof RELEASE_ENVIRONMENT_KEYS)[number];
-
-function decisionTable(): string {
-  return appTable(DEPLOYMENT_DECISIONS_TABLE_NAME);
-}
 
 /** Only explicit, non-empty release values are retained. Omission means unset. */
 export function releaseEnvironmentSnapshot(
@@ -88,7 +78,7 @@ export async function restoreReleaseEnvironment(
   env: Record<string, string | undefined> = process.env
 ): Promise<number> {
   if (decisionSource(env) !== 'git-deploy') return 0;
-  const snapshot = parsedSnapshot(await readDeploymentDecision(store, decisionTable(), RELEASE_ENVIRONMENT_DECISION));
+  const snapshot = parsedSnapshot(await readVariableScope(store, 'release'));
   if (!snapshot) return 0;
   let restored = 0;
   for (const key of RELEASE_ENVIRONMENT_KEYS) {
@@ -103,7 +93,7 @@ export async function restoreReleaseEnvironment(
 /**
  * Record the complete allowlisted snapshot only when a bundle target is present.
  *
- * The whole JSON value is replaced, so clearing an optional setting in a later
+ * The whole scope is replaced, so clearing an optional setting in a later
  * release cannot resurrect its old value on the next Git deploy.
  */
 export async function recordReleaseEnvironment(
@@ -111,11 +101,5 @@ export async function recordReleaseEnvironment(
   env: Record<string, string | undefined> = process.env
 ): Promise<boolean> {
   if (decisionSource(env) !== 'release') return false;
-  return recordDeploymentDecision(
-    store,
-    decisionTable(),
-    RELEASE_ENVIRONMENT_DECISION,
-    JSON.stringify(releaseEnvironmentSnapshot(env)),
-    'app boot'
-  );
+  return recordVariableScope(store, 'release', releaseEnvironmentSnapshot(env), 'release', 'app boot');
 }

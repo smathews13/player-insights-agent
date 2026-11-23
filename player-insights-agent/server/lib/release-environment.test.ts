@@ -9,6 +9,7 @@ import {
   type ReleaseEnvironmentKey,
 } from './release-environment';
 import type { DecisionStore } from './deployment-decisions';
+import { memoryDeploymentStore } from './__fixtures__/memory-deployment-store';
 
 function readingStore(value: string | null): DecisionStore {
   return {
@@ -20,13 +21,7 @@ function readingStore(value: string | null): DecisionStore {
 
 describe('release runtime configuration persistence', () => {
   it('records only the allowlisted target values and never build, target, or administrator identity', async () => {
-    const calls: { text: string; params: unknown[] }[] = [];
-    const store: DecisionStore = {
-      query: vi.fn((text: string, params: unknown[] = []) => {
-        calls.push({ text, params });
-        return Promise.resolve({ rows: [] });
-      }),
-    };
+    const { store, decisions, scopeValues } = memoryDeploymentStore();
     const env = {
       PLAYER_INSIGHTS_TARGET: 'demo',
       LAKEBASE_ENDPOINT: 'projects/example/branches/production',
@@ -40,9 +35,8 @@ describe('release runtime configuration persistence', () => {
     };
 
     expect(await recordReleaseEnvironment(store, env)).toBe(true);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.params[0]).toBe(RELEASE_ENVIRONMENT_DECISION);
-    const recorded = JSON.parse(String(calls[0]?.params[1])) as Record<string, string>;
+    const recorded = scopeValues('release');
+    expect(JSON.parse(decisions.get(RELEASE_ENVIRONMENT_DECISION) ?? '{}')).toEqual(recorded);
     expect(recorded).toMatchObject({
       PLAYER_INSIGHTS_CATALOG: 'example_catalog',
       PLAYER_INSIGHTS_SCHEMA: 'player_data',
