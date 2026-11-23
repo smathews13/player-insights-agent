@@ -739,10 +739,11 @@ export type RefusalCause =
  * kept whole.
  */
 export function scopesFromRefusal(message: string): string[] {
-  const named = /required scopes?:\s*([^[\]\n]+)/i.exec(message);
+  // Only a comma-separated run of scope tokens: prose after it can name tables.
+  const named = /required scopes?:\s*([\w.:-]+(?:\s*,\s*[\w.:-]+)*)/i.exec(message);
   if (!named) return [];
   return named[1]
-    .split(/[,\s]+/)
+    .split(/\s*,\s*/)
     .map((entry) => entry.trim().replace(/[.;]+$/, ''))
     .filter(Boolean);
 }

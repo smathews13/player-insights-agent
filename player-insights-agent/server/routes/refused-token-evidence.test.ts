@@ -18,6 +18,16 @@ describe('refused token evidence', () => {
     );
   });
 
+  it('never quotes the prose after the scope list, even without a request id', () => {
+    const token = tokenWith({ scope: 'sql' });
+    expect(
+      refusedTokenEvidence(token, 'Provided OAuth token does not have required scopes: sql on table main.secret.x')
+    ).toBe('Missing permission scopes: sql. Token scopes: sql.');
+    expect(
+      refusedTokenEvidence(token, 'Provided OAuth token does not have required scopes: dashboards.genie, sql.')
+    ).toContain('Missing permission scopes: dashboards.genie, sql.');
+  });
+
   it('says nothing about a token that does not describe itself', () => {
     expect(refusedTokenEvidence('opaque-pat', 'HTTP 403 Forbidden')).toBe('');
   });

@@ -474,7 +474,7 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     title: 'Average cost / question',
     amount:
       loaded !== null
-        ? costAmount(loaded, payload.currency, unit)
+        ? `${summary.partial ? 'At least ' : ''}${costAmount(loaded, payload.currency, unit)}`
         : marginal !== null
           ? costAmount(marginal, payload.currency, unit)
           : 'No measured average',
@@ -484,7 +484,9 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     evidence: '',
     detail:
       loaded !== null
-        ? `${QUESTION_FULL_COST_FORMULA}${partial ? ' The extra-cost figure excludes components without a safe measured amount.' : ''}`
+        ? `${QUESTION_FULL_COST_FORMULA}${
+            summary.partial ? ' Some app costs have no measured amount yet, so the full cost is a lower bound.' : ''
+          }${partial ? ' The extra-cost figure excludes components without a safe measured amount.' : ''}`
         : marginal === null
           ? 'No usable numerator and denominator were measured.'
           : partial
