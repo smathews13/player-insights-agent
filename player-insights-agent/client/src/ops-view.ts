@@ -56,7 +56,7 @@ import {
   type TrafficBar,
 } from '../../shared/ops-contract';
 import { PRIMARY_CONNECTION_LABEL, resolvedConnectionState } from './connection-status';
-import { appCostSummary } from '../../shared/app-cost-summary';
+import { appCostSummary, appSpendFigure } from '../../shared/app-cost-summary';
 
 const QUERY_HISTORY_REASON: Record<QueryHistoryCoverage['reasons'][number], string> = {
   'invalid-range': 'the requested dates were invalid',
@@ -467,6 +467,10 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
   const summary = appCostSummary(payload, unit);
   const appTotal = unit === 'DBU' ? summary.dbus : summary.amount;
   const loaded = completed > 0 && appTotal !== null ? appTotal / completed : null;
+  const fullCostIncomplete =
+    summary.partial ||
+    appSpendFigure(payload).completeness === 'partial' ||
+    payload.tiles.some((tile) => isPartialFoundation(tile));
   const marginalLine =
     marginal === null ? '' : `Extra cost of one more question: ${costAmount(marginal, payload.currency, unit)}`;
   return {
@@ -474,7 +478,7 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     title: 'Average cost / question',
     amount:
       loaded !== null
-        ? `${summary.partial ? 'At least ' : ''}${costAmount(loaded, payload.currency, unit)}`
+        ? `${fullCostIncomplete ? 'At least ' : ''}${costAmount(loaded, payload.currency, unit)}`
         : marginal !== null
           ? costAmount(marginal, payload.currency, unit)
           : 'No measured average',
@@ -485,7 +489,7 @@ export function questionCostCardView(payload: OpsCostPayload, unit: CostBudgetUn
     detail:
       loaded !== null
         ? `${QUESTION_FULL_COST_FORMULA}${
-            summary.partial ? ' Some app costs have no measured amount yet, so the full cost is a lower bound.' : ''
+            fullCostIncomplete ? ' Some app costs are not fully measured yet, so the full cost is a lower bound.' : ''
           }${partial ? ' The extra-cost figure excludes components without a safe measured amount.' : ''}`
         : marginal === null
           ? 'No usable numerator and denominator were measured.'

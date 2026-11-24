@@ -44,7 +44,10 @@ export function memoryDeploymentStore(initial: { decisions?: Record<string, stri
         }
         for (const [name, value] of incoming) {
           const existing = rows.get(name);
-          if (existing && existing.value === value) continue;
+          if (existing && existing.value === value) {
+            if (existing.source === 'migrated') existing.source = source;
+            continue;
+          }
           const revision = existing ? existing.revision + 1 : 1;
           rows.set(name, { value, source, revision });
           history.push({ scope: scopeName, name, value, source, revision });

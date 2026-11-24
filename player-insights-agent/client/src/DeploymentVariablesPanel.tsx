@@ -47,7 +47,7 @@ export function DeploymentVariablesPanel() {
       ) : rows === null ? (
         <p className="admin-list-note">Loading...</p>
       ) : rows.length === 0 ? (
-        <p className="admin-list-note">Nothing saved yet. The next release or Git deploy saves these values.</p>
+        <p className="admin-list-note">Nothing saved yet. The next bundle release saves these values.</p>
       ) : (
         <table className="settings-data-table">
           <thead>

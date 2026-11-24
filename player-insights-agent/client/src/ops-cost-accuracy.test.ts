@@ -161,6 +161,22 @@ describe('Cost component accuracy presentation', () => {
     );
   });
 
+  it('marks the full cost per question as a lower bound when the token cost is itself an undercount', () => {
+    const serving = tile({ id: 'serving-endpoint', amount: 64, marginalAmount: 0.2 });
+    const base = tile({ id: 'foundation-model', amount: 0.4 });
+    const undercount = { ...base, pricing: { ...base.pricing!, match: 'partial' as const } };
+    const view = questionCostCardView(payload([serving, undercount, tile({ id: 'sql-warehouse', amount: 0.2 })]));
+    expect(view.amount).toMatch(/^At least /);
+  });
+
+  it('keeps a plain figure when every app cost is fully measured', () => {
+    const serving = tile({ id: 'serving-endpoint', amount: 64, marginalAmount: 0.2 });
+    const view = questionCostCardView(
+      payload([serving, tile({ id: 'foundation-model', amount: 0.4 }), tile({ id: 'sql-warehouse', amount: 0.2 })])
+    );
+    expect(view.amount).not.toMatch(/^At least /);
+  });
+
   it('marks the full cost per question as a lower bound when an app cost is unmeasured', () => {
     const serving = tile({ id: 'serving-endpoint', amount: 64, marginalAmount: 0.2 });
     const unmeasured = tile({ id: 'sql-warehouse', amount: null });

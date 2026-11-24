@@ -31,6 +31,16 @@ describe('deployment variables', () => {
     expect(JSON.parse((await readVariableScope(store, 'release')) ?? '{}')).toEqual({ PLAYER_INSIGHTS_CATALOG: 'new' });
   });
 
+  it('relabels a copied value when a release first states it, without a new revision or history', async () => {
+    const { store, history } = memoryDeploymentStore({
+      decisions: { release_environment_v1: JSON.stringify({ PLAYER_INSIGHTS_CATALOG: 'c' }) },
+    });
+    await readVariableScope(store, 'release');
+    await writeVariableScope(store, 'release', { PLAYER_INSIGHTS_CATALOG: 'c' }, 'release', 'app boot');
+    expect(await listDeploymentVariables(store)).toMatchObject([{ source: 'release', revision: 1 }]);
+    expect(history).toHaveLength(1);
+  });
+
   it('records history only for values that changed or were removed', async () => {
     const { store, history } = memoryDeploymentStore();
     await writeVariableScope(store, 'release', { A: '1', B: '2' }, 'release', 'app boot');

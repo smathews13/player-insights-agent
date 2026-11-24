@@ -114,7 +114,9 @@ async function readScopeRows(store: DecisionStore, scope: VariableScope): Promis
 /**
  * Replace one scope with `values`, recording a history row for every value that
  * changed or was removed. Unchanged values write nothing, so a release boot that
- * restates the same configuration leaves no trail. Never throws.
+ * restates the same configuration leaves no trail, except that a value copied
+ * from the legacy blob takes the first real writer's source without a new
+ * revision. Never throws.
  */
 export async function writeVariableScope(
   store: DecisionStore,
@@ -139,14 +141,19 @@ export async function writeVariableScope(
          INSERT INTO ${table} AS v (scope, name, value, source, revision, updated_by, updated_at)
          SELECT $1, i.name, i.value, $4, 1, $5, now() FROM input i
          ON CONFLICT (scope, name) DO UPDATE
-           SET value = EXCLUDED.value, source = EXCLUDED.source, revision = v.revision + 1,
+           SET value = EXCLUDED.value, source = EXCLUDED.source,
+               revision = v.revision + CASE WHEN v.value IS DISTINCT FROM EXCLUDED.value THEN 1 ELSE 0 END,
                updated_by = EXCLUDED.updated_by, updated_at = now()
-           WHERE v.value IS DISTINCT FROM EXCLUDED.value
+           WHERE v.value IS DISTINCT FROM EXCLUDED.value OR v.source = 'migrated'
          RETURNING v.name, v.value, v.revision
+       ),
+       previous AS (
+         SELECT p.name, p.value FROM ${table} p WHERE p.scope = $1
        ),
        history AS (
          INSERT INTO ${historyTable()} (scope, name, value, source, revision, changed_by)
-         SELECT $1, name, value, $4, revision, $5 FROM upserted
+         SELECT $1, u.name, u.value, $4, u.revision, $5 FROM upserted u
+          WHERE NOT EXISTS (SELECT 1 FROM previous p WHERE p.name = u.name AND p.value = u.value)
          UNION ALL
          SELECT $1, name, NULL, $4, revision + 1, $5 FROM removed
        )
